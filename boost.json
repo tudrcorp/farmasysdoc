@@ -1,16 +1,21 @@
 {
     "agents": [
-        "cursor",
-        "claude_code"
+        "cursor"
     ],
     "guidelines": true,
-    "herd_mcp": false,
+    "herd_mcp": true,
     "mcp": true,
     "nightwatch_mcp": false,
+    "packages": [
+        "filament/filament",
+        "laravel/fortify"
+    ],
     "sail": false,
     "skills": [
         "fluxui-development",
         "livewire-development",
-        "pest-testing"
+        "pest-testing",
+        "tailwindcss-development",
+        "fortify-development"
     ]
 }

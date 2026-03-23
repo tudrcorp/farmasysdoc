@@ -2,3 +2,849 @@
 
 @source '../../../../app/Filament/**/*';
 @source '../../../../resources/views/filament/**/*';
+
+/*
+ * Topbar estilo iOS (cristal esmerilado): fondo translúcido + backdrop blur.
+ * Filament usa .fi-topbar-ctn (sticky) y .fi-topbar (barra visible).
+ */
+.fi-topbar-ctn {
+    /* Asegura que el blur no se “contamine” con capas vecinas de forma extraña */
+    isolation: isolate;
+}
+
+.fi-topbar {
+    /* Vidrio: blur + opacidad (sin textura de ruido) */
+    background-color: rgb(255 255 255 / 0.92);
+    backdrop-filter: saturate(200%) blur(64px);
+    -webkit-backdrop-filter: saturate(200%) blur(64px);
+    /* Highlight superior + contorno + sombra proyectada para resaltar la barra */
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.45),
+        0 1px 0 rgb(0 0 0 / 0.04),
+        0 0 0 1px rgb(0 0 0 / 0.05),
+        0 4px 6px rgb(0 0 0 / 0.04),
+        0 10px 24px rgb(0 0 0 / 0.08);
+}
+
+.dark .fi-topbar {
+    background-color: rgb(17 24 39 / 0.94);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.06),
+        0 1px 0 rgb(0 0 0 / 0.25),
+        0 0 0 1px rgb(255 255 255 / 0.08),
+        0 4px 12px rgb(0 0 0 / 0.35),
+        0 12px 28px rgb(0 0 0 / 0.45);
+}
+
+/*
+ * Sidebar: hovers más legibles y acordes a la marca (tinte primary + vidrio ligero).
+ * Sobrescribe el gris plano de Filament con feedback más claro en :hover y :focus-visible.
+ */
+.fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn {
+    border-radius: 0.875rem;
+    transition:
+        background-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.22s cubic-bezier(0.34, 1.2, 0.64, 1),
+        color 0.2s ease,
+        border-color 0.2s ease;
+}
+
+/*
+ * Ítem activo (ruta actual): acento lateral + “pill” con marca, sin depender solo del gris Filament.
+ */
+.fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn {
+    border-inline-start: 3px solid var(--color-primary-500);
+    padding-inline-start: calc(0.5rem - 3px);
+    background-color: rgb(252 228 34 / 0.26);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.8),
+        0 0 0 1px rgb(252 228 34 / 0.45),
+        0 4px 18px rgb(0 0 0 / 0.07);
+    backdrop-filter: saturate(180%) blur(14px);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+}
+
+.fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-icon {
+    color: var(--color-primary-700);
+    filter: drop-shadow(0 1px 1px rgb(255 255 255 / 0.35));
+}
+
+.fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-sidebar-item-label {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--color-primary-950);
+}
+
+.fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn .fi-sidebar-item-grouped-border-part {
+    background-color: var(--color-primary-500);
+}
+
+.dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn {
+    background-color: rgb(252 228 34 / 0.16);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.12),
+        0 0 0 1px rgb(252 228 34 / 0.38),
+        0 6px 22px rgb(0 0 0 / 0.35);
+}
+
+.dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-icon {
+    color: var(--color-primary-300);
+    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.45));
+}
+
+.dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-sidebar-item-label {
+    color: var(--color-primary-100);
+}
+
+/* Grupo de navegación con ítem activo: cabecera alineada visualmente */
+.fi-sidebar .fi-sidebar-group.fi-active > .fi-sidebar-group-btn .fi-sidebar-group-label {
+    font-weight: 600;
+    color: var(--color-primary-800);
+    letter-spacing: -0.01em;
+}
+
+.fi-sidebar .fi-sidebar-group.fi-active > .fi-sidebar-group-btn > .fi-icon {
+    color: var(--color-primary-600);
+}
+
+.dark .fi-sidebar .fi-sidebar-group.fi-active > .fi-sidebar-group-btn .fi-sidebar-group-label {
+    color: var(--color-primary-200);
+}
+
+.dark .fi-sidebar .fi-sidebar-group.fi-active > .fi-sidebar-group-btn > .fi-icon {
+    color: var(--color-primary-400);
+}
+
+.fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url:not(.fi-active) > .fi-sidebar-item-btn:hover,
+.fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url:not(.fi-active) > .fi-sidebar-item-btn:focus-visible {
+    background-color: rgb(252 228 34 / 0.18);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.65),
+        0 0 0 1px rgb(252 228 34 / 0.28),
+        0 4px 14px rgb(0 0 0 / 0.06);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+}
+
+.dark .fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url:not(.fi-active) > .fi-sidebar-item-btn:hover,
+.dark .fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url:not(.fi-active) > .fi-sidebar-item-btn:focus-visible {
+    background-color: rgb(252 228 34 / 0.12);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.1),
+        0 0 0 1px rgb(252 228 34 / 0.22),
+        0 4px 18px rgb(0 0 0 / 0.25);
+}
+
+.fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url:not(.fi-active) > .fi-sidebar-item-btn:hover > .fi-icon,
+.fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url:not(.fi-active) > .fi-sidebar-item-btn:focus-visible > .fi-icon {
+    color: var(--color-primary-600);
+}
+
+.dark .fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url:not(.fi-active) > .fi-sidebar-item-btn:hover > .fi-icon,
+.dark .fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url:not(.fi-active) > .fi-sidebar-item-btn:focus-visible > .fi-icon {
+    color: var(--color-primary-400);
+}
+
+.fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:hover,
+.fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:focus-visible {
+    background-color: rgb(252 228 34 / 0.34);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.85),
+        0 0 0 1px rgb(252 228 34 / 0.55),
+        0 6px 20px rgb(0 0 0 / 0.09);
+    backdrop-filter: saturate(190%) blur(16px);
+    -webkit-backdrop-filter: saturate(190%) blur(16px);
+}
+
+.dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:hover,
+.dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:focus-visible {
+    background-color: rgb(252 228 34 / 0.24);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.14),
+        0 0 0 1px rgb(252 228 34 / 0.48),
+        0 8px 24px rgb(0 0 0 / 0.38);
+}
+
+.fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn:active {
+    transform: scale(0.985);
+}
+
+.fi-sidebar .fi-sidebar-group-dropdown-trigger-btn {
+    border-radius: 0.875rem;
+    transition:
+        background-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.22s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.fi-sidebar .fi-sidebar-group-dropdown-trigger-btn:hover,
+.fi-sidebar .fi-sidebar-group-dropdown-trigger-btn:focus-visible {
+    background-color: rgb(252 228 34 / 0.2);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.55),
+        0 0 0 1px rgb(252 228 34 / 0.3);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+}
+
+.dark .fi-sidebar .fi-sidebar-group-dropdown-trigger-btn:hover,
+.dark .fi-sidebar .fi-sidebar-group-dropdown-trigger-btn:focus-visible {
+    background-color: rgb(252 228 34 / 0.14);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.08),
+        0 0 0 1px rgb(252 228 34 / 0.24);
+}
+
+.fi-sidebar .fi-sidebar-group-dropdown-trigger-btn:hover > .fi-icon,
+.fi-sidebar .fi-sidebar-group-dropdown-trigger-btn:focus-visible > .fi-icon {
+    color: var(--color-primary-600);
+}
+
+.dark .fi-sidebar .fi-sidebar-group-dropdown-trigger-btn:hover > .fi-icon,
+.dark .fi-sidebar .fi-sidebar-group-dropdown-trigger-btn:focus-visible > .fi-icon {
+    color: var(--color-primary-400);
+}
+
+.fi-sidebar .fi-sidebar-database-notifications-btn {
+    border-radius: 0.875rem;
+    transition:
+        background-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.22s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.fi-sidebar .fi-sidebar-database-notifications-btn:hover,
+.fi-sidebar .fi-sidebar-database-notifications-btn:focus-visible {
+    background-color: rgb(252 228 34 / 0.18);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.55),
+        0 0 0 1px rgb(252 228 34 / 0.26);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+}
+
+.dark .fi-sidebar .fi-sidebar-database-notifications-btn:hover,
+.dark .fi-sidebar .fi-sidebar-database-notifications-btn:focus-visible {
+    background-color: rgb(252 228 34 / 0.12);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.08),
+        0 0 0 1px rgb(252 228 34 / 0.2);
+}
+
+.fi-sidebar .fi-sidebar-group.fi-collapsible > .fi-sidebar-group-btn {
+    margin-inline: -0.125rem;
+    border-radius: 0.75rem;
+    padding-inline: 0.625rem;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fi-sidebar .fi-sidebar-group.fi-collapsible > .fi-sidebar-group-btn:hover {
+    background-color: rgb(0 0 0 / 0.04);
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.05);
+}
+
+.dark .fi-sidebar .fi-sidebar-group.fi-collapsible > .fi-sidebar-group-btn:hover {
+    background-color: rgb(255 255 255 / 0.06);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .fi-topbar {
+        background-color: rgb(255 255 255 / 0.96);
+    }
+
+    .dark .fi-topbar {
+        background-color: rgb(17 24 39 / 0.96);
+    }
+
+    .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn,
+    .fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url:not(.fi-active) > .fi-sidebar-item-btn:hover,
+    .fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url:not(.fi-active) > .fi-sidebar-item-btn:focus-visible,
+    .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:hover,
+    .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:focus-visible,
+    .fi-sidebar .fi-sidebar-group-dropdown-trigger-btn:hover,
+    .fi-sidebar .fi-sidebar-group-dropdown-trigger-btn:focus-visible,
+    .fi-sidebar .fi-sidebar-database-notifications-btn:hover,
+    .fi-sidebar .fi-sidebar-database-notifications-btn:focus-visible {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    /* Formularios: sin blur, fondos casi opacos */
+    .fi-section:not(.fi-section-not-contained):not(.fi-aside),
+    .fi-section.fi-aside:not(.fi-section-not-contained) > .fi-section-content-ctn,
+    .fi-sc-tabs.fi-contained {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        background-color: rgb(255 255 255 / 0.98);
+    }
+
+    .dark .fi-section:not(.fi-section-not-contained):not(.fi-aside),
+    .dark .fi-section.fi-aside:not(.fi-section-not-contained) > .fi-section-content-ctn,
+    .dark .fi-sc-tabs.fi-contained {
+        background-color: rgb(17 24 39 / 0.98);
+    }
+
+    .fi-input-wrp {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        background-color: rgb(255 255 255 / 0.98);
+    }
+
+    .dark .fi-input-wrp {
+        background-color: rgb(30 41 59 / 0.95);
+    }
+
+    /* Tablas: sin blur */
+    .fi-ta-ctn {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        background-color: rgb(255 255 255 / 0.98);
+    }
+
+    .dark .fi-ta-ctn {
+        background-color: rgb(17 24 39 / 0.98);
+    }
+
+    .fi-ta-ctn .fi-ta-table thead,
+    .fi-ta-ctn .fi-ta-header,
+    .fi-ta-ctn .fi-ta-header-toolbar,
+    .fi-ta-ctn .fi-pagination,
+    .fi-ta-ctn .fi-ta-selection-indicator,
+    .fi-ta-ctn .fi-ta-filter-indicators,
+    .fi-ta-ctn .fi-ta-reorder-indicator {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    .fi-ta-ctn .fi-ta-filters-above-content-ctn,
+    .fi-ta-ctn .fi-ta-filters-before-content-ctn,
+    .fi-ta-ctn .fi-ta-filters-after-content-ctn {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        background-color: rgb(255 255 255 / 0.98);
+    }
+
+    .dark .fi-ta-ctn .fi-ta-filters-above-content-ctn,
+    .dark .fi-ta-ctn .fi-ta-filters-before-content-ctn,
+    .dark .fi-ta-ctn .fi-ta-filters-after-content-ctn {
+        background-color: rgb(17 24 39 / 0.98);
+    }
+
+    .fi-ta-ctn .fi-ta-content.fi-ta-content-grid .fi-ta-record:not(.fi-selected) {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    /* Botones: sin blur en materiales */
+    .fi-btn:not(.fi-color):not(.fi-outlined),
+    .fi-btn.fi-outlined:not(.fi-color),
+    .fi-btn.fi-outlined.fi-color,
+    .fi-pagination-items,
+    .fi-dropdown-panel {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    .fi-btn:not(.fi-color):not(.fi-outlined) {
+        background-color: rgb(255 255 255 / 0.96);
+    }
+
+    .dark .fi-btn:not(.fi-color):not(.fi-outlined) {
+        background-color: rgb(31 41 55 / 0.95);
+    }
+
+    .fi-btn.fi-outlined:not(.fi-color) {
+        background-color: rgb(255 255 255 / 0.9);
+    }
+
+    .dark .fi-btn.fi-outlined:not(.fi-color) {
+        background-color: rgb(31 41 55 / 0.9);
+    }
+
+    .fi-pagination-items {
+        background-color: rgb(255 255 255 / 0.96);
+    }
+
+    .dark .fi-pagination-items {
+        background-color: rgb(31 41 55 / 0.95);
+    }
+
+    .fi-dropdown-panel {
+        background-color: rgb(255 255 255 / 0.98);
+    }
+
+    .dark .fi-dropdown-panel {
+        background-color: rgb(17 24 39 / 0.98);
+    }
+}
+
+/*
+ * Formularios estilo iOS: secciones tipo “card” de vidrio, campos más redondeados y blur suave.
+ * Selectores alineados con Filament v5 (.fi-section, .fi-input-wrp, .fi-sc-form, .fi-sc-tabs).
+ */
+.fi-sc-form {
+    gap: 1.75rem;
+}
+
+/* Tarjetas de sección (formularios con Section contenida) */
+.fi-section:not(.fi-section-not-contained):not(.fi-aside) {
+    border-radius: 1.25rem;
+    background-color: rgb(255 255 255 / 0.86);
+    backdrop-filter: saturate(180%) blur(40px);
+    -webkit-backdrop-filter: saturate(180%) blur(40px);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.55),
+        0 0 0 1px rgb(0 0 0 / 0.05),
+        0 4px 12px rgb(0 0 0 / 0.05),
+        0 12px 32px rgb(0 0 0 / 0.06);
+}
+
+.fi-section.fi-secondary:not(.fi-section-not-contained):not(.fi-aside) {
+    background-color: rgb(249 250 251 / 0.92);
+}
+
+.dark .fi-section:not(.fi-section-not-contained):not(.fi-aside) {
+    background-color: rgb(17 24 39 / 0.9);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.08),
+        0 0 0 1px rgb(255 255 255 / 0.08),
+        0 4px 16px rgb(0 0 0 / 0.35),
+        0 14px 36px rgb(0 0 0 / 0.35);
+}
+
+.dark .fi-section.fi-secondary:not(.fi-section-not-contained):not(.fi-aside) {
+    background-color: rgb(31 41 55 / 0.75);
+}
+
+/* Layout aside: la “card” vive en el contenedor de contenido */
+.fi-section.fi-aside:not(.fi-section-not-contained) > .fi-section-content-ctn {
+    border-radius: 1.25rem;
+    background-color: rgb(255 255 255 / 0.86);
+    backdrop-filter: saturate(180%) blur(40px);
+    -webkit-backdrop-filter: saturate(180%) blur(40px);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.55),
+        0 0 0 1px rgb(0 0 0 / 0.05),
+        0 4px 12px rgb(0 0 0 / 0.05),
+        0 12px 32px rgb(0 0 0 / 0.06);
+}
+
+.dark .fi-section.fi-aside:not(.fi-section-not-contained) > .fi-section-content-ctn {
+    background-color: rgb(17 24 39 / 0.9);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.08),
+        0 0 0 1px rgb(255 255 255 / 0.08),
+        0 4px 16px rgb(0 0 0 / 0.35),
+        0 14px 36px rgb(0 0 0 / 0.35);
+}
+
+.fi-section:not(.fi-section-not-contained):not(.fi-aside).fi-compact {
+    border-radius: 1rem;
+}
+
+.fi-section.fi-aside:not(.fi-section-not-contained).fi-compact > .fi-section-content-ctn {
+    border-radius: 1rem;
+}
+
+/* Pestañas contenidas (schemas con tabs) */
+.fi-sc-tabs.fi-contained {
+    border-radius: 1.25rem;
+    background-color: rgb(255 255 255 / 0.86);
+    backdrop-filter: saturate(180%) blur(40px);
+    -webkit-backdrop-filter: saturate(180%) blur(40px);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.55),
+        0 0 0 1px rgb(0 0 0 / 0.05),
+        0 4px 12px rgb(0 0 0 / 0.05),
+        0 12px 32px rgb(0 0 0 / 0.06);
+}
+
+.dark .fi-sc-tabs.fi-contained {
+    background-color: rgb(17 24 39 / 0.9);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.08),
+        0 0 0 1px rgb(255 255 255 / 0.08),
+        0 4px 16px rgb(0 0 0 / 0.35),
+        0 14px 36px rgb(0 0 0 / 0.35);
+}
+
+/* Campos: inputs, selects, date pickers, etc. (no tocar box-shadow: conserva ring y foco de Filament) */
+.fi-input-wrp {
+    border-radius: 0.9375rem;
+    background-color: rgb(255 255 255 / 0.94);
+    backdrop-filter: saturate(180%) blur(18px);
+    -webkit-backdrop-filter: saturate(180%) blur(18px);
+}
+
+.dark .fi-input-wrp {
+    background-color: rgb(30 41 59 / 0.72);
+}
+
+.fi-input-wrp.fi-disabled {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    background-color: rgb(249 250 251 / 0.98);
+}
+
+.dark .fi-input-wrp.fi-disabled {
+    background-color: rgb(15 23 42 / 0.55);
+}
+
+/*
+ * Tablas Filament (List* pages, relation managers, widgets): contenedor .fi-ta-ctn
+ * y zonas internas con el mismo lenguaje visual iOS (vidrio, cabecera tipo “grouped”).
+ */
+.fi-ta-ctn {
+    isolation: isolate;
+    /*
+     * Sin overflow:hidden: recortaba paneles anclados a la toolbar (p. ej. visibilidad de columnas).
+     * El cierre visual de la card se logra con radio en el último bloque (ver reglas siguientes).
+     */
+    overflow: visible;
+    border-radius: 1.25rem;
+    background-color: rgb(255 255 255 / 0.86);
+    backdrop-filter: saturate(180%) blur(40px);
+    -webkit-backdrop-filter: saturate(180%) blur(40px);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.55),
+        0 0 0 1px rgb(0 0 0 / 0.05),
+        0 4px 12px rgb(0 0 0 / 0.05),
+        0 12px 32px rgb(0 0 0 / 0.06);
+}
+
+/*
+ * Esquinas del bloque de la tabla: el recorte va solo en .fi-ta-content-ctn (no incluye la toolbar),
+ * así el menú de columnas no se corta y el <table> deja de asomar en rectángulo en las curvas del card.
+ */
+.fi-ta-ctn:not(.fi-ta-ctn-with-footer) .fi-ta-content-ctn {
+    border-end-end-radius: 1.25rem;
+    border-end-start-radius: 1.25rem;
+    overflow: auto;
+}
+
+.fi-ta-ctn.fi-ta-ctn-with-footer .fi-ta-content-ctn {
+    border-end-end-radius: 0;
+    border-end-start-radius: 0;
+}
+
+/* Pie de la card: paginación, filtros bajo la tabla o vacío (último hijo distinto del bloque tabla) */
+.fi-ta-ctn > .fi-ta-main:last-child > :last-child:not(.fi-ta-content-ctn) {
+    border-end-end-radius: 1.25rem;
+    border-end-start-radius: 1.25rem;
+    overflow: hidden;
+}
+
+.fi-ta-ctn > .fi-ta-filters-after-content-ctn:last-child {
+    border-end-end-radius: 1.25rem;
+    border-end-start-radius: 1.25rem;
+    overflow: hidden;
+}
+
+.dark .fi-ta-ctn {
+    background-color: rgb(17 24 39 / 0.9);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.08),
+        0 0 0 1px rgb(255 255 255 / 0.08),
+        0 4px 16px rgb(0 0 0 / 0.35),
+        0 14px 36px rgb(0 0 0 / 0.35);
+}
+
+/* Título / descripción encima de la tabla */
+.fi-ta-ctn .fi-ta-header {
+    background-color: rgb(255 255 255 / 0.45);
+    backdrop-filter: saturate(180%) blur(18px);
+    -webkit-backdrop-filter: saturate(180%) blur(18px);
+}
+
+.dark .fi-ta-ctn .fi-ta-header {
+    background-color: rgb(17 24 39 / 0.5);
+}
+
+/* Barra de herramientas (búsqueda, filtros, columnas) */
+.fi-ta-ctn .fi-ta-header-toolbar {
+    background-color: rgb(249 250 251 / 0.55);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+}
+
+.dark .fi-ta-ctn .fi-ta-header-toolbar {
+    background-color: rgb(31 41 55 / 0.55);
+}
+
+/* Cabecera de columnas */
+.fi-ta-ctn .fi-ta-table thead {
+    background-color: rgb(249 250 251 / 0.72);
+    backdrop-filter: saturate(180%) blur(22px);
+    -webkit-backdrop-filter: saturate(180%) blur(22px);
+    box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.05);
+}
+
+.dark .fi-ta-ctn .fi-ta-table thead {
+    background-color: rgb(31 41 55 / 0.78);
+    box-shadow: inset 0 -1px 0 rgb(255 255 255 / 0.06);
+}
+
+/* Filas clicables: hover un poco más marcado (estilo lista iOS) */
+.fi-ta-ctn .fi-ta-row.fi-clickable:hover {
+    background-color: rgb(243 244 246 / 0.92) !important;
+}
+
+.dark .fi-ta-ctn .fi-ta-row.fi-clickable:hover {
+    background-color: rgb(255 255 255 / 0.08) !important;
+}
+
+/* Barras de selección, filtros activos y reordenar */
+.fi-ta-ctn .fi-ta-selection-indicator,
+.fi-ta-ctn .fi-ta-filter-indicators,
+.fi-ta-ctn .fi-ta-reorder-indicator {
+    background-color: rgb(249 250 251 / 0.65);
+    backdrop-filter: saturate(180%) blur(14px);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+}
+
+.dark .fi-ta-ctn .fi-ta-selection-indicator,
+.dark .fi-ta-ctn .fi-ta-filter-indicators,
+.dark .fi-ta-ctn .fi-ta-reorder-indicator {
+    background-color: rgb(31 41 55 / 0.65);
+}
+
+/* Paginación inferior */
+.fi-ta-ctn .fi-pagination {
+    background-color: rgb(249 250 251 / 0.5);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+}
+
+.dark .fi-ta-ctn .fi-pagination {
+    background-color: rgb(31 41 55 / 0.5);
+}
+
+/* Filtros desplegables sobre el contenido (móvil): coherencia con la tarjeta */
+.fi-ta-ctn .fi-ta-filters-above-content-ctn,
+.fi-ta-ctn .fi-ta-filters-before-content-ctn,
+.fi-ta-ctn .fi-ta-filters-after-content-ctn {
+    border-radius: 1rem;
+    background-color: rgb(255 255 255 / 0.94);
+    backdrop-filter: saturate(180%) blur(24px);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    box-shadow:
+        0 0 0 1px rgb(0 0 0 / 0.06),
+        0 12px 40px rgb(0 0 0 / 0.12);
+}
+
+.dark .fi-ta-ctn .fi-ta-filters-above-content-ctn,
+.dark .fi-ta-ctn .fi-ta-filters-before-content-ctn,
+.dark .fi-ta-ctn .fi-ta-filters-after-content-ctn {
+    background-color: rgb(17 24 39 / 0.94);
+    box-shadow:
+        0 0 0 1px rgb(255 255 255 / 0.1),
+        0 12px 40px rgb(0 0 0 / 0.45);
+}
+
+/* Vista en cuadrícula (registros como tarjetas) */
+.fi-ta-ctn .fi-ta-content.fi-ta-content-grid .fi-ta-record:not(.fi-selected) {
+    border-radius: 1.125rem;
+    background-color: rgb(255 255 255 / 0.88);
+    backdrop-filter: saturate(180%) blur(22px);
+    -webkit-backdrop-filter: saturate(180%) blur(22px);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.55),
+        0 0 0 1px rgb(0 0 0 / 0.05),
+        0 4px 14px rgb(0 0 0 / 0.06);
+}
+
+.dark .fi-ta-ctn .fi-ta-content.fi-ta-content-grid .fi-ta-record:not(.fi-selected) {
+    background-color: rgb(31 41 55 / 0.75);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.08),
+        0 0 0 1px rgb(255 255 255 / 0.08),
+        0 4px 16px rgb(0 0 0 / 0.25);
+}
+
+.fi-ta-ctn .fi-ta-content.fi-ta-content-grid .fi-ta-record.fi-selected {
+    background-color: rgb(239 246 255 / 0.95);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+}
+
+.dark .fi-ta-ctn .fi-ta-content.fi-ta-content-grid .fi-ta-record.fi-selected {
+    background-color: rgb(30 58 138 / 0.35);
+}
+
+/*
+ * Botones estilo iOS (HIG reciente): esquinas continuas ~15px, material vibrante en neutros,
+ * botones rellenos con highlight superior, feedback táctil scale, iconos circulares.
+ */
+.fi-btn {
+    border-radius: 0.9375rem;
+    transition:
+        transform 0.22s cubic-bezier(0.34, 1.2, 0.64, 1),
+        background-color 0.2s ease,
+        box-shadow 0.2s ease,
+        opacity 0.2s ease,
+        color 0.2s ease;
+}
+
+.fi-btn:not(.fi-disabled):not([disabled]):active {
+    transform: scale(0.97);
+}
+
+/* Neutros (filled): vidrio ligero (sin box-shadow: conserva ring y foco de Filament) */
+.fi-btn:not(.fi-color):not(.fi-outlined) {
+    background-color: rgb(255 255 255 / 0.82);
+    backdrop-filter: saturate(180%) blur(14px);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+}
+
+.dark .fi-btn:not(.fi-color):not(.fi-outlined) {
+    background-color: rgb(255 255 255 / 0.1);
+}
+
+/* Contorno / secondary outlined */
+.fi-btn.fi-outlined:not(.fi-color) {
+    background-color: rgb(255 255 255 / 0.38);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+}
+
+.dark .fi-btn.fi-outlined:not(.fi-color) {
+    background-color: rgb(255 255 255 / 0.06);
+}
+
+.fi-btn.fi-outlined.fi-color {
+    background-color: rgb(255 255 255 / 0.12);
+    backdrop-filter: saturate(180%) blur(10px);
+    -webkit-backdrop-filter: saturate(180%) blur(10px);
+}
+
+.dark .fi-btn.fi-outlined.fi-color {
+    background-color: rgb(255 255 255 / 0.08);
+}
+
+/* Primarios y semantic filled: radio iOS (sin box-shadow para no pisar ring/focus de Filament) */
+.fi-btn.fi-color:not(label):not(.fi-outlined) {
+    border-radius: 0.9375rem;
+}
+
+/* Grupo tipo control segmentado */
+.fi-btn-group {
+    border-radius: 0.9375rem;
+    overflow: hidden;
+}
+
+.fi-btn-group > .fi-btn:nth-child(1 of .fi-btn) {
+    border-start-start-radius: 0.9375rem;
+    border-end-start-radius: 0.9375rem;
+}
+
+.fi-btn-group > .fi-btn:nth-last-child(1 of .fi-btn) {
+    border-start-end-radius: 0.9375rem;
+    border-end-end-radius: 0.9375rem;
+}
+
+/* Icon-only (toolbar, cerrar, etc.) */
+.fi-icon-btn {
+    border-radius: 9999px;
+    transition:
+        transform 0.2s cubic-bezier(0.34, 1.2, 0.64, 1),
+        background-color 0.2s ease,
+        color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.fi-icon-btn:not(.fi-disabled):not([disabled]):active {
+    transform: scale(0.92);
+}
+
+.fi-icon-btn:not(.fi-disabled):not([disabled]):hover {
+    background-color: rgb(0 0 0 / 0.06);
+    backdrop-filter: saturate(180%) blur(10px);
+    -webkit-backdrop-filter: saturate(180%) blur(10px);
+}
+
+.dark .fi-icon-btn:not(.fi-disabled):not([disabled]):hover {
+    background-color: rgb(255 255 255 / 0.1);
+}
+
+/* Paginación: contenedor segmentado (conserva sombra/anillo de Filament) */
+.fi-pagination-items {
+    border-radius: 0.9375rem;
+    background-color: rgb(255 255 255 / 0.78);
+    backdrop-filter: saturate(180%) blur(14px);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+}
+
+.dark .fi-pagination-items {
+    background-color: rgb(255 255 255 / 0.08);
+}
+
+.fi-pagination-item:first-of-type .fi-pagination-item-btn {
+    border-start-start-radius: 0.9375rem;
+    border-end-start-radius: 0.9375rem;
+}
+
+.fi-pagination-item:last-of-type .fi-pagination-item-btn {
+    border-start-end-radius: 0.9375rem;
+    border-end-end-radius: 0.9375rem;
+}
+
+.fi-pagination-item-btn {
+    transition: transform 0.2s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.fi-pagination-item-btn:not(:disabled):active {
+    transform: scale(0.96);
+}
+
+/* Menús desplegables (acciones en filas, usuario, etc.) */
+.fi-dropdown-panel {
+    border-radius: 1rem !important;
+    background-color: rgb(255 255 255 / 0.92);
+    backdrop-filter: saturate(180%) blur(36px);
+    -webkit-backdrop-filter: saturate(180%) blur(36px);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.55),
+        0 0 0 1px rgb(0 0 0 / 0.05),
+        0 12px 40px rgb(0 0 0 / 0.14);
+}
+
+.dark .fi-dropdown-panel {
+    background-color: rgb(17 24 39 / 0.92);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.08),
+        0 0 0 1px rgb(255 255 255 / 0.1),
+        0 12px 40px rgb(0 0 0 / 0.45);
+}
+
+/* Enlaces tipo “text button” */
+.fi-link:not(.fi-disabled):not([disabled]) {
+    border-radius: 0.375rem;
+    transition: color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fi-link:not(.fi-disabled):not([disabled]):active {
+    transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fi-btn,
+    .fi-icon-btn,
+    .fi-pagination-item-btn,
+    .fi-link:not(.fi-disabled):not([disabled]),
+    .fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn,
+    .fi-sidebar .fi-sidebar-group-dropdown-trigger-btn,
+    .fi-sidebar .fi-sidebar-database-notifications-btn,
+    .fi-sidebar .fi-sidebar-group.fi-collapsible > .fi-sidebar-group-btn {
+        transition-duration: 0.01ms !important;
+    }
+
+    .fi-btn:not(.fi-disabled):not([disabled]):active,
+    .fi-icon-btn:not(.fi-disabled):not([disabled]):active,
+    .fi-pagination-item-btn:not(:disabled):active,
+    .fi-link:not(.fi-disabled):not([disabled]):active,
+    .fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn:active {
+        transform: none;
+    }
+}

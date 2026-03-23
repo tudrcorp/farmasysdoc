@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->text('two_factor_secret')->after('password')->nullable();
-            $table->text('two_factor_recovery_codes')->after('two_factor_secret')->nullable();
-            $table->timestamp('two_factor_confirmed_at')->after('two_factor_recovery_codes')->nullable();
+            $table->text('two_factor_secret')->after('password')->nullable()->comment('Secreto TOTP encriptado para autenticación de dos factores');
+            $table->text('two_factor_recovery_codes')->after('two_factor_secret')->nullable()->comment('Códigos de recuperación hasheados (uno por línea o JSON según implementación)');
+            $table->timestamp('two_factor_confirmed_at')->after('two_factor_recovery_codes')->nullable()->comment('Fecha en que el usuario confirmó el segundo factor');
         });
     }
 

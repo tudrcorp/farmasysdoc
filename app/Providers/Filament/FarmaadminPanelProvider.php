@@ -29,14 +29,20 @@ class FarmaadminPanelProvider extends PanelProvider
             ->id('farmaadmin')
             ->path('farmaadmin')
             ->viteTheme('resources/css/filament/farmaadmin/theme.css')
+            ->font('League Spartan')
             ->login()
             ->passwordReset()
             ->profile()
             ->emailVerification()
             ->emailChangeVerification()
             ->emailVerification()
+            ->brandLogo(asset('images/logos/farmadoc-ligth.png'))
+            ->darkModeBrandLogo(asset('images/logos/farmadoc-dark.png'))
+            ->brandLogoHeight('4.6rem')
             ->colors([
-                'primary' => Color::Amber,
+                'primary' => Color::hex('#FCE422'),
+                'info' => Color::hex('#18ACB2'),
+                'success' => Color::hex('#0E949A'),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')

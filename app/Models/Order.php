@@ -22,6 +22,7 @@ class Order extends Model
         'order_number',
         'client_id',
         'branch_id',
+        'partner_company_code',
         'status',
         'convenio_type',
         'convenio_partner_name',

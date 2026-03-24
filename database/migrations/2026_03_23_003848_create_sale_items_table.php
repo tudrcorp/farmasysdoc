@@ -13,9 +13,9 @@ return new class extends Migration
     {
         Schema::create('sale_items', function (Blueprint $table) {
             $table->id()->comment('Identificador único de la línea de venta');
-            $table->foreignId('sale_id')->constrained()->cascadeOnDelete()->comment('Venta a la que pertenece la línea');
-            $table->foreignId('product_id')->constrained()->cascadeOnDelete()->comment('Producto vendido');
-            $table->foreignId('inventory_id')->nullable()->constrained()->nullOnDelete()->comment('Inventario de sucursal desde el que se descontó stock');
+            $table->unsignedInteger('sale_id')->comment('Venta a la que pertenece la línea');
+            $table->unsignedInteger('product_id')->comment('Producto vendido');
+            $table->unsignedInteger('inventory_id')->nullable()->comment('Inventario de sucursal desde el que se descontó stock');
             $table->decimal('quantity', 12, 3)->comment('Cantidad vendida en unidades de medida del producto');
             $table->decimal('unit_price', 12, 2)->comment('Precio unitario aplicado en la venta');
             $table->decimal('discount_amount', 12, 2)->default(0)->comment('Descuento en valor monetario sobre la línea');

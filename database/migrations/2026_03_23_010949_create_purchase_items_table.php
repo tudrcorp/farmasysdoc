@@ -13,9 +13,9 @@ return new class extends Migration
     {
         Schema::create('purchase_items', function (Blueprint $table) {
             $table->id()->comment('Identificador único de la línea de compra');
-            $table->foreignId('purchase_id')->constrained()->cascadeOnDelete()->comment('Orden de compra a la que pertenece la línea');
-            $table->foreignId('product_id')->constrained()->restrictOnDelete()->comment('Producto comprado');
-            $table->foreignId('inventory_id')->nullable()->constrained()->nullOnDelete()->comment('Inventario de sucursal destino (opcional, al vincular recepción)');
+            $table->unsignedInteger('purchase_id')->comment('Orden de compra a la que pertenece la línea');
+            $table->unsignedInteger('product_id')->comment('Producto comprado');
+            $table->unsignedInteger('inventory_id')->nullable()->comment('Inventario de sucursal destino (opcional, al vincular recepción)');
             $table->decimal('quantity_ordered', 12, 3)->comment('Cantidad pedida al proveedor');
             $table->decimal('quantity_received', 12, 3)->default(0)->comment('Cantidad ya recibida (recepciones parciales)');
             $table->decimal('unit_cost', 12, 4)->comment('Costo unitario negociado en la compra');

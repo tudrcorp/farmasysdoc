@@ -1,5 +1,21 @@
 <?php
 
+declare(strict_types=1);
+
+/*
+|--------------------------------------------------------------------------
+| Entorno de prueba antes que PHPUnit ejecute phpunit.xml → bootstrap
+|--------------------------------------------------------------------------
+|
+| Pest carga este archivo en Kernel::boot, antes del bootstrap de PHPUnit.
+| Sin esto, la primera carga de Laravel puede leer .env (p. ej. MySQL) y
+| ignorar sqlite de phpunit.xml / tests/bootstrap.php.
+|
+*/
+
+require_once __DIR__.'/bootstrap.php';
+
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /*
@@ -13,8 +29,18 @@ use Tests\TestCase;
 |
 */
 
+/*
+|--------------------------------------------------------------------------
+| Base de datos en pruebas Feature
+|--------------------------------------------------------------------------
+|
+| RefreshDatabase ejecuta migrate:fresh en la conexión por defecto (sqlite :memory: vía
+| tests/bootstrap.php + phpunit.xml). TestCase::setUp() sigue bloqueando MySQL/Postgres y
+| SQLite en archivo distinto de testing.sqlite.
+|
+*/
 pest()->extend(TestCase::class)
-    ->use(Illuminate\Foundation\Testing\RefreshDatabase::class)
+    ->use(RefreshDatabase::class)
     ->in('Feature');
 
 /*

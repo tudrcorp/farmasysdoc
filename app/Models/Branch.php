@@ -16,7 +16,6 @@ class Branch extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'code',
         'name',
         'legal_name',
         'tax_id',
@@ -43,6 +42,13 @@ class Branch extends Model
             'is_headquarters' => 'boolean',
             'is_active' => 'boolean',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::created(function (Branch $branch): void {
+            $branch->forceFill(['code' => 'SUC-'.$branch->id])->saveQuietly();
+        });
     }
 
     /**

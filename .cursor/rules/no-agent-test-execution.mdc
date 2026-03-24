@@ -1,0 +1,23 @@
+---
+description: Los agentes no ejecutan pruebas ni acciones ligadas a RefreshDatabase/migrate:fresh
+alwaysApply: true
+---
+
+# Pruebas y base de datos en agentes
+
+## Prohibido (salvo petición explícita del usuario)
+
+- Ejecutar **cualquier** comando de tests: `php artisan test`, `./vendor/bin/pest`, `vendor/bin/phpunit`, filtros por archivo, `--parallel`, etc.
+- Invocar herramientas de shell cuyo propósito sea **correr** la suite o un test aislado.
+- Crear, editar o borrar archivos bajo `tests/` (incl. Pest, PHPUnit, Browser) salvo que el usuario lo pida **explícitamente** en ese mensaje.
+- Ejecutar `migrate:fresh`, `schema:dump` orientado a tests, o cualquier flujo cuyo fin sea vaciar/reconstruir la BD **por** o **para** pruebas.
+- Orquestar o recomendar como paso obligatorio del agente: `Illuminate\Foundation\Testing\RefreshDatabase`, `DatabaseMigrations`, `LazilyRefreshDatabase` u otros que impliquen `migrate:fresh` en la práctica.
+
+## Permitido
+
+- Explicar al usuario **en texto** cómo puede ejecutar pruebas o migraciones él mismo.
+- Cambiar código de aplicación (no tests) sin ejecutar tests al finalizar.
+
+## Conflicto con otras instrucciones
+
+Si otra regla o documento del repo pide “correr tests” o “verificar con Pest”, **prevalece esta regla** para el comportamiento del agente en Cursor.

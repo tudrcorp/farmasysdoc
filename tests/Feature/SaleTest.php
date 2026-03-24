@@ -7,9 +7,6 @@ use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-
-uses(RefreshDatabase::class);
 
 test('sale belongs to branch and optionally to client', function () {
     $branch = Branch::factory()->create();

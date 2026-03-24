@@ -64,3 +64,160 @@ select:focus[data-flux-control] {
 /* \[:where(&)\]:size-4 {
     @apply size-4;
 } */
+
+/*
+ * Fortify (login / registro / recuperar): misma línea visual que el login Filament (vidrio iOS, marca).
+ */
+.farmadoc-auth-card {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border-radius: 2rem;
+    border: 1px solid rgb(255 255 255 / 0.6);
+    background-color: rgb(255 255 255 / 0.75);
+    padding: 2rem 1.5rem;
+    box-shadow:
+        0 24px 80px -12px rgb(24 172 178 / 0.25),
+        0 0 0 1px rgb(6 182 212 / 0.15);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+}
+
+.dark .farmadoc-auth-card {
+    border-color: rgb(255 255 255 / 0.1);
+    background-color: rgb(24 24 27 / 0.55);
+    box-shadow:
+        0 24px 80px -12px rgb(0 0 0 / 0.65),
+        0 0 0 1px rgb(34 211 238 / 0.2);
+}
+
+.farmadoc-auth-card::before {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    inset: -1px;
+    border-radius: inherit;
+    background:
+        radial-gradient(120% 80% at 100% 0%, rgb(252 228 34 / 0.18), transparent 55%),
+        radial-gradient(120% 80% at 0% 100%, rgb(6 182 212 / 0.15), transparent 50%);
+    opacity: 0.9;
+}
+
+.dark .farmadoc-auth-card::before {
+    background:
+        radial-gradient(120% 80% at 100% 0%, rgb(252 228 34 / 0.08), transparent 55%),
+        radial-gradient(120% 80% at 0% 100%, rgb(6 182 212 / 0.1), transparent 50%);
+}
+
+.farmadoc-auth-card-inner {
+    position: relative;
+    z-index: 1;
+}
+
+.farmadoc-auth-logo {
+    filter: drop-shadow(0 12px 40px rgb(24 172 178 / 0.35));
+}
+
+.dark .farmadoc-auth-logo {
+    filter: drop-shadow(0 12px 48px rgb(24 172 178 / 0.25));
+}
+
+.farmadoc-auth-slogan {
+    margin: 0;
+    text-align: center;
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1.45;
+    color: rgb(14 116 144);
+    text-shadow:
+        0 0 40px rgb(24 172 178 / 0.35),
+        0 1px 0 rgb(255 255 255 / 0.45);
+}
+
+.dark .farmadoc-auth-slogan {
+    color: rgb(103 232 249);
+    text-shadow:
+        0 0 32px rgb(6 182 212 / 0.45),
+        0 1px 2px rgb(0 0 0 / 0.35);
+}
+
+/* Título / subtítulo alineados con el login Filament (.fi-simple-header-heading) */
+.farmadoc-auth-heading {
+    font-size: clamp(1.5rem, 4vw, 2rem);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    background-image: linear-gradient(
+        to right,
+        rgb(8 145 178),
+        rgb(13 148 136),
+        rgb(8 145 178)
+    );
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+}
+
+.dark .farmadoc-auth-heading {
+    background-image: linear-gradient(
+        to right,
+        rgb(103 232 249),
+        rgb(94 234 212),
+        rgb(103 232 249)
+    );
+    background-clip: text;
+    -webkit-background-clip: text;
+}
+
+.farmadoc-auth-subheading {
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: rgb(82 82 91);
+}
+
+.dark .farmadoc-auth-subheading {
+    color: rgb(212 212 216);
+}
+
+/* Botón principal (misma idea que .fi-simple-page .fi-btn.fi-color-primary en theme Filament) */
+.farmadoc-auth-form .farmadoc-auth-submit {
+    border-radius: 1rem;
+    font-weight: 700;
+    background-image: linear-gradient(
+        to right,
+        rgb(8 145 178),
+        rgb(13 148 136),
+        rgb(8 145 178)
+    );
+    background-size: 200% 100%;
+    border: none;
+    box-shadow:
+        0 20px 25px -5px rgb(8 145 178 / 0.35),
+        0 8px 10px -6px rgb(8 145 178 / 0.35);
+    transition:
+        background-position 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s ease,
+        transform 0.2s ease;
+}
+
+.farmadoc-auth-form .farmadoc-auth-submit:hover {
+    background-position: 100% 0;
+}
+
+.dark .farmadoc-auth-form .farmadoc-auth-submit {
+    background-image: linear-gradient(
+        to right,
+        rgb(6 182 212),
+        rgb(20 184 166),
+        rgb(6 182 212)
+    );
+    box-shadow:
+        0 20px 25px -5px rgb(0 0 0 / 0.5),
+        0 8px 10px -6px rgb(0 0 0 / 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .farmadoc-auth-form .farmadoc-auth-submit {
+        transition-duration: 0.01ms;
+    }
+}

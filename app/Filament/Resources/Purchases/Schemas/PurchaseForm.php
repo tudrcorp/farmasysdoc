@@ -69,13 +69,7 @@ class PurchaseForm
                                     ->prefixIcon(Heroicon::BuildingStorefront),
                                 Select::make('status')
                                     ->label('Estado')
-                                    ->options([
-                                        PurchaseStatus::Draft->value => 'Borrador',
-                                        PurchaseStatus::Ordered->value => 'Pedido al proveedor',
-                                        PurchaseStatus::PartiallyReceived->value => 'Recibido parcialmente',
-                                        PurchaseStatus::Received->value => 'Recibido',
-                                        PurchaseStatus::Cancelled->value => 'Cancelado',
-                                    ])
+                                    ->options(PurchaseStatus::options())
                                     ->native(false)
                                     ->searchable()
                                     ->required()

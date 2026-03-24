@@ -2,10 +2,12 @@
 
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Support\Facades\Notification;
 use Laravel\Fortify\Features;
 
-beforeEach(function () {
+beforeEach(function (): void {
+    $this->withoutMiddleware(PreventRequestForgery::class);
     $this->skipUnlessFortifyFeature(Features::resetPasswords());
 });
 

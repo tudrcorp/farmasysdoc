@@ -21,3 +21,6 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# SQLite dedicado a pruebas locales (si alguna vez se usa archivo en lugar de :memory:)
+/database/testing.sqlite

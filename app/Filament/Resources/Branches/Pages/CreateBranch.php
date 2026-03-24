@@ -9,12 +9,16 @@ class CreateBranch extends CreateRecord
 {
     protected static string $resource = BranchResource::class;
 
+    protected static ?string $title = 'Crear Nueva Sucursal';
+
     /**
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        unset($data['code']);
+
         $actor = auth()->user()?->email
             ?? auth()->user()?->name
             ?? 'sistema';

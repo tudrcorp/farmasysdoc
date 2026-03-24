@@ -65,12 +65,7 @@ class SaleForm
                                     ->prefixIcon(Heroicon::User),
                                 Select::make('status')
                                     ->label('Estado')
-                                    ->options([
-                                        SaleStatus::Draft->value => 'Borrador',
-                                        SaleStatus::Completed->value => 'Completada',
-                                        SaleStatus::Cancelled->value => 'Cancelada',
-                                        SaleStatus::Refunded->value => 'Reembolsada',
-                                    ])
+                                    ->options(SaleStatus::options())
                                     ->native(false)
                                     ->searchable()
                                     ->required()

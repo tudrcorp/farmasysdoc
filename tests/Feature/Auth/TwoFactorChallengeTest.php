@@ -1,9 +1,11 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Laravel\Fortify\Features;
 
-beforeEach(function () {
+beforeEach(function (): void {
+    $this->withoutMiddleware(PreventRequestForgery::class);
     $this->skipUnlessFortifyFeature(Features::twoFactorAuthentication());
 });
 

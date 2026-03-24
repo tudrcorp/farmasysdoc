@@ -2,11 +2,18 @@
 
 namespace App\Filament\Resources\Branches\Schemas;
 
+use App\Models\Branch;
+use App\Models\City;
+use App\Models\Country;
+use App\Models\State;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 
@@ -30,11 +37,17 @@ class BranchForm
                                     ->schema([
                                         TextInput::make('code')
                                             ->label('Código interno')
-                                            ->placeholder('Ej. SUC-001')
-                                            ->helperText('Único en el sistema. Úsalo en reportes y trazabilidad.')
-                                            ->required()
-                                            ->maxLength(50)
-                                            ->unique(ignoreRecord: true)
+                                            ->helperText('Se genera automáticamente al guardar: SUC- más el ID del registro (no editable).')
+                                            ->disabled()
+                                            ->dehydrated(false)
+                                            ->placeholder('Se asignará al guardar')
+                                            ->formatStateUsing(function (?string $state, $record): string {
+                                                if ($record instanceof Branch && $record->getKey()) {
+                                                    return 'SUC-000'.$record->getKey();
+                                                }
+
+                                                return '';
+                                            })
                                             ->prefixIcon(Heroicon::Hashtag)
                                             ->autocomplete('off')
                                             ->columnSpan(['default' => 1, 'lg' => 1]),
@@ -57,7 +70,14 @@ class BranchForm
                                 TextInput::make('tax_id')
                                     ->label('NIT / identificación fiscal')
                                     ->placeholder('Número sin guiones o con formato local')
-                                    ->helperText('Para facturación y convenios con terceros.')
+                                    ->helperText('Solo letras mayúsculas y números, sin espacios ni caracteres especiales.')
+                                    ->rule('regex:/^[A-Z0-9]+$/')
+                                    ->validationMessages([
+                                        'regex' => 'El NIT / identificación fiscal solo puede contener letras mayúsculas (A-Z) y números, sin espacios ni símbolos.',
+                                    ])
+                                    ->dehydrateStateUsing(fn (?string $state): ?string => filled($state)
+                                        ? strtoupper(str_replace(' ', '', $state))
+                                        : null)
                                     ->maxLength(50)
                                     ->prefixIcon(Heroicon::Identification)
                                     ->columnSpan(['default' => 1, 'sm' => 2]),
@@ -117,20 +137,67 @@ class BranchForm
                             'lg' => 3,
                         ])
                             ->schema([
-                                TextInput::make('city')
-                                    ->label('Ciudad')
-                                    ->maxLength(100)
-                                    ->prefixIcon(Heroicon::BuildingLibrary),
-                                TextInput::make('state')
-                                    ->label('Departamento / estado')
-                                    ->maxLength(100)
-                                    ->prefixIcon(Heroicon::Map),
-                                TextInput::make('country')
+                                Select::make('country')
                                     ->label('País')
                                     ->required()
-                                    ->default('Colombia')
-                                    ->maxLength(100)
+                                    ->default('Venezuela')
+                                    ->searchable()
+                                    ->preload()
+                                    ->native(false)
+                                    ->options(fn (): array => Country::query()
+                                        ->orderBy('name')
+                                        ->pluck('name', 'name')
+                                        ->all())
+                                    ->live()
+                                    ->afterStateUpdated(function (Set $set): void {
+                                        $set('state', null);
+                                        $set('city', null);
+                                    })
                                     ->prefixIcon(Heroicon::GlobeAlt),
+                                Select::make('state')
+                                    ->label('Departamento / estado')
+                                    ->searchable()
+                                    ->native(false)
+                                    ->disabled(fn (Get $get): bool => blank($get('country')))
+                                    ->options(function (Get $get): array {
+                                        $countryName = $get('country');
+
+                                        if (blank($countryName)) {
+                                            return [];
+                                        }
+
+                                        return State::query()
+                                            ->whereHas('country', fn ($query) => $query->where('name', $countryName))
+                                            ->orderBy('name')
+                                            ->pluck('name', 'name')
+                                            ->all();
+                                    })
+                                    ->live()
+                                    ->afterStateUpdated(function (Set $set): void {
+                                        $set('city', null);
+                                    })
+                                    ->prefixIcon(Heroicon::Map),
+                                Select::make('city')
+                                    ->label('Ciudad')
+                                    ->searchable()
+                                    ->native(false)
+                                    ->disabled(fn (Get $get): bool => blank($get('state')))
+                                    ->options(function (Get $get): array {
+                                        $stateName = $get('state');
+                                        $countryName = $get('country');
+
+                                        if (blank($stateName) || blank($countryName)) {
+                                            return [];
+                                        }
+
+                                        return City::query()
+                                            ->whereHas('country', fn ($query) => $query->where('name', $countryName))
+                                            ->whereHas('state', fn ($query) => $query->where('name', $stateName))
+                                            ->orderBy('name')
+                                            ->pluck('name', 'name')
+                                            ->all();
+                                    })
+                                    ->prefixIcon(Heroicon::BuildingLibrary),
                             ]),
                     ])
                     ->columns(1)

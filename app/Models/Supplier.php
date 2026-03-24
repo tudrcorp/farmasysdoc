@@ -47,6 +47,14 @@ class Supplier extends Model
     }
 
     /**
+     * Código interno visible en listados: prefijo PROV- + id con al menos 4 dígitos (relleno con ceros).
+     */
+    public static function formatCode(int|string $id): string
+    {
+        return 'PROV-'.str_pad((string) $id, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
      * @return HasMany<Product, $this>
      */
     public function products(): HasMany

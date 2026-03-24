@@ -13,9 +13,9 @@ return new class extends Migration
     {
         Schema::create('order_items', function (Blueprint $table) {
             $table->id()->comment('Identificador único de la línea de pedido');
-            $table->foreignId('order_id')->constrained()->cascadeOnDelete()->comment('Pedido al que pertenece la línea');
-            $table->foreignId('product_id')->constrained()->cascadeOnDelete()->comment('Producto solicitado');
-            $table->foreignId('inventory_id')->nullable()->constrained()->nullOnDelete()->comment('Inventario de sucursal desde el que se reservará o despachará');
+            $table->unsignedInteger('order_id')->comment('Pedido al que pertenece la línea');
+            $table->unsignedInteger('product_id')->comment('Producto solicitado');
+            $table->unsignedInteger('inventory_id')->nullable()->comment('Inventario de sucursal desde el que se reservará o despachará');
             $table->decimal('quantity', 12, 3)->comment('Cantidad pedida en unidades de medida del producto');
             $table->decimal('unit_price', 12, 2)->comment('Precio unitario acordado o cotizado');
             $table->decimal('discount_amount', 12, 2)->default(0)->comment('Descuento en valor monetario sobre la línea');

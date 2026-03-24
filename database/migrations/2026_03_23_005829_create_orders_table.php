@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::create('orders', function (Blueprint $table) {
             $table->id()->comment('Identificador único del pedido');
             $table->string('order_number')->unique()->comment('Número de pedido visible para seguimiento');
-            $table->foreignId('client_id')->constrained()->cascadeOnDelete()->comment('Cliente que realizó el pedido');
-            $table->foreignId('branch_id')->nullable()->constrained()->nullOnDelete()->comment('Sucursal que prepara, factura o despacha el pedido');
+            $table->unsignedInteger('client_id')->comment('Cliente que realizó el pedido');
+            $table->unsignedInteger('branch_id')->nullable()->comment('Sucursal que prepara, factura o despacha el pedido');
             $table->string('status')->index()->comment('Estado del flujo: pendiente, confirmado, en preparación, listo, enviado, en ruta, entregado, cancelado');
 
             $table->string('convenio_type')->index()->comment('Tipo de convenio: particular, seguro privado, EPS, medicina prepagada, corporativo, otro');

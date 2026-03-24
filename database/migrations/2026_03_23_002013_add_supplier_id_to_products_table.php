@@ -12,11 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('products', function (Blueprint $table) {
-            $table->foreignId('supplier_id')
-                ->nullable()
+            $table->unsignedInteger('supplier_id')
                 ->after('id')
-                ->constrained()
-                ->nullOnDelete()
                 ->comment('Proveedor principal del producto (opcional)');
         });
     }

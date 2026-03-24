@@ -3,9 +3,6 @@
 use App\Enums\ProductType;
 use App\Models\Product;
 use App\Models\Supplier;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-
-uses(RefreshDatabase::class);
 
 test('product can be persisted with medication fields', function () {
     $product = Product::factory()->medication()->create([

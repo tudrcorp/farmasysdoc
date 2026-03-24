@@ -7,17 +7,19 @@
     $heading ??= $this->getHeading();
     $subheading ??= $this->getSubHeading();
     $hasLogo = $this->hasLogo();
+    $sloganAfterLogo = method_exists($this, 'getSloganAfterLogo') ? $this->getSloganAfterLogo() : null;
 @endphp
 
 <div {{ $attributes->class(['fi-simple-page']) }}>
     {{ \Filament\Support\Facades\FilamentView::renderHook(\Filament\View\PanelsRenderHook::SIMPLE_PAGE_START, scopes: $this->getRenderHookScopes()) }}
 
     <div class="fi-simple-page-content">
-        @if (filled($heading) || $hasLogo || filled($subheading))
+        @if (filled($heading) || $hasLogo || filled($subheading) || filled($sloganAfterLogo))
             <x-filament-panels::header.simple
                 :heading="$heading"
                 :logo="$hasLogo"
                 :subheading="$subheading"
+                :slogan="$sloganAfterLogo"
             />
         @endif
 

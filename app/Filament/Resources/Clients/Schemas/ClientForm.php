@@ -2,10 +2,15 @@
 
 namespace App\Filament\Resources\Clients\Schemas;
 
+use App\Models\City;
+use App\Models\Country;
+use App\Models\State;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 
@@ -107,22 +112,69 @@ class ClientForm
                             'lg' => 3,
                         ])
                             ->schema([
-                                TextInput::make('city')
-                                    ->label('Ciudad')
-                                    ->required()
-                                    ->maxLength(100)
-                                    ->prefixIcon(Heroicon::BuildingLibrary),
-                                TextInput::make('state')
-                                    ->label('Departamento / estado')
-                                    ->required()
-                                    ->maxLength(100)
-                                    ->prefixIcon(Heroicon::Map),
-                                TextInput::make('country')
+                                Select::make('country')
                                     ->label('País')
                                     ->required()
                                     ->default('Colombia')
-                                    ->maxLength(100)
+                                    ->searchable()
+                                    ->preload()
+                                    ->native(false)
+                                    ->options(fn (): array => Country::query()
+                                        ->orderBy('name')
+                                        ->pluck('name', 'name')
+                                        ->all())
+                                    ->live()
+                                    ->afterStateUpdated(function (Set $set): void {
+                                        $set('state', null);
+                                        $set('city', null);
+                                    })
                                     ->prefixIcon(Heroicon::GlobeAlt),
+                                Select::make('state')
+                                    ->label('Departamento / estado')
+                                    ->required()
+                                    ->searchable()
+                                    ->native(false)
+                                    ->disabled(fn (Get $get): bool => blank($get('country')))
+                                    ->options(function (Get $get): array {
+                                        $countryName = $get('country');
+
+                                        if (blank($countryName)) {
+                                            return [];
+                                        }
+
+                                        return State::query()
+                                            ->whereHas('country', fn ($query) => $query->where('name', $countryName))
+                                            ->orderBy('name')
+                                            ->pluck('name', 'name')
+                                            ->all();
+                                    })
+                                    ->live()
+                                    ->afterStateUpdated(function (Set $set): void {
+                                        $set('city', null);
+                                    })
+                                    ->prefixIcon(Heroicon::Map),
+                                Select::make('city')
+                                    ->label('Ciudad')
+                                    ->required()
+                                    ->searchable()
+                                    ->native(false)
+                                    ->disabled(fn (Get $get): bool => blank($get('state')))
+                                    ->options(function (Get $get): array {
+                                        $stateName = $get('state');
+                                        $countryName = $get('country');
+
+                                        if (blank($stateName) || blank($countryName)) {
+                                            return [];
+                                        }
+
+                                        return City::query()
+                                            ->whereHas('country', fn ($query) => $query->where('name', $countryName))
+                                            ->whereHas('state', fn ($query) => $query->where('name', $stateName))
+                                            ->orderBy('name')
+                                            ->pluck('name', 'name')
+                                            ->all();
+                                    })
+                                    ->prefixIcon(Heroicon::BuildingLibrary),
                             ]),
                     ])
                     ->columns(1)

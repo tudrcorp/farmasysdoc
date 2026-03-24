@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Inventories\Schemas;
 
+use App\Enums\ProductType;
 use App\Models\Inventory;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -31,10 +32,35 @@ class InventoryInfolist
                                 TextEntry::make('product.name')
                                     ->label('Producto')
                                     ->icon(Heroicon::Cube),
-                                TextEntry::make('product.sku')
-                                    ->label('SKU del producto')
-                                    ->icon(Heroicon::Tag)
+                                TextEntry::make('product.barcode')
+                                    ->label('Código del producto')
+                                    ->getStateUsing(fn (Inventory $record): string => filled($record->product?->barcode)
+                                        ? (string) $record->product->barcode
+                                        : '000'.$record->product_id)
+                                    ->icon(Heroicon::QrCode)
                                     ->copyable(),
+                                TextEntry::make('product_type')
+                                    ->label('Tipo de producto')
+                                    ->badge()
+                                    ->formatStateUsing(fn (?ProductType $state): string => $state?->label() ?? '—')
+                                    ->icon(Heroicon::Squares2x2),
+                                TextEntry::make('active_ingredient')
+                                    ->label('Principio(s) activo(s)')
+                                    ->placeholder('—')
+                                    ->getStateUsing(function (Inventory $record): ?string {
+                                        if (! is_array($record->active_ingredient) || $record->active_ingredient === []) {
+                                            return null;
+                                        }
+
+                                        $ingredients = array_values(array_filter(
+                                            $record->active_ingredient,
+                                            fn (mixed $value): bool => is_string($value) && filled($value),
+                                        ));
+
+                                        return $ingredients !== [] ? implode(', ', $ingredients) : null;
+                                    })
+                                    ->columnSpanFull()
+                                    ->icon(Heroicon::Beaker),
                             ]),
                     ])
                     ->columns(1)
@@ -51,11 +77,11 @@ class InventoryInfolist
                             ->schema([
                                 TextEntry::make('quantity')
                                     ->label('Existencias actuales')
-                                    ->numeric(3)
+                                    ->numeric(decimalPlaces: 0)
                                     ->icon(Heroicon::SquaresPlus),
                                 TextEntry::make('reserved_quantity')
                                     ->label('Cantidad reservada')
-                                    ->numeric(3)
+                                    ->numeric(decimalPlaces: 0)
                                     ->icon(Heroicon::LockClosed),
                             ]),
                         TextEntry::make('available_for_sale')

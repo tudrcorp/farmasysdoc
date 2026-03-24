@@ -51,14 +51,7 @@ class ProductInfolist
                                     ->copyable(),
                                 TextEntry::make('product_type')
                                     ->label('Tipo de producto')
-                                    ->formatStateUsing(fn (?ProductType $state): string => match ($state) {
-                                        ProductType::Medication => 'Medicamento',
-                                        ProductType::Perfumery => 'Perfumería',
-                                        ProductType::PersonalHygiene => 'Higiene personal',
-                                        ProductType::Food => 'Alimento',
-                                        ProductType::MedicalEquipment => 'Equipo médico',
-                                        default => $state?->value ?? '—',
-                                    })
+                                    ->formatStateUsing(fn (?ProductType $state): string => $state?->label() ?? '—')
                                     ->badge()
                                     ->color(fn (?ProductType $state): string => match ($state) {
                                         ProductType::Medication => 'danger',

@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\ProductType;
 use App\Models\Product;
+use App\Models\Supplier;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -24,7 +25,7 @@ class ProductFactory extends Factory
         $name = fake()->words(3, true);
 
         return [
-            'supplier_id' => null,
+            'supplier_id' => Supplier::factory(),
             'sku' => fake()->unique()->bothify('SKU-####-???'),
             'barcode' => fake()->unique()->ean13(),
             'name' => $name,

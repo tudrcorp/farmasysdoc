@@ -21,6 +21,10 @@ class EditProduct extends EditRecord
             ?? auth()->user()?->name
             ?? 'sistema';
 
+        if (blank($data['barcode'] ?? null) && $this->record?->id !== null) {
+            $data['barcode'] = '00'.$this->record->id;
+        }
+
         return $data;
     }
 

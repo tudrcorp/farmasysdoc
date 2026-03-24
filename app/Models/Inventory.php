@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ProductType;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -30,6 +31,10 @@ class Inventory extends Model
         'notes',
         'created_by',
         'updated_by',
+        'product_type',
+        'active_ingredient',
+        'concentration',
+        'presentation_type',
     ];
 
     /**
@@ -46,7 +51,60 @@ class Inventory extends Model
             'allow_negative_stock' => 'boolean',
             'last_movement_at' => 'datetime',
             'last_stock_take_at' => 'datetime',
+            'product_type' => ProductType::class,
+            'active_ingredient' => 'array',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (Inventory $inventory): void {
+            $inventory->syncPharmacySnapshotFromRelatedProduct();
+        });
+
+        static::updating(function (Inventory $inventory): void {
+            if ($inventory->isDirty('product_id')) {
+                $inventory->syncPharmacySnapshotFromRelatedProduct();
+            }
+        });
+    }
+
+    /**
+     * Valores de catálogo del producto para persistir en la fila de inventario (snapshot).
+     *
+     * @return array{product_type: ?string, active_ingredient: ?array<int, string>, concentration: ?string, presentation_type: ?string}
+     */
+    public static function pharmacySnapshotFromProduct(Product $product): array
+    {
+        $type = $product->product_type;
+        $isMedication = $type === ProductType::Medication;
+        $activeIngredients = $isMedication && is_array($product->active_ingredient)
+            ? array_values(array_filter($product->active_ingredient, fn (mixed $item): bool => is_string($item) && filled($item)))
+            : null;
+
+        return [
+            'product_type' => $type instanceof \BackedEnum ? $type->value : $type,
+            'active_ingredient' => $activeIngredients,
+            'concentration' => $product->concentration,
+            'presentation_type' => $product->presentation_type,
+        ];
+    }
+
+    public function syncPharmacySnapshotFromRelatedProduct(): void
+    {
+        if ($this->product_id === null) {
+            return;
+        }
+
+        $product = Product::query()->find($this->product_id);
+
+        if ($product === null) {
+            return;
+        }
+
+        foreach (self::pharmacySnapshotFromProduct($product) as $key => $value) {
+            $this->setAttribute($key, $value);
+        }
     }
 
     /**

@@ -11,12 +11,16 @@ class EditBranch extends EditRecord
 {
     protected static string $resource = BranchResource::class;
 
+    protected static ?string $title = 'Editar Informacion de la Sucursal';
+
     /**
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        unset($data['code']);
+
         $data['updated_by'] = auth()->user()?->email
             ?? auth()->user()?->name
             ?? 'sistema';

@@ -66,16 +66,7 @@ class OrderForm
                                     ->prefixIcon(Heroicon::BuildingStorefront),
                                 Select::make('status')
                                     ->label('Estado del pedido')
-                                    ->options([
-                                        OrderStatus::Pending->value => 'Pendiente',
-                                        OrderStatus::Confirmed->value => 'Confirmado',
-                                        OrderStatus::Preparing->value => 'En preparación',
-                                        OrderStatus::ReadyForDispatch->value => 'Listo para despacho',
-                                        OrderStatus::Dispatched->value => 'Despachado',
-                                        OrderStatus::InTransit->value => 'En tránsito',
-                                        OrderStatus::Delivered->value => 'Entregado',
-                                        OrderStatus::Cancelled->value => 'Cancelado',
-                                    ])
+                                    ->options(OrderStatus::options())
                                     ->native(false)
                                     ->searchable()
                                     ->required()
@@ -92,14 +83,7 @@ class OrderForm
                     ->schema([
                         Select::make('convenio_type')
                             ->label('Tipo de convenio')
-                            ->options([
-                                ConvenioType::Particular->value => 'Particular',
-                                ConvenioType::PrivateInsurance->value => 'Seguro privado',
-                                ConvenioType::Eps->value => 'EPS',
-                                ConvenioType::PrepaidMedicine->value => 'Medicina prepagada',
-                                ConvenioType::Corporate->value => 'Convenio corporativo',
-                                ConvenioType::Other->value => 'Otro',
-                            ])
+                            ->options(ConvenioType::options())
                             ->native(false)
                             ->searchable()
                             ->required()

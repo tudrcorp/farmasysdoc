@@ -24,4 +24,15 @@ class CreateProduct extends CreateRecord
 
         return $data;
     }
+
+    protected function afterCreate(): void
+    {
+        $record = $this->record;
+
+        if (blank($record->barcode)) {
+            $record->update([
+                'barcode' => '00'.$record->id,
+            ]);
+        }
+    }
 }

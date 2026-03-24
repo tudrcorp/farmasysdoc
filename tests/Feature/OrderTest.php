@@ -8,9 +8,6 @@ use App\Models\Inventory;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-
-uses(RefreshDatabase::class);
 
 test('order belongs to client and branch with convenio fields', function () {
     $client = Client::factory()->create();

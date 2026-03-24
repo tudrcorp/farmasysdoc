@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::create('sales', function (Blueprint $table) {
             $table->id()->comment('Identificador único de la venta');
             $table->string('sale_number')->unique()->comment('Número de venta o factura visible para el cliente');
-            $table->foreignId('branch_id')->constrained()->cascadeOnDelete()->comment('Sucursal donde se realizó la venta');
-            $table->foreignId('client_id')->nullable()->constrained()->nullOnDelete()->comment('Cliente asociado (null si es venta sin datos de cliente)');
+            $table->unsignedInteger('branch_id')->comment('Sucursal donde se realizó la venta');
+            $table->unsignedInteger('client_id')->nullable()->comment('Cliente asociado (null si es venta sin datos de cliente)');
             $table->string('status')->index()->comment('Estado: borrador, completada, anulada, devuelta (valores del enum de aplicación)');
             $table->decimal('subtotal', 12, 2)->default(0)->comment('Suma de líneas antes de impuestos y descuentos globales');
             $table->decimal('tax_total', 12, 2)->default(0)->comment('Total de impuestos de la venta');

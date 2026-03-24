@@ -10,6 +10,8 @@ class ViewInventory extends ViewRecord
 {
     protected static string $resource = InventoryResource::class;
 
+    protected static ?string $title = 'Detalle del Producto en Inventario';
+
     protected function getHeaderActions(): array
     {
         return [

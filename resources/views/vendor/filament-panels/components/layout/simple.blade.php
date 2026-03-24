@@ -1,14 +1,7 @@
 @php
-    use Filament\Support\Enums\Width;
-
     $livewire ??= null;
 
     $renderHookScopes = $livewire?->getRenderHookScopes();
-    $maxContentWidth ??= (filament()->getSimplePageMaxContentWidth() ?? Width::Large);
-
-    if (is_string($maxContentWidth)) {
-        $maxContentWidth = Width::tryFrom($maxContentWidth) ?? $maxContentWidth;
-    }
 @endphp
 
 <x-filament-panels::layout.base :livewire="$livewire">
@@ -36,16 +29,7 @@
             </div>
         @endif
 
-        <div class="fi-simple-main-ctn">
-            <main
-                @class([
-                    'fi-simple-main',
-                    ($maxContentWidth instanceof Width) ? "fi-width-{$maxContentWidth->value}" : $maxContentWidth,
-                ])
-            >
-                {{ $slot }}
-            </main>
-        </div>
+        {{ $slot }}
 
         {{ \Filament\Support\Facades\FilamentView::renderHook(\Filament\View\PanelsRenderHook::FOOTER, scopes: $renderHookScopes) }}
 

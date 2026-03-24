@@ -1,7 +1,12 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Laravel\Fortify\Features;
+
+beforeEach(function (): void {
+    $this->withoutMiddleware(PreventRequestForgery::class);
+});
 
 test('login screen can be rendered', function () {
     $response = $this->get(route('login'));

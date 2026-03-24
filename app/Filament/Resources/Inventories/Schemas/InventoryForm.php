@@ -2,7 +2,10 @@
 
 namespace App\Filament\Resources\Inventories\Schemas;
 
+use App\Enums\ProductType;
+use App\Models\ActiveIngredient;
 use App\Models\Inventory;
+use App\Models\Product;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -57,6 +60,27 @@ class InventoryForm
                                     ->preload()
                                     ->native(false)
                                     ->required()
+                                    ->live(onBlur: false)
+                                    ->afterStateUpdated(function (?string $state, Set $set): void {
+                                        if (blank($state)) {
+                                            $set('product_type', null);
+                                            $set('active_ingredient', []);
+                                            $set('concentration', null);
+                                            $set('presentation_type', null);
+
+                                            return;
+                                        }
+
+                                        $product = Product::query()->find($state);
+
+                                        if ($product === null) {
+                                            return;
+                                        }
+
+                                        foreach (Inventory::pharmacySnapshotFromProduct($product) as $key => $value) {
+                                            $set($key, $value);
+                                        }
+                                    })
                                     ->disabled(fn (Get $get): bool => blank($get('branch_id')))
                                     ->helperText('Seleccione primero la sucursal. No puede repetir el mismo producto en la misma sucursal.')
                                     ->prefixIcon(Heroicon::Cube)
@@ -76,6 +100,45 @@ class InventoryForm
                                     ),
                             ]),
                     ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
+                Section::make('Características del producto (catálogo)')
+                    ->description('Se completan al elegir el producto; se guardan como referencia al crear o al cambiar de producto.')
+                    ->icon(Heroicon::Beaker)
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                        ])
+                            ->schema([
+                                Select::make('product_type')
+                                    ->label('Tipo de producto')
+                                    ->options(ProductType::options())
+                                    ->disabled()
+                                    ->dehydrated(true)
+                                    ->native(false),
+                                TextInput::make('presentation_type')
+                                    ->label('Forma farmacéutica / presentación')
+                                    ->disabled()
+                                    ->dehydrated(true),
+                                TextInput::make('concentration')
+                                    ->label('Concentración')
+                                    ->disabled()
+                                    ->dehydrated(true),
+                            ]),
+                        Select::make('active_ingredient')
+                            ->label('Principio(s) activo(s)')
+                            ->options(fn (): array => ActiveIngredient::query()->orderBy('name')->pluck('name', 'name')->all())
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->disabled()
+                            ->dehydrated(true)
+                            ->columnSpanFull(),
+                    ])
+                    ->visible(fn (Get $get): bool => filled($get('product_id')))
                     ->columns(1)
                     ->columnSpanFull(),
 

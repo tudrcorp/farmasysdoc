@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\Products\Schemas;
 
 use App\Enums\ProductType;
+use App\Models\ActiveIngredient;
+use App\Models\PresentationType;
 use App\Models\Supplier;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -10,8 +12,10 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Str;
 
 class ProductForm
 {
@@ -45,32 +49,17 @@ class ProductForm
                             'lg' => 3,
                         ])
                             ->schema([
-                                TextInput::make('sku')
-                                    ->label('SKU')
-                                    ->placeholder('Ej. MED-ACET-500')
-                                    ->helperText('Código interno único para inventario y ventas.')
-                                    ->required()
-                                    ->maxLength(255)
-                                    ->unique(ignoreRecord: true)
-                                    ->prefixIcon(Heroicon::Tag)
-                                    ->autocomplete('off'),
                                 TextInput::make('barcode')
                                     ->label('Código de barras / EAN')
                                     ->placeholder('Opcional')
-                                    ->helperText('Debe ser único si se registra.')
+                                    ->helperText('Debe ser único si se registra. Si lo dejas vacío, se genera automáticamente como 00 + ID del producto.')
                                     ->maxLength(255)
                                     ->unique(ignoreRecord: true)
                                     ->prefixIcon(Heroicon::QrCode)
                                     ->dehydrateStateUsing(fn (?string $state): ?string => $state === '' || $state === null ? null : $state),
                                 Select::make('product_type')
                                     ->label('Tipo de producto')
-                                    ->options([
-                                        ProductType::Medication->value => 'Medicamento',
-                                        ProductType::Perfumery->value => 'Perfumería',
-                                        ProductType::PersonalHygiene->value => 'Higiene personal',
-                                        ProductType::Food->value => 'Alimento',
-                                        ProductType::MedicalEquipment->value => 'Equipo médico',
-                                    ])
+                                    ->options(ProductType::options())
                                     ->native(false)
                                     ->searchable()
                                     ->required()
@@ -82,14 +71,25 @@ class ProductForm
                             ->helperText('Nombre principal del producto en catálogo.')
                             ->required()
                             ->maxLength(255)
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function (?string $state, Set $set): void {
+                                if (blank($state)) {
+                                    $set('slug', null);
+
+                                    return;
+                                }
+
+                                $set('slug', Str::slug(Str::lower($state)));
+                            })
                             ->prefixIcon(Heroicon::ShoppingBag)
                             ->columnSpanFull(),
                         TextInput::make('slug')
                             ->label('Slug (URL)')
                             ->placeholder('se-genera-o-se-edita-manualmente')
                             ->helperText('Opcional. Identificador amigable para enlaces o integraciones.')
+                            ->disabled()
+                            ->dehydrated(true)
                             ->maxLength(255)
-                            ->unique(ignoreRecord: true)
                             ->prefixIcon(Heroicon::Link)
                             ->dehydrateStateUsing(fn (?string $state): ?string => $state === '' || $state === null ? null : $state),
                         Textarea::make('description')
@@ -97,21 +97,6 @@ class ProductForm
                             ->placeholder('Características, uso, advertencias breves para el mostrador…')
                             ->rows(3)
                             ->columnSpanFull(),
-                        Grid::make([
-                            'default' => 1,
-                            'sm' => 2,
-                        ])
-                            ->schema([
-                                TextInput::make('brand')
-                                    ->label('Marca / laboratorio')
-                                    ->maxLength(255)
-                                    ->prefixIcon(Heroicon::BuildingStorefront),
-                                TextInput::make('presentation')
-                                    ->label('Presentación comercial')
-                                    ->placeholder('Ej. Caja x 10 blísteres, frasco 120 ml')
-                                    ->maxLength(255)
-                                    ->prefixIcon(Heroicon::CubeTransparent),
-                            ]),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
@@ -120,32 +105,6 @@ class ProductForm
                     ->description('Cómo se vende el artículo y valores de lista e impuesto.')
                     ->icon(Heroicon::CurrencyDollar)
                     ->schema([
-                        Grid::make([
-                            'default' => 1,
-                            'sm' => 2,
-                            'lg' => 3,
-                        ])
-                            ->schema([
-                                TextInput::make('unit_of_measure')
-                                    ->label('Unidad de medida de venta')
-                                    ->placeholder('unit, box, pack, kg…')
-                                    ->helperText('Código o abreviatura coherente con inventario.')
-                                    ->required()
-                                    ->default('unit')
-                                    ->maxLength(255)
-                                    ->prefixIcon(Heroicon::Scale),
-                                TextInput::make('unit_content')
-                                    ->label('Contenido por unidad (número)')
-                                    ->helperText('Cantidad numérica asociada a la unidad de venta.')
-                                    ->numeric()
-                                    ->step(0.001)
-                                    ->prefixIcon(Heroicon::Hashtag),
-                                TextInput::make('net_content_label')
-                                    ->label('Etiqueta de contenido neto')
-                                    ->placeholder('Ej. 400 ml, 500 g')
-                                    ->maxLength(255)
-                                    ->prefixIcon(Heroicon::Beaker),
-                            ]),
                         Grid::make([
                             'default' => 1,
                             'sm' => 3,
@@ -186,32 +145,45 @@ class ProductForm
                     ->description('Datos para medicamentos: principio activo, registro sanitario y requisitos legales.')
                     ->icon(Heroicon::Beaker)
                     ->schema([
-                        Textarea::make('active_ingredient')
+                        Select::make('active_ingredient')
                             ->label('Principio(s) activo(s)')
-                            ->placeholder('Uno o varios, según ficha técnica')
-                            ->rows(2)
+                            ->placeholder('Seleccione uno o más principios activos')
+                            ->options(fn (): array => ActiveIngredient::query()
+                                ->orderBy('name')
+                                ->pluck('name', 'name')
+                                ->all())
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
                             ->columnSpanFull(),
                         Grid::make([
                             'default' => 1,
-                            'sm' => 2,
+                            'sm' => 3,
+                            'lg' => 3,
                         ])
                             ->schema([
+                                TextInput::make('brand')
+                                    ->label('Marca / laboratorio')
+                                    ->maxLength(255)
+                                    ->prefixIcon(Heroicon::BuildingStorefront),
                                 TextInput::make('concentration')
                                     ->label('Concentración')
                                     ->placeholder('Ej. 500 mg, 10 mg/ml')
                                     ->maxLength(255)
                                     ->prefixIcon(Heroicon::Beaker),
-                                TextInput::make('presentation_type')
+                                Select::make('presentation_type')
                                     ->label('Forma farmacéutica')
-                                    ->placeholder('Tableta, jarabe, crema, inyectable…')
-                                    ->maxLength(255)
+                                    ->placeholder('Seleccione la forma farmacéutica')
+                                    ->options(fn (): array => PresentationType::query()
+                                        ->orderBy('name')
+                                        ->pluck('name', 'name')
+                                        ->all())
+                                    ->searchable()
+                                    ->preload()
+                                    ->native(false)
                                     ->prefixIcon(Heroicon::Cube),
                             ]),
-                        TextInput::make('health_registration_number')
-                            ->label('Registro sanitario (INVIMA u otro)')
-                            ->maxLength(255)
-                            ->prefixIcon(Heroicon::DocumentCheck)
-                            ->columnSpanFull(),
                         Grid::make([
                             'default' => 1,
                             'sm' => 2,

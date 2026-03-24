@@ -6,9 +6,6 @@ use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
 use App\Models\Supplier;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-
-uses(RefreshDatabase::class);
 
 test('purchase belongs to supplier and branch', function () {
     $supplier = Supplier::factory()->create();

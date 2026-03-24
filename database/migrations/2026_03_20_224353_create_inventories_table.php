@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('inventories', function (Blueprint $table) {
             $table->id()->comment('Identificador único del registro de inventario');
-            $table->foreignId('branch_id')->constrained()->cascadeOnDelete()->comment('Sucursal donde está el stock');
-            $table->foreignId('product_id')->constrained()->cascadeOnDelete()->comment('Producto al que pertenecen las existencias');
+            $table->unsignedInteger('branch_id')->comment('Sucursal donde está el stock');
+            $table->unsignedInteger('product_id')->comment('Producto al que pertenecen las existencias');
             $table->decimal('quantity', 12, 3)->default(0)->comment('Existencias físicas actuales');
             $table->decimal('reserved_quantity', 12, 3)->default(0)->comment('Cantidad apartada (pedidos, apartados, reservas)');
             $table->decimal('reorder_point', 12, 3)->nullable()->comment('Umbral para alertar reorden al igualar o bajar de este nivel');

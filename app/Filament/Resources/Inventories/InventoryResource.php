@@ -22,7 +22,14 @@ class InventoryResource extends Resource
 
     protected static ?string $navigationLabel = 'Inventario';
 
+    protected static ?int $navigationSort = 10;
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::ShoppingCart;
+
+    public static function getNavigationGroup(): ?string
+    {
+        return 'Inventario';
+    }
 
     public static function form(Schema $schema): Schema
     {

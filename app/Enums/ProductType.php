@@ -2,11 +2,26 @@
 
 namespace App\Enums;
 
+use App\Enums\Concerns\HasSpanishLabels;
+
 enum ProductType: string
 {
-    case Medication = 'medication';
-    case Perfumery = 'perfumery';
-    case PersonalHygiene = 'personal_hygiene';
-    case Food = 'food';
-    case MedicalEquipment = 'medical_equipment';
+    use HasSpanishLabels;
+
+    case Medication = 'medicamento';
+    case Perfumery = 'perfumeria';
+    case PersonalHygiene = 'higiene-personal';
+    case Food = 'alimento';
+    case MedicalEquipment = 'equipo-medico';
+
+    public function label(): string
+    {
+        return match ($this) {
+            self::Medication => 'Medicamento',
+            self::Perfumery => 'Perfumería',
+            self::PersonalHygiene => 'Higiene personal',
+            self::Food => 'Alimento',
+            self::MedicalEquipment => 'Equipo médico',
+        };
+    }
 }

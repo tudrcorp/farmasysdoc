@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use Carbon\CarbonImmutable;
+use Filament\Support\Facades\FilamentView;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +27,11 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        FilamentView::registerRenderHook(
+            PanelsRenderHook::SIMPLE_LAYOUT_START,
+            fn (): string => view('filament.farmaadmin.components.simple-auth-ambient')->render(),
+        );
     }
 
     /**

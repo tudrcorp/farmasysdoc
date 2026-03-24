@@ -14,9 +14,9 @@
 
 .fi-topbar {
     /* Vidrio: blur + opacidad (sin textura de ruido) */
-    background-color: rgb(255 255 255 / 0.92);
-    backdrop-filter: saturate(200%) blur(64px);
-    -webkit-backdrop-filter: saturate(200%) blur(64px);
+    background-color: rgb(255 255 255 / 0.965);
+    backdrop-filter: saturate(220%) blur(88px);
+    -webkit-backdrop-filter: saturate(220%) blur(88px);
     /* Highlight superior + contorno + sombra proyectada para resaltar la barra */
     box-shadow:
         inset 0 1px 0 rgb(255 255 255 / 0.45),
@@ -27,7 +27,7 @@
 }
 
 .dark .fi-topbar {
-    background-color: rgb(17 24 39 / 0.94);
+    background-color: rgb(17 24 39 / 0.965);
     box-shadow:
         inset 0 1px 0 rgb(255 255 255 / 0.06),
         0 1px 0 rgb(0 0 0 / 0.25),
@@ -61,8 +61,8 @@
         inset 0 1px 0 rgb(255 255 255 / 0.8),
         0 0 0 1px rgb(252 228 34 / 0.45),
         0 4px 18px rgb(0 0 0 / 0.07);
-    backdrop-filter: saturate(180%) blur(14px);
-    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
 }
 
 .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-icon {
@@ -123,8 +123,8 @@
         inset 0 1px 0 rgb(255 255 255 / 0.65),
         0 0 0 1px rgb(252 228 34 / 0.28),
         0 4px 14px rgb(0 0 0 / 0.06);
-    backdrop-filter: saturate(180%) blur(12px);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    backdrop-filter: saturate(200%) blur(18px);
+    -webkit-backdrop-filter: saturate(200%) blur(18px);
 }
 
 .dark .fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url:not(.fi-active) > .fi-sidebar-item-btn:hover,
@@ -153,8 +153,8 @@
         inset 0 1px 0 rgb(255 255 255 / 0.85),
         0 0 0 1px rgb(252 228 34 / 0.55),
         0 6px 20px rgb(0 0 0 / 0.09);
-    backdrop-filter: saturate(190%) blur(16px);
-    -webkit-backdrop-filter: saturate(190%) blur(16px);
+    backdrop-filter: saturate(212%) blur(22px);
+    -webkit-backdrop-filter: saturate(212%) blur(22px);
 }
 
 .dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:hover,
@@ -184,8 +184,8 @@
     box-shadow:
         inset 0 1px 0 rgb(255 255 255 / 0.55),
         0 0 0 1px rgb(252 228 34 / 0.3);
-    backdrop-filter: saturate(180%) blur(12px);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    backdrop-filter: saturate(200%) blur(18px);
+    -webkit-backdrop-filter: saturate(200%) blur(18px);
 }
 
 .dark .fi-sidebar .fi-sidebar-group-dropdown-trigger-btn:hover,
@@ -220,8 +220,8 @@
     box-shadow:
         inset 0 1px 0 rgb(255 255 255 / 0.55),
         0 0 0 1px rgb(252 228 34 / 0.26);
-    backdrop-filter: saturate(180%) blur(12px);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    backdrop-filter: saturate(200%) blur(18px);
+    -webkit-backdrop-filter: saturate(200%) blur(18px);
 }
 
 .dark .fi-sidebar .fi-sidebar-database-notifications-btn:hover,
@@ -391,9 +391,9 @@
 /* Tarjetas de sección (formularios con Section contenida) */
 .fi-section:not(.fi-section-not-contained):not(.fi-aside) {
     border-radius: 1.25rem;
-    background-color: rgb(255 255 255 / 0.86);
-    backdrop-filter: saturate(180%) blur(40px);
-    -webkit-backdrop-filter: saturate(180%) blur(40px);
+    background-color: rgb(255 255 255 / 0.915);
+    backdrop-filter: saturate(200%) blur(56px);
+    -webkit-backdrop-filter: saturate(200%) blur(56px);
     box-shadow:
         inset 0 1px 0 rgb(255 255 255 / 0.55),
         0 0 0 1px rgb(0 0 0 / 0.05),
@@ -406,7 +406,7 @@
 }
 
 .dark .fi-section:not(.fi-section-not-contained):not(.fi-aside) {
-    background-color: rgb(17 24 39 / 0.9);
+    background-color: rgb(17 24 39 / 0.93);
     box-shadow:
         inset 0 1px 0 rgb(255 255 255 / 0.08),
         0 0 0 1px rgb(255 255 255 / 0.08),
@@ -421,9 +421,9 @@
 /* Layout aside: la “card” vive en el contenedor de contenido */
 .fi-section.fi-aside:not(.fi-section-not-contained) > .fi-section-content-ctn {
     border-radius: 1.25rem;
-    background-color: rgb(255 255 255 / 0.86);
-    backdrop-filter: saturate(180%) blur(40px);
-    -webkit-backdrop-filter: saturate(180%) blur(40px);
+    background-color: rgb(255 255 255 / 0.915);
+    backdrop-filter: saturate(200%) blur(56px);
+    -webkit-backdrop-filter: saturate(200%) blur(56px);
     box-shadow:
         inset 0 1px 0 rgb(255 255 255 / 0.55),
         0 0 0 1px rgb(0 0 0 / 0.05),
@@ -432,7 +432,7 @@
 }
 
 .dark .fi-section.fi-aside:not(.fi-section-not-contained) > .fi-section-content-ctn {
-    background-color: rgb(17 24 39 / 0.9);
+    background-color: rgb(17 24 39 / 0.93);
     box-shadow:
         inset 0 1px 0 rgb(255 255 255 / 0.08),
         0 0 0 1px rgb(255 255 255 / 0.08),
@@ -451,9 +451,9 @@
 /* Pestañas contenidas (schemas con tabs) */
 .fi-sc-tabs.fi-contained {
     border-radius: 1.25rem;
-    background-color: rgb(255 255 255 / 0.86);
-    backdrop-filter: saturate(180%) blur(40px);
-    -webkit-backdrop-filter: saturate(180%) blur(40px);
+    background-color: rgb(255 255 255 / 0.915);
+    backdrop-filter: saturate(200%) blur(56px);
+    -webkit-backdrop-filter: saturate(200%) blur(56px);
     box-shadow:
         inset 0 1px 0 rgb(255 255 255 / 0.55),
         0 0 0 1px rgb(0 0 0 / 0.05),
@@ -462,7 +462,7 @@
 }
 
 .dark .fi-sc-tabs.fi-contained {
-    background-color: rgb(17 24 39 / 0.9);
+    background-color: rgb(17 24 39 / 0.93);
     box-shadow:
         inset 0 1px 0 rgb(255 255 255 / 0.08),
         0 0 0 1px rgb(255 255 255 / 0.08),
@@ -473,18 +473,18 @@
 /* Campos: inputs, selects, date pickers, etc. (no tocar box-shadow: conserva ring y foco de Filament) */
 .fi-input-wrp {
     border-radius: 0.9375rem;
-    background-color: rgb(255 255 255 / 0.94);
-    backdrop-filter: saturate(180%) blur(18px);
-    -webkit-backdrop-filter: saturate(180%) blur(18px);
+    background-color: rgb(255 255 255 / 0.97);
+    backdrop-filter: saturate(200%) blur(26px);
+    -webkit-backdrop-filter: saturate(200%) blur(26px);
 }
 
 .dark .fi-input-wrp {
-    background-color: rgb(30 41 59 / 0.72);
+    background-color: rgb(30 41 59 / 0.82);
 }
 
 .fi-input-wrp.fi-disabled {
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     background-color: rgb(249 250 251 / 0.98);
 }
 
@@ -504,9 +504,9 @@
      */
     overflow: visible;
     border-radius: 1.25rem;
-    background-color: rgb(255 255 255 / 0.86);
-    backdrop-filter: saturate(180%) blur(40px);
-    -webkit-backdrop-filter: saturate(180%) blur(40px);
+    background-color: rgb(255 255 255 / 0.915);
+    backdrop-filter: saturate(200%) blur(56px);
+    -webkit-backdrop-filter: saturate(200%) blur(56px);
     box-shadow:
         inset 0 1px 0 rgb(255 255 255 / 0.55),
         0 0 0 1px rgb(0 0 0 / 0.05),
@@ -543,7 +543,7 @@
 }
 
 .dark .fi-ta-ctn {
-    background-color: rgb(17 24 39 / 0.9);
+    background-color: rgb(17 24 39 / 0.93);
     box-shadow:
         inset 0 1px 0 rgb(255 255 255 / 0.08),
         0 0 0 1px rgb(255 255 255 / 0.08),
@@ -553,9 +553,9 @@
 
 /* Título / descripción encima de la tabla */
 .fi-ta-ctn .fi-ta-header {
-    background-color: rgb(255 255 255 / 0.45);
-    backdrop-filter: saturate(180%) blur(18px);
-    -webkit-backdrop-filter: saturate(180%) blur(18px);
+    background-color: rgb(255 255 255 / 0.52);
+    backdrop-filter: saturate(200%) blur(26px);
+    -webkit-backdrop-filter: saturate(200%) blur(26px);
 }
 
 .dark .fi-ta-ctn .fi-ta-header {
@@ -564,9 +564,9 @@
 
 /* Barra de herramientas (búsqueda, filtros, columnas) */
 .fi-ta-ctn .fi-ta-header-toolbar {
-    background-color: rgb(249 250 251 / 0.55);
-    backdrop-filter: saturate(180%) blur(16px);
-    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    background-color: rgb(249 250 251 / 0.62);
+    backdrop-filter: saturate(200%) blur(22px);
+    -webkit-backdrop-filter: saturate(200%) blur(22px);
 }
 
 .dark .fi-ta-ctn .fi-ta-header-toolbar {
@@ -576,8 +576,8 @@
 /* Cabecera de columnas */
 .fi-ta-ctn .fi-ta-table thead {
     background-color: rgb(249 250 251 / 0.72);
-    backdrop-filter: saturate(180%) blur(22px);
-    -webkit-backdrop-filter: saturate(180%) blur(22px);
+    backdrop-filter: saturate(200%) blur(30px);
+    -webkit-backdrop-filter: saturate(200%) blur(30px);
     box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.05);
 }
 
@@ -600,8 +600,8 @@
 .fi-ta-ctn .fi-ta-filter-indicators,
 .fi-ta-ctn .fi-ta-reorder-indicator {
     background-color: rgb(249 250 251 / 0.65);
-    backdrop-filter: saturate(180%) blur(14px);
-    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
 }
 
 .dark .fi-ta-ctn .fi-ta-selection-indicator,
@@ -613,8 +613,8 @@
 /* Paginación inferior */
 .fi-ta-ctn .fi-pagination {
     background-color: rgb(249 250 251 / 0.5);
-    backdrop-filter: saturate(180%) blur(12px);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    backdrop-filter: saturate(200%) blur(18px);
+    -webkit-backdrop-filter: saturate(200%) blur(18px);
 }
 
 .dark .fi-ta-ctn .fi-pagination {
@@ -626,9 +626,9 @@
 .fi-ta-ctn .fi-ta-filters-before-content-ctn,
 .fi-ta-ctn .fi-ta-filters-after-content-ctn {
     border-radius: 1rem;
-    background-color: rgb(255 255 255 / 0.94);
-    backdrop-filter: saturate(180%) blur(24px);
-    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    background-color: rgb(255 255 255 / 0.97);
+    backdrop-filter: saturate(200%) blur(32px);
+    -webkit-backdrop-filter: saturate(200%) blur(32px);
     box-shadow:
         0 0 0 1px rgb(0 0 0 / 0.06),
         0 12px 40px rgb(0 0 0 / 0.12);
@@ -646,9 +646,9 @@
 /* Vista en cuadrícula (registros como tarjetas) */
 .fi-ta-ctn .fi-ta-content.fi-ta-content-grid .fi-ta-record:not(.fi-selected) {
     border-radius: 1.125rem;
-    background-color: rgb(255 255 255 / 0.88);
-    backdrop-filter: saturate(180%) blur(22px);
-    -webkit-backdrop-filter: saturate(180%) blur(22px);
+    background-color: rgb(255 255 255 / 0.92);
+    backdrop-filter: saturate(200%) blur(30px);
+    -webkit-backdrop-filter: saturate(200%) blur(30px);
     box-shadow:
         inset 0 1px 0 rgb(255 255 255 / 0.55),
         0 0 0 1px rgb(0 0 0 / 0.05),
@@ -665,8 +665,8 @@
 
 .fi-ta-ctn .fi-ta-content.fi-ta-content-grid .fi-ta-record.fi-selected {
     background-color: rgb(239 246 255 / 0.95);
-    backdrop-filter: saturate(180%) blur(12px);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    backdrop-filter: saturate(200%) blur(18px);
+    -webkit-backdrop-filter: saturate(200%) blur(18px);
 }
 
 .dark .fi-ta-ctn .fi-ta-content.fi-ta-content-grid .fi-ta-record.fi-selected {
@@ -694,8 +694,8 @@
 /* Neutros (filled): vidrio ligero (sin box-shadow: conserva ring y foco de Filament) */
 .fi-btn:not(.fi-color):not(.fi-outlined) {
     background-color: rgb(255 255 255 / 0.82);
-    backdrop-filter: saturate(180%) blur(14px);
-    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
 }
 
 .dark .fi-btn:not(.fi-color):not(.fi-outlined) {
@@ -705,8 +705,8 @@
 /* Contorno / secondary outlined */
 .fi-btn.fi-outlined:not(.fi-color) {
     background-color: rgb(255 255 255 / 0.38);
-    backdrop-filter: saturate(180%) blur(12px);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    backdrop-filter: saturate(200%) blur(18px);
+    -webkit-backdrop-filter: saturate(200%) blur(18px);
 }
 
 .dark .fi-btn.fi-outlined:not(.fi-color) {
@@ -715,8 +715,8 @@
 
 .fi-btn.fi-outlined.fi-color {
     background-color: rgb(255 255 255 / 0.12);
-    backdrop-filter: saturate(180%) blur(10px);
-    -webkit-backdrop-filter: saturate(180%) blur(10px);
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
 }
 
 .dark .fi-btn.fi-outlined.fi-color {
@@ -726,6 +726,220 @@
 /* Primarios y semantic filled: radio iOS (sin box-shadow para no pisar ring/focus de Filament) */
 .fi-btn.fi-color:not(label):not(.fi-outlined) {
     border-radius: 0.9375rem;
+}
+
+/*
+ * Botones de acción estilo iOS reutilizables por color semántico.
+ * Uso: class="farmadoc-ios-action farmadoc-ios-action--primary|info|success|warning|danger"
+ */
+.farmadoc-ios-action {
+    border-radius: 1rem;
+    border-width: 1px;
+    border-style: solid;
+    padding: 0.625rem 1.25rem;
+    font-weight: 600;
+    color: white !important;
+    box-shadow:
+        0 14px 28px -12px rgb(0 0 0 / 0.28),
+        0 0 0 1px rgb(255 255 255 / 0.14),
+        0 0 26px -8px rgb(255 255 255 / 0.26);
+    transition:
+        transform 0.3s ease,
+        box-shadow 0.3s ease,
+        filter 0.3s ease;
+}
+
+.farmadoc-ios-action:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 18px 36px -14px rgb(0 0 0 / 0.35),
+        0 0 0 1px rgb(255 255 255 / 0.2),
+        0 0 34px -8px rgb(255 255 255 / 0.36);
+    filter: brightness(1.05);
+}
+
+.farmadoc-ios-action:focus-visible {
+    outline: none;
+}
+
+.farmadoc-ios-action--primary {
+    border-color: color-mix(in srgb, var(--color-primary-300) 45%, transparent);
+    background: linear-gradient(to right, var(--color-primary-500), var(--color-primary-600));
+}
+
+.farmadoc-ios-action--info {
+    border-color: color-mix(in srgb, var(--color-info-300) 45%, transparent);
+    background: linear-gradient(to right, var(--color-info-500), var(--color-info-600));
+}
+
+.farmadoc-ios-action--success {
+    border-color: color-mix(in srgb, var(--color-success-300) 45%, transparent);
+    background: linear-gradient(to right, var(--color-success-500), var(--color-success-600));
+}
+
+.farmadoc-ios-action--warning {
+    border-color: color-mix(in srgb, var(--color-warning-300) 45%, transparent);
+    background: linear-gradient(to right, var(--color-warning-500), var(--color-warning-600));
+}
+
+.farmadoc-ios-action--danger {
+    border-color: color-mix(in srgb, var(--color-danger-300) 45%, transparent);
+    background: linear-gradient(to right, var(--color-danger-500), var(--color-danger-600));
+}
+
+.farmadoc-ios-action--primary:focus-visible {
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--color-primary-300) 75%, transparent),
+        0 14px 28px -12px rgb(0 0 0 / 0.28),
+        0 0 34px -8px color-mix(in srgb, var(--color-primary-400) 55%, transparent);
+}
+
+.farmadoc-ios-action--info:focus-visible {
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--color-info-300) 75%, transparent),
+        0 14px 28px -12px rgb(0 0 0 / 0.28),
+        0 0 34px -8px color-mix(in srgb, var(--color-info-400) 55%, transparent);
+}
+
+.farmadoc-ios-action--success:focus-visible {
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--color-success-300) 75%, transparent),
+        0 14px 28px -12px rgb(0 0 0 / 0.28),
+        0 0 34px -8px color-mix(in srgb, var(--color-success-400) 55%, transparent);
+}
+
+.farmadoc-ios-action--warning:focus-visible {
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--color-warning-300) 75%, transparent),
+        0 14px 28px -12px rgb(0 0 0 / 0.28),
+        0 0 34px -8px color-mix(in srgb, var(--color-warning-400) 55%, transparent);
+}
+
+.farmadoc-ios-action--danger:focus-visible {
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--color-danger-300) 75%, transparent),
+        0 14px 28px -12px rgb(0 0 0 / 0.28),
+        0 0 34px -8px color-mix(in srgb, var(--color-danger-400) 55%, transparent);
+}
+
+/*
+ * Acciones de formularios (crear, crear y crear otro, cancelar) con estética iOS global.
+ * Aplica en páginas de formulario y en modales de acciones.
+ */
+.fi-fo-actions .fi-btn,
+.fi-modal-footer .fi-btn {
+    border-radius: 1rem;
+    border-width: 1px;
+    border-style: solid;
+    padding: 0.625rem 1.25rem;
+    font-weight: 600;
+    color: white !important;
+    box-shadow:
+        0 14px 28px -12px rgb(0 0 0 / 0.28),
+        0 0 0 1px rgb(255 255 255 / 0.14),
+        0 0 26px -8px rgb(255 255 255 / 0.26);
+    transition:
+        transform 0.3s ease,
+        box-shadow 0.3s ease,
+        filter 0.3s ease;
+}
+
+.fi-fo-actions .fi-btn:hover,
+.fi-modal-footer .fi-btn:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 18px 36px -14px rgb(0 0 0 / 0.35),
+        0 0 0 1px rgb(255 255 255 / 0.2),
+        0 0 34px -8px rgb(255 255 255 / 0.36);
+    filter: brightness(1.05);
+}
+
+/* Botones principales/semánticos */
+.fi-fo-actions .fi-btn.fi-color-primary,
+.fi-modal-footer .fi-btn.fi-color-primary {
+    border-color: color-mix(in srgb, var(--color-primary-300) 45%, transparent);
+    background: linear-gradient(to right, var(--color-primary-500), var(--color-primary-600));
+}
+
+.fi-fo-actions .fi-btn.fi-color-info,
+.fi-modal-footer .fi-btn.fi-color-info {
+    border-color: color-mix(in srgb, var(--color-info-300) 45%, transparent);
+    background: linear-gradient(to right, var(--color-info-500), var(--color-info-600));
+}
+
+.fi-fo-actions .fi-btn.fi-color-success,
+.fi-modal-footer .fi-btn.fi-color-success {
+    border-color: color-mix(in srgb, var(--color-success-300) 45%, transparent);
+    background: linear-gradient(to right, var(--color-success-500), var(--color-success-600));
+}
+
+.fi-fo-actions .fi-btn.fi-color-warning,
+.fi-modal-footer .fi-btn.fi-color-warning {
+    border-color: color-mix(in srgb, var(--color-warning-300) 45%, transparent);
+    background: linear-gradient(to right, var(--color-warning-500), var(--color-warning-600));
+}
+
+.fi-fo-actions .fi-btn.fi-color-danger,
+.fi-modal-footer .fi-btn.fi-color-danger {
+    border-color: color-mix(in srgb, var(--color-danger-300) 45%, transparent);
+    background: linear-gradient(to right, var(--color-danger-500), var(--color-danger-600));
+}
+
+/*
+ * Cancelar en color danger:
+ * normalmente es outlined sin color explícito.
+ */
+.fi-fo-actions .fi-btn.fi-outlined:not(.fi-color),
+.fi-modal-footer .fi-btn.fi-outlined:not(.fi-color) {
+    border-color: color-mix(in srgb, var(--color-danger-300) 45%, transparent);
+    background: linear-gradient(to right, var(--color-danger-500), var(--color-danger-600));
+}
+
+.fi-fo-actions .fi-btn:focus-visible,
+.fi-modal-footer .fi-btn:focus-visible {
+    outline: none;
+}
+
+.fi-fo-actions .fi-btn.fi-color-primary:focus-visible,
+.fi-modal-footer .fi-btn.fi-color-primary:focus-visible {
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--color-primary-300) 75%, transparent),
+        0 14px 28px -12px rgb(0 0 0 / 0.28),
+        0 0 34px -8px color-mix(in srgb, var(--color-primary-400) 55%, transparent);
+}
+
+.fi-fo-actions .fi-btn.fi-color-info:focus-visible,
+.fi-modal-footer .fi-btn.fi-color-info:focus-visible {
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--color-info-300) 75%, transparent),
+        0 14px 28px -12px rgb(0 0 0 / 0.28),
+        0 0 34px -8px color-mix(in srgb, var(--color-info-400) 55%, transparent);
+}
+
+.fi-fo-actions .fi-btn.fi-color-success:focus-visible,
+.fi-modal-footer .fi-btn.fi-color-success:focus-visible {
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--color-success-300) 75%, transparent),
+        0 14px 28px -12px rgb(0 0 0 / 0.28),
+        0 0 34px -8px color-mix(in srgb, var(--color-success-400) 55%, transparent);
+}
+
+.fi-fo-actions .fi-btn.fi-color-warning:focus-visible,
+.fi-modal-footer .fi-btn.fi-color-warning:focus-visible {
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--color-warning-300) 75%, transparent),
+        0 14px 28px -12px rgb(0 0 0 / 0.28),
+        0 0 34px -8px color-mix(in srgb, var(--color-warning-400) 55%, transparent);
+}
+
+.fi-fo-actions .fi-btn.fi-color-danger:focus-visible,
+.fi-modal-footer .fi-btn.fi-color-danger:focus-visible,
+.fi-fo-actions .fi-btn.fi-outlined:not(.fi-color):focus-visible,
+.fi-modal-footer .fi-btn.fi-outlined:not(.fi-color):focus-visible {
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--color-danger-300) 75%, transparent),
+        0 14px 28px -12px rgb(0 0 0 / 0.28),
+        0 0 34px -8px color-mix(in srgb, var(--color-danger-400) 55%, transparent);
 }
 
 /* Grupo tipo control segmentado */
@@ -760,8 +974,8 @@
 
 .fi-icon-btn:not(.fi-disabled):not([disabled]):hover {
     background-color: rgb(0 0 0 / 0.06);
-    backdrop-filter: saturate(180%) blur(10px);
-    -webkit-backdrop-filter: saturate(180%) blur(10px);
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
 }
 
 .dark .fi-icon-btn:not(.fi-disabled):not([disabled]):hover {
@@ -772,8 +986,8 @@
 .fi-pagination-items {
     border-radius: 0.9375rem;
     background-color: rgb(255 255 255 / 0.78);
-    backdrop-filter: saturate(180%) blur(14px);
-    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
 }
 
 .dark .fi-pagination-items {
@@ -801,9 +1015,9 @@
 /* Menús desplegables (acciones en filas, usuario, etc.) */
 .fi-dropdown-panel {
     border-radius: 1rem !important;
-    background-color: rgb(255 255 255 / 0.92);
-    backdrop-filter: saturate(180%) blur(36px);
-    -webkit-backdrop-filter: saturate(180%) blur(36px);
+    background-color: rgb(255 255 255 / 0.97);
+    backdrop-filter: saturate(200%) blur(48px);
+    -webkit-backdrop-filter: saturate(200%) blur(48px);
     box-shadow:
         inset 0 1px 0 rgb(255 255 255 / 0.55),
         0 0 0 1px rgb(0 0 0 / 0.05),
@@ -811,7 +1025,7 @@
 }
 
 .dark .fi-dropdown-panel {
-    background-color: rgb(17 24 39 / 0.92);
+    background-color: rgb(17 24 39 / 0.96);
     box-shadow:
         inset 0 1px 0 rgb(255 255 255 / 0.08),
         0 0 0 1px rgb(255 255 255 / 0.1),
@@ -846,5 +1060,281 @@
     .fi-link:not(.fi-disabled):not([disabled]):active,
     .fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn:active {
         transform: none;
+    }
+}
+
+/*
+ * OVERRIDE ROBUSTO DE ACCIONES EN FORMULARIOS/MODALES
+ * (se deja al final para ganar prioridad sobre estilos previos de Filament)
+ */
+.fi-fo-actions .fi-btn,
+.fi-modal-footer-actions .fi-btn,
+.fi-modal-footer .fi-btn {
+    border-radius: 1rem !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+    padding: 0.625rem 1.25rem !important;
+    font-weight: 600 !important;
+    color: white !important;
+    box-shadow:
+        0 14px 28px -12px rgb(0 0 0 / 0.28),
+        0 0 0 1px rgb(255 255 255 / 0.14),
+        0 0 26px -8px rgb(255 255 255 / 0.26) !important;
+    transition:
+        transform 0.3s ease,
+        box-shadow 0.3s ease,
+        filter 0.3s ease !important;
+}
+
+.fi-fo-actions .fi-btn:hover,
+.fi-modal-footer-actions .fi-btn:hover,
+.fi-modal-footer .fi-btn:hover {
+    transform: translateY(-2px) !important;
+    box-shadow:
+        0 18px 36px -14px rgb(0 0 0 / 0.35),
+        0 0 0 1px rgb(255 255 255 / 0.2),
+        0 0 34px -8px rgb(255 255 255 / 0.36) !important;
+    filter: brightness(1.05) !important;
+}
+
+/* primary */
+.fi-fo-actions .fi-btn[class*='fi-color-primary'],
+.fi-modal-footer-actions .fi-btn[class*='fi-color-primary'],
+.fi-modal-footer .fi-btn[class*='fi-color-primary'] {
+    border-color: color-mix(in srgb, var(--color-primary-300) 45%, transparent) !important;
+    background: linear-gradient(to right, var(--color-primary-500), var(--color-primary-600)) !important;
+}
+
+/* info */
+.fi-fo-actions .fi-btn[class*='fi-color-info'],
+.fi-modal-footer-actions .fi-btn[class*='fi-color-info'],
+.fi-modal-footer .fi-btn[class*='fi-color-info'] {
+    border-color: color-mix(in srgb, var(--color-info-300) 45%, transparent) !important;
+    background: linear-gradient(to right, var(--color-info-500), var(--color-info-600)) !important;
+}
+
+/* success */
+.fi-fo-actions .fi-btn[class*='fi-color-success'],
+.fi-modal-footer-actions .fi-btn[class*='fi-color-success'],
+.fi-modal-footer .fi-btn[class*='fi-color-success'] {
+    border-color: color-mix(in srgb, var(--color-success-300) 45%, transparent) !important;
+    background: linear-gradient(to right, var(--color-success-500), var(--color-success-600)) !important;
+}
+
+/* warning */
+.fi-fo-actions .fi-btn[class*='fi-color-warning'],
+.fi-modal-footer-actions .fi-btn[class*='fi-color-warning'],
+.fi-modal-footer .fi-btn[class*='fi-color-warning'] {
+    border-color: color-mix(in srgb, var(--color-warning-300) 45%, transparent) !important;
+    background: linear-gradient(to right, var(--color-warning-500), var(--color-warning-600)) !important;
+}
+
+/* danger */
+.fi-fo-actions .fi-btn[class*='fi-color-danger'],
+.fi-modal-footer-actions .fi-btn[class*='fi-color-danger'],
+.fi-modal-footer .fi-btn[class*='fi-color-danger'] {
+    border-color: color-mix(in srgb, var(--color-danger-300) 45%, transparent) !important;
+    background: linear-gradient(to right, var(--color-danger-500), var(--color-danger-600)) !important;
+}
+
+/*
+ * Cancelar en danger: usualmente llega como gray o outlined sin color.
+ */
+.fi-fo-actions .fi-btn[class*='fi-color-gray'],
+.fi-modal-footer-actions .fi-btn[class*='fi-color-gray'],
+.fi-modal-footer .fi-btn[class*='fi-color-gray'],
+.fi-fo-actions .fi-btn.fi-outlined:not([class*='fi-color-']),
+.fi-modal-footer-actions .fi-btn.fi-outlined:not([class*='fi-color-']),
+.fi-modal-footer .fi-btn.fi-outlined:not([class*='fi-color-']) {
+    border-color: color-mix(in srgb, var(--color-danger-300) 45%, transparent) !important;
+    background: linear-gradient(to right, var(--color-danger-500), var(--color-danger-600)) !important;
+    color: white !important;
+}
+
+/*
+ * Páginas simples de autenticación (login, registro, recuperar contraseña): misma línea visual que welcome.
+ */
+.fi-simple-layout {
+    position: relative;
+    isolation: isolate;
+    overflow-x: hidden;
+    /* Centra el bloque sin forzar que la tarjeta ocupe todo el alto de la pantalla */
+    justify-content: center;
+}
+
+/* Altura natural de la tarjeta; solo centrada en el eje vertical del layout */
+.fi-simple-layout > .fi-simple-page {
+    position: relative;
+    z-index: 1;
+    flex: 0 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    margin-inline: auto;
+    padding-inline: 1rem;
+    padding-block: 2rem;
+}
+
+.fi-simple-page {
+    position: relative;
+    isolation: isolate;
+    width: 100%;
+    max-width: 28rem;
+    overflow: hidden;
+    border-radius: 2rem;
+    border: 1px solid rgb(255 255 255 / 0.6);
+    background-color: rgb(255 255 255 / 0.75);
+    padding-inline: 1.5rem;
+    padding-block: 2rem;
+    box-shadow:
+        0 24px 80px -12px rgb(24 172 178 / 0.25),
+        0 0 0 1px rgb(6 182 212 / 0.15);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+}
+
+.dark .fi-simple-page {
+    border-color: rgb(255 255 255 / 0.1);
+    background-color: rgb(24 24 27 / 0.55);
+    box-shadow:
+        0 24px 80px -12px rgb(0 0 0 / 0.65),
+        0 0 0 1px rgb(34 211 238 / 0.2);
+}
+
+.fi-simple-page::before {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    inset: -1px;
+    border-radius: inherit;
+    background:
+        radial-gradient(120% 80% at 100% 0%, rgb(252 228 34 / 0.18), transparent 55%),
+        radial-gradient(120% 80% at 0% 100%, rgb(6 182 212 / 0.15), transparent 50%);
+    opacity: 0.9;
+}
+
+.dark .fi-simple-page::before {
+    background:
+        radial-gradient(120% 80% at 100% 0%, rgb(252 228 34 / 0.08), transparent 55%),
+        radial-gradient(120% 80% at 0% 100%, rgb(6 182 212 / 0.1), transparent 50%);
+}
+
+.fi-simple-page-content {
+    position: relative;
+    z-index: 1;
+}
+
+.fi-simple-header {
+    row-gap: 0.75rem;
+}
+
+.fi-simple-header .fi-logo,
+.fi-simple-header img.fi-logo {
+    height: 6.5rem !important;
+    width: auto !important;
+    max-width: 100%;
+    filter: drop-shadow(0 12px 40px rgb(24 172 178 / 0.35));
+}
+
+.dark .fi-simple-header .fi-logo,
+.dark .fi-simple-header img.fi-logo {
+    filter: drop-shadow(0 12px 48px rgb(24 172 178 / 0.25));
+}
+
+.fi-simple-header-heading {
+    margin-top: 0.5rem;
+    font-size: clamp(1.5rem, 4vw, 2rem);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    background-image: linear-gradient(to right, rgb(8 145 178), rgb(13 148 136), rgb(8 145 178));
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+}
+
+.dark .fi-simple-header-heading {
+    background-image: linear-gradient(to right, rgb(103 232 249), rgb(94 234 212), rgb(103 232 249));
+    background-clip: text;
+    -webkit-background-clip: text;
+}
+
+/* Eslogan bajo el logo (login y páginas simples que lo definan) */
+.fi-simple-header-slogan {
+    margin: 0.5rem 0 0;
+    width: 100%;
+    text-align: center;
+}
+
+.fi-simple-header-slogan .fi-login-slogan {
+    display: block;
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1.45;
+    color: rgb(14 116 144);
+    text-shadow:
+        0 0 40px rgb(24 172 178 / 0.35),
+        0 1px 0 rgb(255 255 255 / 0.45);
+}
+
+.dark .fi-simple-header-slogan .fi-login-slogan {
+    color: rgb(103 232 249);
+    text-shadow:
+        0 0 32px rgb(6 182 212 / 0.45),
+        0 1px 2px rgb(0 0 0 / 0.35);
+}
+
+.fi-login-register {
+    display: block;
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: rgb(82 82 91);
+}
+
+.dark .fi-login-register {
+    color: rgb(212 212 216);
+}
+
+.fi-login-register a {
+    font-weight: 600;
+    color: rgb(8 145 178);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+.dark .fi-login-register a {
+    color: rgb(103 232 249);
+}
+
+/* Botón principal del formulario de login */
+.fi-simple-page .fi-btn.fi-color-primary:not(.fi-outlined) {
+    border-radius: 1rem;
+    background-image: linear-gradient(to right, rgb(8 145 178), rgb(13 148 136), rgb(8 145 178));
+    background-size: 200% 100%;
+    font-weight: 700;
+    box-shadow:
+        0 20px 25px -5px rgb(8 145 178 / 0.35),
+        0 8px 10px -6px rgb(8 145 178 / 0.35);
+    transition-property: background-position, box-shadow, transform;
+    transition-duration: 0.3s;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fi-simple-page .fi-btn.fi-color-primary:not(.fi-outlined):hover {
+    background-position: 100% 0;
+}
+
+.dark .fi-simple-page .fi-btn.fi-color-primary:not(.fi-outlined) {
+    background-image: linear-gradient(to right, rgb(6 182 212), rgb(20 184 166), rgb(6 182 212));
+    box-shadow:
+        0 20px 25px -5px rgb(0 0 0 / 0.5),
+        0 8px 10px -6px rgb(0 0 0 / 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fi-simple-page .fi-btn.fi-color-primary:not(.fi-outlined) {
+        transition-duration: 0.01ms;
     }
 }

@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::create('purchases', function (Blueprint $table) {
             $table->id()->comment('Identificador único de la compra / orden de compra');
             $table->string('purchase_number')->unique()->comment('Número interno de la orden de compra');
-            $table->foreignId('supplier_id')->constrained()->restrictOnDelete()->comment('Proveedor al que se compra');
-            $table->foreignId('branch_id')->constrained()->restrictOnDelete()->comment('Sucursal donde se recibe o ingresa la mercancía');
+            $table->unsignedInteger('supplier_id')->comment('Proveedor al que se compra');
+            $table->unsignedInteger('branch_id')->comment('Sucursal donde se recibe o ingresa la mercancía');
             $table->string('status')->index()->comment('Estado: borrador, pedido, recepción parcial, recibido, anulado');
 
             $table->timestamp('ordered_at')->nullable()->comment('Fecha en que se envió el pedido al proveedor');

@@ -2,6 +2,8 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Auth\Login;
+use App\Filament\Pages\Auth\Register;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -30,9 +32,11 @@ class FarmaadminPanelProvider extends PanelProvider
             ->path('farmaadmin')
             ->viteTheme('resources/css/filament/farmaadmin/theme.css')
             ->font('League Spartan')
-            ->login()
+            ->login(Login::class)
+            ->registration(Register::class)
             ->passwordReset()
             ->profile()
+            ->spa()
             ->emailVerification()
             ->emailChangeVerification()
             ->emailVerification()

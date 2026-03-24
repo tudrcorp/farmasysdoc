@@ -17,9 +17,12 @@ class ListInventories extends ListRecords
     {
         return [
             CreateAction::make()
-                ->label('Crear Inventario')
+                ->label('Agregar Producto a Inventario')
                 ->icon(Heroicon::Plus)
-                ->color('primary'),
+                ->color('primary')
+                ->extraAttributes([
+                    'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
+                ]),
         ];
     }
 }

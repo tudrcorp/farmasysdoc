@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ProductType;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,17 +18,12 @@ class Product extends Model
      */
     protected $fillable = [
         'supplier_id',
-        'sku',
         'barcode',
         'name',
         'slug',
         'description',
         'product_type',
         'brand',
-        'presentation',
-        'unit_of_measure',
-        'unit_content',
-        'net_content_label',
         'sale_price',
         'cost_price',
         'tax_rate',
@@ -36,7 +32,6 @@ class Product extends Model
         'presentation_type',
         'requires_prescription',
         'is_controlled_substance',
-        'health_registration_number',
         'ingredients',
         'allergens',
         'nutritional_information',
@@ -67,6 +62,7 @@ class Product extends Model
             'requires_calibration' => 'boolean',
             'is_active' => 'boolean',
             'warranty_months' => 'integer',
+            'active_ingredient' => 'array',
         ];
     }
 
@@ -78,6 +74,19 @@ class Product extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    /**
+     * Coincidencia parcial del principio activo (sin distinguir mayúsculas; escapa comodines SQL).
+     *
+     * @param  Builder<Product>  $query
+     * @return Builder<Product>
+     */
+    public function scopeWhereActiveIngredientContains(Builder $query, string $term): Builder
+    {
+        $like = '%'.addcslashes(mb_strtolower(trim($term)), '%_\\').'%';
+
+        return $query->whereRaw('LOWER(active_ingredient) LIKE ?', [$like]);
     }
 
     /**

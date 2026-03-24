@@ -20,7 +20,6 @@ class BranchFactory extends Factory
     public function definition(): array
     {
         return [
-            'code' => fake()->unique()->bothify('SUC-###'),
             'name' => fake()->streetName().' — '.fake()->city(),
             'legal_name' => fake()->optional()->company(),
             'tax_id' => fake()->optional()->numerify('9########'),

@@ -37,7 +37,6 @@ Route::get('/pp', function () {
     }
 
     return json_decode($body);
-
 })->name('pp');
 
-require __DIR__.'/settings.php';
+require __DIR__ . '/settings.php';

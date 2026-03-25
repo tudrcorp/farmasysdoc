@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
+use App\Models\Rol;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -47,6 +48,12 @@ class UserForm
                                     ->prefixIcon(Heroicon::Envelope)
                                     ->autocomplete('email')
                                     ->columnSpan(['default' => 1, 'lg' => 1]),
+                                Select::make('roles')
+                                    ->label('Roles')
+                                    ->options(Rol::all()->pluck('name', 'name'))
+                                    ->required()
+                                    ->multiple()
+                                    ->native(false),
                             ]),
                         Select::make('branch_id')
                             ->label('Sucursal')

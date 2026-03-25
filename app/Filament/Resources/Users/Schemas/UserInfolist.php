@@ -56,6 +56,22 @@ class UserInfolist
                                         ? BranchResource::getUrl('view', ['record' => $record->branch_id], isAbsolute: false)
                                         : null)
                                     ->openUrlInNewTab(false),
+                                TextEntry::make('roles')
+                                    ->label('Roles')
+                                    ->icon(Heroicon::UserGroup)
+                                    ->getStateUsing(function (User $record): ?string {
+                                        $roles = $record->roles;
+                                        if (! is_array($roles) || $roles === []) {
+                                            return null;
+                                        }
+
+                                        return collect($roles)
+                                            ->filter(fn (mixed $role): bool => filled($role))
+                                            ->map(fn (mixed $role): string => (string) $role)
+                                            ->implode(', ');
+                                    })
+                                    ->placeholder('Sin roles asignados')
+                                    ->visible(fn (User $record): bool => is_array($record->roles) && $record->roles !== []),
                             ]),
                     ])
                     ->columns(1)

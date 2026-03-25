@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\FiscalReceiptController;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
@@ -8,6 +9,9 @@ Route::view('/docs/api', 'public.api-docs')->name('public.api-docs');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
+
+    Route::get('sales/{sale}/fiscal-receipt', [FiscalReceiptController::class, 'show'])
+        ->name('sales.fiscal-receipt');
 });
 
 Route::get('/pp', function () {

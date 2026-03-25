@@ -10,12 +10,13 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
-#[Fillable(['name', 'email', 'password', 'branch_id'])]
+#[Fillable(['name', 'email', 'password', 'branch_id', 'roles'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -32,6 +33,7 @@ class User extends Authenticatable implements FilamentUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'roles' => 'array',
         ];
     }
 
@@ -53,10 +55,32 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * Si el array JSON `roles` incluye «ADMINISTRADOR», el usuario puede ver datos de todas las sucursales.
+     */
+    public function isAdministrator(): bool
+    {
+        $roles = $this->roles;
+        if (! is_array($roles)) {
+            return false;
+        }
+
+        if(in_array('ADMINISTRADOR', $roles, true)) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
      * @return BelongsTo<Branch, $this>
      */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function roles(): HasMany
+    {
+        return $this->hasMany(Rol::class);
     }
 }

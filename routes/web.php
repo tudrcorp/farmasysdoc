@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
@@ -62,5 +63,25 @@ Route::get('/pp', function () {
     echo 'HTTP '.$status.PHP_EOL;
     echo $body.PHP_EOL;
 })->name('pp');
+
+Route::get('/bcv', function () {
+    // $response = Http::timeout(5)->get('https://ve.dolarapi.com/v1/dolares');
+    // dd($response->json());
+    try {
+        $response = Http::timeout(config('dolar.timeout', 8))
+            ->acceptJson()
+            ->get(rtrim((string) config('dolar.base_url'), '/').'/v1/estado');
+
+        if (! $response->successful()) {
+            return false;
+        }
+
+        $estado = $response->json('estado');
+
+        return is_string($estado) && strcasecmp(trim($estado), 'Disponible') !== 0;
+    } catch (Throwable) {
+        return false;
+    }
+})->name('bcv');
 
 require __DIR__.'/settings.php';

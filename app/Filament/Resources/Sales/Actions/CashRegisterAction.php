@@ -10,6 +10,8 @@ use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Services\Dolar\DolarApiDolaresService;
+use App\Services\Dolar\DolarApiEstadoService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -34,11 +36,6 @@ use RuntimeException;
 
 final class CashRegisterAction
 {
-    /**
-     * Tasa USD → VES solo como referencia visual (sustituir por API BCV u otra fuente).
-     */
-    private const PLACEHOLDER_USD_TO_VES_RATE = 55.28;
-
     public static function make(): Action
     {
         return Action::make('box')
@@ -54,7 +51,7 @@ final class CashRegisterAction
             ->extraAttributes([
                 'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
             ])
-            ->fillForm(fn (): array => [
+            ->fillForm(fn (): array => array_merge([
                 'client_id' => null,
                 'payment_method' => 'efectivo_usd',
                 'mixed_usd_paid' => null,
@@ -65,7 +62,7 @@ final class CashRegisterAction
                         'quantity' => 1,
                     ],
                 ],
-            ])
+            ], self::initialDolarFormState()))
             ->schema([
                 Section::make('Venta')
                     ->schema([
@@ -256,18 +253,25 @@ final class CashRegisterAction
                                             ->hiddenLabel()
                                             ->alignment(Alignment::Center)
                                             ->html()
-                                            ->state(function (Get $get): HtmlString {
-                                                $ves = self::formatBolivaresReference(self::computeSaleTotal($get));
-
-                                                return new HtmlString(
-                                                    '<p class="farmadoc-pos-total-ios__ves">≈ '.e($ves).'</p>'.
-                                                    '<p class="farmadoc-pos-total-ios__hint">Tasa referencia · API próximamente</p>'
-                                                );
-                                            })
+                                            ->state(fn (Get $get): HtmlString => self::buildTotalVesBannerHtml($get))
                                             ->dehydrated(false)
                                             ->extraEntryWrapperAttributes([
                                                 'class' => 'farmadoc-pos-total-ios__sub',
                                             ]),
+                                        TextInput::make('ves_usd_rate')
+                                            ->type('hidden')
+                                            ->dehydrated()
+                                            ->default(null),
+                                        TextInput::make('ves_usd_rate_manual')
+                                            ->label('Tasa Bs. por 1 USD (manual)')
+                                            ->helperText('Solo si la API no está disponible. Se usa para convertir USD a bolívares.')
+                                            ->numeric()
+                                            ->minValue(0.0001)
+                                            ->step(0.01)
+                                            ->prefix('Bs.')
+                                            ->suffix('× 1 USD')
+                                            ->live(debounce: 300)
+                                            ->visible(fn (Get $get): bool => ! self::hasValidApiRate($get)),
                                     ])
                                     ->columnSpanFull(),
                             ])
@@ -424,10 +428,25 @@ final class CashRegisterAction
                 $discountTotal = 0.0;
                 $documentTotal = round($subtotal + $taxTotal - $discountTotal, 2);
 
+                $vesUsdRate = self::effectiveVesUsdRateFromData($data);
+
+                if ($documentTotal > 0
+                    && self::requiresVesConversion($paymentMethod, $documentTotal, (float) ($data['mixed_usd_paid'] ?? 0))
+                    && $vesUsdRate <= 0) {
+                    Notification::make()
+                        ->title('Indique la tasa Bs. por USD')
+                        ->body('La API no devolvió una tasa válida. Ingrese manualmente el valor del bolívar para continuar.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
                 [$paymentUsd, $paymentVes] = self::resolvePaymentAmounts(
                     $documentTotal,
                     $paymentMethod,
-                    mixedUsdPaid: (float) ($data['mixed_usd_paid'] ?? 0)
+                    mixedUsdPaid: (float) ($data['mixed_usd_paid'] ?? 0),
+                    vesUsdRate: $vesUsdRate
                 );
 
                 $shouldRequireReference = in_array($paymentMethod, ['transfer_ves', 'pago_movil', 'zelle'], true)
@@ -573,9 +592,14 @@ final class CashRegisterAction
         return '$'.number_format($amount, 2, '.', ',');
     }
 
-    private static function formatBolivaresReference(float $usdAmount): string
+    private static function formatBolivaresReference(float $usdAmount, Get $get): string
     {
-        $ves = round($usdAmount * self::PLACEHOLDER_USD_TO_VES_RATE, 2);
+        $rate = self::effectiveVesUsdRate($get);
+        if ($rate <= 0) {
+            return 'Bs. —';
+        }
+
+        $ves = round($usdAmount * $rate, 2);
 
         return 'Bs. '.number_format($ves, 2, ',', '.');
     }
@@ -588,9 +612,9 @@ final class CashRegisterAction
     /**
      * @return array{0: float, 1: float}
      */
-    private static function resolvePaymentAmounts(float $documentTotalUsd, string $paymentMethod, float $mixedUsdPaid = 0): array
+    private static function resolvePaymentAmounts(float $documentTotalUsd, string $paymentMethod, float $mixedUsdPaid = 0, float $vesUsdRate = 0): array
     {
-        $rate = self::PLACEHOLDER_USD_TO_VES_RATE;
+        $rate = max(0.0, $vesUsdRate);
 
         return match ($paymentMethod) {
             'efectivo_usd', 'transfer_usd', 'zelle' => [$documentTotalUsd, 0.0],
@@ -611,7 +635,8 @@ final class CashRegisterAction
         $paymentMethod = (string) ($get('payment_method') ?? 'efectivo_usd');
         $total = self::computeSaleTotal($get);
         $mixedUsdPaid = (float) ($get('mixed_usd_paid') ?? 0);
-        [$paymentUsd, $paymentVes] = self::resolvePaymentAmounts($total, $paymentMethod, $mixedUsdPaid);
+        $rate = self::effectiveVesUsdRate($get);
+        [$paymentUsd, $paymentVes] = self::resolvePaymentAmounts($total, $paymentMethod, $mixedUsdPaid, $rate);
 
         return [
             'payment_usd' => $paymentUsd,
@@ -676,5 +701,105 @@ final class CashRegisterAction
         $taxAmount = $lineSubtotal * ($taxRate / 100);
 
         return round($lineSubtotal + $taxAmount, 2);
+    }
+
+    /**
+     * @return array{ves_usd_rate: ?float, ves_usd_rate_manual: null}
+     */
+    private static function initialDolarFormState(): array
+    {
+        $estadoOk = app(DolarApiEstadoService::class)->isAvailable();
+        $rate = $estadoOk ? app(DolarApiDolaresService::class)->getOfficialUsdToVesRate() : null;
+        $apiOk = $rate !== null && $rate > 0;
+
+        return [
+            'ves_usd_rate' => $apiOk ? $rate : null,
+            'ves_usd_rate_manual' => null,
+        ];
+    }
+
+    private static function hasValidApiRate(Get $get): bool
+    {
+        $api = $get('ves_usd_rate');
+
+        return is_numeric($api) && (float) $api > 0;
+    }
+
+    private static function effectiveVesUsdRate(Get $get): float
+    {
+        $api = $get('ves_usd_rate');
+        if (is_numeric($api) && (float) $api > 0) {
+            return (float) $api;
+        }
+
+        $manual = $get('ves_usd_rate_manual');
+        if (is_numeric($manual) && (float) $manual > 0) {
+            return (float) $manual;
+        }
+
+        return 0.0;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private static function effectiveVesUsdRateFromData(array $data): float
+    {
+        $api = $data['ves_usd_rate'] ?? null;
+        if (is_numeric($api) && (float) $api > 0) {
+            return (float) $api;
+        }
+
+        $manual = $data['ves_usd_rate_manual'] ?? null;
+        if (is_numeric($manual) && (float) $manual > 0) {
+            return (float) $manual;
+        }
+
+        return 0.0;
+    }
+
+    private static function requiresVesConversion(string $paymentMethod, float $documentTotalUsd, float $mixedUsdPaid): bool
+    {
+        return match ($paymentMethod) {
+            'transfer_ves', 'pago_movil' => true,
+            'mixed' => max(0.0, $documentTotalUsd - min($documentTotalUsd, max(0.0, $mixedUsdPaid))) > 0.00001,
+            default => false,
+        };
+    }
+
+    private static function buildTotalVesBannerHtml(Get $get): HtmlString
+    {
+        $apiRate = $get('ves_usd_rate');
+        $hasApi = is_numeric($apiRate) && (float) $apiRate > 0;
+        $manual = $get('ves_usd_rate_manual');
+        $hasManual = is_numeric($manual) && (float) $manual > 0;
+
+        $pillClass = $hasApi
+            ? 'farmadoc-pos-rate-pill farmadoc-pos-rate-pill--ok'
+            : 'farmadoc-pos-rate-pill farmadoc-pos-rate-pill--error';
+
+        if ($hasApi) {
+            $rateLabel = '1 USD = Bs. '.number_format((float) $apiRate, 2, ',', '.').' (API oficial)';
+        } elseif ($hasManual) {
+            $rateLabel = '1 USD = Bs. '.number_format((float) $manual, 2, ',', '.').' (manual)';
+        } else {
+            $rateLabel = 'Sin tasa · ingrese manualmente';
+        }
+
+        $vesLine = self::formatBolivaresReference(self::computeSaleTotal($get), $get);
+        $hint = $hasApi
+            ? 'Fuente: ve.dolarapi.com (oficial)'
+            : 'API no disponible — use tasa manual abajo';
+
+        $bcvLogoSrc = e(asset('images/logos/logoBCV.png'));
+
+        return new HtmlString(
+            '<p class="'.$pillClass.' farmadoc-pos-rate-pill--with-bcv" role="group" aria-label="Tasa referencial BCV">'.
+            '<img src="'.$bcvLogoSrc.'" alt="BCV" class="farmadoc-pos-bcv-logo" loading="lazy" decoding="async" />'.
+            '<span class="farmadoc-pos-rate-pill__text">'.e($rateLabel).'</span>'.
+            '</p>'.
+            '<p class="farmadoc-pos-total-ios__ves">≈ '.e($vesLine).'</p>'.
+            '<p class="farmadoc-pos-total-ios__hint">'.e($hint).'</p>'
+        );
     }
 }

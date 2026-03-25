@@ -64,7 +64,116 @@ final class CashRegisterAction
                 ],
             ], self::initialDolarFormState()))
             ->schema([
+
+                Grid::make([
+                    'default' => 1,
+                    'md' => 2,
+                ])
+                    ->schema([
+                        Section::make('Total a cobrar')
+                            ->description('Incluye impuestos según cada producto.')
+                            ->icon(Heroicon::Banknotes)
+                            ->iconColor('primary')
+                            ->schema([
+                                Grid::make(1)
+                                    ->extraAttributes([
+                                        'class' => 'farmadoc-pos-total-ios-card',
+                                    ])
+                                    ->schema([
+                                        TextEntry::make('pos_total_banner')
+                                            ->hiddenLabel()
+                                            ->alignment(Alignment::Center)
+                                            ->weight(FontWeight::Bold)
+                                            ->size(TextSize::Large)
+                                            ->state(fn (Get $get): string => self::formatMoney(self::computeSaleTotal($get)))
+                                            ->dehydrated(false)
+                                            ->extraEntryWrapperAttributes([
+                                                'class' => 'farmadoc-pos-total-ios__amount',
+                                            ]),
+                                        TextEntry::make('pos_total_banner_ves')
+                                            ->hiddenLabel()
+                                            ->alignment(Alignment::Center)
+                                            ->html()
+                                            ->state(fn (Get $get): HtmlString => self::buildTotalVesBannerHtml($get))
+                                            ->dehydrated(false)
+                                            ->extraEntryWrapperAttributes([
+                                                'class' => 'farmadoc-pos-total-ios__sub',
+                                            ]),
+                                        TextInput::make('ves_usd_rate')
+                                            ->type('hidden')
+                                            ->dehydrated()
+                                            ->default(null),
+                                        TextInput::make('ves_usd_rate_manual')
+                                            ->label('Tasa Bs. por 1 USD (manual)')
+                                            ->helperText('Solo si la API no está disponible. Se usa para convertir USD a bolívares.')
+                                            ->numeric()
+                                            ->minValue(0.0001)
+                                            ->step(0.01)
+                                            ->prefix('Bs.')
+                                            ->suffix('× 1 USD')
+                                            ->live(debounce: 300)
+                                            ->visible(fn (Get $get): bool => ! self::hasValidApiRate($get)),
+                                    ])
+                                    ->columnSpanFull(),
+                            ])
+                            ->extraAttributes([
+                                'class' => 'farmadoc-pos-total-section farmadoc-pos-total-section--ios',
+                            ]),
+                        Section::make('Formas de pago')
+                            ->description('Seleccione la forma de pago y el monto a pagar.')
+                    ->iconColor('primary')
+                            ->extraAttributes([
+                                'class' => 'farmadoc-pos-payment-section',
+                            ])
+                            ->icon(Heroicon::CreditCard)
+                            ->schema([
+                                Select::make('payment_method')
+                                    ->label('Cobro')
+                                    ->options([
+                                        'transfer_usd' => 'Transferencias USD',
+                                        'transfer_ves' => 'Transferencia VES',
+                                        'pago_movil' => 'Pago Mobil',
+                                        'zelle' => 'Zelle',
+                                        'efectivo_usd' => 'Efectivo USD',
+                                        'mixed' => 'Pago Multiple',
+                                    ])
+                                    ->default('efectivo_usd')
+                                    ->required()
+                                    ->live()
+                                    ->native(false)
+                                    ->prefixIcon(Heroicon::CreditCard),
+                                TextInput::make('mixed_usd_paid')
+                                    ->label('Pago en USD (usuario)')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->step(0.01)
+                                    ->prefix('$')
+                                    ->live(debounce: 300)
+                                    ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'),
+                                TextEntry::make('payment_usd_preview')
+                                    ->label('payment_usd')
+                                    ->state(fn (Get $get): string => self::formatMoney(self::computePaymentBreakdownForForm($get)['payment_usd']))
+                                    ->dehydrated(false),
+                                TextEntry::make('payment_ves_preview')
+                                    ->label('payment_ves')
+                                    ->state(fn (Get $get): string => self::formatBolivaresReferenceFromVes(self::computePaymentBreakdownForForm($get)['payment_ves']))
+                                    ->dehydrated(false),
+                                TextInput::make('reference')
+                                    ->label('Referencia de pago')
+                                    ->helperText('Obligatoria para pagos en bolivares y para Zelle.')
+                                    ->maxLength(255)
+                                    ->visible(fn (Get $get): bool => in_array($get('payment_method'), ['transfer_ves', 'pago_movil', 'zelle', 'mixed'], true)),
+                            ]),
+                    ])
+                    ->columnSpanFull(),
+
                 Section::make('Venta')
+                    ->description('Busque productos, indique cantidades y confirme el cobro. El total se actualiza al instante.')
+                    ->icon(Heroicon::ShoppingCart)
+                    ->iconColor('primary')
+                    ->extraAttributes([
+                        'class' => 'farmadoc-pos-cart-section',
+                    ])
                     ->schema([
                         Select::make('client_id')
                             ->label('Cliente')
@@ -114,6 +223,9 @@ final class CashRegisterAction
                             ->itemLabel(fn (array $state): ?string => filled($state['product_id'] ?? null)
                                 ? (Product::query()->find($state['product_id'])?->name ?? 'Producto')
                                 : 'Nueva línea')
+                            ->extraAttributes([
+                                'class' => 'farmadoc-pos-line-items-repeater fi-fixed-positioning-context',
+                            ])
                             ->schema([
                                 Grid::make([
                                     'default' => 1,
@@ -122,7 +234,6 @@ final class CashRegisterAction
                                     ->schema([
                                         Select::make('product_id')
                                             ->label('Producto')
-                                            ->helperText('Se listan productos del inventario de su sucursal.')
                                             ->searchable()
                                             ->disabled(fn (): bool => blank(Auth::user()?->branch_id))
                                             ->getSearchResultsUsing(function (string $search): array {
@@ -208,11 +319,20 @@ final class CashRegisterAction
                                                     }),
                                                 isInline: true,
                                             )
+                                            ->extraAttributes([
+                                                'class' => 'farmadoc-pos-qty-field',
+                                            ])
                                             ->columnSpan(['lg' => 2]),
                                         TextEntry::make('line_preview')
-                                            ->label('Importe línea')
+                                            ->label('Total de línea')
                                             ->state(fn (Get $get): string => self::formatMoney(self::computeLineTotal($get)))
                                             ->dehydrated(false)
+                                            ->alignment(Alignment::End)
+                                            ->weight(FontWeight::SemiBold)
+                                            ->size(TextSize::Large)
+                                            ->extraEntryWrapperAttributes([
+                                                'class' => 'farmadoc-pos-line-amount-entry',
+                                            ])
                                             ->columnSpan(['lg' => 3]),
                                     ]),
                             ])
@@ -223,103 +343,6 @@ final class CashRegisterAction
                     ->extraAttributes([
                         'class' => 'farmadoc-pos-meta-section farmadoc-pos-cart-section',
                     ]),
-
-                Grid::make([
-                    'default' => 1,
-                    'md' => 2,
-                ])
-                    ->schema([
-                        Section::make('Total a cobrar')
-                            ->description('Incluye impuestos según cada producto.')
-                            ->icon(Heroicon::Banknotes)
-                            ->iconColor('primary')
-                            ->schema([
-                                Grid::make(1)
-                                    ->extraAttributes([
-                                        'class' => 'farmadoc-pos-total-ios-card',
-                                    ])
-                                    ->schema([
-                                        TextEntry::make('pos_total_banner')
-                                            ->hiddenLabel()
-                                            ->alignment(Alignment::Center)
-                                            ->weight(FontWeight::Bold)
-                                            ->size(TextSize::Large)
-                                            ->state(fn (Get $get): string => self::formatMoney(self::computeSaleTotal($get)))
-                                            ->dehydrated(false)
-                                            ->extraEntryWrapperAttributes([
-                                                'class' => 'farmadoc-pos-total-ios__amount',
-                                            ]),
-                                        TextEntry::make('pos_total_banner_ves')
-                                            ->hiddenLabel()
-                                            ->alignment(Alignment::Center)
-                                            ->html()
-                                            ->state(fn (Get $get): HtmlString => self::buildTotalVesBannerHtml($get))
-                                            ->dehydrated(false)
-                                            ->extraEntryWrapperAttributes([
-                                                'class' => 'farmadoc-pos-total-ios__sub',
-                                            ]),
-                                        TextInput::make('ves_usd_rate')
-                                            ->type('hidden')
-                                            ->dehydrated()
-                                            ->default(null),
-                                        TextInput::make('ves_usd_rate_manual')
-                                            ->label('Tasa Bs. por 1 USD (manual)')
-                                            ->helperText('Solo si la API no está disponible. Se usa para convertir USD a bolívares.')
-                                            ->numeric()
-                                            ->minValue(0.0001)
-                                            ->step(0.01)
-                                            ->prefix('Bs.')
-                                            ->suffix('× 1 USD')
-                                            ->live(debounce: 300)
-                                            ->visible(fn (Get $get): bool => ! self::hasValidApiRate($get)),
-                                    ])
-                                    ->columnSpanFull(),
-                            ])
-                            ->extraAttributes([
-                                'class' => 'farmadoc-pos-total-section farmadoc-pos-total-section--ios',
-                            ]),
-                        Section::make('Formas de pago')
-                            ->icon(Heroicon::CreditCard)
-                            ->schema([
-                                Select::make('payment_method')
-                                    ->label('Cobro')
-                                    ->options([
-                                        'transfer_usd' => 'Transferencias USD',
-                                        'transfer_ves' => 'Transferencia VES',
-                                        'pago_movil' => 'Pago Mobil',
-                                        'zelle' => 'Zelle',
-                                        'efectivo_usd' => 'Efectivo USD',
-                                        'mixed' => 'Pago Multiple',
-                                    ])
-                                    ->default('efectivo_usd')
-                                    ->required()
-                                    ->live()
-                                    ->native(false)
-                                    ->prefixIcon(Heroicon::CreditCard),
-                                TextInput::make('mixed_usd_paid')
-                                    ->label('Pago en USD (usuario)')
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->step(0.01)
-                                    ->prefix('$')
-                                    ->live(debounce: 300)
-                                    ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'),
-                                TextEntry::make('payment_usd_preview')
-                                    ->label('payment_usd')
-                                    ->state(fn (Get $get): string => self::formatMoney(self::computePaymentBreakdownForForm($get)['payment_usd']))
-                                    ->dehydrated(false),
-                                TextEntry::make('payment_ves_preview')
-                                    ->label('payment_ves')
-                                    ->state(fn (Get $get): string => self::formatBolivaresReferenceFromVes(self::computePaymentBreakdownForForm($get)['payment_ves']))
-                                    ->dehydrated(false),
-                                TextInput::make('reference')
-                                    ->label('Referencia de pago')
-                                    ->helperText('Obligatoria para pagos en bolivares y para Zelle.')
-                                    ->maxLength(255)
-                                    ->visible(fn (Get $get): bool => in_array($get('payment_method'), ['transfer_ves', 'pago_movil', 'zelle', 'mixed'], true)),
-                            ]),
-                    ])
-                    ->columnSpanFull(),
             ])
             ->action(function (array $data) {
                 $branchId = Auth::user()?->branch_id;

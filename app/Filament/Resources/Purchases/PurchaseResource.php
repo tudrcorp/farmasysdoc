@@ -8,11 +8,13 @@ use App\Filament\Resources\Purchases\Pages\ListPurchases;
 use App\Filament\Resources\Purchases\Schemas\PurchaseForm;
 use App\Filament\Resources\Purchases\Tables\PurchasesTable;
 use App\Models\Purchase;
+use App\Support\Filament\BranchAuthScope;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class PurchaseResource extends Resource
 {
@@ -30,6 +32,11 @@ class PurchaseResource extends Resource
     public static function table(Table $table): Table
     {
         return PurchasesTable::configure($table);
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return BranchAuthScope::apply(parent::getEloquentQuery());
     }
 
     public static function getRelations(): array

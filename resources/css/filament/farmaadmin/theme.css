@@ -1388,6 +1388,59 @@
 }
 
 /* Caja registradora (modal POS) — UI tipo iOS */
+
+/* Misma altura: «Total a cobrar» y «Formas de pago» en el grid de dos columnas (md+) */
+@media (min-width: 48rem) {
+    .farmadoc-pos-summary-grid {
+        align-items: stretch;
+    }
+
+    .farmadoc-pos-summary-grid > .fi-sc-section {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 100%;
+    }
+
+    .farmadoc-pos-summary-grid > .fi-sc-section .fi-section {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        height: 100%;
+    }
+
+    .farmadoc-pos-summary-grid > .fi-sc-section .fi-section-content-ctn {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .farmadoc-pos-summary-grid > .fi-sc-section .fi-section-content {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    /* El bloque del monto crece y centra el contenido en el espacio sobrante */
+    .farmadoc-pos-total-ios-card--match-payment-height {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 0;
+        padding-top: 0.28rem;
+        padding-bottom: 0.28rem;
+    }
+
+    /* Formas de pago: menos aire vertical en la misma fila */
+    .farmadoc-pos-summary-grid .farmadoc-pos-payment-section .fi-section-content {
+        gap: 0.625rem;
+    }
+}
+
 .farmadoc-pos-total-section .fi-section-header-heading {
     font-size: 0.8125rem;
     font-weight: 600;
@@ -1428,17 +1481,17 @@
 
 .farmadoc-pos-total-ios-card {
     text-align: center;
-    padding: 0.35rem 0.25rem 0.15rem;
+    padding: 0.14rem 0.22rem 0.08rem;
 }
 
 .farmadoc-pos-total-ios__amount {
-    font-size: clamp(2.35rem, 1.2rem + 3.4vw, 3.55rem);
+    font-size: clamp(1.65rem, 0.85rem + 2.35vw, 2.6rem);
     font-weight: 700;
-    letter-spacing: -0.045em;
-    line-height: 1.05;
+    letter-spacing: -0.042em;
+    line-height: 1.03;
     font-variant-numeric: tabular-nums;
     color: rgb(15 23 42);
-    padding: 0.35rem 0.75rem 0.15rem;
+    padding: 0.16rem 0.55rem 0.07rem;
 }
 
 .dark .farmadoc-pos-total-ios__amount {
@@ -1462,12 +1515,12 @@
 }
 
 .farmadoc-pos-total-ios__sub {
-    padding: 0.15rem 0.75rem 0.35rem;
+    padding: 0.06rem 0.55rem 0.14rem;
 }
 
 .farmadoc-pos-total-ios__ves {
     margin: 0;
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.01em;
@@ -1479,8 +1532,8 @@
 }
 
 .farmadoc-pos-total-ios__hint {
-    margin: 0.35rem 0 0;
-    font-size: 0.6875rem;
+    margin: 0.15rem 0 0;
+    font-size: 0.65625rem;
     font-weight: 500;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -1492,10 +1545,10 @@
 }
 
 .farmadoc-pos-rate-pill {
-    margin: 0 0 0.5rem;
-    padding: 0.45rem 0.75rem;
+    margin: 0 0 0.3rem;
+    padding: 0.26rem 0.55rem;
     border-radius: 9999px;
-    font-size: 0.8125rem;
+    font-size: 0.78125rem;
     font-weight: 600;
     letter-spacing: 0.01em;
     text-align: center;
@@ -1506,7 +1559,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
     flex-wrap: wrap;
     max-width: 100%;
     box-sizing: border-box;
@@ -1514,10 +1567,10 @@
 
 .farmadoc-pos-bcv-logo {
     display: block;
-    height: 2.125rem;
+    height: 1.55rem;
     width: auto;
-    max-height: 2.25rem;
-    max-width: 4.25rem;
+    max-height: 1.65rem;
+    max-width: 3.75rem;
     object-fit: contain;
     flex-shrink: 0;
 }

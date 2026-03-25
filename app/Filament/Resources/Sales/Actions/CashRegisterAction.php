@@ -69,6 +69,9 @@ final class CashRegisterAction
                     'default' => 1,
                     'md' => 2,
                 ])
+                    ->extraAttributes([
+                        'class' => 'farmadoc-pos-summary-grid',
+                    ])
                     ->schema([
                         Section::make('Total a cobrar')
                             ->description('Incluye impuestos según cada producto.')
@@ -77,14 +80,14 @@ final class CashRegisterAction
                             ->schema([
                                 Grid::make(1)
                                     ->extraAttributes([
-                                        'class' => 'farmadoc-pos-total-ios-card',
+                                        'class' => 'farmadoc-pos-total-ios-card farmadoc-pos-total-ios-card--match-payment-height',
                                     ])
                                     ->schema([
                                         TextEntry::make('pos_total_banner')
                                             ->hiddenLabel()
                                             ->alignment(Alignment::Center)
                                             ->weight(FontWeight::Bold)
-                                            ->size(TextSize::Large)
+                                            ->size(TextSize::Medium)
                                             ->state(fn (Get $get): string => self::formatMoney(self::computeSaleTotal($get)))
                                             ->dehydrated(false)
                                             ->extraEntryWrapperAttributes([
@@ -100,6 +103,7 @@ final class CashRegisterAction
                                                 'class' => 'farmadoc-pos-total-ios__sub',
                                             ]),
                                         TextInput::make('ves_usd_rate')
+                                            ->hiddenLabel()
                                             ->type('hidden')
                                             ->dehydrated()
                                             ->default(null),
@@ -121,11 +125,11 @@ final class CashRegisterAction
                             ]),
                         Section::make('Formas de pago')
                             ->description('Seleccione la forma de pago y el monto a pagar.')
-                    ->iconColor('primary')
+                            ->icon(Heroicon::CreditCard)
+                            ->iconColor('primary')
                             ->extraAttributes([
                                 'class' => 'farmadoc-pos-payment-section',
                             ])
-                            ->icon(Heroicon::CreditCard)
                             ->schema([
                                 Select::make('payment_method')
                                     ->label('Cobro')

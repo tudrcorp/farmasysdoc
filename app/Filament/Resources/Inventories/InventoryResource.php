@@ -10,11 +10,13 @@ use App\Filament\Resources\Inventories\Schemas\InventoryForm;
 use App\Filament\Resources\Inventories\Schemas\InventoryInfolist;
 use App\Filament\Resources\Inventories\Tables\InventoriesTable;
 use App\Models\Inventory;
+use App\Support\Filament\BranchAuthScope;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class InventoryResource extends Resource
 {
@@ -44,6 +46,11 @@ class InventoryResource extends Resource
     public static function table(Table $table): Table
     {
         return InventoriesTable::configure($table);
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return BranchAuthScope::apply(parent::getEloquentQuery());
     }
 
     public static function getRelations(): array

@@ -10,6 +10,7 @@ use App\Filament\Resources\Sales\Schemas\SaleForm;
 use App\Filament\Resources\Sales\Schemas\SaleInfolist;
 use App\Filament\Resources\Sales\Tables\SalesTable;
 use App\Models\Sale;
+use App\Support\Filament\BranchAuthScope;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -42,7 +43,7 @@ class SaleResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return SalesTable::applySalesAuthScope(parent::getEloquentQuery());
+        return BranchAuthScope::apply(parent::getEloquentQuery());
     }
 
     public static function getRelations(): array

@@ -8,7 +8,7 @@ use App\Filament\Resources\Clients\ClientResource;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Models\Client;
 use App\Models\Sale;
-use App\Models\User;
+use App\Support\Filament\BranchAuthScope;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -30,34 +30,10 @@ use Illuminate\Database\Eloquent\Builder;
 
 class SalesTable
 {
-    /**
-     * ADMINISTRADOR en `roles`: todas las ventas. En caso contrario, solo la sucursal del usuario.
-     *
-     * @param  Builder<Sale>  $query
-     * @return Builder<Sale>
-     */
-    public static function applySalesAuthScope(Builder $query): Builder
-    {
-        $user = auth()->user();
-        if (! $user instanceof User) {
-            return $query;
-        }
-
-        if ($user->isAdministrator()) {
-            return $query;
-        }
-
-        if ($user->branch_id === null) {
-            return $query->whereRaw('1 = 0');
-        }
-
-        return $query->where('branch_id', $user->branch_id);
-    }
-
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => static::applySalesAuthScope($query)
+            ->modifyQueryUsing(fn (Builder $query): Builder => BranchAuthScope::apply($query)
                 ->with(['branch', 'client'])
                 ->withCount('items'))
             ->columns([

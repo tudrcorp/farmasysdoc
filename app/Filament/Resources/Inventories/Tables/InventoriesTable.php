@@ -6,6 +6,7 @@ use App\Enums\ProductType;
 use App\Filament\Resources\Inventories\InventoryResource;
 use App\Models\Branch;
 use App\Models\Inventory;
+use App\Support\Filament\BranchAuthScope;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -21,10 +22,14 @@ use Illuminate\Database\Eloquent\Builder;
 
 class InventoriesTable
 {
+    /**
+     * Mismo alcance que ventas: {@see BranchAuthScope} (ADMINISTRADOR o sucursal del usuario).
+     */
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['branch', 'product']))
+            ->modifyQueryUsing(fn (Builder $query): Builder => BranchAuthScope::apply($query)
+                ->with(['branch', 'product']))
             ->columns([
                 TextColumn::make('branch.name')
                     ->label('Sucursal')

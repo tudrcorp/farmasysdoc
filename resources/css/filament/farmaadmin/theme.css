@@ -730,13 +730,13 @@
 
 /*
  * Botones de acción estilo iOS reutilizables por color semántico.
- * Uso: class="farmadoc-ios-action farmadoc-ios-action--primary|info|success|warning|danger"
+ * Uso: class="farmadoc-ios-action farmadoc-ios-action--primary|info|success|warning|danger|gray"
  */
 .farmadoc-ios-action {
     border-radius: 1rem;
     border-width: 1px;
     border-style: solid;
-    padding: 0.625rem 1.25rem;
+    padding: 0.625rem 1rem;
     font-weight: 600;
     color: white !important;
     box-shadow:
@@ -787,6 +787,40 @@
     background: linear-gradient(to right, var(--color-danger-500), var(--color-danger-600));
 }
 
+/* Secundario / gris: texto negro en tema claro (la base fuerza blanco para el resto de variantes) */
+.farmadoc-ios-action--gray {
+    border-color: color-mix(in srgb, var(--color-gray-400) 35%, transparent);
+    background: linear-gradient(to right, var(--color-gray-100), var(--color-gray-200));
+    color: rgb(9 9 11) !important;
+    box-shadow:
+        0 10px 22px -10px rgb(0 0 0 / 0.18),
+        0 0 0 1px rgb(0 0 0 / 0.06),
+        0 0 20px -10px rgb(0 0 0 / 0.08);
+}
+
+.farmadoc-ios-action--gray:hover {
+    filter: brightness(0.98);
+}
+
+.farmadoc-ios-action--gray .fi-icon,
+.farmadoc-ios-action--gray svg {
+    color: inherit !important;
+}
+
+.dark .farmadoc-ios-action--gray {
+    border-color: color-mix(in srgb, var(--color-gray-500) 50%, transparent);
+    background: linear-gradient(to right, var(--color-gray-600), var(--color-gray-700));
+    color: rgb(255 255 255) !important;
+    box-shadow:
+        0 14px 28px -12px rgb(0 0 0 / 0.45),
+        0 0 0 1px rgb(255 255 255 / 0.1),
+        0 0 26px -8px rgb(255 255 255 / 0.12);
+}
+
+.dark .farmadoc-ios-action--gray:hover {
+    filter: brightness(1.06);
+}
+
 .farmadoc-ios-action--primary:focus-visible {
     box-shadow:
         0 0 0 2px color-mix(in srgb, var(--color-primary-300) 75%, transparent),
@@ -820,6 +854,20 @@
         0 0 0 2px color-mix(in srgb, var(--color-danger-300) 75%, transparent),
         0 14px 28px -12px rgb(0 0 0 / 0.28),
         0 0 34px -8px color-mix(in srgb, var(--color-danger-400) 55%, transparent);
+}
+
+.farmadoc-ios-action--gray:focus-visible {
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--color-gray-400) 65%, transparent),
+        0 14px 28px -12px rgb(0 0 0 / 0.2),
+        0 0 28px -10px rgb(0 0 0 / 0.12);
+}
+
+.dark .farmadoc-ios-action--gray:focus-visible {
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--color-gray-400) 55%, transparent),
+        0 14px 28px -12px rgb(0 0 0 / 0.35),
+        0 0 34px -8px color-mix(in srgb, var(--color-gray-400) 40%, transparent);
 }
 
 /*

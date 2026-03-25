@@ -1,23 +1,21 @@
 <?php
 
-namespace App\Filament\Resources\Branches\Pages;
+namespace App\Filament\Resources\Users\Pages;
 
-use App\Filament\Resources\Branches\BranchResource;
+use App\Filament\Resources\Users\UserResource;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Support\Icons\Heroicon;
 
-class ListBranches extends ListRecords
+class ListUsers extends ListRecords
 {
-    protected static string $resource = BranchResource::class;
-
-    protected static ?string $title = 'Listado de Sucursales';
+    protected static string $resource = UserResource::class;
 
     protected function getHeaderActions(): array
     {
         return [
             CreateAction::make()
-                ->label('Crear Sucursal')
+                ->label('Crear Usuario')
                 ->icon(Heroicon::Plus)
                 ->color('primary')
                 ->extraAttributes([

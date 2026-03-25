@@ -5,7 +5,9 @@ namespace App\Filament\Resources\ApiClients\Pages;
 use App\Filament\Resources\ApiClients\ApiClientResource;
 use App\Filament\Resources\ApiClients\Concerns\NormalizesApiClientAllowedIps;
 use App\Models\ApiClient;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Support\Icons\Heroicon;
 
 class CreateApiClient extends CreateRecord
 {
@@ -36,5 +38,19 @@ class CreateApiClient extends CreateRecord
         if ($this->plainToken !== null) {
             session()->flash('filament_api_client_plain_token', $this->plainToken);
         }
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('back')
+                ->label('Volver')
+                ->icon(Heroicon::ArrowLeft)
+                ->color('gray')
+                ->extraAttributes([
+                    'class' => 'farmadoc-ios-action farmadoc-ios-action--gray',
+                ])
+                ->url(route('filament.farmaadmin.resources.api-clients.index')),
+        ];
     }
 }

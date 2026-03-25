@@ -47,7 +47,7 @@ class ViewApiClient extends ViewRecord
 
                     Notification::make()
                         ->title('Nuevo token generado')
-                        ->body('Cópialo desde el banner superior; no se mostrará de nuevo al salir de esta página.')
+                        ->body('Cópialo desde el banner superior o desde la sección «Credenciales» del formulario; no se mostrará de nuevo al salir de esta página.')
                         ->success()
                         ->send();
                 }),

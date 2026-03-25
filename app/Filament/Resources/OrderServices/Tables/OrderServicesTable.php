@@ -73,36 +73,25 @@ class OrderServicesTable
                 TextColumn::make('items')
                     ->label('Medicamentos')
                     ->formatStateUsing(function (?array $state): string {
-                        if ($state === null || $state === []) {
+                        $rows = self::medicationRowsForDisplay($state);
+
+                        if ($rows->isEmpty()) {
                             return '—';
                         }
 
-                        $count = count($state);
+                        $count = $rows->count();
 
                         return $count === 1 ? '1 ítem' : "{$count} ítems";
                     })
                     ->badge()
-                    ->color(fn (?array $state): string => filled($state) && count($state) > 0 ? 'success' : 'gray')
+                    ->color(fn (?array $state): string => self::medicationRowsForDisplay($state)->isNotEmpty() ? 'success' : 'gray')
                     ->tooltip(function (?array $state): ?string {
-                        if ($state === null || $state === []) {
-                            return null;
-                        }
+                        $lines = self::medicationRowsForDisplay($state)->map(function (array $row): string {
+                            $name = $row['name'];
+                            $ind = $row['indicacion'];
 
-                        /** @var Collection<int, string> $lines */
-                        $lines = collect($state)->map(function (mixed $row): string {
-                            if (is_string($row)) {
-                                return $row;
-                            }
-
-                            if (is_array($row)) {
-                                $name = (string) ($row['name'] ?? '');
-                                $ind = trim((string) ($row['indicacion'] ?? ''));
-
-                                return $ind !== '' ? "{$name} — {$ind}" : $name;
-                            }
-
-                            return '';
-                        })->filter();
+                            return $ind !== '' ? "{$name} — {$ind}" : $name;
+                        });
 
                         return $lines->isEmpty() ? null : $lines->implode("\n");
                     })
@@ -265,6 +254,62 @@ class OrderServicesTable
                         ->label('Eliminar seleccionadas'),
                 ]),
             ]);
+    }
+
+    /**
+     * Filas de medicamento para contar y tooltip: solo cuentan entradas con nombre
+     * (clave `name` no vacía). Evita contar mal cuando `items` es un solo objeto
+     * asociativo `{ position, name, indicacion }` (count nativo daría 3 claves).
+     *
+     * @return Collection<int, array{name: string, indicacion: string}>
+     */
+    private static function medicationRowsForDisplay(?array $state): Collection
+    {
+        if ($state === null || $state === []) {
+            return collect();
+        }
+
+        if (! array_is_list($state) && array_key_exists('name', $state)) {
+            $name = trim((string) ($state['name'] ?? ''));
+
+            if ($name === '') {
+                return collect();
+            }
+
+            return collect([[
+                'name' => $name,
+                'indicacion' => trim((string) ($state['indicacion'] ?? '')),
+            ]]);
+        }
+
+        return collect($state)
+            ->map(function (mixed $row): ?array {
+                if (is_string($row)) {
+                    $name = trim($row);
+
+                    return $name === '' ? null : [
+                        'name' => $name,
+                        'indicacion' => '',
+                    ];
+                }
+
+                if (! is_array($row) || ! array_key_exists('name', $row)) {
+                    return null;
+                }
+
+                $name = trim((string) ($row['name'] ?? ''));
+
+                if ($name === '') {
+                    return null;
+                }
+
+                return [
+                    'name' => $name,
+                    'indicacion' => trim((string) ($row['indicacion'] ?? '')),
+                ];
+            })
+            ->filter()
+            ->values();
     }
 
     private static function statusColor(?string $status): string

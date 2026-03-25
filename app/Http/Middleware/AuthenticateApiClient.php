@@ -30,9 +30,15 @@ class AuthenticateApiClient
             ->first();
 
         if ($apiClient === null) {
-            return response()->json([
+            $payload = [
                 'message' => 'Token inválido o inactivo.',
-            ], Response::HTTP_UNAUTHORIZED);
+            ];
+
+            if (preg_match('/^[a-f0-9]{64}$/i', $token) === 1) {
+                $payload['hint'] = 'El valor enviado parece un hash SHA-256 (huella), no el secreto Bearer. Usa el token completo que empieza por fd_ y solo se muestra al crear o regenerar el cliente API en el panel.';
+            }
+
+            return response()->json($payload, Response::HTTP_UNAUTHORIZED);
         }
 
         if (is_array($apiClient->allowed_ips) && $apiClient->allowed_ips !== []) {

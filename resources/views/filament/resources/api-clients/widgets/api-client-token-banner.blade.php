@@ -22,7 +22,7 @@
                             Token generado
                         </h3>
                         <p class="mt-0.5 text-sm text-gray-600 dark:text-gray-300">
-                            Cópialo ahora. Por seguridad no podremos mostrarlo de nuevo.
+                            Cópialo ahora. Debe empezar por <strong class="font-mono">fd_</strong>. Por seguridad no podremos mostrarlo de nuevo. No uses la «huella» del formulario como Bearer.
                         </p>
                     </div>
                 </div>

@@ -68,7 +68,7 @@
                     <h2 class="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Flujo recomendado</h2>
                     <ol class="mt-4 space-y-3 text-sm text-zinc-600 dark:text-zinc-300">
                         <li class="flex gap-3"><span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">1</span><span>Opcional: consulta <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">GET /api/external/status</code> para verificar que la API está <strong>activa</strong> sin token (reduce carga si el servicio no está disponible).</span></li>
-                        <li class="flex gap-3"><span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">2</span><span>Crea tu cliente API en el panel y copia el token.</span></li>
+                        <li class="flex gap-3"><span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">2</span><span>Crea tu cliente API en el panel y copia el secreto que empieza por <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">fd_</code> (no la huella truncada).</span></li>
                         <li class="flex gap-3"><span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">3</span><span>Agrega el header <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">Authorization: Bearer TOKEN</code> en las operaciones con datos.</span></li>
                         <li class="flex gap-3"><span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">4</span><span>Obtén el <strong>código de compañía aliada</strong> en el panel (<code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">partner_companies.code</code>) y envíalo como <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">partner_company</code> en inventario, pedidos y órdenes de servicio.</span></li>
                         <li class="flex gap-3"><span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">5</span><span>Consume los endpoints con JSON o query. Maneja errores 401, 403 y 422.</span></li>
@@ -83,7 +83,7 @@
                 <article class="rounded-2xl border border-zinc-200/80 bg-zinc-50/80 p-4 dark:border-white/10 dark:bg-zinc-900/70">
                     <h3 class="font-semibold">Header requerido</h3>
                     <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-300">Las operaciones con datos (inventario, pedidos, órdenes de servicio) deben enviar token Bearer. La excepción es <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">GET /api/external/status</code>: no usa token ni <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">partner_company</code>.</p>
-                    <pre class="mt-3 overflow-auto rounded-xl bg-zinc-900 p-3 text-xs text-zinc-100"><code id="auth-header-code">Authorization: Bearer TU_TOKEN_AQUI</code></pre>
+                    <pre class="mt-3 overflow-auto rounded-xl bg-zinc-900 p-3 text-xs text-zinc-100"><code id="auth-header-code">Authorization: Bearer fd_tu_secreto_del_panel</code></pre>
                     <button data-copy-target="auth-header-code" class="copy-btn mt-3 rounded-xl bg-zinc-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">Copiar</button>
                 </article>
                 <article class="rounded-2xl border border-zinc-200/80 bg-zinc-50/80 p-4 dark:border-white/10 dark:bg-zinc-900/70">
@@ -95,6 +95,17 @@
                         <li><strong>429</strong> - Demasiadas peticiones (p. ej. limite en <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">GET /status</code>)</li>
                     </ul>
                 </article>
+            </div>
+            <div class="mt-6 rounded-2xl border border-amber-200/90 bg-amber-50/90 p-5 dark:border-amber-500/30 dark:bg-amber-500/10">
+                <h3 class="font-semibold text-amber-950 dark:text-amber-100">Token correcto (evita el 401 «Token inválido o inactivo»)</h3>
+                <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-amber-950/90 dark:text-amber-50/90">
+                    <li>El valor en <code class="rounded bg-amber-200/80 px-1 font-mono text-xs dark:bg-amber-900/50">Authorization: Bearer …</code> debe ser el <strong>secreto en texto plano</strong> que te entrega el panel al <strong>crear</strong> o <strong>regenerar</strong> el cliente API.</li>
+                    <li>Ese secreto <strong>siempre empieza por</strong> <code class="rounded bg-amber-200/80 px-1 font-mono text-xs dark:bg-amber-900/50">fd_</code> y tiene unos <strong>67 caracteres</strong> (prefijo + hex).</li>
+                    <li><strong>No</strong> uses la «huella» que ves en la ficha del cliente (texto truncado): es solo referencia del hash guardado en el servidor.</li>
+                    <li><strong>No</strong> envíes los <strong>64 caracteres hexadecimales</strong> del hash SHA-256: el servidor aplica de nuevo el hash a lo que envías; si mandas el hash como si fuera el secreto, la autenticación falla.</li>
+                    <li>Si perdiste el secreto, pide en el panel <strong>Regenerar token</strong> y distribuye el nuevo valor por un canal seguro.</li>
+                </ul>
+                <p class="mt-3 text-xs text-amber-900/80 dark:text-amber-200/80">Si el servidor detecta un Bearer de 64 hex (típico error), la respuesta 401 puede incluir el campo <code class="font-mono">hint</code> con esta aclaración.</p>
             </div>
         </section>
 

@@ -11,6 +11,8 @@ class CreateOrderService extends CreateRecord
 {
     protected static string $resource = OrderServiceResource::class;
 
+    protected static ?string $title = 'Crear Orden de Servicio';
+
     /**
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>

@@ -30,6 +30,30 @@
                 placeholder="email@example.com"
             />
 
+            <!-- Sucursal -->
+            <div class="flex flex-col gap-2">
+                <label for="branch_id" class="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                    Sucursal <span class="text-red-600 dark:text-red-400" aria-hidden="true">*</span>
+                </label>
+                <select
+                    id="branch_id"
+                    name="branch_id"
+                    required
+                    class="block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none ring-zinc-400 transition focus:border-zinc-400 focus:ring-2 focus:ring-zinc-400/20 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:ring-zinc-500/20"
+                >
+                    <option value="" @selected(old('branch_id') === null || old('branch_id') === '') disabled>Seleccione la sucursal</option>
+                    @foreach ($branches as $branch)
+                        <option value="{{ $branch->id }}" @selected((string) old('branch_id') === (string) $branch->id)>
+                            {{ $branch->name }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('branch_id')
+                    <p class="text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                @enderror
+                <p class="text-xs text-zinc-500 dark:text-zinc-400">El usuario quedará asociado a la sucursal que elija el administrador.</p>
+            </div>
+
             <!-- Password -->
             <flux:input
                 name="password"

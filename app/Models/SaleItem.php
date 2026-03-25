@@ -21,11 +21,14 @@ class SaleItem extends Model
         'inventory_id',
         'quantity',
         'unit_price',
+        'unit_cost',
         'discount_amount',
         'tax_rate',
         'line_subtotal',
         'tax_amount',
         'line_total',
+        'line_cost_total',
+        'gross_profit',
         'product_name_snapshot',
         'sku_snapshot',
     ];
@@ -38,11 +41,14 @@ class SaleItem extends Model
         return [
             'quantity' => 'decimal:3',
             'unit_price' => 'decimal:2',
+            'unit_cost' => 'decimal:4',
             'discount_amount' => 'decimal:2',
             'tax_rate' => 'decimal:2',
             'line_subtotal' => 'decimal:2',
             'tax_amount' => 'decimal:2',
             'line_total' => 'decimal:2',
+            'line_cost_total' => 'decimal:2',
+            'gross_profit' => 'decimal:2',
         ];
     }
 

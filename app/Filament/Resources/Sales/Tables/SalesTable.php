@@ -8,10 +8,17 @@ use App\Filament\Resources\Clients\ClientResource;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Models\Client;
 use App\Models\Sale;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\RepeatableEntry\TableColumn;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Section;
+use Filament\Support\Enums\Alignment;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
@@ -33,6 +40,63 @@ class SalesTable
                     ->label('Nº venta')
                     ->badge()
                     ->color('primary')
+                    ->action(
+                        Action::make('viewSaleItems')
+                            ->label('Detalle de ítems')
+                            ->icon(Heroicon::QueueList)
+                            ->modalIcon(Heroicon::QueueList)
+                            ->modalWidth(Width::FiveExtraLarge)
+                            ->modalHeading(fn (Sale $record): string => 'Ítems de la venta '.$record->sale_number)
+                            ->modalDescription('Consulta rápida del detalle de productos vendidos.')
+                            ->modalSubmitActionLabel('Cerrar')
+                            ->modalCancelAction(fn (Action $action): Action => $action->color('danger'))
+                            ->schema([
+                                Section::make('Detalle de ítems')
+                                    ->extraAttributes([
+                                        'class' => 'farmadoc-sales-items-modal',
+                                    ])
+                                    ->schema([
+                                        RepeatableEntry::make('items')
+                                            ->label('Ítems')
+                                            ->placeholder('Esta venta no tiene ítems registrados.')
+                                            ->table([
+                                                TableColumn::make('Producto'),
+                                                TableColumn::make('Cant.')
+                                                    ->width('6rem')
+                                                    ->alignment(Alignment::Center),
+                                                TableColumn::make('P. unitario')
+                                                    ->alignment(Alignment::End),
+                                                TableColumn::make('Total línea')
+                                                    ->alignment(Alignment::End),
+                                            ])
+                                            ->schema([
+                                                TextEntry::make('product_name_snapshot')
+                                                    ->label('')
+                                                    ->formatStateUsing(function ($state, $record): string {
+                                                        $name = filled($state) ? (string) $state : 'Producto';
+                                                        $sku = (string) ($record->sku_snapshot ?? '—');
+
+                                                        return $name.' · SKU: '.$sku;
+                                                    })
+                                                    ->weight('medium'),
+                                                TextEntry::make('quantity')
+                                                    ->label('')
+                                                    ->alignment(Alignment::Center)
+                                                    ->formatStateUsing(fn ($state): string => number_format((float) $state, 0, '.', ',')),
+                                                TextEntry::make('unit_price')
+                                                    ->label('')
+                                                    ->money('USD'),
+                                                TextEntry::make('line_total')
+                                                    ->label('')
+                                                    ->money('USD')
+                                                    ->weight('medium'),
+                                            ])
+                                            ->columnSpanFull(),
+                                    ])
+                                    ->columnSpanFull(),
+                            ])
+                            ->action(static fn () => null),
+                    )
                     ->searchable()
                     ->sortable()
                     ->copyable()

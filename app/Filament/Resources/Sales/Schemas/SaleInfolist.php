@@ -6,10 +6,13 @@ use App\Enums\SaleStatus;
 use App\Filament\Resources\Branches\BranchResource;
 use App\Filament\Resources\Clients\ClientResource;
 use App\Models\Sale;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Alignment;
 use Filament\Support\Icons\Heroicon;
 
 class SaleInfolist
@@ -124,6 +127,23 @@ class SaleInfolist
                                     ->formatStateUsing(fn (?string $state): string => self::formatPaymentMethod($state))
                                     ->placeholder('—')
                                     ->icon(Heroicon::CreditCard),
+                                TextEntry::make('payment_usd')
+                                    ->label('Pago USD')
+                                    ->money('USD')
+                                    ->placeholder('—')
+                                    ->icon(Heroicon::CurrencyDollar),
+                                TextEntry::make('payment_ves')
+                                    ->label('Pago VES')
+                                    ->formatStateUsing(fn (?float $state): string => $state !== null
+                                        ? 'Bs. '.number_format((float) $state, 2, ',', '.')
+                                        : '—')
+                                    ->placeholder('—')
+                                    ->icon(Heroicon::Banknotes),
+                                TextEntry::make('reference')
+                                    ->label('Referencia de pago')
+                                    ->placeholder('—')
+                                    ->copyable()
+                                    ->icon(Heroicon::Hashtag),
                                 TextEntry::make('payment_status')
                                     ->label('Estado del cobro')
                                     ->formatStateUsing(fn (?string $state): string => self::formatPaymentStatus($state))
@@ -138,6 +158,50 @@ class SaleInfolist
                                     ->icon(Heroicon::CalendarDays)
                                     ->columnSpan(['default' => 1, 'sm' => 2]),
                             ]),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
+                Section::make('Detalle de ítems')
+                    ->description('Productos incluidos en la venta con su detalle financiero por línea.')
+                    ->icon(Heroicon::QueueList)
+                    ->schema([
+                        RepeatableEntry::make('items')
+                            ->label('Ítems de la venta')
+                            ->placeholder('No hay ítems asociados a esta venta.')
+                            ->table([
+                                TableColumn::make('Producto'),
+                                TableColumn::make('Cant.')
+                                    ->width('6rem')
+                                    ->alignment(Alignment::Center),
+                                TableColumn::make('P. unitario')
+                                    ->alignment(Alignment::End),
+                                TableColumn::make('Total línea')
+                                    ->alignment(Alignment::End),
+                            ])
+                            ->schema([
+                                TextEntry::make('product_name_snapshot')
+                                    ->label('')
+                                    ->formatStateUsing(function ($state, $record): string {
+                                        $name = filled($state) ? (string) $state : 'Producto sin snapshot';
+                                        $sku = (string) ($record->sku_snapshot ?? '—');
+
+                                        return $name.' · SKU: '.$sku;
+                                    })
+                                    ->weight('medium'),
+                                TextEntry::make('quantity')
+                                    ->label('')
+                                    ->alignment(Alignment::Center)
+                                    ->formatStateUsing(fn ($state): string => number_format((float) $state, 0, '.', ',')),
+                                TextEntry::make('unit_price')
+                                    ->label('')
+                                    ->money('USD'),
+                                TextEntry::make('line_total')
+                                    ->label('')
+                                    ->money('USD')
+                                    ->weight('medium'),
+                            ])
+                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
@@ -197,6 +261,11 @@ class SaleInfolist
         $key = strtolower(trim($value));
 
         return match ($key) {
+            'transfer_usd' => 'Transferencias USD',
+            'transfer_ves' => 'Transferencia VES',
+            'pago_movil' => 'Pago Mobil',
+            'zelle' => 'Zelle',
+            'efectivo_usd' => 'Efectivo USD',
             'cash', 'efectivo' => 'Efectivo',
             'card', 'tarjeta', 'debit', 'credit' => 'Tarjeta',
             'transfer', 'transferencia', 'nequi', 'daviplata' => 'Transferencia / digital',

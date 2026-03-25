@@ -27,6 +27,9 @@ class Sale extends Model
         'discount_total',
         'total',
         'payment_method',
+        'payment_usd',
+        'payment_ves',
+        'reference',
         'payment_status',
         'notes',
         'sold_at',
@@ -45,6 +48,8 @@ class Sale extends Model
             'tax_total' => 'decimal:2',
             'discount_total' => 'decimal:2',
             'total' => 'decimal:2',
+            'payment_usd' => 'decimal:2',
+            'payment_ves' => 'decimal:2',
             'sold_at' => 'datetime',
         ];
     }

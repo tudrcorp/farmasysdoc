@@ -25,9 +25,12 @@ class SaleItemFactory extends Factory
         $unitPrice = fake()->randomFloat(2, 5, 200);
         $discount = 0.0;
         $taxRate = 19.0;
+        $unitCost = fake()->randomFloat(4, 1, (float) $unitPrice);
         $lineSubtotal = round(($quantity * $unitPrice) - $discount, 2);
         $taxAmount = round($lineSubtotal * ($taxRate / 100), 2);
         $lineTotal = $lineSubtotal + $taxAmount;
+        $lineCostTotal = round($quantity * $unitCost, 2);
+        $grossProfit = round($lineTotal - $lineCostTotal, 2);
 
         return [
             'sale_id' => Sale::factory(),
@@ -35,11 +38,14 @@ class SaleItemFactory extends Factory
             'inventory_id' => null,
             'quantity' => $quantity,
             'unit_price' => $unitPrice,
+            'unit_cost' => $unitCost,
             'discount_amount' => $discount,
             'tax_rate' => $taxRate,
             'line_subtotal' => $lineSubtotal,
             'tax_amount' => $taxAmount,
             'line_total' => $lineTotal,
+            'line_cost_total' => $lineCostTotal,
+            'gross_profit' => $grossProfit,
             'product_name_snapshot' => fake()->words(4, true),
             'sku_snapshot' => fake()->bothify('SKU-####-???'),
         ];

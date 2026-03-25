@@ -25,9 +25,6 @@ class ListSales extends ListRecords
                     'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
                 ]),
             CashRegisterAction::make()
-            ->action(function (array $data): void {
-                dd($data);
-            }),
         ];
     }
 }

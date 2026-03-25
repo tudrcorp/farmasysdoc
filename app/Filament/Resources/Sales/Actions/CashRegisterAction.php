@@ -2,10 +2,12 @@
 
 namespace App\Filament\Resources\Sales\Actions;
 
+use App\Enums\InventoryMovementType;
 use App\Enums\SaleStatus;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Models\Client;
 use App\Models\Inventory;
+use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Sale;
 use Filament\Actions\Action;
@@ -28,6 +30,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 final class CashRegisterAction
 {
@@ -47,13 +50,15 @@ final class CashRegisterAction
             ->modalIcon(Heroicon::Banknotes)
             ->modalWidth(Width::SixExtraLarge)
             ->modalSubmitActionLabel('Registrar venta')
+            ->modalCancelAction(fn (Action $action): Action => $action->color('danger'))
             ->extraAttributes([
                 'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
             ])
             ->fillForm(fn (): array => [
                 'client_id' => null,
-                'payment_method' => 'cash',
+                'payment_method' => 'efectivo_usd',
                 'mixed_usd_paid' => null,
+                'reference' => null,
                 'line_items' => [
                     [
                         'product_id' => null,
@@ -275,33 +280,39 @@ final class CashRegisterAction
                                 Select::make('payment_method')
                                     ->label('Cobro')
                                     ->options([
-                                        'cash' => 'Efectivo',
-                                        'card' => 'Tarjeta',
-                                        'transfer' => 'Transferencia',
-                                        'mixed' => 'Pago múltiple',
+                                        'transfer_usd' => 'Transferencias USD',
+                                        'transfer_ves' => 'Transferencia VES',
+                                        'pago_movil' => 'Pago Mobil',
+                                        'zelle' => 'Zelle',
+                                        'efectivo_usd' => 'Efectivo USD',
+                                        'mixed' => 'Pago Multiple',
                                     ])
-                                    ->default('cash')
+                                    ->default('efectivo_usd')
                                     ->required()
                                     ->live()
                                     ->native(false)
                                     ->prefixIcon(Heroicon::CreditCard),
                                 TextInput::make('mixed_usd_paid')
-                                    ->label('Monto pagado en dólares')
+                                    ->label('Pago en USD (usuario)')
                                     ->numeric()
                                     ->minValue(0)
                                     ->step(0.01)
                                     ->prefix('$')
                                     ->live(debounce: 300)
                                     ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'),
-                                TextEntry::make('mixed_remaining_ves')
-                                    ->hiddenLabel()
-                                    ->html()
-                                    ->state(fn (Get $get): HtmlString => new HtmlString(
-                                        '<p class="farmadoc-pos-total-ios__hint">Restante automático en bolívares</p>'.
-                                        '<p class="farmadoc-pos-total-ios__ves">'.e(self::formatBolivaresReference(self::computeRemainingUsdForMixedPayment($get))).'</p>'
-                                    ))
-                                    ->dehydrated(false)
-                                    ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'),
+                                TextEntry::make('payment_usd_preview')
+                                    ->label('payment_usd')
+                                    ->state(fn (Get $get): string => self::formatMoney(self::computePaymentBreakdownForForm($get)['payment_usd']))
+                                    ->dehydrated(false),
+                                TextEntry::make('payment_ves_preview')
+                                    ->label('payment_ves')
+                                    ->state(fn (Get $get): string => self::formatBolivaresReferenceFromVes(self::computePaymentBreakdownForForm($get)['payment_ves']))
+                                    ->dehydrated(false),
+                                TextInput::make('reference')
+                                    ->label('Referencia de pago')
+                                    ->helperText('Obligatoria para pagos en bolivares y para Zelle.')
+                                    ->maxLength(255)
+                                    ->visible(fn (Get $get): bool => in_array($get('payment_method'), ['transfer_ves', 'pago_movil', 'zelle', 'mixed'], true)),
                             ]),
                     ])
                     ->columnSpanFull(),
@@ -317,6 +328,9 @@ final class CashRegisterAction
 
                     return;
                 }
+
+                $paymentMethod = (string) ($data['payment_method'] ?? '');
+                $paymentReference = trim((string) ($data['reference'] ?? ''));
 
                 $lines = collect($data['line_items'] ?? [])
                     ->filter(fn (array $row): bool => filled($row['product_id'] ?? null)
@@ -364,10 +378,13 @@ final class CashRegisterAction
                     }
 
                     $unit = (float) $product->sale_price;
+                    $unitCost = (float) ($product->cost_price ?? 0);
                     $taxRate = (float) ($product->tax_rate ?? 0);
                     $lineSubtotal = round($qty * $unit, 2);
                     $taxAmount = round($lineSubtotal * ($taxRate / 100), 2);
                     $lineTotal = round($lineSubtotal + $taxAmount, 2);
+                    $lineCostTotal = round($qty * $unitCost, 2);
+                    $grossProfit = round($lineTotal - $lineCostTotal, 2);
 
                     $subtotal += $lineSubtotal;
                     $taxTotal += $taxAmount;
@@ -382,11 +399,14 @@ final class CashRegisterAction
                         'inventory_id' => $inventoryId ? (int) $inventoryId : null,
                         'quantity' => $qty,
                         'unit_price' => $unit,
+                        'unit_cost' => $unitCost,
                         'discount_amount' => 0,
                         'tax_rate' => $taxRate,
                         'line_subtotal' => $lineSubtotal,
                         'tax_amount' => $taxAmount,
                         'line_total' => $lineTotal,
+                        'line_cost_total' => $lineCostTotal,
+                        'gross_profit' => $grossProfit,
                         'product_name_snapshot' => $product->name,
                         'sku_snapshot' => $product->barcode,
                     ];
@@ -404,34 +424,130 @@ final class CashRegisterAction
                 $discountTotal = 0.0;
                 $documentTotal = round($subtotal + $taxTotal - $discountTotal, 2);
 
+                [$paymentUsd, $paymentVes] = self::resolvePaymentAmounts(
+                    $documentTotal,
+                    $paymentMethod,
+                    mixedUsdPaid: (float) ($data['mixed_usd_paid'] ?? 0)
+                );
+
+                $shouldRequireReference = in_array($paymentMethod, ['transfer_ves', 'pago_movil', 'zelle'], true)
+                    || ($paymentMethod === 'mixed' && $paymentVes > 0);
+
+                if ($shouldRequireReference && $paymentReference === '') {
+                    Notification::make()
+                        ->title('Indique la referencia de pago')
+                        ->body('La referencia es obligatoria para pagos en bolivares y para Zelle.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
                 $actor = Auth::user()?->email
                     ?? Auth::user()?->name
                     ?? 'sistema';
 
-                $sale = DB::transaction(function () use ($branchId, $data, $payloadItems, $subtotal, $taxTotal, $discountTotal, $documentTotal, $actor): Sale {
-                    $sale = Sale::query()->create([
-                        'sale_number' => self::uniqueSaleNumber(),
-                        'branch_id' => (int) $branchId,
-                        'client_id' => filled($data['client_id'] ?? null) ? (int) $data['client_id'] : null,
-                        'status' => SaleStatus::Completed,
-                        'subtotal' => round($subtotal, 2),
-                        'tax_total' => round($taxTotal, 2),
-                        'discount_total' => round($discountTotal, 2),
-                        'total' => $documentTotal,
-                        'payment_method' => (string) $data['payment_method'],
-                        'payment_status' => 'paid',
-                        'notes' => null,
-                        'sold_at' => now(),
-                        'created_by' => $actor,
-                        'updated_by' => $actor,
-                    ]);
+                try {
+                    $sale = DB::transaction(function () use ($branchId, $data, $payloadItems, $lines, $products, $subtotal, $taxTotal, $discountTotal, $documentTotal, $actor, $paymentMethod, $paymentUsd, $paymentVes, $paymentReference): Sale {
+                        $qtyByProduct = [];
+                        foreach ($lines as $row) {
+                            $pid = (int) $row['product_id'];
+                            $qtyByProduct[$pid] = ($qtyByProduct[$pid] ?? 0.0) + (float) $row['quantity'];
+                        }
+                        ksort($qtyByProduct);
 
-                    foreach ($payloadItems as $item) {
-                        $sale->items()->create($item);
-                    }
+                        foreach ($qtyByProduct as $productId => $totalQty) {
+                            $inventory = Inventory::query()
+                                ->where('branch_id', $branchId)
+                                ->where('product_id', $productId)
+                                ->lockForUpdate()
+                                ->first();
 
-                    return $sale;
-                });
+                            $product = $products->get($productId);
+                            $productName = $product?->name ?? 'Producto';
+
+                            if (! $inventory) {
+                                throw new RuntimeException('No hay inventario para '.$productName.' en esta sucursal.');
+                            }
+
+                            $available = (float) $inventory->quantity - (float) $inventory->reserved_quantity;
+                            if (! $inventory->allow_negative_stock && $available + 0.0001 < $totalQty) {
+                                throw new RuntimeException(
+                                    'Stock insuficiente para '.$productName.'. Disponible: '.number_format($available, 3, '.', '').'.'
+                                );
+                            }
+                        }
+
+                        $sale = Sale::query()->create([
+                            'sale_number' => self::uniqueSaleNumber(),
+                            'branch_id' => (int) $branchId,
+                            'client_id' => filled($data['client_id'] ?? null) ? (int) $data['client_id'] : null,
+                            'status' => SaleStatus::Completed,
+                            'subtotal' => round($subtotal, 2),
+                            'tax_total' => round($taxTotal, 2),
+                            'discount_total' => round($discountTotal, 2),
+                            'total' => $documentTotal,
+                            'payment_method' => $paymentMethod,
+                            'payment_usd' => round($paymentUsd, 2),
+                            'payment_ves' => round($paymentVes, 2),
+                            'reference' => $paymentReference !== '' ? $paymentReference : null,
+                            'payment_status' => 'paid',
+                            'notes' => null,
+                            'sold_at' => now(),
+                            'created_by' => $actor,
+                            'updated_by' => $actor,
+                        ]);
+
+                        foreach ($payloadItems as $item) {
+                            $sale->items()->create($item);
+                        }
+
+                        foreach ($lines as $row) {
+                            $productId = (int) $row['product_id'];
+                            $qty = (float) $row['quantity'];
+                            $product = $products->get($productId);
+                            if (! $product) {
+                                continue;
+                            }
+
+                            $inventory = Inventory::query()
+                                ->where('branch_id', $branchId)
+                                ->where('product_id', $productId)
+                                ->lockForUpdate()
+                                ->first();
+
+                            if (! $inventory) {
+                                throw new RuntimeException('Inventario no encontrado para '.$product->name.'.');
+                            }
+
+                            $inventory->quantity = round((float) $inventory->quantity - $qty, 3);
+                            $inventory->last_movement_at = now();
+                            $inventory->updated_by = $actor;
+                            $inventory->save();
+
+                            InventoryMovement::query()->create([
+                                'product_id' => $productId,
+                                'inventory_id' => $inventory->id,
+                                'movement_type' => InventoryMovementType::Sale,
+                                'quantity' => -1 * abs($qty),
+                                'unit_cost' => (float) ($product->cost_price ?? 0),
+                                'reference_type' => Sale::class,
+                                'reference_id' => $sale->id,
+                                'notes' => 'Venta '.$sale->sale_number,
+                                'created_by' => $actor,
+                            ]);
+                        }
+
+                        return $sale;
+                    });
+                } catch (RuntimeException $e) {
+                    Notification::make()
+                        ->title($e->getMessage())
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
 
                 Notification::make()
                     ->title('Venta registrada')
@@ -464,12 +580,43 @@ final class CashRegisterAction
         return 'Bs. '.number_format($ves, 2, ',', '.');
     }
 
-    private static function computeRemainingUsdForMixedPayment(Get $get): float
+    private static function formatBolivaresReferenceFromVes(float $vesAmount): string
     {
-        $totalUsd = self::computeSaleTotal($get);
-        $usdPaid = (float) ($get('mixed_usd_paid') ?? 0);
+        return 'Bs. '.number_format(round($vesAmount, 2), 2, ',', '.');
+    }
 
-        return round(max(0.0, $totalUsd - max(0.0, $usdPaid)), 2);
+    /**
+     * @return array{0: float, 1: float}
+     */
+    private static function resolvePaymentAmounts(float $documentTotalUsd, string $paymentMethod, float $mixedUsdPaid = 0): array
+    {
+        $rate = self::PLACEHOLDER_USD_TO_VES_RATE;
+
+        return match ($paymentMethod) {
+            'efectivo_usd', 'transfer_usd', 'zelle' => [$documentTotalUsd, 0.0],
+            'transfer_ves', 'pago_movil' => [0.0, round($documentTotalUsd * $rate, 2)],
+            'mixed' => [
+                round(max(0.0, min($documentTotalUsd, $mixedUsdPaid)), 2),
+                round(max(0.0, $documentTotalUsd - max(0.0, min($documentTotalUsd, $mixedUsdPaid))) * $rate, 2),
+            ],
+            default => [$documentTotalUsd, 0.0],
+        };
+    }
+
+    /**
+     * @return array{payment_usd: float, payment_ves: float}
+     */
+    private static function computePaymentBreakdownForForm(Get $get): array
+    {
+        $paymentMethod = (string) ($get('payment_method') ?? 'efectivo_usd');
+        $total = self::computeSaleTotal($get);
+        $mixedUsdPaid = (float) ($get('mixed_usd_paid') ?? 0);
+        [$paymentUsd, $paymentVes] = self::resolvePaymentAmounts($total, $paymentMethod, $mixedUsdPaid);
+
+        return [
+            'payment_usd' => $paymentUsd,
+            'payment_ves' => $paymentVes,
+        ];
     }
 
     private static function computeSaleTotal(Get $get): float

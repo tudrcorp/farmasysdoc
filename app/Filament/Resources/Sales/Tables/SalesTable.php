@@ -2,71 +2,282 @@
 
 namespace App\Filament\Resources\Sales\Tables;
 
+use App\Enums\SaleStatus;
+use App\Filament\Resources\Branches\BranchResource;
+use App\Filament\Resources\Clients\ClientResource;
+use App\Filament\Resources\Sales\SaleResource;
+use App\Models\Client;
+use App\Models\Sale;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class SalesTable
 {
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query
+                ->with(['branch', 'client'])
+                ->withCount('items'))
             ->columns([
                 TextColumn::make('sale_number')
-                    ->searchable(),
-                TextColumn::make('branch.name')
-                    ->searchable(),
-                TextColumn::make('client.name')
-                    ->searchable(),
-                TextColumn::make('status')
+                    ->label('Nº venta')
                     ->badge()
-                    ->searchable(),
-                TextColumn::make('subtotal')
-                    ->numeric()
+                    ->color('primary')
+                    ->searchable()
+                    ->sortable()
+                    ->copyable()
+                    ->copyMessage('Número copiado')
+                    ->placeholder('—')
+                    ->weight('medium')
+                    ->icon(Heroicon::Hashtag)
+                    ->iconColor('gray'),
+                TextColumn::make('branch.name')
+                    ->label('Sucursal')
+                    ->description(fn (Sale $record): ?string => filled($record->branch?->code)
+                        ? 'Código: '.$record->branch->code
+                        : null)
+                    ->searchable(query: function (Builder $query, string $search): void {
+                        $query->whereHas('branch', function (Builder $q) use ($search): void {
+                            $q->where('name', 'like', "%{$search}%")
+                                ->orWhere('code', 'like', "%{$search}%");
+                        });
+                    })
+                    ->sortable()
+                    ->placeholder('—')
+                    ->icon(Heroicon::BuildingStorefront)
+                    ->iconColor('gray')
+                    ->limit(28)
+                    ->tooltip(fn (Sale $record): string => $record->branch?->name ?? 'Sin sucursal')
+                    ->url(fn (Sale $record): ?string => $record->branch_id
+                        ? BranchResource::getUrl('view', ['record' => $record->branch_id], isAbsolute: false)
+                        : null)
+                    ->openUrlInNewTab(false),
+                TextColumn::make('client.name')
+                    ->label('Cliente')
+                    ->placeholder('Mostrador / sin cliente')
+                    ->searchable(query: function (Builder $query, string $search): void {
+                        $query->whereHas('client', function (Builder $q) use ($search): void {
+                            $q->where('name', 'like', "%{$search}%")
+                                ->orWhere('document_number', 'like', "%{$search}%")
+                                ->orWhere('email', 'like', "%{$search}%");
+                        });
+                    })
+                    ->sortable(query: function (Builder $query, string $direction): void {
+                        $query->orderBy(
+                            Client::query()->select('name')->whereColumn('clients.id', 'sales.client_id'),
+                            $direction,
+                        );
+                    })
+                    ->limit(32)
+                    ->tooltip(fn (Sale $record): string => $record->client?->name ?? 'Venta sin cliente registrado')
+                    ->icon(Heroicon::User)
+                    ->iconColor('gray')
+                    ->url(fn (Sale $record): ?string => $record->client_id
+                        ? ClientResource::getUrl('view', ['record' => $record->client_id], isAbsolute: false)
+                        : null)
+                    ->openUrlInNewTab(false),
+                TextColumn::make('status')
+                    ->label('Estado')
+                    ->badge()
+                    ->formatStateUsing(fn (?SaleStatus $state): string => $state instanceof SaleStatus ? $state->label() : '—')
+                    ->color(fn (?SaleStatus $state): string => match ($state) {
+                        SaleStatus::Draft => 'gray',
+                        SaleStatus::Completed => 'success',
+                        SaleStatus::Cancelled => 'danger',
+                        SaleStatus::Refunded => 'warning',
+                        default => 'gray',
+                    })
+                    ->searchable()
                     ->sortable(),
-                TextColumn::make('tax_total')
+                TextColumn::make('items_count')
+                    ->label('Líneas')
                     ->numeric()
-                    ->sortable(),
-                TextColumn::make('discount_total')
-                    ->numeric()
-                    ->sortable(),
+                    ->sortable()
+                    ->alignCenter()
+                    ->icon(Heroicon::RectangleStack)
+                    ->iconColor('gray')
+                    ->tooltip('Cantidad de ítems en el detalle de la venta'),
                 TextColumn::make('total')
-                    ->numeric()
-                    ->sortable(),
+                    ->label('Total')
+                    ->money()
+                    ->sortable()
+                    ->alignEnd()
+                    ->weight('bold')
+                    ->icon(Heroicon::Banknotes)
+                    ->iconColor('gray'),
+                TextColumn::make('subtotal')
+                    ->label('Subtotal')
+                    ->money()
+                    ->sortable()
+                    ->alignEnd()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('tax_total')
+                    ->label('Impuestos')
+                    ->money()
+                    ->sortable()
+                    ->alignEnd()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('discount_total')
+                    ->label('Descuentos')
+                    ->money()
+                    ->sortable()
+                    ->alignEnd()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('payment_method')
-                    ->searchable(),
+                    ->label('Medio de pago')
+                    ->formatStateUsing(fn (?string $state): string => self::formatPaymentMethodLabel($state))
+                    ->searchable()
+                    ->placeholder('—')
+                    ->icon(Heroicon::CreditCard)
+                    ->iconColor('gray')
+                    ->toggleable(),
                 TextColumn::make('payment_status')
-                    ->searchable(),
+                    ->label('Estado cobro')
+                    ->formatStateUsing(fn (?string $state): string => self::formatPaymentStatusLabel($state))
+                    ->badge()
+                    ->color(fn (?string $state): string => self::paymentStatusColor($state))
+                    ->searchable()
+                    ->placeholder('—')
+                    ->toggleable(),
                 TextColumn::make('sold_at')
-                    ->dateTime()
-                    ->sortable(),
+                    ->label('Fecha venta')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable()
+                    ->placeholder('—')
+                    ->icon(Heroicon::CalendarDays)
+                    ->iconColor('gray'),
                 TextColumn::make('created_by')
-                    ->searchable(),
+                    ->label('Creado por')
+                    ->searchable()
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('updated_by')
-                    ->searchable(),
+                    ->label('Actualizado por')
+                    ->searchable()
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('created_at')
-                    ->dateTime()
+                    ->label('Registro creado')
+                    ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('updated_at')
-                    ->dateTime()
+                    ->label('Última edición')
+                    ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->defaultSort('sold_at', 'desc')
+            ->striped()
+            ->paginated([10, 25, 50, 100])
+            ->defaultPaginationPageOption(25)
+            ->persistFiltersInSession()
+            ->deferFilters(false)
+            ->filtersFormColumns(2)
+            ->filtersLayout(FiltersLayout::AboveContentCollapsible)
+            ->emptyStateHeading('Sin ventas registradas')
+            ->emptyStateDescription('Registre una venta para ver totales, cliente, sucursal y estado de cobro. Use «Crear» en el encabezado.')
+            ->emptyStateIcon(Heroicon::ShoppingBag)
+            ->recordUrl(fn (Sale $record): string => SaleResource::getUrl('view', ['record' => $record], isAbsolute: false))
+            ->recordAction('view')
             ->filters([
-                //
+                SelectFilter::make('status')
+                    ->label('Estado')
+                    ->options(SaleStatus::options())
+                    ->multiple()
+                    ->searchable(),
+                SelectFilter::make('branch_id')
+                    ->label('Sucursal')
+                    ->relationship(
+                        name: 'branch',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name'),
+                    )
+                    ->searchable()
+                    ->preload()
+                    ->multiple(),
+                TernaryFilter::make('client_assigned')
+                    ->label('Cliente')
+                    ->placeholder('Todos')
+                    ->trueLabel('Con cliente')
+                    ->falseLabel('Sin cliente')
+                    ->queries(
+                        true: fn (Builder $query) => $query->whereNotNull('client_id'),
+                        false: fn (Builder $query) => $query->whereNull('client_id'),
+                    ),
             ])
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make(),
+                ViewAction::make()
+                    ->label('Ver venta')
+                    ->icon(Heroicon::Eye),
+                EditAction::make()
+                    ->label('Editar')
+                    ->icon(Heroicon::PencilSquare),
             ])
+            ->recordActionsColumnLabel('Acciones')
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()
+                        ->label('Eliminar seleccionadas'),
                 ]),
             ]);
+    }
+
+    private static function formatPaymentMethodLabel(?string $value): string
+    {
+        if (blank($value)) {
+            return '—';
+        }
+
+        $key = strtolower(trim($value));
+
+        return match ($key) {
+            'cash', 'efectivo' => 'Efectivo',
+            'card', 'tarjeta', 'debit', 'credit' => 'Tarjeta',
+            'transfer', 'transferencia', 'nequi', 'daviplata' => 'Transferencia / digital',
+            default => $value,
+        };
+    }
+
+    private static function formatPaymentStatusLabel(?string $value): string
+    {
+        if (blank($value)) {
+            return '—';
+        }
+
+        $key = strtolower(trim($value));
+
+        return match ($key) {
+            'paid', 'pagado', 'cobrado' => 'Pagado',
+            'pending', 'pendiente' => 'Pendiente',
+            'partial', 'parcial' => 'Parcial',
+            'refunded', 'reembolsado' => 'Reembolsado',
+            default => $value,
+        };
+    }
+
+    private static function paymentStatusColor(?string $value): string
+    {
+        if (blank($value)) {
+            return 'gray';
+        }
+
+        return match (strtolower(trim($value))) {
+            'paid', 'pagado', 'cobrado' => 'success',
+            'pending', 'pendiente' => 'warning',
+            'partial', 'parcial' => 'info',
+            'refunded', 'reembolsado' => 'danger',
+            default => 'gray',
+        };
     }
 }

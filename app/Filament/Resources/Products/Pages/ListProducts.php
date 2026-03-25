@@ -19,7 +19,10 @@ class ListProducts extends ListRecords
             CreateAction::make()
                 ->label('Crear Producto')
                 ->icon(Heroicon::Plus)
-                ->color('primary'),
+                ->color('primary')
+                ->extraAttributes([
+                    'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
+                ]),
         ];
     }
 }

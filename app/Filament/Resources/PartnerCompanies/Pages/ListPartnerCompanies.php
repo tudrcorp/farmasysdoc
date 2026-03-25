@@ -11,6 +11,8 @@ class ListPartnerCompanies extends ListRecords
 {
     protected static string $resource = PartnerCompanyResource::class;
 
+    protected static ?string $title = 'Listado de Compañías Aliadas';
+
     protected function getHeaderActions(): array
     {
         return [

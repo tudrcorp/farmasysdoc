@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\Branch;
 use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -15,16 +14,18 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
+            BranchSeeder::class,
             ActiveIngredientSeeder::class,
             PresentationTypeSeeder::class,
+            SupplierSeeder::class,
+            ProductSeeder::class,
+            InventorySeeder::class,
         ]);
 
-        // User::factory(10)->create();
-
-        $defaultBranch = Branch::query()->first()
-            ?? Branch::factory()->create([
+        $defaultBranch = Branch::query()->where('is_headquarters', true)->first()
+            ?? Branch::query()->first()
+            ?? Branch::factory()->headquarters()->create([
                 'name' => 'Sede principal',
-                'is_headquarters' => true,
             ]);
 
         User::factory()->create([

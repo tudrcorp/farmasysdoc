@@ -2,6 +2,7 @@
 
 use App\Filament\Resources\Branches\Pages\CreateBranch;
 use App\Models\Branch;
+use App\Models\Country;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
@@ -18,6 +19,11 @@ test('create branch page loads form with sections', function () {
 
 test('creating a branch assigns automatic SUC-{id} code', function () {
     Filament::setCurrentPanel('farmaadmin');
+
+    Country::query()->create([
+        'name' => 'Colombia',
+        'code' => 'CO',
+    ]);
 
     $user = User::factory()->create();
 

@@ -10,6 +10,8 @@ class ListInventoryMovements extends ListRecords
 {
     protected static string $resource = InventoryMovementResource::class;
 
+    protected static ?string $title = 'Movimientos de Inventario';
+
     protected function getHeaderActions(): array
     {
         return [

@@ -1386,3 +1386,124 @@
         transition-duration: 0.01ms;
     }
 }
+
+/* Caja registradora (modal POS) — UI tipo iOS */
+.farmadoc-pos-total-section .fi-section-header-heading {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: rgb(113 113 122);
+}
+
+.dark .farmadoc-pos-total-section .fi-section-header-heading {
+    color: rgb(161 161 170);
+}
+
+/* Total a cobrar — tarjeta estilo iOS (glass, sombra suave, monto protagonista) */
+.farmadoc-pos-total-section--ios.fi-section {
+    border-radius: 1.375rem;
+    border: 1px solid rgb(228 228 231 / 0.95);
+    background: linear-gradient(
+        165deg,
+        rgb(255 255 255) 0%,
+        rgb(245 248 255) 42%,
+        rgb(238 242 250) 100%
+    );
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.95),
+        0 1px 0 rgb(255 255 255 / 0.65) inset,
+        0 22px 48px -28px rgb(15 23 42 / 0.28),
+        0 0 0 1px rgb(0 122 255 / 0.08);
+}
+
+.dark .farmadoc-pos-total-section--ios.fi-section {
+    border-color: rgb(63 63 70);
+    background: linear-gradient(165deg, rgb(44 44 46) 0%, rgb(28 28 30) 55%, rgb(22 22 24) 100%);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.06),
+        0 22px 48px -28px rgb(0 0 0 / 0.65),
+        0 0 0 1px rgb(10 132 255 / 0.12);
+}
+
+.farmadoc-pos-total-ios-card {
+    text-align: center;
+    padding: 0.35rem 0.25rem 0.15rem;
+}
+
+.farmadoc-pos-total-ios__amount {
+    font-size: clamp(2.35rem, 1.2rem + 3.4vw, 3.55rem);
+    font-weight: 700;
+    letter-spacing: -0.045em;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    color: rgb(15 23 42);
+    padding: 0.35rem 0.75rem 0.15rem;
+}
+
+.dark .farmadoc-pos-total-ios__amount {
+    color: rgb(248 250 252);
+}
+
+.farmadoc-pos-total-ios__amount * {
+    font-size: inherit !important;
+    font-weight: inherit !important;
+    letter-spacing: inherit !important;
+    line-height: inherit !important;
+    color: inherit !important;
+}
+
+/* Respaldo: ocultar labels de entries del bloque total iOS. */
+.farmadoc-pos-total-ios__amount .fi-in-entry-label,
+.farmadoc-pos-total-ios__sub .fi-in-entry-label,
+.farmadoc-pos-total-ios__amount [data-slot='label'],
+.farmadoc-pos-total-ios__sub [data-slot='label'] {
+    display: none !important;
+}
+
+.farmadoc-pos-total-ios__sub {
+    padding: 0.15rem 0.75rem 0.35rem;
+}
+
+.farmadoc-pos-total-ios__ves {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    color: rgb(63 63 70);
+}
+
+.dark .farmadoc-pos-total-ios__ves {
+    color: rgb(209 213 219);
+}
+
+.farmadoc-pos-total-ios__hint {
+    margin: 0.35rem 0 0;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(113 113 122);
+}
+
+.dark .farmadoc-pos-total-ios__hint {
+    color: rgb(161 161 170);
+}
+
+.farmadoc-pos-meta-section .fi-section-header-heading {
+    font-size: 0.875rem;
+}
+
+.farmadoc-pos-cart-section .fi-repeater-item {
+    border-radius: 1rem;
+    border: 1px solid rgb(228 228 231);
+    background: rgb(255 255 255 / 0.88);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+}
+
+.dark .farmadoc-pos-cart-section .fi-repeater-item {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27 / 0.72);
+}

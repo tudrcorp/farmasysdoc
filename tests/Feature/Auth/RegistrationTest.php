@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Branch;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Laravel\Fortify\Features;
 
@@ -18,11 +19,14 @@ test('registration screen can be rendered', function () {
 test('new users can register', function () {
     $this->withoutMiddleware(PreventRequestForgery::class);
 
+    $branch = Branch::factory()->create(['is_active' => true]);
+
     $response = $this->post(route('register.store'), [
         'name' => 'John Doe',
         'email' => 'test@example.com',
         'password' => 'password',
         'password_confirmation' => 'password',
+        'branch_id' => $branch->id,
     ]);
 
     $response->assertSessionHasNoErrors()

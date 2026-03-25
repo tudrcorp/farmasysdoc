@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\Client;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\PartnerCompany;
 use App\Models\Product;
 
 test('external allies cannot create orders without bearer token', function () {
@@ -25,6 +26,11 @@ test('external ally can create order and items with valid bearer token', functio
         'is_active' => true,
     ]);
 
+    PartnerCompany::query()->create([
+        'code' => 'EXT-ORD-001',
+        'legal_name' => 'Compañía pedidos API',
+    ]);
+
     $client = Client::factory()->create();
     $branch = Branch::factory()->create();
     $productA = Product::factory()->create([
@@ -37,6 +43,7 @@ test('external ally can create order and items with valid bearer token', functio
     ]);
 
     $response = $this->withToken($plainToken)->postJson(route('api.external.orders.store'), [
+        'partner_company' => 'EXT-ORD-001',
         'client_id' => $client->id,
         'branch_id' => $branch->id,
         'status' => OrderStatus::Pending->value,

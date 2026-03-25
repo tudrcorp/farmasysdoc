@@ -87,7 +87,7 @@ test('inventory copies pharmacy snapshot from product on create', function () {
     $product = Product::factory()->create([
         'sku' => 'INV-SNAP-1',
         'product_type' => ProductType::Medication,
-        'active_ingredient' => 'Paracetamol',
+        'active_ingredient' => ['Paracetamol'],
         'concentration' => '500 mg',
         'presentation_type' => 'Tableta',
     ]);
@@ -100,7 +100,7 @@ test('inventory copies pharmacy snapshot from product on create', function () {
     $inventory->refresh();
 
     expect($inventory->product_type)->toBe(ProductType::Medication)
-        ->and($inventory->active_ingredient)->toBe('Paracetamol')
+        ->and($inventory->active_ingredient)->toBe(['Paracetamol'])
         ->and($inventory->concentration)->toBe('500 mg')
         ->and($inventory->presentation_type)->toBe('Tableta');
 });
@@ -109,13 +109,15 @@ test('inventory refreshes pharmacy snapshot when product_id changes', function (
     $branch = Branch::factory()->create();
     $productA = Product::factory()->create([
         'sku' => 'INV-SNAP-A',
-        'active_ingredient' => 'Ibuprofeno',
+        'product_type' => ProductType::Medication,
+        'active_ingredient' => ['Ibuprofeno'],
         'concentration' => '400 mg',
         'presentation_type' => 'Cápsula',
     ]);
     $productB = Product::factory()->create([
         'sku' => 'INV-SNAP-B',
-        'active_ingredient' => 'Omeprazol',
+        'product_type' => ProductType::Medication,
+        'active_ingredient' => ['Omeprazol'],
         'concentration' => '20 mg',
         'presentation_type' => 'Cápsula gastrorresistente',
     ]);
@@ -125,12 +127,12 @@ test('inventory refreshes pharmacy snapshot when product_id changes', function (
         'product_id' => $productA->id,
     ]);
 
-    expect($inventory->active_ingredient)->toBe('Ibuprofeno');
+    expect($inventory->active_ingredient)->toBe(['Ibuprofeno']);
 
     $inventory->update(['product_id' => $productB->id]);
     $inventory->refresh();
 
-    expect($inventory->active_ingredient)->toBe('Omeprazol')
+    expect($inventory->active_ingredient)->toBe(['Omeprazol'])
         ->and($inventory->concentration)->toBe('20 mg')
         ->and($inventory->presentation_type)->toBe('Cápsula gastrorresistente');
 });

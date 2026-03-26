@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\Clients\Schemas;
 
+use App\Models\Client;
+use App\Models\User;
+use App\Services\Marketing\MarketingAnalyticsService;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -97,6 +100,23 @@ class ClientInfolist
                             ]),
                     ])
                     ->columns(1)
+                    ->columnSpanFull(),
+
+                Section::make('Comportamiento (marketing)')
+                    ->description('Métricas basadas en ventas con estado «completada».')
+                    ->icon(Heroicon::ChartBar)
+                    ->visible(fn (): bool => auth()->user() instanceof User && auth()->user()->canAccessMarketingModule())
+                    ->schema([
+                        TextEntry::make('id')
+                            ->hiddenLabel()
+                            ->formatStateUsing(function (Client $record): string {
+                                $m = app(MarketingAnalyticsService::class)->clientBehaviorMetrics($record);
+
+                                return view('filament.clients.marketing-metrics', ['m' => $m])->render();
+                            })
+                            ->html()
+                            ->columnSpanFull(),
+                    ])
                     ->columnSpanFull(),
 
                 Section::make('Estado del cliente')

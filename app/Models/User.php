@@ -64,11 +64,28 @@ class User extends Authenticatable implements FilamentUser
             return false;
         }
 
-        if(in_array('ADMINISTRADOR', $roles, true)) {
+        if (in_array('ADMINISTRADOR', $roles, true)) {
             return true;
         }
-        
+
         return false;
+    }
+
+    /**
+     * Acceso al módulo de Marketing (panel Farmaadmin): administradores o rol MARKETING.
+     */
+    public function canAccessMarketingModule(): bool
+    {
+        if ($this->isAdministrator()) {
+            return true;
+        }
+
+        $roles = $this->roles;
+        if (! is_array($roles)) {
+            return false;
+        }
+
+        return in_array('MARKETING', $roles, true);
     }
 
     /**

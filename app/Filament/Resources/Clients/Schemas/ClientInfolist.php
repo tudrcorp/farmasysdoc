@@ -105,6 +105,7 @@ class ClientInfolist
                 Section::make('Comportamiento (marketing)')
                     ->description('Métricas basadas en ventas con estado «completada».')
                     ->icon(Heroicon::ChartBar)
+                    ->extraAttributes(['class' => 'fi-client-marketing-behavior'])
                     ->visible(fn (): bool => auth()->user() instanceof User && auth()->user()->canAccessMarketingModule())
                     ->schema([
                         TextEntry::make('id')

@@ -6,6 +6,9 @@ use Filament\Facades\Filament;
 use Filament\Widgets\Widget;
 use Illuminate\Contracts\Auth\Authenticatable;
 
+/**
+ * Tarjeta de bienvenida en el sidebar. Estilos glass iOS: `theme.css` → `.fi-farmaadmin-account-widget`.
+ */
 class FarmaadminAccountWidget extends Widget
 {
     protected static ?int $sort = -3;

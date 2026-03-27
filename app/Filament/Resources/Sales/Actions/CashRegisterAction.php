@@ -28,6 +28,7 @@ use Filament\Support\Enums\Size;
 use Filament\Support\Enums\TextSize;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
@@ -64,289 +65,292 @@ final class CashRegisterAction
                 ],
             ], self::initialDolarFormState()))
             ->schema([
-
                 Grid::make([
                     'default' => 1,
-                    'md' => 2,
+                    'lg' => 12,
                 ])
                     ->extraAttributes([
-                        'class' => 'farmadoc-pos-summary-grid',
+                        'class' => 'farmadoc-pos-main-layout',
                     ])
                     ->schema([
-                        Section::make('Total a cobrar')
-                            ->description('Incluye impuestos según cada producto.')
-                            ->icon(Heroicon::Banknotes)
-                            ->iconColor('primary')
-                            ->schema([
-                                Grid::make(1)
-                                    ->extraAttributes([
-                                        'class' => 'farmadoc-pos-total-ios-card farmadoc-pos-total-ios-card--match-payment-height',
-                                    ])
-                                    ->schema([
-                                        TextEntry::make('pos_total_banner')
-                                            ->hiddenLabel()
-                                            ->alignment(Alignment::Center)
-                                            ->weight(FontWeight::Bold)
-                                            ->size(TextSize::Medium)
-                                            ->state(fn (Get $get): string => self::formatMoney(self::computeSaleTotal($get)))
-                                            ->dehydrated(false)
-                                            ->extraEntryWrapperAttributes([
-                                                'class' => 'farmadoc-pos-total-ios__amount',
-                                            ]),
-                                        TextEntry::make('pos_total_banner_ves')
-                                            ->hiddenLabel()
-                                            ->alignment(Alignment::Center)
-                                            ->html()
-                                            ->state(fn (Get $get): HtmlString => self::buildTotalVesBannerHtml($get))
-                                            ->dehydrated(false)
-                                            ->extraEntryWrapperAttributes([
-                                                'class' => 'farmadoc-pos-total-ios__sub',
-                                            ]),
-                                        TextInput::make('ves_usd_rate')
-                                            ->hiddenLabel()
-                                            ->type('hidden')
-                                            ->dehydrated()
-                                            ->default(null),
-                                        TextInput::make('ves_usd_rate_manual')
-                                            ->label('Tasa Bs. por 1 USD (manual)')
-                                            ->helperText('Solo si la API no está disponible. Se usa para convertir USD a bolívares.')
-                                            ->numeric()
-                                            ->minValue(0.0001)
-                                            ->step(0.01)
-                                            ->prefix('Bs.')
-                                            ->suffix('× 1 USD')
-                                            ->live(debounce: 300)
-                                            ->visible(fn (Get $get): bool => ! self::hasValidApiRate($get)),
-                                    ])
-                                    ->columnSpanFull(),
-                            ])
-                            ->extraAttributes([
-                                'class' => 'farmadoc-pos-total-section farmadoc-pos-total-section--ios',
-                            ]),
-                        Section::make('Formas de pago')
-                            ->description('Seleccione la forma de pago y el monto a pagar.')
-                            ->icon(Heroicon::CreditCard)
+                        Section::make('Venta')
+                            ->description('Busque productos, indique cantidades y confirme el cobro. El total se actualiza al instante.')
+                            ->icon(Heroicon::ShoppingCart)
                             ->iconColor('primary')
                             ->extraAttributes([
-                                'class' => 'farmadoc-pos-payment-section',
+                                'class' => 'farmadoc-pos-cart-section',
                             ])
                             ->schema([
-                                Select::make('payment_method')
-                                    ->label('Cobro')
-                                    ->options([
-                                        'transfer_usd' => 'Transferencias USD',
-                                        'transfer_ves' => 'Transferencia VES',
-                                        'pago_movil' => 'Pago Mobil',
-                                        'zelle' => 'Zelle',
-                                        'efectivo_usd' => 'Efectivo USD',
-                                        'mixed' => 'Pago Multiple',
-                                    ])
-                                    ->default('efectivo_usd')
-                                    ->required()
-                                    ->live()
-                                    ->native(false)
-                                    ->prefixIcon(Heroicon::CreditCard),
-                                TextInput::make('mixed_usd_paid')
-                                    ->label('Pago en USD (usuario)')
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->step(0.01)
-                                    ->prefix('$')
-                                    ->live(debounce: 300)
-                                    ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'),
-                                TextEntry::make('payment_usd_preview')
-                                    ->label('payment_usd')
-                                    ->state(fn (Get $get): string => self::formatMoney(self::computePaymentBreakdownForForm($get)['payment_usd']))
-                                    ->dehydrated(false),
-                                TextEntry::make('payment_ves_preview')
-                                    ->label('payment_ves')
-                                    ->state(fn (Get $get): string => self::formatBolivaresReferenceFromVes(self::computePaymentBreakdownForForm($get)['payment_ves']))
-                                    ->dehydrated(false),
-                                TextInput::make('reference')
-                                    ->label('Referencia de pago')
-                                    ->helperText('Obligatoria para pagos en bolivares y para Zelle.')
-                                    ->maxLength(255)
-                                    ->visible(fn (Get $get): bool => in_array($get('payment_method'), ['transfer_ves', 'pago_movil', 'zelle', 'mixed'], true)),
-                            ]),
-                    ])
-                    ->columnSpanFull(),
+                                Select::make('client_id')
+                                    ->label('Cliente')
+                                    ->placeholder('Mostrador / sin cliente')
+                                    ->searchable()
+                                    ->getSearchResultsUsing(function (string $search): array {
+                                        $term = trim($search);
+                                        $like = '%'.addcslashes($term, '%_\\').'%';
 
-                Section::make('Venta')
-                    ->description('Busque productos, indique cantidades y confirme el cobro. El total se actualiza al instante.')
-                    ->icon(Heroicon::ShoppingCart)
-                    ->iconColor('primary')
-                    ->extraAttributes([
-                        'class' => 'farmadoc-pos-cart-section',
-                    ])
-                    ->schema([
-                        Select::make('client_id')
-                            ->label('Cliente')
-                            ->placeholder('Mostrador / sin cliente')
-                            ->searchable()
-                            ->getSearchResultsUsing(function (string $search): array {
-                                $term = trim($search);
-                                $like = '%'.addcslashes($term, '%_\\').'%';
-
-                                return Client::query()
-                                    ->where('status', 'active')
-                                    ->where(function ($query) use ($like): void {
-                                        $query->where('name', 'like', $like)
-                                            ->orWhere('document_number', 'like', $like);
+                                        return Client::query()
+                                            ->where('status', 'active')
+                                            ->where(function ($query) use ($like): void {
+                                                $query->where('name', 'like', $like)
+                                                    ->orWhere('document_number', 'like', $like);
+                                            })
+                                            ->orderBy('name')
+                                            ->limit(30)
+                                            ->get()
+                                            ->mapWithKeys(fn (Client $client): array => [
+                                                $client->id => $client->name.(filled($client->document_number) ? ' · '.$client->document_number : ''),
+                                            ])
+                                            ->all();
                                     })
-                                    ->orderBy('name')
-                                    ->limit(30)
-                                    ->get()
-                                    ->mapWithKeys(fn (Client $client): array => [
-                                        $client->id => $client->name.(filled($client->document_number) ? ' · '.$client->document_number : ''),
+                                    ->getOptionLabelUsing(function ($value): ?string {
+                                        if (blank($value)) {
+                                            return null;
+                                        }
+
+                                        $client = Client::query()->find((int) $value);
+                                        if (! $client) {
+                                            return null;
+                                        }
+
+                                        return $client->name.(filled($client->document_number) ? ' · '.$client->document_number : '');
+                                    })
+                                    ->native(false)
+                                    ->prefixIcon(Heroicon::User)
+                                    ->columnSpanFull(),
+                                Repeater::make('line_items')
+                                    ->label('')
+                                    ->addActionLabel('Añadir producto')
+                                    ->reorderable()
+                                    ->defaultItems(1)
+                                    ->minItems(1)
+                                    ->live()
+                                    ->partiallyRenderAfterActionsCalled(false)
+                                    ->itemLabel(function (array $state): string|Htmlable {
+                                        if (! filled($state['product_id'] ?? null)) {
+                                            return 'Nueva línea';
+                                        }
+
+                                        $name = Product::query()->find((int) $state['product_id'])?->name ?? 'Producto';
+                                        $total = self::formatMoney(self::computeLineTotalFromRowState($state));
+
+                                        return new HtmlString(
+                                            e($name).' · <span class="farmadoc-pos-repeater-item-total">'.$total.'</span>'
+                                        );
+                                    })
+                                    ->extraAttributes([
+                                        'class' => 'farmadoc-pos-line-items-repeater fi-fixed-positioning-context',
                                     ])
-                                    ->all();
-                            })
-                            ->getOptionLabelUsing(function ($value): ?string {
-                                if (blank($value)) {
-                                    return null;
-                                }
-
-                                $client = Client::query()->find((int) $value);
-                                if (! $client) {
-                                    return null;
-                                }
-
-                                return $client->name.(filled($client->document_number) ? ' · '.$client->document_number : '');
-                            })
-                            ->native(false)
-                            ->prefixIcon(Heroicon::User)
-                            ->columnSpanFull(),
-                        Repeater::make('line_items')
-                            ->label('')
-                            ->addActionLabel('Añadir producto')
-                            ->reorderable()
-                            ->defaultItems(1)
-                            ->minItems(1)
-                            ->live()
-                            ->partiallyRenderAfterActionsCalled(false)
-                            ->itemLabel(fn (array $state): ?string => filled($state['product_id'] ?? null)
-                                ? (Product::query()->find($state['product_id'])?->name ?? 'Producto')
-                                : 'Nueva línea')
-                            ->extraAttributes([
-                                'class' => 'farmadoc-pos-line-items-repeater fi-fixed-positioning-context',
-                            ])
-                            ->schema([
-                                Grid::make([
-                                    'default' => 1,
-                                    'lg' => 12,
-                                ])
                                     ->schema([
-                                        Select::make('product_id')
-                                            ->label('Producto')
-                                            ->searchable()
-                                            ->disabled(fn (): bool => blank(Auth::user()?->branch_id))
-                                            ->getSearchResultsUsing(function (string $search): array {
-                                                $branchId = Auth::user()?->branch_id;
-                                                if (blank($branchId)) {
-                                                    return [];
-                                                }
-
-                                                $term = trim($search);
-                                                $query = Inventory::query()
-                                                    ->where('branch_id', (int) $branchId)
-                                                    ->whereHas('product', fn ($q) => $q->where('is_active', true))
-                                                    ->with('product');
-
-                                                if ($term !== '') {
-                                                    $like = '%'.addcslashes($term, '%_\\').'%';
-                                                    $query->where(function ($q) use ($like): void {
-                                                        $q->whereHas('product', function ($productQuery) use ($like): void {
-                                                            $productQuery->where('name', 'like', $like)
-                                                                ->orWhere('barcode', 'like', $like)
-                                                                ->orWhere('slug', 'like', $like);
-                                                        });
-                                                    });
-                                                }
-
-                                                return $query
-                                                    ->whereNotNull('product_id')
-                                                    ->orderBy('product_id')
-                                                    ->limit($term === '' ? 25 : 40)
-                                                    ->get()
-                                                    ->mapWithKeys(function (Inventory $inventory): array {
-                                                        $product = $inventory->product;
-                                                        if (! $product) {
+                                        Grid::make([
+                                            'default' => 1,
+                                            'lg' => 12,
+                                        ])
+                                            ->schema([
+                                                Select::make('product_id')
+                                                    ->label('Producto')
+                                                    ->searchable()
+                                                    ->disabled(fn (): bool => blank(Auth::user()?->branch_id))
+                                                    ->getSearchResultsUsing(function (string $search): array {
+                                                        $branchId = Auth::user()?->branch_id;
+                                                        if (blank($branchId)) {
                                                             return [];
                                                         }
 
-                                                        return [
-                                                            $product->id => $product->name.
-                                                                (filled($product->barcode) ? ' · '.$product->barcode : '').
-                                                                ' — Costo '.self::formatMoney((float) ($product->cost_price ?? 0)),
-                                                        ];
+                                                        $term = trim($search);
+                                                        $query = Inventory::query()
+                                                            ->where('branch_id', (int) $branchId)
+                                                            ->whereHas('product', fn ($q) => $q->where('is_active', true))
+                                                            ->with('product');
+
+                                                        if ($term !== '') {
+                                                            $like = '%'.addcslashes($term, '%_\\').'%';
+                                                            $query->where(function ($q) use ($like): void {
+                                                                $q->whereHas('product', function ($productQuery) use ($like): void {
+                                                                    $productQuery->where('name', 'like', $like)
+                                                                        ->orWhere('barcode', 'like', $like)
+                                                                        ->orWhere('slug', 'like', $like);
+                                                                });
+                                                            });
+                                                        }
+
+                                                        return $query
+                                                            ->whereNotNull('product_id')
+                                                            ->orderBy('product_id')
+                                                            ->limit($term === '' ? 25 : 40)
+                                                            ->get()
+                                                            ->mapWithKeys(function (Inventory $inventory): array {
+                                                                $product = $inventory->product;
+                                                                if (! $product) {
+                                                                    return [];
+                                                                }
+
+                                                                return [
+                                                                    $product->id => $product->name.
+                                                                        (filled($product->barcode) ? ' · '.$product->barcode : '').
+                                                                        ' — Costo '.self::formatMoney((float) ($product->cost_price ?? 0)),
+                                                                ];
+                                                            })
+                                                            ->all();
                                                     })
-                                                    ->all();
-                                            })
-                                            ->getOptionLabelUsing(fn ($value): ?string => Product::query()->find($value)?->name)
+                                                    ->getOptionLabelUsing(fn ($value): ?string => Product::query()->find($value)?->name)
+                                                    ->required()
+                                                    ->live()
+                                                    ->native(false)
+                                                    ->columnSpan(['lg' => 8]),
+                                                TextInput::make('quantity')
+                                                    ->label('Cantidad')
+                                                    ->numeric()
+                                                    ->minValue(0.001)
+                                                    ->step(0.001)
+                                                    ->default(1)
+                                                    ->required()
+                                                    ->live(debounce: 300)
+                                                    ->inlinePrefix()
+                                                    ->inlineSuffix()
+                                                    ->prefixAction(
+                                                        Action::make('decreaseQuantity')
+                                                            ->label(__('Menos'))
+                                                            ->icon(Heroicon::Minus)
+                                                            ->color('gray')
+                                                            ->size(Size::Small)
+                                                            ->action(function (Set $set, Get $get): void {
+                                                                $current = (float) ($get('quantity') ?? 0);
+                                                                $next = max(0.001, round($current - 1, 3));
+                                                                $set('quantity', $next);
+                                                            }),
+                                                        isInline: true,
+                                                    )
+                                                    ->suffixAction(
+                                                        Action::make('increaseQuantity')
+                                                            ->label(__('Más'))
+                                                            ->icon(Heroicon::Plus)
+                                                            ->color('gray')
+                                                            ->size(Size::Small)
+                                                            ->action(function (Set $set, Get $get): void {
+                                                                $current = (float) ($get('quantity') ?? 0);
+                                                                $next = round(max(0.001, $current) + 1, 3);
+                                                                $set('quantity', $next);
+                                                            }),
+                                                        isInline: true,
+                                                    )
+                                                    ->extraAttributes([
+                                                        'class' => 'farmadoc-pos-qty-field',
+                                                    ])
+                                                    ->columnSpan(['lg' => 4]),
+                                            ]),
+                                    ]),
+                            ])
+                            ->columns(1)
+                            ->columnSpan(['lg' => 8])
+                            ->extraAttributes([
+                                'class' => 'farmadoc-pos-meta-section farmadoc-pos-cart-section',
+                            ]),
+
+                        Grid::make(1)
+                            ->extraAttributes([
+                                'class' => 'farmadoc-pos-summary-stack',
+                            ])
+                            ->schema([
+                                Section::make('Total a cobrar')
+                                    ->description('Incluye impuestos según cada producto.')
+                                    ->icon(Heroicon::Banknotes)
+                                    ->iconColor('primary')
+                                    ->schema([
+                                        Grid::make(1)
+                                            ->extraAttributes([
+                                                'class' => 'farmadoc-pos-total-ios-card',
+                                            ])
+                                            ->schema([
+                                                TextEntry::make('pos_total_banner')
+                                                    ->hiddenLabel()
+                                                    ->alignment(Alignment::Center)
+                                                    ->weight(FontWeight::Bold)
+                                                    ->size(TextSize::Medium)
+                                                    ->state(fn (Get $get): string => self::formatMoney(self::computeSaleTotal($get)))
+                                                    ->dehydrated(false)
+                                                    ->extraEntryWrapperAttributes([
+                                                        'class' => 'farmadoc-pos-total-ios__amount',
+                                                    ]),
+                                                TextEntry::make('pos_total_banner_ves')
+                                                    ->hiddenLabel()
+                                                    ->alignment(Alignment::Center)
+                                                    ->html()
+                                                    ->state(fn (Get $get): HtmlString => self::buildTotalVesBannerHtml($get))
+                                                    ->dehydrated(false)
+                                                    ->extraEntryWrapperAttributes([
+                                                        'class' => 'farmadoc-pos-total-ios__sub',
+                                                    ]),
+                                                TextInput::make('ves_usd_rate')
+                                                    ->hiddenLabel()
+                                                    ->type('hidden')
+                                                    ->dehydrated()
+                                                    ->default(null),
+                                                TextInput::make('ves_usd_rate_manual')
+                                                    ->label('Tasa Bs. por 1 USD (manual)')
+                                                    ->helperText('Solo si la API no está disponible. Se usa para convertir USD a bolívares.')
+                                                    ->numeric()
+                                                    ->minValue(0.0001)
+                                                    ->step(0.01)
+                                                    ->prefix('Bs.')
+                                                    ->suffix('× 1 USD')
+                                                    ->live(debounce: 300)
+                                                    ->visible(fn (Get $get): bool => ! self::hasValidApiRate($get)),
+                                            ])
+                                            ->columnSpanFull(),
+                                    ])
+                                    ->extraAttributes([
+                                        'class' => 'farmadoc-pos-total-section farmadoc-pos-total-section--ios',
+                                    ]),
+                                Section::make('Formas de pago')
+                                    ->description('Seleccione la forma de pago y el monto a pagar.')
+                                    ->icon(Heroicon::CreditCard)
+                                    ->iconColor('primary')
+                                    ->extraAttributes([
+                                        'class' => 'farmadoc-pos-payment-section',
+                                    ])
+                                    ->schema([
+                                        Select::make('payment_method')
+                                            ->label('Cobro')
+                                            ->options([
+                                                'transfer_usd' => 'Transferencias USD',
+                                                'transfer_ves' => 'Transferencia VES',
+                                                'pago_movil' => 'Pago Mobil',
+                                                'zelle' => 'Zelle',
+                                                'efectivo_usd' => 'Efectivo USD',
+                                                'mixed' => 'Pago Multiple',
+                                            ])
+                                            ->default('efectivo_usd')
                                             ->required()
                                             ->live()
                                             ->native(false)
-                                            ->columnSpan(['lg' => 7]),
-                                        TextInput::make('quantity')
-                                            ->label('Cantidad')
+                                            ->prefixIcon(Heroicon::CreditCard),
+                                        TextInput::make('mixed_usd_paid')
+                                            ->label('Pago en USD (usuario)')
                                             ->numeric()
-                                            ->minValue(0.001)
-                                            ->step(0.001)
-                                            ->default(1)
-                                            ->required()
+                                            ->minValue(0)
+                                            ->step(0.01)
+                                            ->prefix('$')
                                             ->live(debounce: 300)
-                                            ->inlinePrefix()
-                                            ->inlineSuffix()
-                                            ->prefixAction(
-                                                Action::make('decreaseQuantity')
-                                                    ->label(__('Menos'))
-                                                    ->icon(Heroicon::Minus)
-                                                    ->color('gray')
-                                                    ->size(Size::Small)
-                                                    ->action(function (Set $set, Get $get): void {
-                                                        $current = (float) ($get('quantity') ?? 0);
-                                                        $next = max(0.001, round($current - 1, 3));
-                                                        $set('quantity', $next);
-                                                    }),
-                                                isInline: true,
-                                            )
-                                            ->suffixAction(
-                                                Action::make('increaseQuantity')
-                                                    ->label(__('Más'))
-                                                    ->icon(Heroicon::Plus)
-                                                    ->color('gray')
-                                                    ->size(Size::Small)
-                                                    ->action(function (Set $set, Get $get): void {
-                                                        $current = (float) ($get('quantity') ?? 0);
-                                                        $next = round(max(0.001, $current) + 1, 3);
-                                                        $set('quantity', $next);
-                                                    }),
-                                                isInline: true,
-                                            )
-                                            ->extraAttributes([
-                                                'class' => 'farmadoc-pos-qty-field',
-                                            ])
-                                            ->columnSpan(['lg' => 2]),
-                                        TextEntry::make('line_preview')
-                                            ->label('Total de línea')
-                                            ->state(fn (Get $get): string => self::formatMoney(self::computeLineTotal($get)))
-                                            ->dehydrated(false)
-                                            ->alignment(Alignment::End)
-                                            ->weight(FontWeight::SemiBold)
-                                            ->size(TextSize::Large)
-                                            ->extraEntryWrapperAttributes([
-                                                'class' => 'farmadoc-pos-line-amount-entry',
-                                            ])
-                                            ->columnSpan(['lg' => 3]),
+                                            ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'),
+                                        TextEntry::make('payment_usd_preview')
+                                            ->label('payment_usd')
+                                            ->state(fn (Get $get): string => self::formatMoney(self::computePaymentBreakdownForForm($get)['payment_usd']))
+                                            ->dehydrated(false),
+                                        TextEntry::make('payment_ves_preview')
+                                            ->label('payment_ves')
+                                            ->state(fn (Get $get): string => self::formatBolivaresReferenceFromVes(self::computePaymentBreakdownForForm($get)['payment_ves']))
+                                            ->dehydrated(false),
+                                        TextInput::make('reference')
+                                            ->label('Referencia de pago')
+                                            ->helperText('Obligatoria para pagos en bolivares y para Zelle.')
+                                            ->maxLength(255)
+                                            ->visible(fn (Get $get): bool => in_array($get('payment_method'), ['transfer_ves', 'pago_movil', 'zelle', 'mixed'], true)),
                                     ]),
                             ])
-                            ->columnSpanFull(),
+                            ->columnSpan(['lg' => 4]),
                     ])
-                    ->columns(1)
-                    ->columnSpanFull()
-                    ->extraAttributes([
-                        'class' => 'farmadoc-pos-meta-section farmadoc-pos-cart-section',
-                    ]),
+                    ->columnSpanFull(),
             ])
             ->action(function (array $data) {
                 $branchId = Auth::user()?->branch_id;
@@ -709,10 +713,15 @@ final class CashRegisterAction
         return round($sum, 2);
     }
 
-    private static function computeLineTotal(Get $get): float
+    /**
+     * Total de una línea desde el estado del ítem del repeater (misma lógica que en formulario).
+     *
+     * @param  array<string, mixed>  $rowState
+     */
+    private static function computeLineTotalFromRowState(array $rowState): float
     {
-        $productId = $get('product_id');
-        $qty = (float) ($get('quantity') ?? 0);
+        $productId = $rowState['product_id'] ?? null;
+        $qty = (float) ($rowState['quantity'] ?? 0);
         if (! filled($productId) || $qty <= 0) {
             return 0.0;
         }

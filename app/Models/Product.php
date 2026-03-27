@@ -44,6 +44,7 @@ class Product extends Model
         'is_active',
         'created_by',
         'updated_by',
+        'sku',
     ];
 
     /**

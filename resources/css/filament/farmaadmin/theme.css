@@ -51,29 +51,38 @@
 }
 
 /*
- * Ítem activo (ruta actual): acento lateral + “pill” con marca, sin depender solo del gris Filament.
+ * Ítem activo — solo glass morphism translúcido (prueba visual; pedir revertir si no encaja).
  */
 .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn {
+    position: relative;
+    isolation: isolate;
     border-inline-start: 3px solid var(--color-primary-500);
     padding-inline-start: calc(0.5rem - 3px);
-    background-color: rgb(252 228 34 / 0.26);
+    background: linear-gradient(
+        125deg,
+        rgb(255 255 255 / 0.52) 0%,
+        rgb(255 255 255 / 0.28) 42%,
+        rgb(252 228 34 / 0.12) 78%,
+        rgb(24 172 178 / 0.1) 100%
+    );
     box-shadow:
-        inset 0 1px 0 rgb(255 255 255 / 0.8),
-        0 0 0 1px rgb(252 228 34 / 0.45),
-        0 4px 18px rgb(0 0 0 / 0.07);
-    backdrop-filter: saturate(200%) blur(20px);
-    -webkit-backdrop-filter: saturate(200%) blur(20px);
+        inset 0 1px 0 rgb(255 255 255 / 0.82),
+        0 0 0 1px rgb(255 255 255 / 0.45),
+        0 10px 28px rgb(15 23 42 / 0.09),
+        0 4px 14px rgb(24 172 178 / 0.12);
+    backdrop-filter: blur(26px) saturate(1.5);
+    -webkit-backdrop-filter: blur(26px) saturate(1.5);
 }
 
 .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-icon {
-    color: var(--color-primary-700);
-    filter: drop-shadow(0 1px 1px rgb(255 255 255 / 0.35));
+    color: var(--color-primary-800);
+    filter: drop-shadow(0 1px 2px rgb(255 255 255 / 0.4));
 }
 
 .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-sidebar-item-label {
     font-weight: 600;
-    letter-spacing: -0.01em;
-    color: var(--color-primary-950);
+    letter-spacing: -0.02em;
+    color: rgb(24 24 27);
 }
 
 .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn .fi-sidebar-item-grouped-border-part {
@@ -81,20 +90,29 @@
 }
 
 .dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn {
-    background-color: rgb(252 228 34 / 0.16);
+    background: linear-gradient(
+        125deg,
+        rgb(255 255 255 / 0.12) 0%,
+        rgb(255 255 255 / 0.05) 40%,
+        rgb(24 172 178 / 0.14) 72%,
+        rgb(252 228 34 / 0.08) 100%
+    );
     box-shadow:
-        inset 0 1px 0 rgb(255 255 255 / 0.12),
-        0 0 0 1px rgb(252 228 34 / 0.38),
-        0 6px 22px rgb(0 0 0 / 0.35);
+        inset 0 1px 0 rgb(255 255 255 / 0.14),
+        0 0 0 1px rgb(255 255 255 / 0.12),
+        0 12px 32px rgb(0 0 0 / 0.45),
+        0 0 28px -8px rgb(24 172 178 / 0.2);
+    backdrop-filter: blur(28px) saturate(1.45);
+    -webkit-backdrop-filter: blur(28px) saturate(1.45);
 }
 
 .dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-icon {
-    color: var(--color-primary-300);
-    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.45));
+    color: var(--color-primary-200);
+    filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.5));
 }
 
 .dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-sidebar-item-label {
-    color: var(--color-primary-100);
+    color: rgb(250 250 250);
 }
 
 /* Grupo de navegación con ítem activo: cabecera alineada visualmente */
@@ -148,22 +166,38 @@
 
 .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:hover,
 .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:focus-visible {
-    background-color: rgb(252 228 34 / 0.34);
+    background: linear-gradient(
+        125deg,
+        rgb(255 255 255 / 0.62) 0%,
+        rgb(255 255 255 / 0.36) 42%,
+        rgb(252 228 34 / 0.18) 78%,
+        rgb(24 172 178 / 0.14) 100%
+    );
     box-shadow:
-        inset 0 1px 0 rgb(255 255 255 / 0.85),
-        0 0 0 1px rgb(252 228 34 / 0.55),
-        0 6px 20px rgb(0 0 0 / 0.09);
-    backdrop-filter: saturate(212%) blur(22px);
-    -webkit-backdrop-filter: saturate(212%) blur(22px);
+        inset 0 1px 0 rgb(255 255 255 / 0.9),
+        0 0 0 1px rgb(255 255 255 / 0.55),
+        0 14px 36px rgb(15 23 42 / 0.11),
+        0 6px 18px rgb(24 172 178 / 0.16);
+    backdrop-filter: blur(30px) saturate(1.55);
+    -webkit-backdrop-filter: blur(30px) saturate(1.55);
 }
 
 .dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:hover,
 .dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:focus-visible {
-    background-color: rgb(252 228 34 / 0.24);
+    background: linear-gradient(
+        125deg,
+        rgb(255 255 255 / 0.16) 0%,
+        rgb(255 255 255 / 0.07) 40%,
+        rgb(24 172 178 / 0.2) 72%,
+        rgb(252 228 34 / 0.12) 100%
+    );
     box-shadow:
-        inset 0 1px 0 rgb(255 255 255 / 0.14),
-        0 0 0 1px rgb(252 228 34 / 0.48),
-        0 8px 24px rgb(0 0 0 / 0.38);
+        inset 0 1px 0 rgb(255 255 255 / 0.18),
+        0 0 0 1px rgb(255 255 255 / 0.16),
+        0 16px 40px rgb(0 0 0 / 0.5),
+        0 0 36px -6px rgb(24 172 178 / 0.28);
+    backdrop-filter: blur(32px) saturate(1.5);
+    -webkit-backdrop-filter: blur(32px) saturate(1.5);
 }
 
 .fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn:active {
@@ -1389,7 +1423,27 @@
 
 /* Caja registradora (modal POS) — UI tipo iOS */
 
-/* Misma altura: «Total a cobrar» y «Formas de pago» en el grid de dos columnas (md+) */
+/* Dos columnas (lg+): carrito ~8/12, total+pago ~4/12 — más aire para el repeater */
+@media (min-width: 64rem) {
+    .farmadoc-pos-main-layout {
+        align-items: flex-start;
+    }
+}
+
+/* Columna derecha: «Total a cobrar» arriba, «Formas de pago» abajo */
+.farmadoc-pos-summary-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.farmadoc-pos-summary-stack .farmadoc-pos-payment-section .fi-section-content {
+    gap: 0.625rem;
+}
+
+/* Misma altura: «Total a cobrar» y «Formas de pago» cuando comparten fila (legacy grid) */
 @media (min-width: 48rem) {
     .farmadoc-pos-summary-grid {
         align-items: stretch;
@@ -1664,6 +1718,19 @@
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     text-align: center;
+}
+
+/* Total de línea en el título colapsable del ítem del repeater */
+.farmadoc-pos-cart-section .farmadoc-pos-repeater-item-total {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    color: rgb(22 101 52);
+    white-space: nowrap;
+}
+
+.dark .farmadoc-pos-cart-section .farmadoc-pos-repeater-item-total {
+    color: rgb(74 222 128);
 }
 
 /*
@@ -2173,6 +2240,300 @@
         0 1px 0 rgb(255 255 255 / 0.1) inset,
         0 32px 64px -12px rgb(0 0 0 / 0.65),
         0 0 40px -20px rgb(20 184 166 / 0.12);
+}
+
+/*
+ * Cliente — sección «Comportamiento (marketing)»: mismo lenguaje glass que gráficos del hub (translúcido + blur).
+ */
+.fi-sc-section.fi-client-marketing-behavior .fi-section {
+    overflow: hidden;
+    border-radius: 1.75rem;
+    border: 1px solid rgb(255 255 255 / 0.45);
+    background: linear-gradient(
+        165deg,
+        rgb(255 255 255 / 0.52) 0%,
+        rgb(255 255 255 / 0.28) 45%,
+        rgb(248 250 252 / 0.38) 100%
+    );
+    backdrop-filter: blur(22px) saturate(1.35);
+    -webkit-backdrop-filter: blur(22px) saturate(1.35);
+    box-shadow:
+        0 1px 1px rgb(255 255 255 / 0.65) inset,
+        0 20px 48px -18px rgb(15 23 42 / 0.18),
+        0 8px 20px -10px rgb(15 98 109 / 0.12);
+    transition:
+        border-color 0.28s ease,
+        box-shadow 0.28s ease,
+        transform 0.28s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.fi-sc-section.fi-client-marketing-behavior .fi-section::after {
+    display: none;
+}
+
+.fi-sc-section.fi-client-marketing-behavior .fi-section:hover {
+    transform: translateY(-2px);
+    border-color: rgb(255 255 255 / 0.58);
+    box-shadow:
+        0 1px 1px rgb(255 255 255 / 0.75) inset,
+        0 28px 56px -16px rgb(15 23 42 / 0.22),
+        0 12px 28px -8px rgb(15 98 109 / 0.18);
+}
+
+.fi-sc-section.fi-client-marketing-behavior .fi-section-header-heading {
+    font-family:
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        'SF Pro Display',
+        'SF Pro Text',
+        sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+}
+
+.fi-sc-section.fi-client-marketing-behavior .fi-section-header-description {
+    font-size: 0.8125rem;
+    opacity: 0.88;
+}
+
+.dark .fi-sc-section.fi-client-marketing-behavior .fi-section {
+    border-color: rgb(255 255 255 / 0.12);
+    background: linear-gradient(
+        165deg,
+        rgb(39 39 42 / 0.55) 0%,
+        rgb(24 24 27 / 0.42) 50%,
+        rgb(30 41 59 / 0.35) 100%
+    );
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.08) inset,
+        0 24px 56px -14px rgb(0 0 0 / 0.55),
+        0 0 0 1px rgb(255 255 255 / 0.04);
+}
+
+.dark .fi-sc-section.fi-client-marketing-behavior .fi-section:hover {
+    border-color: rgb(255 255 255 / 0.16);
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.1) inset,
+        0 32px 64px -12px rgb(0 0 0 / 0.65),
+        0 0 40px -20px rgb(20 184 166 / 0.12);
+}
+
+/* Cuadrícula métricas: lectura en F — KPI → insight → dinero → fechas */
+.fi-client-marketing-behavior .fi-client-marketing-metrics {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1fr;
+}
+
+@media (width >= 40rem) {
+    .fi-client-marketing-behavior .fi-client-marketing-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .fi-client-marketing-behavior .fi-client-marketing-metrics__card--spotlight {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (width >= 80rem) {
+    .fi-client-marketing-behavior .fi-client-marketing-metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .fi-client-marketing-behavior .fi-client-marketing-metrics__card--spotlight {
+        grid-column: span 2;
+    }
+}
+
+.fi-sc-section.fi-client-marketing-behavior .fi-section-content-ctn {
+    padding-bottom: 0.35rem;
+}
+
+/* Tarjetas base (glass + relieve para que el dato “flote”) */
+.fi-client-marketing-behavior .fi-client-marketing-metrics__card {
+    position: relative;
+    isolation: isolate;
+    border-radius: 1.35rem;
+    border: 1px solid rgb(255 255 255 / 0.45);
+    background: linear-gradient(
+        155deg,
+        rgb(255 255 255 / 0.42) 0%,
+        rgb(255 255 255 / 0.2) 100%
+    );
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.55),
+        0 10px 32px rgb(15 23 42 / 0.08);
+    padding: 1.1rem 1.15rem 1.15rem;
+    min-height: 5.5rem;
+    overflow: hidden;
+    transition:
+        border-color 0.28s ease,
+        box-shadow 0.28s ease,
+        transform 0.28s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.fi-client-marketing-behavior .fi-client-marketing-metrics__card:hover {
+    border-color: rgb(255 255 255 / 0.58);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.65),
+        0 16px 40px rgb(15 23 42 / 0.12);
+    transform: translateY(-1px);
+}
+
+.dark .fi-client-marketing-behavior .fi-client-marketing-metrics__card {
+    border-color: rgb(255 255 255 / 0.12);
+    background: linear-gradient(155deg, rgb(39 39 42 / 0.45) 0%, rgb(24 24 27 / 0.28) 100%);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.08),
+        0 12px 36px rgb(0 0 0 / 0.35);
+}
+
+.dark .fi-client-marketing-behavior .fi-client-marketing-metrics__card:hover {
+    border-color: rgb(255 255 255 / 0.18);
+}
+
+/* Barra de acento — KPI y dinero */
+.fi-client-marketing-behavior .fi-client-marketing-metrics__card--kpi::before,
+.fi-client-marketing-behavior .fi-client-marketing-metrics__card--money::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: 1.35rem 1.35rem 0 0;
+    background: linear-gradient(90deg, rgb(13 148 136) 0%, rgb(45 212 191) 50%, rgb(20 184 166 / 0.65) 100%);
+    z-index: 1;
+    pointer-events: none;
+}
+
+.fi-client-marketing-behavior .fi-client-marketing-metrics__card--money::before {
+    background: linear-gradient(90deg, rgb(15 118 110) 0%, rgb(20 184 166) 100%);
+}
+
+/* Spotlight: insight principal */
+.fi-client-marketing-behavior .fi-client-marketing-metrics__card--spotlight {
+    min-height: 6.75rem;
+    padding: 1.25rem 1.35rem 1.35rem;
+    border-color: rgb(255 255 255 / 0.5);
+    background:
+        radial-gradient(ellipse 90% 80% at 100% 0%, rgb(45 212 191 / 0.14), transparent 55%),
+        linear-gradient(155deg, rgb(255 255 255 / 0.48) 0%, rgb(240 253 250 / 0.35) 100%);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.65),
+        0 14px 40px rgb(15 98 109 / 0.12),
+        0 8px 24px rgb(15 23 42 / 0.06);
+}
+
+.dark .fi-client-marketing-behavior .fi-client-marketing-metrics__card--spotlight {
+    border-color: rgb(45 212 191 / 0.22);
+    background:
+        radial-gradient(ellipse 85% 70% at 100% 0%, rgb(20 184 166 / 0.18), transparent 50%),
+        linear-gradient(155deg, rgb(30 41 59 / 0.55) 0%, rgb(24 24 27 / 0.4) 100%);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.1),
+        0 0 0 1px rgb(45 212 191 / 0.08),
+        0 20px 48px rgb(0 0 0 / 0.45);
+}
+
+/* Fechas: más compactas, contraste en el valor */
+.fi-client-marketing-behavior .fi-client-marketing-metrics__card--timeline {
+    min-height: auto;
+    padding: 0.95rem 1.1rem;
+}
+
+.fi-client-marketing-behavior .fi-client-marketing-metrics__label {
+    margin: 0;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(63 63 70);
+    line-height: 1.3;
+}
+
+.dark .fi-client-marketing-behavior .fi-client-marketing-metrics__label {
+    color: rgb(212 212 216);
+}
+
+.fi-client-marketing-behavior .fi-client-marketing-metrics__label--spotlight {
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    color: rgb(15 118 110);
+}
+
+.dark .fi-client-marketing-behavior .fi-client-marketing-metrics__label--spotlight {
+    color: rgb(94 234 212);
+}
+
+/* Valores por tipo */
+.fi-client-marketing-behavior .fi-client-marketing-metrics__value {
+    margin: 0.5rem 0 0;
+    font-size: 1.3125rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+    letter-spacing: -0.03em;
+    color: rgb(9 9 11);
+    line-height: 1.2;
+}
+
+.fi-client-marketing-behavior .fi-client-marketing-metrics__value--kpi {
+    margin-top: 0.45rem;
+    font-size: clamp(1.75rem, 4vw, 2.125rem);
+    font-weight: 800;
+    letter-spacing: -0.045em;
+    line-height: 1.05;
+    color: rgb(24 24 27);
+}
+
+.fi-client-marketing-behavior .fi-client-marketing-metrics__value--money {
+    margin-top: 0.45rem;
+    font-size: 1.375rem;
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    color: rgb(15 118 110);
+}
+
+.fi-client-marketing-behavior .fi-client-marketing-metrics__value--spotlight {
+    margin-top: 0.55rem;
+    font-size: clamp(1.125rem, 2.5vw, 1.375rem);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.35;
+    color: rgb(17 24 39);
+}
+
+.fi-client-marketing-behavior .fi-client-marketing-metrics__value--timeline {
+    margin-top: 0.4rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    color: rgb(39 39 42);
+}
+
+.dark .fi-client-marketing-behavior .fi-client-marketing-metrics__value {
+    color: rgb(250 250 250);
+}
+
+.dark .fi-client-marketing-behavior .fi-client-marketing-metrics__value--kpi {
+    color: rgb(255 255 255);
+    text-shadow: 0 1px 24px rgb(45 212 191 / 0.15);
+}
+
+.dark .fi-client-marketing-behavior .fi-client-marketing-metrics__value--money {
+    color: rgb(94 234 212);
+}
+
+.dark .fi-client-marketing-behavior .fi-client-marketing-metrics__value--spotlight {
+    color: rgb(250 250 250);
+}
+
+.dark .fi-client-marketing-behavior .fi-client-marketing-metrics__value--timeline {
+    color: rgb(244 244 245);
 }
 
 /* Área del canvas: segundo nivel glass + interactividad cursor */
@@ -2882,4 +3243,243 @@
     .fi-marketing-hub-page .fi-marketing-branch-insights__reset:active {
         transform: none !important;
     }
+
+    .fi-farmaadmin-account-widget__shell:hover {
+        transform: none !important;
+    }
+
+    .fi-farmaadmin-account-widget__shell:hover .fi-farmaadmin-account-widget__avatar {
+        transform: none !important;
+    }
+}
+
+/*
+ * Widget de cuenta (sidebar Farmaadmin) — glass iOS translúcido, misma línea que marketing hub.
+ */
+.fi-farmaadmin-account-widget {
+    font-family:
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        'SF Pro Text',
+        'SF Pro Display',
+        'Segoe UI',
+        sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+.fi-farmaadmin-account-widget__shell {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.25rem;
+    border: 1px solid rgb(255 255 255 / 0.5);
+    background: linear-gradient(
+        155deg,
+        rgb(255 255 255 / 0.55) 0%,
+        rgb(255 255 255 / 0.3) 45%,
+        rgb(240 253 250 / 0.42) 100%
+    );
+    backdrop-filter: blur(24px) saturate(1.4);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    box-shadow:
+        0 1px 1px rgb(255 255 255 / 0.7) inset,
+        0 0 0 1px rgb(252 228 34 / 0.1),
+        0 16px 40px -14px rgb(15 23 42 / 0.16),
+        0 8px 24px -10px rgb(24 172 178 / 0.14);
+    transition:
+        border-color 0.3s ease,
+        box-shadow 0.3s ease,
+        transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.fi-farmaadmin-account-widget__shell:hover {
+    transform: translateY(-2px);
+    border-color: rgb(255 255 255 / 0.62);
+    box-shadow:
+        0 1px 1px rgb(255 255 255 / 0.82) inset,
+        0 0 0 1px rgb(24 172 178 / 0.16),
+        0 22px 52px -12px rgb(15 23 42 / 0.2),
+        0 10px 28px -8px rgb(24 172 178 / 0.2);
+}
+
+.fi-farmaadmin-account-widget__glow {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+        ellipse 85% 70% at 100% 0%,
+        rgb(252 228 34 / 0.32),
+        transparent 55%
+    );
+    mix-blend-mode: multiply;
+    opacity: 0.85;
+}
+
+.dark .fi-farmaadmin-account-widget__glow {
+    mix-blend-mode: soft-light;
+    opacity: 0.55;
+    background: radial-gradient(
+        ellipse 80% 65% at 100% 0%,
+        rgb(252 228 34 / 0.22),
+        transparent 52%
+    );
+}
+
+.fi-farmaadmin-account-widget__wash {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+        120deg,
+        rgb(255 255 255 / 0.42) 0%,
+        rgb(255 255 255 / 0.12) 48%,
+        rgb(24 172 178 / 0.08) 100%
+    );
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.dark .fi-farmaadmin-account-widget__wash {
+    background: linear-gradient(
+        120deg,
+        rgb(255 255 255 / 0.08) 0%,
+        rgb(0 0 0 / 0.15) 50%,
+        rgb(24 172 178 / 0.1) 100%
+    );
+}
+
+.fi-farmaadmin-account-widget__rim {
+    pointer-events: none;
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    z-index: 1;
+    height: 1px;
+    border-radius: inherit;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgb(255 255 255 / 0.85),
+        transparent
+    );
+    opacity: 0.9;
+}
+
+.dark .fi-farmaadmin-account-widget__rim {
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.18), transparent);
+}
+
+.fi-farmaadmin-account-widget__content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.85rem 0.7rem;
+}
+
+.fi-farmaadmin-account-widget__avatar {
+    box-shadow:
+        0 4px 14px rgb(0 0 0 / 0.12),
+        0 0 0 0.5px rgb(0 0 0 / 0.06);
+    border-radius: 9999px;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.fi-farmaadmin-account-widget__shell:hover .fi-farmaadmin-account-widget__avatar {
+    transform: scale(1.04);
+    box-shadow:
+        0 6px 20px rgb(0 0 0 / 0.14),
+        0 0 0 0.5px rgb(24 172 178 / 0.25);
+}
+
+.dark .fi-farmaadmin-account-widget__avatar {
+    box-shadow:
+        0 4px 16px rgb(0 0 0 / 0.45),
+        0 0 0 0.5px rgb(255 255 255 / 0.1);
+}
+
+.dark .fi-farmaadmin-account-widget__shell:hover .fi-farmaadmin-account-widget__avatar {
+    box-shadow:
+        0 8px 24px rgb(0 0 0 / 0.55),
+        0 0 0 0.5px rgb(252 228 34 / 0.2);
+}
+
+.fi-farmaadmin-account-widget__text {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.fi-farmaadmin-account-widget__eyebrow {
+    margin: 0;
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(113 113 122);
+}
+
+.dark .fi-farmaadmin-account-widget__eyebrow {
+    color: rgb(161 161 170);
+}
+
+.fi-farmaadmin-account-widget__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.03em;
+    color: rgb(24 24 27);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dark .fi-farmaadmin-account-widget__title {
+    color: rgb(250 250 250);
+}
+
+.fi-farmaadmin-account-widget__subtitle {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: rgb(82 82 91);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dark .fi-farmaadmin-account-widget__subtitle {
+    color: rgb(161 161 170);
+}
+
+/* Sidebar oscuro: capa exterior más acorde al fondo */
+.dark .fi-farmaadmin-account-widget__shell {
+    border-color: rgb(255 255 255 / 0.12);
+    background: linear-gradient(
+        155deg,
+        rgb(39 39 42 / 0.58) 0%,
+        rgb(24 24 27 / 0.45) 45%,
+        rgb(30 41 59 / 0.38) 100%
+    );
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.08) inset,
+        0 0 0 1px rgb(24 172 178 / 0.12),
+        0 20px 48px -12px rgb(0 0 0 / 0.55),
+        0 0 40px -24px rgb(24 172 178 / 0.12);
+}
+
+.dark .fi-farmaadmin-account-widget__shell:hover {
+    border-color: rgb(255 255 255 / 0.18);
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.1) inset,
+        0 0 0 1px rgb(252 228 34 / 0.14),
+        0 28px 64px -10px rgb(0 0 0 / 0.62),
+        0 0 48px -18px rgb(24 172 178 / 0.18);
 }

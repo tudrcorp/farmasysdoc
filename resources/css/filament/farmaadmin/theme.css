@@ -1663,6 +1663,25 @@
     font-size: 0.875rem;
 }
 
+/* Repeater tabla POS: columna de eliminar lo más estrecha posible */
+.farmadoc-pos-cart-section .farmadoc-pos-line-items-repeater.fi-fo-table-repeater table thead tr > th:last-child,
+.farmadoc-pos-cart-section .farmadoc-pos-line-items-repeater.fi-fo-table-repeater table tbody tr > td:last-child {
+    width: 2.5rem;
+    max-width: 2.75rem;
+    min-width: 2.25rem;
+    box-sizing: border-box;
+    padding-inline: 0.2rem;
+    vertical-align: middle;
+    text-align: center;
+}
+
+.farmadoc-pos-cart-section .farmadoc-pos-line-items-repeater.fi-fo-table-repeater .fi-fo-table-repeater-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: center;
+}
+
 /* Líneas de venta: repeater ítem por ítem (sin tabla) */
 .farmadoc-pos-cart-section .farmadoc-pos-line-items-repeater.fi-fo-repeater .fi-fo-repeater-item {
     border-radius: 1rem;

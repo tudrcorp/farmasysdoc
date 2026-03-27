@@ -14,6 +14,7 @@ use App\Services\Dolar\DolarApiDolaresService;
 use App\Services\Dolar\DolarApiEstadoService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
@@ -48,7 +49,7 @@ final class CashRegisterAction
             ->modalHeading('Caja registradora')
             ->modalDescription('Busque productos, indique cantidades y confirme el cobro. El total se actualiza al instante.')
             ->modalIcon(Heroicon::Banknotes)
-            ->modalWidth(Width::SixExtraLarge)
+            ->modalWidth(Width::SevenExtraLarge)
             ->modalSubmitActionLabel('Registrar venta')
             ->modalCancelAction(fn (Action $action): Action => $action->color('danger'))
             ->extraAttributes([
@@ -132,8 +133,8 @@ final class CashRegisterAction
                                     ->columnSpanFull(),
                                 Repeater::make('line_items')
                                     ->label('')
+                                    ->reorderable(false)
                                     ->addActionLabel('Añadir producto')
-                                    ->reorderable()
                                     ->defaultItems(1)
                                     ->minItems(1)
                                     ->live()
@@ -158,170 +159,167 @@ final class CashRegisterAction
                                     ->extraAttributes([
                                         'class' => 'farmadoc-pos-line-items-repeater fi-fixed-positioning-context',
                                     ])
+                                    ->table([
+                                        TableColumn::make('Producto')
+                                            ->width('70%'),
+                                        TableColumn::make('Cantidad'),
+                                    ])
                                     ->schema([
-                                        Grid::make([
-                                            'default' => 1,
-                                            'lg' => 12,
-                                        ])
-                                            ->schema([
-                                                Select::make('product_id')
-                                                    ->label('Producto')
-                                                    ->searchable()
-                                                    ->disabled(fn (): bool => blank(Auth::user()?->branch_id))
-                                                    ->getSearchResultsUsing(function (string $search): array {
-                                                        $branchId = Auth::user()?->branch_id;
-                                                        if (blank($branchId)) {
+                                        Select::make('product_id')
+                                            ->label('Producto')
+                                            ->searchable()
+                                            ->disabled(fn (): bool => blank(Auth::user()?->branch_id))
+                                            ->getSearchResultsUsing(function (string $search): array {
+                                                $branchId = Auth::user()?->branch_id;
+                                                if (blank($branchId)) {
+                                                    return [];
+                                                }
+
+                                                $term = trim($search);
+                                                $query = Inventory::query()
+                                                    ->where('branch_id', (int) $branchId)
+                                                    ->whereHas('product', fn ($q) => $q->where('is_active', true))
+                                                    ->with('product');
+
+                                                if ($term !== '') {
+                                                    $like = '%'.addcslashes($term, '%_\\').'%';
+                                                    $query->where(function ($q) use ($like, $term): void {
+                                                        $q->whereHas('product', function ($productQuery) use ($like, $term): void {
+                                                            $productQuery->where(function ($pq) use ($like, $term): void {
+                                                                $pq->where('name', 'like', $like)
+                                                                    ->orWhere('barcode', 'like', $like)
+                                                                    ->orWhere('slug', 'like', $like)
+                                                                    ->orWhere(function ($ingredientQuery) use ($term): void {
+                                                                        $ingredientQuery->whereActiveIngredientContains($term);
+                                                                    });
+                                                            });
+                                                        });
+                                                    });
+                                                }
+
+                                                return $query
+                                                    ->whereNotNull('product_id')
+                                                    ->orderBy('product_id')
+                                                    ->limit($term === '' ? 25 : 40)
+                                                    ->get()
+                                                    ->mapWithKeys(function (Inventory $inventory): array {
+                                                        $product = $inventory->product;
+                                                        if (! $product) {
                                                             return [];
                                                         }
 
-                                                        $term = trim($search);
-                                                        $query = Inventory::query()
-                                                            ->where('branch_id', (int) $branchId)
-                                                            ->whereHas('product', fn ($q) => $q->where('is_active', true))
-                                                            ->with('product');
-
-                                                        if ($term !== '') {
-                                                            $like = '%'.addcslashes($term, '%_\\').'%';
-                                                            $query->where(function ($q) use ($like, $term): void {
-                                                                $q->whereHas('product', function ($productQuery) use ($like, $term): void {
-                                                                    $productQuery->where(function ($pq) use ($like, $term): void {
-                                                                        $pq->where('name', 'like', $like)
-                                                                            ->orWhere('barcode', 'like', $like)
-                                                                            ->orWhere('slug', 'like', $like)
-                                                                            ->orWhere(function ($ingredientQuery) use ($term): void {
-                                                                                $ingredientQuery->whereActiveIngredientContains($term);
-                                                                            });
-                                                                    });
-                                                                });
-                                                            });
-                                                        }
-
-                                                        return $query
-                                                            ->whereNotNull('product_id')
-                                                            ->orderBy('product_id')
-                                                            ->limit($term === '' ? 25 : 40)
-                                                            ->get()
-                                                            ->mapWithKeys(function (Inventory $inventory): array {
-                                                                $product = $inventory->product;
-                                                                if (! $product) {
-                                                                    return [];
-                                                                }
-
-                                                                $label = filled($product->barcode)
-                                                                    ? $product->barcode.' · '.$product->name
-                                                                    : $product->name;
-
-                                                                return [
-                                                                    $product->id => $label,
-                                                                ];
-                                                            })
-                                                            ->all();
-                                                    })
-                                                    ->getOptionLabelUsing(function ($value): ?string {
-                                                        $product = Product::query()->find($value);
-                                                        if (! $product) {
-                                                            return null;
-                                                        }
-
-                                                        return filled($product->barcode)
+                                                        $label = filled($product->barcode)
                                                             ? $product->barcode.' · '.$product->name
                                                             : $product->name;
+
+                                                        return [
+                                                            $product->id => $label,
+                                                        ];
                                                     })
-                                                    ->afterStateUpdated(function (
-                                                        mixed $state,
-                                                        mixed $old,
-                                                        Set $set,
-                                                        Get $get,
-                                                        $livewire,
-                                                        Select $component,
-                                                    ): void {
-                                                        if (blank($state) || filled($old)) {
-                                                            return;
-                                                        }
+                                                    ->all();
+                                            })
+                                            ->getOptionLabelUsing(function ($value): ?string {
+                                                $product = Product::query()->find($value);
+                                                if (! $product) {
+                                                    return null;
+                                                }
 
-                                                        $fieldPath = $component->getStatePath();
-                                                        if (! is_string($fieldPath) || ! Str::endsWith($fieldPath, '.product_id')) {
-                                                            return;
-                                                        }
+                                                return filled($product->barcode)
+                                                    ? $product->barcode.' · '.$product->name
+                                                    : $product->name;
+                                            })
+                                            ->afterStateUpdated(function (
+                                                mixed $state,
+                                                mixed $old,
+                                                Set $set,
+                                                Get $get,
+                                                $livewire,
+                                                Select $component,
+                                            ): void {
+                                                if (blank($state) || filled($old)) {
+                                                    return;
+                                                }
 
-                                                        /*
-                                                         * El Select vive en Grid → repeater item; un solo «..» devuelve la fila
+                                                $fieldPath = $component->getStatePath();
+                                                if (! is_string($fieldPath) || ! Str::endsWith($fieldPath, '.product_id')) {
+                                                    return;
+                                                }
+
+                                                /*
+                                                         * El Select está en el ítem del repeater; un solo «..» devuelve la fila
                                                          * {product_id, quantity}, no todo line_items. Usamos la ruta absoluta.
                                                          */
-                                                        $itemContainerPath = Str::beforeLast($fieldPath, '.');
-                                                        $lineItemsPath = Str::beforeLast($itemContainerPath, '.');
-                                                        $currentItemKey = Str::afterLast($itemContainerPath, '.');
+                                                $itemContainerPath = Str::beforeLast($fieldPath, '.');
+                                                $lineItemsPath = Str::beforeLast($itemContainerPath, '.');
+                                                $currentItemKey = Str::afterLast($itemContainerPath, '.');
 
-                                                        $lineItems = $get($lineItemsPath, isAbsolute: true);
-                                                        if (! is_array($lineItems) || $lineItems === []) {
-                                                            return;
-                                                        }
+                                                $lineItems = $get($lineItemsPath, isAbsolute: true);
+                                                if (! is_array($lineItems) || $lineItems === []) {
+                                                    return;
+                                                }
 
-                                                        $keys = array_keys($lineItems);
-                                                        $lastKey = $keys[array_key_last($keys)];
+                                                $keys = array_keys($lineItems);
+                                                $lastKey = $keys[array_key_last($keys)];
 
-                                                        if ($currentItemKey !== $lastKey) {
-                                                            return;
-                                                        }
+                                                if ($currentItemKey !== $lastKey) {
+                                                    return;
+                                                }
 
-                                                        $newItems = $lineItems;
-                                                        $newItems[(string) Str::uuid()] = [
-                                                            'product_id' => null,
-                                                            'quantity' => 1,
-                                                        ];
+                                                $newItems = $lineItems;
+                                                $newItems[(string) Str::uuid()] = [
+                                                    'product_id' => null,
+                                                    'quantity' => 1,
+                                                ];
 
-                                                        $set($lineItemsPath, $newItems, isAbsolute: true);
+                                                $set($lineItemsPath, $newItems, isAbsolute: true);
 
-                                                        if (! $livewire instanceof LivewireComponent) {
-                                                            return;
-                                                        }
+                                                if (! $livewire instanceof LivewireComponent) {
+                                                    return;
+                                                }
 
-                                                        $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
-                                                    })
-                                                    ->required()
-                                                    ->live()
-                                                    ->native(false)
-                                                    ->columnSpan(['lg' => 8]),
-                                                TextInput::make('quantity')
-                                                    ->label('Cantidad')
-                                                    ->numeric()
-                                                    ->minValue(0.001)
-                                                    ->step(0.001)
-                                                    ->default(1)
-                                                    ->required()
-                                                    ->live(debounce: 300)
-                                                    ->inlinePrefix()
-                                                    ->inlineSuffix()
-                                                    ->prefixAction(
-                                                        Action::make('decreaseQuantity')
-                                                            ->label(__('Menos'))
-                                                            ->icon(Heroicon::Minus)
-                                                            ->color('gray')
-                                                            ->size(Size::Small)
-                                                            ->action(function (Set $set, Get $get): void {
-                                                                $current = (float) ($get('quantity') ?? 0);
-                                                                $next = max(0.001, round($current - 1, 3));
-                                                                $set('quantity', $next);
-                                                            }),
-                                                        isInline: true,
-                                                    )
-                                                    ->suffixAction(
-                                                        Action::make('increaseQuantity')
-                                                            ->label(__('Más'))
-                                                            ->icon(Heroicon::Plus)
-                                                            ->color('gray')
-                                                            ->size(Size::Small)
-                                                            ->action(function (Set $set, Get $get): void {
-                                                                $current = (float) ($get('quantity') ?? 0);
-                                                                $next = round(max(0.001, $current) + 1, 3);
-                                                                $set('quantity', $next);
-                                                            }),
-                                                        isInline: true,
-                                                    )
-                                                    ->extraAttributes([
-                                                        'class' => 'farmadoc-pos-qty-field',
-                                                    ])
-                                                    ->columnSpan(['lg' => 4]),
+                                                $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
+                                            })
+                                            ->required()
+                                            ->live()
+                                            ->native(false),
+                                        TextInput::make('quantity')
+                                            ->label('Cantidad')
+                                            ->numeric()
+                                            ->minValue(0.001)
+                                            ->step(0.001)
+                                            ->default(1)
+                                            ->required()
+                                            ->live(debounce: 300)
+                                            ->inlinePrefix()
+                                            ->inlineSuffix()
+                                            ->prefixAction(
+                                                Action::make('decreaseQuantity')
+                                                    ->label(__('Menos'))
+                                                    ->icon(Heroicon::Minus)
+                                                    ->color('gray')
+                                                    ->size(Size::Small)
+                                                    ->action(function (Set $set, Get $get): void {
+                                                        $current = (float) ($get('quantity') ?? 0);
+                                                        $next = max(0.001, round($current - 1, 3));
+                                                        $set('quantity', $next);
+                                                    }),
+                                                isInline: true,
+                                            )
+                                            ->suffixAction(
+                                                Action::make('increaseQuantity')
+                                                    ->label(__('Más'))
+                                                    ->icon(Heroicon::Plus)
+                                                    ->color('gray')
+                                                    ->size(Size::Small)
+                                                    ->action(function (Set $set, Get $get): void {
+                                                        $current = (float) ($get('quantity') ?? 0);
+                                                        $next = round(max(0.001, $current) + 1, 3);
+                                                        $set('quantity', $next);
+                                                    }),
+                                                isInline: true,
+                                            )
+                                            ->extraAttributes([
+                                                'class' => 'farmadoc-pos-qty-field',
                                             ]),
                                     ]),
                             ])
@@ -859,7 +857,10 @@ final class CashRegisterAction
                 if (! wrap) {
                     return;
                 }
-                const items = wrap.querySelectorAll('.fi-fo-repeater-item');
+                let items = wrap.querySelectorAll('.fi-fo-repeater-item');
+                if (! items.length) {
+                    items = wrap.querySelectorAll('table tbody tr');
+                }
                 const target = __TARGET__;
                 if (! target) {
                     return;

@@ -22,6 +22,7 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\FontWeight;
 use Filament\Support\Enums\Size;
@@ -33,6 +34,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
+use Livewire\Component as LivewireComponent;
 use RuntimeException;
 
 final class CashRegisterAction
@@ -52,18 +54,14 @@ final class CashRegisterAction
             ->extraAttributes([
                 'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
             ])
-            ->fillForm(fn (): array => array_merge([
-                'client_id' => null,
-                'payment_method' => 'efectivo_usd',
-                'mixed_usd_paid' => null,
-                'reference' => null,
-                'line_items' => [
-                    [
-                        'product_id' => null,
-                        'quantity' => 1,
-                    ],
-                ],
-            ], self::initialDolarFormState()))
+            ->mountUsing(function (Action $action, ?Schema $schema): void {
+                $schema?->fill(self::defaultPosFormState());
+
+                $livewire = $action->getLivewire();
+                if ($livewire instanceof LivewireComponent) {
+                    $livewire->js(self::mountPosModalFocusClientSelectJs());
+                }
+            })
             ->schema([
                 Grid::make([
                     'default' => 1,
@@ -84,6 +82,9 @@ final class CashRegisterAction
                                 Select::make('client_id')
                                     ->label('Cliente')
                                     ->placeholder('Mostrador / sin cliente')
+                                    ->extraAttributes([
+                                        'class' => 'farmadoc-pos-client-select',
+                                    ])
                                     ->searchable()
                                     ->getSearchResultsUsing(function (string $search): array {
                                         $term = trim($search);
@@ -115,6 +116,17 @@ final class CashRegisterAction
 
                                         return $client->name.(filled($client->document_number) ? ' · '.$client->document_number : '');
                                     })
+                                    ->afterStateUpdated(function (mixed $state, $livewire): void {
+                                        if (blank($state)) {
+                                            return;
+                                        }
+
+                                        if (! $livewire instanceof LivewireComponent) {
+                                            return;
+                                        }
+
+                                        $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: true));
+                                    })
                                     ->native(false)
                                     ->prefixIcon(Heroicon::User)
                                     ->columnSpanFull(),
@@ -131,11 +143,16 @@ final class CashRegisterAction
                                             return 'Nueva línea';
                                         }
 
-                                        $name = Product::query()->find((int) $state['product_id'])?->name ?? 'Producto';
+                                        $product = Product::query()->find((int) $state['product_id']);
+                                        $title = $product
+                                            ? (filled($product->barcode)
+                                                ? $product->barcode.' · '.$product->name
+                                                : $product->name)
+                                            : 'Producto';
                                         $total = self::formatMoney(self::computeLineTotalFromRowState($state));
 
                                         return new HtmlString(
-                                            e($name).' · <span class="farmadoc-pos-repeater-item-total">'.$total.'</span>'
+                                            e($title).' · <span class="farmadoc-pos-repeater-item-total">'.$total.'</span>'
                                         );
                                     })
                                     ->extraAttributes([
@@ -165,11 +182,16 @@ final class CashRegisterAction
 
                                                         if ($term !== '') {
                                                             $like = '%'.addcslashes($term, '%_\\').'%';
-                                                            $query->where(function ($q) use ($like): void {
-                                                                $q->whereHas('product', function ($productQuery) use ($like): void {
-                                                                    $productQuery->where('name', 'like', $like)
-                                                                        ->orWhere('barcode', 'like', $like)
-                                                                        ->orWhere('slug', 'like', $like);
+                                                            $query->where(function ($q) use ($like, $term): void {
+                                                                $q->whereHas('product', function ($productQuery) use ($like, $term): void {
+                                                                    $productQuery->where(function ($pq) use ($like, $term): void {
+                                                                        $pq->where('name', 'like', $like)
+                                                                            ->orWhere('barcode', 'like', $like)
+                                                                            ->orWhere('slug', 'like', $like)
+                                                                            ->orWhere(function ($ingredientQuery) use ($term): void {
+                                                                                $ingredientQuery->whereActiveIngredientContains($term);
+                                                                            });
+                                                                    });
                                                                 });
                                                             });
                                                         }
@@ -185,15 +207,77 @@ final class CashRegisterAction
                                                                     return [];
                                                                 }
 
+                                                                $label = filled($product->barcode)
+                                                                    ? $product->barcode.' · '.$product->name
+                                                                    : $product->name;
+
                                                                 return [
-                                                                    $product->id => $product->name.
-                                                                        (filled($product->barcode) ? ' · '.$product->barcode : '').
-                                                                        ' — Costo '.self::formatMoney((float) ($product->cost_price ?? 0)),
+                                                                    $product->id => $label,
                                                                 ];
                                                             })
                                                             ->all();
                                                     })
-                                                    ->getOptionLabelUsing(fn ($value): ?string => Product::query()->find($value)?->name)
+                                                    ->getOptionLabelUsing(function ($value): ?string {
+                                                        $product = Product::query()->find($value);
+                                                        if (! $product) {
+                                                            return null;
+                                                        }
+
+                                                        return filled($product->barcode)
+                                                            ? $product->barcode.' · '.$product->name
+                                                            : $product->name;
+                                                    })
+                                                    ->afterStateUpdated(function (
+                                                        mixed $state,
+                                                        mixed $old,
+                                                        Set $set,
+                                                        Get $get,
+                                                        $livewire,
+                                                        Select $component,
+                                                    ): void {
+                                                        if (blank($state) || filled($old)) {
+                                                            return;
+                                                        }
+
+                                                        $fieldPath = $component->getStatePath();
+                                                        if (! is_string($fieldPath) || ! Str::endsWith($fieldPath, '.product_id')) {
+                                                            return;
+                                                        }
+
+                                                        /*
+                                                         * El Select vive en Grid → repeater item; un solo «..» devuelve la fila
+                                                         * {product_id, quantity}, no todo line_items. Usamos la ruta absoluta.
+                                                         */
+                                                        $itemContainerPath = Str::beforeLast($fieldPath, '.');
+                                                        $lineItemsPath = Str::beforeLast($itemContainerPath, '.');
+                                                        $currentItemKey = Str::afterLast($itemContainerPath, '.');
+
+                                                        $lineItems = $get($lineItemsPath, isAbsolute: true);
+                                                        if (! is_array($lineItems) || $lineItems === []) {
+                                                            return;
+                                                        }
+
+                                                        $keys = array_keys($lineItems);
+                                                        $lastKey = $keys[array_key_last($keys)];
+
+                                                        if ($currentItemKey !== $lastKey) {
+                                                            return;
+                                                        }
+
+                                                        $newItems = $lineItems;
+                                                        $newItems[(string) Str::uuid()] = [
+                                                            'product_id' => null,
+                                                            'quantity' => 1,
+                                                        ];
+
+                                                        $set($lineItemsPath, $newItems, isAbsolute: true);
+
+                                                        if (! $livewire instanceof LivewireComponent) {
+                                                            return;
+                                                        }
+
+                                                        $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
+                                                    })
                                                     ->required()
                                                     ->live()
                                                     ->native(false)
@@ -737,6 +821,100 @@ final class CashRegisterAction
         $taxAmount = $lineSubtotal * ($taxRate / 100);
 
         return round($lineSubtotal + $taxAmount, 2);
+    }
+
+    /**
+     * Estado inicial del formulario de caja (modal).
+     *
+     * @return array<string, mixed>
+     */
+    private static function defaultPosFormState(): array
+    {
+        return array_merge([
+            'client_id' => null,
+            'payment_method' => 'efectivo_usd',
+            'mixed_usd_paid' => null,
+            'reference' => null,
+            'line_items' => [
+                [
+                    'product_id' => null,
+                    'quantity' => 1,
+                ],
+            ],
+        ], self::initialDolarFormState());
+    }
+
+    /**
+     * Abre el select de producto en un ítem del repeater y enfoca la búsqueda.
+     *
+     * @param  bool  $pickFirstItem  true = primera línea (tras elegir cliente); false = última (nueva línea).
+     */
+    private static function focusPosLineProductSearchJs(bool $pickFirstItem): string
+    {
+        $targetExpr = $pickFirstItem ? 'items[0]' : 'items[items.length - 1]';
+
+        $template = <<<'JS'
+            setTimeout(() => {
+                const wrap = document.querySelector('.farmadoc-pos-line-items-repeater');
+                if (! wrap) {
+                    return;
+                }
+                const items = wrap.querySelectorAll('.fi-fo-repeater-item');
+                const target = __TARGET__;
+                if (! target) {
+                    return;
+                }
+                const btn = target.querySelector('.fi-select-input-btn');
+                if (! btn || typeof btn.click !== 'function') {
+                    return;
+                }
+                btn.click();
+                setTimeout(() => {
+                    const modal = document.querySelector('.fi-modal-window');
+                    let panel = modal?.querySelector('.fi-dropdown-panel');
+                    if (! panel) {
+                        panel = document.querySelector('.fi-dropdown-panel');
+                    }
+                    const input = panel?.querySelector(
+                        'input.fi-input, input[type="search"], input[role="combobox"], input:not([type="hidden"])',
+                    );
+                    input?.focus?.();
+                }, 120);
+            }, 180);
+            JS;
+
+        return str_replace('__TARGET__', $targetExpr, $template);
+    }
+
+    /**
+     * Abre el select de cliente y enfoca el campo de búsqueda al montar el modal (Livewire js queue).
+     */
+    private static function mountPosModalFocusClientSelectJs(): string
+    {
+        return <<<'JS'
+            setTimeout(() => {
+                const wrap = document.querySelector('.farmadoc-pos-client-select');
+                if (! wrap) {
+                    return;
+                }
+                const btn = wrap.querySelector('.fi-select-input-btn');
+                if (! btn || typeof btn.click !== 'function') {
+                    return;
+                }
+                btn.click();
+                setTimeout(() => {
+                    const modal = document.querySelector('.fi-modal-window');
+                    let panel = modal?.querySelector('.fi-dropdown-panel');
+                    if (! panel) {
+                        panel = document.querySelector('.fi-dropdown-panel');
+                    }
+                    const input = panel?.querySelector(
+                        'input.fi-input, input[type="search"], input[role="combobox"], input:not([type="hidden"])',
+                    );
+                    input?.focus?.();
+                }, 120);
+            }, 300);
+        JS;
     }
 
     /**

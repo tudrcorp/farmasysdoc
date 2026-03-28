@@ -87,8 +87,22 @@ final class CashRegisterAction
                                         'class' => 'farmadoc-pos-client-select',
                                     ])
                                     ->searchable()
+                                    ->searchDebounce(200)
                                     ->getSearchResultsUsing(function (string $search): array {
                                         $term = trim($search);
+                                        if ($term === '') {
+                                            return Client::query()
+                                                ->where('status', 'active')
+                                                ->orderBy('name')
+                                                ->limit(30)
+                                                ->select(['id', 'name', 'document_number'])
+                                                ->get()
+                                                ->mapWithKeys(fn (Client $client): array => [
+                                                    $client->id => $client->name.(filled($client->document_number) ? ' · '.$client->document_number : ''),
+                                                ])
+                                                ->all();
+                                        }
+
                                         $like = '%'.addcslashes($term, '%_\\').'%';
 
                                         return Client::query()
@@ -99,6 +113,7 @@ final class CashRegisterAction
                                             })
                                             ->orderBy('name')
                                             ->limit(30)
+                                            ->select(['id', 'name', 'document_number'])
                                             ->get()
                                             ->mapWithKeys(fn (Client $client): array => [
                                                 $client->id => $client->name.(filled($client->document_number) ? ' · '.$client->document_number : ''),
@@ -110,7 +125,9 @@ final class CashRegisterAction
                                             return null;
                                         }
 
-                                        $client = Client::query()->find((int) $value);
+                                        $client = Client::query()
+                                            ->select(['id', 'name', 'document_number'])
+                                            ->find((int) $value);
                                         if (! $client) {
                                             return null;
                                         }
@@ -139,18 +156,18 @@ final class CashRegisterAction
                                     ->minItems(1)
                                     ->live()
                                     ->partiallyRenderAfterActionsCalled(false)
-                                    ->itemLabel(function (array $state): string|Htmlable {
+                                    ->itemLabel(function (array $state, Get $get): string|Htmlable {
                                         if (! filled($state['product_id'] ?? null)) {
                                             return 'Nueva línea';
                                         }
 
-                                        $product = Product::query()->find((int) $state['product_id']);
+                                        $product = self::posProduct((int) $state['product_id']);
                                         $title = $product
                                             ? (filled($product->barcode)
                                                 ? $product->barcode.' · '.$product->name
                                                 : $product->name)
                                             : 'Producto';
-                                        $total = self::formatMoney(self::computeLineTotalFromRowState($state));
+                                        $total = self::formatMoney(self::computeLineTotalFromRowState($state, $get));
 
                                         return new HtmlString(
                                             e($title).' · <span class="farmadoc-pos-repeater-item-total">'.$total.'</span>'
@@ -168,6 +185,7 @@ final class CashRegisterAction
                                         Select::make('product_id')
                                             ->label('Producto')
                                             ->searchable()
+                                            ->searchDebounce(200)
                                             ->disabled(fn (): bool => blank(Auth::user()?->branch_id))
                                             ->getSearchResultsUsing(function (string $search): array {
                                                 $branchId = Auth::user()?->branch_id;
@@ -175,51 +193,14 @@ final class CashRegisterAction
                                                     return [];
                                                 }
 
-                                                $term = trim($search);
-                                                $query = Inventory::query()
-                                                    ->where('branch_id', (int) $branchId)
-                                                    ->whereHas('product', fn ($q) => $q->where('is_active', true))
-                                                    ->with('product');
-
-                                                if ($term !== '') {
-                                                    $like = '%'.addcslashes($term, '%_\\').'%';
-                                                    $query->where(function ($q) use ($like, $term): void {
-                                                        $q->whereHas('product', function ($productQuery) use ($like, $term): void {
-                                                            $productQuery->where(function ($pq) use ($like, $term): void {
-                                                                $pq->where('name', 'like', $like)
-                                                                    ->orWhere('barcode', 'like', $like)
-                                                                    ->orWhere('slug', 'like', $like)
-                                                                    ->orWhere(function ($ingredientQuery) use ($term): void {
-                                                                        $ingredientQuery->whereActiveIngredientContains($term);
-                                                                    });
-                                                            });
-                                                        });
-                                                    });
-                                                }
-
-                                                return $query
-                                                    ->whereNotNull('product_id')
-                                                    ->orderBy('product_id')
-                                                    ->limit($term === '' ? 25 : 40)
-                                                    ->get()
-                                                    ->mapWithKeys(function (Inventory $inventory): array {
-                                                        $product = $inventory->product;
-                                                        if (! $product) {
-                                                            return [];
-                                                        }
-
-                                                        $label = filled($product->barcode)
-                                                            ? $product->barcode.' · '.$product->name
-                                                            : $product->name;
-
-                                                        return [
-                                                            $product->id => $label,
-                                                        ];
-                                                    })
-                                                    ->all();
+                                                return self::searchInventoryProductsForBranch((int) $branchId, $search);
                                             })
                                             ->getOptionLabelUsing(function ($value): ?string {
-                                                $product = Product::query()->find($value);
+                                                if (blank($value)) {
+                                                    return null;
+                                                }
+
+                                                $product = self::posProduct((int) $value);
                                                 if (! $product) {
                                                     return null;
                                                 }
@@ -291,7 +272,7 @@ final class CashRegisterAction
                                             ->step(0.001)
                                             ->default(1)
                                             ->required()
-                                            ->live(debounce: 300)
+                                            ->live(debounce: 150)
                                             ->inlinePrefix()
                                             ->inlineSuffix()
                                             ->prefixAction(
@@ -337,7 +318,7 @@ final class CashRegisterAction
                             ])
                             ->schema([
                                 Section::make('Total a cobrar')
-                                    ->description('Incluye impuestos según cada producto.')
+                                    // ->description('IVA del producto solo sobre la parte cobrada en bolívares (pago en Bs. o mixto). Pagos solo en USD sin IVA. Los descuentos no aplican si el pago es solo en dólares.')
                                     ->icon(Heroicon::Banknotes)
                                     ->iconColor('primary')
                                     ->schema([
@@ -387,7 +368,7 @@ final class CashRegisterAction
                                         'class' => 'farmadoc-pos-total-section farmadoc-pos-total-section--ios',
                                     ]),
                                 Section::make('Formas de pago')
-                                    ->description('Seleccione la forma de pago y el monto a pagar.')
+                                    // ->description('Seleccione la forma de pago y el monto a pagar.')
                                     ->icon(Heroicon::CreditCard)
                                     ->iconColor('primary')
                                     ->extraAttributes([
@@ -474,13 +455,21 @@ final class CashRegisterAction
                 }
 
                 $productIds = collect($lines)->pluck('product_id')->unique()->values()->all();
-                $products = Product::query()->whereIn('id', $productIds)->get()->keyBy('id');
+                $products = Product::query()
+                    ->select(['id', 'name', 'barcode', 'sale_price', 'cost_price', 'tax_rate'])
+                    ->whereIn('id', $productIds)
+                    ->get()
+                    ->keyBy('id');
 
                 $branchId = (int) $branchId;
-                $subtotal = 0.0;
-                $taxTotal = 0.0;
 
-                $payloadItems = [];
+                $inventoryByProductId = Inventory::query()
+                    ->where('branch_id', $branchId)
+                    ->whereIn('product_id', $productIds)
+                    ->get(['id', 'product_id'])
+                    ->keyBy('product_id');
+
+                $validLines = [];
 
                 foreach ($lines as $row) {
                     $productId = (int) $row['product_id'];
@@ -490,10 +479,8 @@ final class CashRegisterAction
                         continue;
                     }
 
-                    if (! Inventory::query()
-                        ->where('branch_id', $branchId)
-                        ->where('product_id', $productId)
-                        ->exists()) {
+                    $inventory = $inventoryByProductId->get($productId);
+                    if (! $inventory) {
                         Notification::make()
                             ->title('Producto no disponible en la sucursal seleccionada')
                             ->body('Revise el carrito: '.$product->name.' no tiene inventario en esta sucursal.')
@@ -503,26 +490,62 @@ final class CashRegisterAction
                         return;
                     }
 
+                    $validLines[] = [
+                        'product' => $product,
+                        'quantity' => $qty,
+                        'inventory' => $inventory,
+                    ];
+                }
+
+                if ($validLines === []) {
+                    Notification::make()
+                        ->title('No se pudieron resolver los productos seleccionados.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                $discountRequested = (float) ($data['discount_total'] ?? 0);
+
+                $pricing = self::finalizePosPricingFromValidLines(
+                    array_map(
+                        static fn (array $entry): array => [
+                            'product' => $entry['product'],
+                            'quantity' => $entry['quantity'],
+                        ],
+                        $validLines,
+                    ),
+                    $paymentMethod,
+                    (float) ($data['mixed_usd_paid'] ?? 0),
+                    $discountRequested,
+                );
+
+                $subtotal = $pricing['subtotal'];
+                $taxTotal = $pricing['tax_total'];
+                $discountTotal = $pricing['discount_total'];
+                $documentTotal = $pricing['document_total'];
+
+                $payloadItems = [];
+
+                foreach ($validLines as $i => $entry) {
+                    $product = $entry['product'];
+                    $qty = $entry['quantity'];
+                    $inventory = $entry['inventory'];
+                    $productId = (int) $product->id;
                     $unit = (float) $product->sale_price;
                     $unitCost = (float) ($product->cost_price ?? 0);
                     $taxRate = (float) ($product->tax_rate ?? 0);
-                    $lineSubtotal = round($qty * $unit, 2);
-                    $taxAmount = round($lineSubtotal * ($taxRate / 100), 2);
-                    $lineTotal = round($lineSubtotal + $taxAmount, 2);
+                    $pl = $pricing['per_line'][$i];
+                    $lineSubtotal = $pl['line_subtotal'];
+                    $taxAmount = $pl['tax_amount'];
+                    $lineTotal = $pl['line_total'];
                     $lineCostTotal = round($qty * $unitCost, 2);
                     $grossProfit = round($lineTotal - $lineCostTotal, 2);
 
-                    $subtotal += $lineSubtotal;
-                    $taxTotal += $taxAmount;
-
-                    $inventoryId = Inventory::query()
-                        ->where('branch_id', $branchId)
-                        ->where('product_id', $productId)
-                        ->value('id');
-
                     $payloadItems[] = [
                         'product_id' => $productId,
-                        'inventory_id' => $inventoryId ? (int) $inventoryId : null,
+                        'inventory_id' => (int) $inventory->id,
                         'quantity' => $qty,
                         'unit_price' => $unit,
                         'unit_cost' => $unitCost,
@@ -537,18 +560,6 @@ final class CashRegisterAction
                         'sku_snapshot' => $product->barcode,
                     ];
                 }
-
-                if ($payloadItems === []) {
-                    Notification::make()
-                        ->title('No se pudieron resolver los productos seleccionados.')
-                        ->danger()
-                        ->send();
-
-                    return;
-                }
-
-                $discountTotal = 0.0;
-                $documentTotal = round($subtotal + $taxTotal - $discountTotal, 2);
 
                 $vesUsdRate = self::effectiveVesUsdRateFromData($data);
 
@@ -749,6 +760,178 @@ final class CashRegisterAction
         };
     }
 
+    private static function isUsdOnlyPaymentMethod(string $paymentMethod): bool
+    {
+        return match ($paymentMethod) {
+            'transfer_ves', 'pago_movil', 'mixed' => false,
+            default => true,
+        };
+    }
+
+    /**
+     * Fracción del total del documento (en USD) que se liquida en bolívares. El IVA se escala por este factor.
+     */
+    private static function vesTaxFractionFromDocumentTotal(string $paymentMethod, float $documentTotalUsd, float $mixedUsdPaid): float
+    {
+        if ($documentTotalUsd <= 0.0) {
+            return 0.0;
+        }
+
+        return match ($paymentMethod) {
+            'transfer_ves', 'pago_movil' => 1.0,
+            'efectivo_usd', 'transfer_usd', 'zelle' => 0.0,
+            'mixed' => max(0.0, min(1.0,
+                ($documentTotalUsd - min($documentTotalUsd, max(0.0, $mixedUsdPaid))) / $documentTotalUsd)),
+            default => 0.0,
+        };
+    }
+
+    /**
+     * @param  list<array{product: Product, quantity: float}>  $lines
+     * @return array{
+     *     subtotal: float,
+     *     tax_total: float,
+     *     discount_total: float,
+     *     document_total: float,
+     *     ves_tax_fraction: float,
+     *     per_line: list<array{line_subtotal: float, tax_amount: float, line_total: float, tax_rate: float, tax_at_full: float}>,
+     * }
+     */
+    private static function finalizePosPricingFromValidLines(
+        array $lines,
+        string $paymentMethod,
+        float $mixedUsdPaid,
+        float $discountRequested,
+    ): array {
+        if ($lines === []) {
+            return [
+                'subtotal' => 0.0,
+                'tax_total' => 0.0,
+                'discount_total' => 0.0,
+                'document_total' => 0.0,
+                'ves_tax_fraction' => 0.0,
+                'per_line' => [],
+            ];
+        }
+
+        $lineSubtotals = [];
+        $taxFullPerLine = [];
+
+        foreach ($lines as $line) {
+            $product = $line['product'];
+            $qty = $line['quantity'];
+            $unit = (float) $product->sale_price;
+            $taxRate = (float) ($product->tax_rate ?? 0);
+            $ls = round($qty * $unit, 2);
+            $tf = round($ls * ($taxRate / 100), 2);
+            $lineSubtotals[] = $ls;
+            $taxFullPerLine[] = $tf;
+        }
+
+        $subtotal = round(array_sum($lineSubtotals), 2);
+        $taxMaxTotal = round(array_sum($taxFullPerLine), 2);
+
+        $discountTotal = self::isUsdOnlyPaymentMethod($paymentMethod)
+            ? 0.0
+            : max(0.0, round($discountRequested, 2));
+
+        $documentTotal = round($subtotal + $taxMaxTotal - $discountTotal, 2);
+        $vesTaxFraction = 0.0;
+        $taxPerLineRounded = [];
+
+        for ($iter = 0; $iter < 30; $iter++) {
+            $vesTaxFraction = self::vesTaxFractionFromDocumentTotal($paymentMethod, $documentTotal, $mixedUsdPaid);
+            $taxPerLineRounded = [];
+
+            foreach ($taxFullPerLine as $tf) {
+                $taxPerLineRounded[] = round($tf * $vesTaxFraction, 2);
+            }
+
+            $taxTotal = round(array_sum($taxPerLineRounded), 2);
+            $nextDoc = round($subtotal + $taxTotal - $discountTotal, 2);
+
+            if (abs($nextDoc - $documentTotal) < 0.005) {
+                $documentTotal = $nextDoc;
+
+                break;
+            }
+
+            $documentTotal = $nextDoc;
+        }
+
+        if ($taxPerLineRounded === []) {
+            $vesTaxFraction = self::vesTaxFractionFromDocumentTotal($paymentMethod, $documentTotal, $mixedUsdPaid);
+
+            foreach ($taxFullPerLine as $tf) {
+                $taxPerLineRounded[] = round($tf * $vesTaxFraction, 2);
+            }
+        }
+
+        $taxTotal = round(array_sum($taxPerLineRounded), 2);
+        $documentTotal = round($subtotal + $taxTotal - $discountTotal, 2);
+
+        $perLine = [];
+
+        foreach ($lines as $i => $line) {
+            $product = $line['product'];
+            $taxRate = (float) ($product->tax_rate ?? 0);
+            $ls = $lineSubtotals[$i];
+            $ta = $taxPerLineRounded[$i] ?? 0.0;
+            $perLine[] = [
+                'line_subtotal' => $ls,
+                'tax_amount' => $ta,
+                'line_total' => round($ls + $ta, 2),
+                'tax_rate' => $taxRate,
+                'tax_at_full' => $taxFullPerLine[$i],
+            ];
+        }
+
+        return [
+            'subtotal' => $subtotal,
+            'tax_total' => $taxTotal,
+            'discount_total' => $discountTotal,
+            'document_total' => $documentTotal,
+            'ves_tax_fraction' => $vesTaxFraction,
+            'per_line' => $perLine,
+        ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @param  callable(int): (?Product)  $productResolver
+     * @return list<array{product: Product, quantity: float}>
+     */
+    private static function buildValidPosLinesFromRaw(array $rows, callable $productResolver): array
+    {
+        $valid = [];
+
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $pid = $row['product_id'] ?? null;
+            $qty = (float) ($row['quantity'] ?? 0);
+
+            if (! filled($pid) || $qty <= 0) {
+                continue;
+            }
+
+            $product = $productResolver((int) $pid);
+
+            if (! $product instanceof Product) {
+                continue;
+            }
+
+            $valid[] = [
+                'product' => $product,
+                'quantity' => $qty,
+            ];
+        }
+
+        return $valid;
+    }
+
     /**
      * @return array{payment_usd: float, payment_ves: float}
      */
@@ -773,35 +956,25 @@ final class CashRegisterAction
             return 0.0;
         }
 
-        $productIds = collect($rows)->pluck('product_id')->filter()->unique()->values()->all();
+        $productIds = collect($rows)->pluck('product_id')->filter()->unique()->map(fn (mixed $id): int => (int) $id)->values()->all();
         if ($productIds === []) {
             return 0.0;
         }
 
-        $products = Product::query()->whereIn('id', $productIds)->get()->keyBy('id');
+        self::warmPosProductsForIds($productIds);
 
-        $sum = 0.0;
-        foreach ($rows as $row) {
-            if (! is_array($row)) {
-                continue;
-            }
-            $pid = $row['product_id'] ?? null;
-            $qty = (float) ($row['quantity'] ?? 0);
-            if (! filled($pid) || $qty <= 0) {
-                continue;
-            }
-            $product = $products->get((int) $pid);
-            if (! $product) {
-                continue;
-            }
-            $unit = (float) $product->sale_price;
-            $taxRate = (float) ($product->tax_rate ?? 0);
-            $lineSubtotal = $qty * $unit;
-            $taxAmount = $lineSubtotal * ($taxRate / 100);
-            $sum += $lineSubtotal + $taxAmount;
+        $valid = self::buildValidPosLinesFromRaw($rows, self::posProduct(...));
+        if ($valid === []) {
+            return 0.0;
         }
 
-        return round($sum, 2);
+        $paymentMethod = (string) ($get('payment_method') ?? 'efectivo_usd');
+        $mixedUsdPaid = (float) ($get('mixed_usd_paid') ?? 0);
+        $discountRequested = (float) ($get('discount_total') ?? 0);
+
+        $pricing = self::finalizePosPricingFromValidLines($valid, $paymentMethod, $mixedUsdPaid, $discountRequested);
+
+        return $pricing['document_total'];
     }
 
     /**
@@ -809,25 +982,176 @@ final class CashRegisterAction
      *
      * @param  array<string, mixed>  $rowState
      */
-    private static function computeLineTotalFromRowState(array $rowState): float
+    private static function computeLineTotalFromRowState(array $rowState, Get $get): float
     {
+        $rows = $get('line_items') ?? [];
+        if (! is_array($rows)) {
+            return 0.0;
+        }
+
+        $productIds = collect($rows)->pluck('product_id')->filter()->unique()->map(fn (mixed $id): int => (int) $id)->values()->all();
+        if ($productIds === []) {
+            return 0.0;
+        }
+
+        self::warmPosProductsForIds($productIds);
+
+        $valid = self::buildValidPosLinesFromRaw($rows, self::posProduct(...));
+        if ($valid === []) {
+            return 0.0;
+        }
+
+        $paymentMethod = (string) ($get('payment_method') ?? 'efectivo_usd');
+        $mixedUsdPaid = (float) ($get('mixed_usd_paid') ?? 0);
+        $discountRequested = (float) ($get('discount_total') ?? 0);
+
+        $pricing = self::finalizePosPricingFromValidLines($valid, $paymentMethod, $mixedUsdPaid, $discountRequested);
+        $f = $pricing['ves_tax_fraction'];
+
         $productId = $rowState['product_id'] ?? null;
         $qty = (float) ($rowState['quantity'] ?? 0);
         if (! filled($productId) || $qty <= 0) {
             return 0.0;
         }
 
-        $product = Product::query()->find((int) $productId);
+        $product = self::posProduct((int) $productId);
         if (! $product) {
             return 0.0;
         }
 
         $unit = (float) $product->sale_price;
         $taxRate = (float) ($product->tax_rate ?? 0);
-        $lineSubtotal = $qty * $unit;
-        $taxAmount = $lineSubtotal * ($taxRate / 100);
+        $lineSubtotal = round($qty * $unit, 2);
+        $taxAtFull = round($lineSubtotal * ($taxRate / 100), 2);
+        $taxAmount = round($taxAtFull * $f, 2);
 
         return round($lineSubtotal + $taxAmount, 2);
+    }
+
+    /**
+     * Precarga productos del POS en la petición actual (evita N+1 en totales y etiquetas del repeater).
+     *
+     * @param  list<int>  $productIds
+     */
+    private static function warmPosProductsForIds(array $productIds): void
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $productIds), fn (int $id): bool => $id > 0)));
+        if ($ids === []) {
+            return;
+        }
+
+        /** @var array<int, Product|null> $map */
+        $map = request()->attributes->get('cash_register.pos_products_by_id');
+        if (! is_array($map)) {
+            $map = [];
+        }
+
+        $missing = array_values(array_diff($ids, array_keys($map)));
+        if ($missing === []) {
+            return;
+        }
+
+        $fetched = Product::query()
+            ->select(['id', 'name', 'barcode', 'sale_price', 'tax_rate'])
+            ->whereIn('id', $missing)
+            ->get()
+            ->keyBy('id');
+
+        foreach ($missing as $id) {
+            $map[$id] = $fetched->get($id);
+        }
+
+        request()->attributes->set('cash_register.pos_products_by_id', $map);
+    }
+
+    private static function posProduct(int $id): ?Product
+    {
+        if ($id <= 0) {
+            return null;
+        }
+
+        self::warmPosProductsForIds([$id]);
+
+        /** @var array<int, Product|null>|null $map */
+        $map = request()->attributes->get('cash_register.pos_products_by_id');
+
+        return is_array($map) && array_key_exists($id, $map) && $map[$id] instanceof Product
+            ? $map[$id]
+            : null;
+    }
+
+    /**
+     * Búsqueda POS: JOIN directo (sin whereHas anidado), coincidencia exacta por código de barras primero.
+     *
+     * @return array<int, string>
+     */
+    private static function searchInventoryProductsForBranch(int $branchId, string $search): array
+    {
+        $term = trim($search);
+
+        if ($term !== '') {
+            $exactProductId = DB::table('inventories')
+                ->join('products', 'products.id', '=', 'inventories.product_id')
+                ->where('inventories.branch_id', $branchId)
+                ->where('products.is_active', true)
+                ->whereNotNull('inventories.product_id')
+                ->where('products.barcode', $term)
+                ->value('products.id');
+
+            if (filled($exactProductId)) {
+                $id = (int) $exactProductId;
+                $row = DB::table('products')
+                    ->select(['id', 'name', 'barcode'])
+                    ->where('id', $id)
+                    ->first();
+
+                if ($row !== null) {
+                    self::warmPosProductsForIds([$id]);
+                    $label = filled($row->barcode)
+                        ? $row->barcode.' · '.$row->name
+                        : $row->name;
+
+                    return [$id => $label];
+                }
+            }
+        }
+
+        $query = DB::table('inventories')
+            ->join('products', 'products.id', '=', 'inventories.product_id')
+            ->where('inventories.branch_id', $branchId)
+            ->where('products.is_active', true)
+            ->whereNotNull('inventories.product_id')
+            ->select(['products.id', 'products.name', 'products.barcode'])
+            ->orderBy('products.name')
+            ->limit($term === '' ? 25 : 40);
+
+        if ($term !== '') {
+            $like = '%'.addcslashes($term, '%_\\').'%';
+            $ingredientLike = '%'.addcslashes(mb_strtolower($term), '%_\\').'%';
+            $query->where(function ($w) use ($like, $ingredientLike): void {
+                $w->where('products.name', 'like', $like)
+                    ->orWhere('products.barcode', 'like', $like)
+                    ->orWhere('products.slug', 'like', $like)
+                    ->orWhereRaw('LOWER(products.active_ingredient) LIKE ?', [$ingredientLike]);
+            });
+        }
+
+        $rows = $query->get();
+        if ($rows->isEmpty()) {
+            return [];
+        }
+
+        $ids = $rows->pluck('id')->map(fn (mixed $id): int => (int) $id)->unique()->values()->all();
+        self::warmPosProductsForIds($ids);
+
+        return $rows->mapWithKeys(function ($row): array {
+            $id = (int) $row->id;
+            $label = filled($row->barcode)
+                ? $row->barcode.' · '.$row->name
+                : $row->name;
+
+            return [$id => $label];
+        })->all();
     }
 
     /**
@@ -859,8 +1183,8 @@ final class CashRegisterAction
     private static function focusPosLineProductSearchJs(bool $pickFirstItem): string
     {
         $targetExpr = $pickFirstItem ? 'items[0]' : 'items[items.length - 1]';
-        $outerMs = $pickFirstItem ? 220 : 420;
-        $innerMs = $pickFirstItem ? 120 : 200;
+        $outerMs = $pickFirstItem ? 160 : 320;
+        $innerMs = $pickFirstItem ? 90 : 160;
 
         return <<<JS
             setTimeout(() => {
@@ -923,7 +1247,7 @@ final class CashRegisterAction
                     );
                     input?.focus?.();
                 }, 120);
-            }, 300);
+            }, 200);
         JS;
     }
 

@@ -206,6 +206,24 @@ class SalesTable
                     ->icon(Heroicon::CreditCard)
                     ->iconColor('gray')
                     ->toggleable(),
+                TextColumn::make('payment_usd')
+                    ->label('Pago USD')
+                    ->money('USD')
+                    ->sortable()
+                    ->alignEnd()
+                    ->placeholder('—')
+                    ->icon(Heroicon::CurrencyDollar)
+                    ->iconColor('gray'),
+                TextColumn::make('payment_ves')
+                    ->label('Pago Bs.')
+                    ->formatStateUsing(fn ($state): string => $state !== null
+                        ? 'Bs. '.number_format((float) $state, 2, ',', '.')
+                        : '—')
+                    ->sortable()
+                    ->alignEnd()
+                    ->placeholder('—')
+                    ->icon(Heroicon::Banknotes)
+                    ->iconColor('gray'),
                 TextColumn::make('payment_status')
                     ->label('Estado cobro')
                     ->formatStateUsing(fn (?string $state): string => self::formatPaymentStatusLabel($state))

@@ -10,10 +10,12 @@ class ViewSale extends ViewRecord
 {
     protected static string $resource = SaleResource::class;
 
+    protected static ?string $title = 'Detalle de la Venta';
+
     protected function getHeaderActions(): array
     {
         return [
-            EditAction::make(),
+            // EditAction::make(),
         ];
     }
 }

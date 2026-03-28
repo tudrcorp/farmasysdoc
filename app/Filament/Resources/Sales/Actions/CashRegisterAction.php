@@ -261,17 +261,20 @@ final class CashRegisterAction
                                                 $keys = array_keys($lineItems);
                                                 $lastKey = $keys[array_key_last($keys)];
 
-                                                if ($currentItemKey !== $lastKey) {
+                                                if ((string) $currentItemKey !== (string) $lastKey) {
                                                     return;
                                                 }
 
-                                                $newItems = $lineItems;
-                                                $newItems[(string) Str::uuid()] = [
+                                                /*
+                                                 * Solo añadir una fila nueva con Set puntual (data_set). No reemplazar
+                                                 * todo line_items: evita estado desincronizado y remount del Select
+                                                 * que borra la búsqueda / valor en la primera interacción.
+                                                 */
+                                                $newKey = (string) Str::uuid();
+                                                $set("{$lineItemsPath}.{$newKey}", [
                                                     'product_id' => null,
                                                     'quantity' => 1,
-                                                ];
-
-                                                $set($lineItemsPath, $newItems, isAbsolute: true);
+                                                ], isAbsolute: true);
 
                                                 if (! $livewire instanceof LivewireComponent) {
                                                     return;
@@ -856,8 +859,10 @@ final class CashRegisterAction
     private static function focusPosLineProductSearchJs(bool $pickFirstItem): string
     {
         $targetExpr = $pickFirstItem ? 'items[0]' : 'items[items.length - 1]';
+        $outerMs = $pickFirstItem ? 220 : 420;
+        $innerMs = $pickFirstItem ? 120 : 200;
 
-        $template = <<<'JS'
+        return <<<JS
             setTimeout(() => {
                 const wrap = document.querySelector('.farmadoc-pos-line-items-repeater');
                 if (! wrap) {
@@ -867,7 +872,7 @@ final class CashRegisterAction
                 if (! items.length) {
                     items = wrap.querySelectorAll('table tbody tr');
                 }
-                const target = __TARGET__;
+                const target = {$targetExpr};
                 if (! target) {
                     return;
                 }
@@ -886,11 +891,9 @@ final class CashRegisterAction
                         'input.fi-input, input[type="search"], input[role="combobox"], input:not([type="hidden"])',
                     );
                     input?.focus?.();
-                }, 120);
-            }, 180);
+                }, {$innerMs});
+            }, {$outerMs});
             JS;
-
-        return str_replace('__TARGET__', $targetExpr, $template);
     }
 
     /**

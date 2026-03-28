@@ -279,7 +279,6 @@ final class CashRegisterAction
 
                                                 $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
                                             })
-                                            ->required()
                                             ->live()
                                             ->native(false),
                                         TextInput::make('quantity')
@@ -434,7 +433,7 @@ final class CashRegisterAction
                     ])
                     ->columnSpanFull(),
             ])
-            ->action(function (array $data) {
+            ->action(function (array $data, Action $action) {
                 $branchId = Auth::user()?->branch_id;
 
                 if (blank($branchId)) {
@@ -450,18 +449,25 @@ final class CashRegisterAction
                 $paymentReference = trim((string) ($data['reference'] ?? ''));
 
                 $lines = collect($data['line_items'] ?? [])
-                    ->filter(fn (array $row): bool => filled($row['product_id'] ?? null)
-                        && (float) ($row['quantity'] ?? 0) > 0)
+                    ->filter(function (mixed $row): bool {
+                        if (! is_array($row)) {
+                            return false;
+                        }
+
+                        return filled($row['product_id'] ?? null)
+                            && (float) ($row['quantity'] ?? 0) > 0;
+                    })
                     ->values()
                     ->all();
 
                 if ($lines === []) {
                     Notification::make()
-                        ->title('Agregue al menos un producto con cantidad válida.')
+                        ->title('Debe cargar al menos un producto')
+                        ->body('Seleccione un producto y una cantidad mayor a cero en al menos una línea antes de registrar la venta.')
                         ->danger()
                         ->send();
 
-                    return;
+                    $action->halt();
                 }
 
                 $productIds = collect($lines)->pluck('product_id')->unique()->values()->all();

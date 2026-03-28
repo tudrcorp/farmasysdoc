@@ -3,13 +3,17 @@
 namespace App\Filament\Resources\Inventories\Tables;
 
 use App\Enums\ProductType;
+use App\Filament\Exports\InventoryExporter;
 use App\Filament\Resources\Inventories\InventoryResource;
 use App\Models\Branch;
 use App\Models\Inventory;
 use App\Support\Filament\BranchAuthScope;
+use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\Exports\ExportColumn;
+use Filament\Actions\Exports\Models\Export;
 use Filament\Actions\ViewAction;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
@@ -19,6 +23,10 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
+use League\Csv\Bom;
+use League\Csv\Writer;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class InventoriesTable
 {
@@ -224,8 +232,52 @@ class InventoriesTable
                 BulkActionGroup::make([
                     DeleteBulkAction::make()
                         ->label('Eliminar seleccionados'),
+                    BulkAction::make('exportCsv')
+                        ->label('Exportar seleccionados')
+                        ->icon(Heroicon::ArrowDownTray)
+                        ->action(fn (Collection $records): StreamedResponse => self::streamSelectedInventoriesCsv($records)),
                 ]),
             ]);
+    }
+
+    /**
+     * Exportación CSV inmediata (sin cola): usa las columnas y formato de {@see InventoryExporter}.
+     */
+    private static function streamSelectedInventoriesCsv(Collection $records): StreamedResponse
+    {
+        $records->loadMissing(['branch', 'product']);
+
+        $columns = InventoryExporter::getColumns();
+        $columnMap = collect($columns)
+            ->mapWithKeys(fn (ExportColumn $column): array => [
+                $column->getName() => $column->getLabel() ?? $column->getName(),
+            ])
+            ->all();
+
+        $export = new Export;
+        $export->exporter = InventoryExporter::class;
+        $export->file_disk = config('filament.default_filesystem_disk', 'local');
+
+        $exporter = $export->getExporter($columnMap, []);
+
+        $fileName = 'inventarios-'.now()->format('Y-m-d-H-i-s').'.csv';
+
+        return response()->streamDownload(
+            function () use ($exporter, $records, $columnMap): void {
+                $csv = Writer::from('php://output', 'w');
+                $csv->setOutputBOM(Bom::Utf8);
+                $csv->setDelimiter(InventoryExporter::getCsvDelimiter());
+                $csv->insertOne(array_values($columnMap));
+
+                foreach ($records as $record) {
+                    $csv->insertOne($exporter($record));
+                }
+            },
+            $fileName,
+            [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+            ],
+        );
     }
 
     private static function stockHealthLabel(Inventory $record): string

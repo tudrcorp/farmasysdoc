@@ -38,6 +38,7 @@ class SaleFactory extends Factory
             'payment_method' => 'efectivo_usd',
             'payment_usd' => $total,
             'payment_ves' => 0.0,
+            'bcv_ves_per_usd' => null,
             'reference' => null,
             'payment_status' => 'paid',
             'notes' => null,

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Users;
 
+use App\Filament\Resources\Concerns\ChecksConfigurationAccess;
 use App\Filament\Resources\Users\Pages\CreateUser;
 use App\Filament\Resources\Users\Pages\EditUser;
 use App\Filament\Resources\Users\Pages\ListUsers;
@@ -15,14 +16,19 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 class UserResource extends Resource
 {
+    use ChecksConfigurationAccess;
+
     protected static ?string $model = User::class;
 
     protected static ?string $title = 'Usuarios';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::UserGroup;
+
+    protected static string|UnitEnum|null $navigationGroup = 'Configuración';
 
     public static function form(Schema $schema): Schema
     {

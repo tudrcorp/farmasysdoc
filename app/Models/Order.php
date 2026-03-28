@@ -88,4 +88,24 @@ class Order extends Model
     {
         return $this->hasMany(OrderItem::class);
     }
+
+    /**
+     * Formato: PED-{año}-000{id} (ej. PED-2026-00015).
+     */
+    public static function formatOrderNumber(int $id, ?\DateTimeInterface $at = null): string
+    {
+        $at ??= now();
+
+        return 'PED-'.$at->format('Y').'-000'.$id;
+    }
+
+    /**
+     * Asigna el número canónico según el id y la fecha de creación (sin disparar eventos).
+     */
+    public function assignCanonicalOrderNumber(): void
+    {
+        $this->forceFill([
+            'order_number' => static::formatOrderNumber((int) $this->id, $this->created_at),
+        ])->saveQuietly();
+    }
 }

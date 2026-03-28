@@ -10,6 +10,7 @@ use App\Filament\Resources\Sales\Schemas\SaleForm;
 use App\Filament\Resources\Sales\Schemas\SaleInfolist;
 use App\Filament\Resources\Sales\Tables\SalesTable;
 use App\Models\Sale;
+use App\Models\User;
 use App\Support\Filament\BranchAuthScope;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -25,6 +26,13 @@ class SaleResource extends Resource
     protected static ?string $navigationLabel = 'Ventas';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::ShoppingBag;
+
+    public static function getNavigationGroup(): ?string
+    {
+        $user = auth()->user();
+
+        return $user instanceof User ? $user->navigationOperationsGroupLabel() : 'Farmadoc®';
+    }
 
     public static function form(Schema $schema): Schema
     {

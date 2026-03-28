@@ -66,6 +66,10 @@ final class ThermalFiscalReceiptFormatter
         $lines[] = str_repeat('-', $width);
         $lines[] = $this->row('TOTAL', $this->bs($totalBs), $width);
         $lines[] = $this->row($this->paymentLabel($sale->payment_method), $this->bs($totalBs), $width);
+        $bcvStored = (float) ($sale->bcv_ves_per_usd ?? 0);
+        if ($bcvStored > 0) {
+            $lines[] = $this->leftRow('TASA BCV:', '1 USD = Bs '.number_format($bcvStored, 2, ',', '.'));
+        }
         $lines[] = '';
         $lines[] = $this->row((string) config('fiscal.mh_footer', 'MH'), (string) config('fiscal.printer_serial', 'ZZP0000000'), $width);
 
@@ -88,6 +92,11 @@ final class ThermalFiscalReceiptFormatter
 
     private function resolveVesUsdRate(Sale $sale): float
     {
+        $stored = (float) ($sale->bcv_ves_per_usd ?? 0);
+        if ($stored > 0) {
+            return $stored;
+        }
+
         $totalUsd = (float) $sale->total;
         $ves = (float) ($sale->payment_ves ?? 0);
 

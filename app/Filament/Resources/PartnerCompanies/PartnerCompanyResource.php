@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\PartnerCompanies;
 
+use App\Filament\Resources\Concerns\ChecksConfigurationAccess;
 use App\Filament\Resources\PartnerCompanies\Pages\CreatePartnerCompany;
 use App\Filament\Resources\PartnerCompanies\Pages\EditPartnerCompany;
 use App\Filament\Resources\PartnerCompanies\Pages\ListPartnerCompanies;
@@ -15,21 +16,21 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 class PartnerCompanyResource extends Resource
 {
+    use ChecksConfigurationAccess;
+
     protected static ?string $model = PartnerCompany::class;
 
     protected static ?string $navigationLabel = 'Compañías aliadas';
 
     protected static ?int $navigationSort = 1;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::BuildingOffice2;
+    protected static string|UnitEnum|null $navigationGroup = 'Configuración';
 
-    public static function getNavigationGroup(): ?string
-    {
-        return 'Aliados Comerciales';
-    }
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::BuildingOffice2;
 
     public static function form(Schema $schema): Schema
     {

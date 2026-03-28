@@ -215,9 +215,10 @@ class MarketingAnalyticsService
      *     avg_ticket: string,
      *     max_purchase: string,
      *     last_purchase_at: ?string,
-     *     favorite_product: string,
      *     branches_visited: int,
-     *     first_purchase_at: ?string
+     *     first_purchase_at: ?string,
+     *     purchases_by_branch: list<array{branch_name: string, count: int}>,
+     *     top_products: list<array{name: string, quantity_label: string}>
      * }
      */
     public function clientBehaviorMetrics(Client $client): array
@@ -234,14 +235,46 @@ class MarketingAnalyticsService
 
         $branchesVisited = (clone $sales)->whereNotNull('branch_id')->distinct()->count('branch_id');
 
-        $favRow = SaleItem::query()
+        $branchRows = (clone $sales)
+            ->whereNotNull('branch_id')
+            ->selectRaw('branch_id, COUNT(*) as c')
+            ->groupBy('branch_id')
+            ->orderByDesc('c')
+            ->get();
+
+        $branchIds = $branchRows->pluck('branch_id')->filter()->unique()->values();
+        $branchNames = $branchIds->isEmpty()
+            ? collect()
+            : Branch::query()->whereIn('id', $branchIds)->pluck('name', 'id');
+
+        $purchasesByBranch = $branchRows->map(function ($row) use ($branchNames): array {
+            $bid = (int) $row->branch_id;
+
+            return [
+                'branch_name' => (string) ($branchNames[$bid] ?? 'Sucursal #'.$bid),
+                'count' => (int) $row->c,
+            ];
+        })->values()->all();
+
+        $topProductRows = SaleItem::query()
             ->whereHas('sale', fn (Builder $s) => $s
                 ->where('status', SaleStatus::Completed)
                 ->where('client_id', $client->id))
             ->selectRaw('COALESCE(NULLIF(TRIM(product_name_snapshot), ""), CONCAT("Producto #", product_id)) as pname, SUM(quantity) as qty')
             ->groupBy('pname')
             ->orderByDesc(DB::raw('qty'))
-            ->first();
+            ->limit(5)
+            ->get();
+
+        $topProducts = $topProductRows->map(function ($row): array {
+            $qty = (float) $row->qty;
+            $label = rtrim(rtrim(number_format($qty, 3, '.', ','), '0'), '.') ?: '0';
+
+            return [
+                'name' => (string) $row->pname,
+                'quantity_label' => $label,
+            ];
+        })->all();
 
         return [
             'purchases_count' => $purchasesCount,
@@ -250,8 +283,9 @@ class MarketingAnalyticsService
             'max_purchase' => number_format($maxPurchase, 2, ',', '.'),
             'last_purchase_at' => $last?->sold_at?->format('d/m/Y H:i'),
             'first_purchase_at' => $first?->sold_at?->format('d/m/Y H:i'),
-            'favorite_product' => $favRow ? (string) $favRow->pname : '—',
             'branches_visited' => (int) $branchesVisited,
+            'purchases_by_branch' => $purchasesByBranch,
+            'top_products' => $topProducts,
         ];
     }
 }

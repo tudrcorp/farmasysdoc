@@ -10,11 +10,14 @@ use App\Filament\Resources\Orders\Schemas\OrderForm;
 use App\Filament\Resources\Orders\Schemas\OrderInfolist;
 use App\Filament\Resources\Orders\Tables\OrdersTable;
 use App\Models\Order;
+use App\Models\User;
+use App\Support\Filament\BranchAuthScope;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class OrderResource extends Resource
 {
@@ -23,6 +26,13 @@ class OrderResource extends Resource
     protected static ?string $navigationLabel = 'Ordenes';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::ListBullet;
+
+    public static function getNavigationGroup(): ?string
+    {
+        $user = auth()->user();
+
+        return $user instanceof User ? $user->navigationOperationsGroupLabel() : 'Farmadoc®';
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -37,6 +47,11 @@ class OrderResource extends Resource
     public static function table(Table $table): Table
     {
         return OrdersTable::configure($table);
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return BranchAuthScope::apply(parent::getEloquentQuery());
     }
 
     public static function getRelations(): array

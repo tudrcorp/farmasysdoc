@@ -72,6 +72,19 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * Etiqueta del grupo de navegación de operación por sucursal (panel Farmaadmin):
+     * administradores ven «Farmadoc®»; el resto, el nombre de su sucursal.
+     */
+    public function navigationOperationsGroupLabel(): string
+    {
+        if ($this->isAdministrator()) {
+            return 'Farmadoc®';
+        }
+
+        return $this->branch?->name ?? 'Farmadoc®';
+    }
+
+    /**
      * Acceso al módulo de Marketing (panel Farmaadmin): administradores o rol MARKETING.
      */
     public function canAccessMarketingModule(): bool

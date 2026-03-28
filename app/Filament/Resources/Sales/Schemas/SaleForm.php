@@ -143,6 +143,14 @@ class SaleForm
                                     ->maxLength(100)
                                     ->helperText('Coherente con políticas de caja y cartera.')
                                     ->prefixIcon(Heroicon::CheckBadge),
+                                TextInput::make('bcv_ves_per_usd')
+                                    ->label('Tasa BCV (Bs. por 1 USD)')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->step(0.000001)
+                                    ->placeholder('Solo si hubo cobro en bolívares')
+                                    ->helperText('Opcional. Se guarda automáticamente desde el POS; use este campo para ajustes o ventas manuales.')
+                                    ->prefixIcon(Heroicon::ChartBar),
                             ]),
                         DateTimePicker::make('sold_at')
                             ->label('Fecha y hora de la venta')

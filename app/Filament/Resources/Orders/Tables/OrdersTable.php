@@ -6,6 +6,7 @@ use App\Enums\ConvenioType;
 use App\Enums\OrderStatus;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Models\Order;
+use App\Support\Filament\BranchAuthScope;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -22,7 +23,8 @@ class OrdersTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['client', 'branch']))
+            ->modifyQueryUsing(fn (Builder $query): Builder => BranchAuthScope::apply($query)
+                ->with(['client', 'branch']))
             ->columns([
                 TextColumn::make('order_number')
                     ->label('Nº pedido')

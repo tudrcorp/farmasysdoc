@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Products;
 
+use App\Filament\GlobalSearch\FarmaadminGlobalSearchProvider;
+use App\Filament\Resources\Concerns\ChecksConfigurationAccess;
 use App\Filament\Resources\Products\Pages\CreateProduct;
 use App\Filament\Resources\Products\Pages\EditProduct;
 use App\Filament\Resources\Products\Pages\ListProducts;
@@ -15,12 +17,20 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Support\Collection;
+use UnitEnum;
 
 class ProductResource extends Resource
 {
+    use ChecksConfigurationAccess;
+
     protected static ?string $model = Product::class;
 
+    protected static ?string $recordTitleAttribute = 'name';
+
     protected static ?string $navigationLabel = 'Productos';
+
+    protected static string|UnitEnum|null $navigationGroup = 'Configuración';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::Cube;
 
@@ -54,5 +64,13 @@ class ProductResource extends Resource
             'view' => ViewProduct::route('/{record}'),
             'edit' => EditProduct::route('/{record}/edit'),
         ];
+    }
+
+    /**
+     * La búsqueda global de productos la resuelve {@see FarmaadminGlobalSearchProvider}.
+     */
+    public static function getGlobalSearchResults(string $search): Collection
+    {
+        return collect();
     }
 }

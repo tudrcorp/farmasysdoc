@@ -27,10 +27,15 @@ class OrderForm
                         TextInput::make('order_number')
                             ->label('Número de pedido')
                             ->placeholder('Ej. PED-2026-0001')
-                            ->helperText('Referencia visible para el cliente y seguimiento. Debe ser única.')
-                            ->required()
+                            ->helperText(fn (string $operation): string => $operation === 'create'
+                                ? 'Se asigna automáticamente al guardar (PED-año-000id).'
+                                : 'Referencia visible para el cliente y seguimiento. Debe ser única.')
+                            ->hidden(fn (string $operation): bool => $operation === 'create')
+                            ->required(fn (string $operation): bool => $operation !== 'create')
                             ->maxLength(255)
                             ->unique(ignoreRecord: true)
+                            ->disabled(fn (string $operation): bool => $operation !== 'create')
+                            ->dehydrated(false)
                             ->prefixIcon(Heroicon::Hashtag)
                             ->autocomplete('off')
                             ->columnSpanFull(),

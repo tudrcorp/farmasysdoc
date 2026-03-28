@@ -102,7 +102,6 @@ class ClientForm
                         TextInput::make('address')
                             ->label('Dirección')
                             ->placeholder('Calle, número, barrio, referencia')
-                            ->required()
                             ->maxLength(255)
                             ->prefixIcon(Heroicon::Home)
                             ->columnSpanFull(),
@@ -114,7 +113,6 @@ class ClientForm
                             ->schema([
                                 Select::make('country')
                                     ->label('País')
-                                    ->required()
                                     ->default('Colombia')
                                     ->searchable()
                                     ->preload()
@@ -131,7 +129,6 @@ class ClientForm
                                     ->prefixIcon(Heroicon::GlobeAlt),
                                 Select::make('state')
                                     ->label('Departamento / estado')
-                                    ->required()
                                     ->searchable()
                                     ->native(false)
                                     ->disabled(fn (Get $get): bool => blank($get('country')))
@@ -155,7 +152,6 @@ class ClientForm
                                     ->prefixIcon(Heroicon::Map),
                                 Select::make('city')
                                     ->label('Ciudad')
-                                    ->required()
                                     ->searchable()
                                     ->native(false)
                                     ->disabled(fn (Get $get): bool => blank($get('state')))

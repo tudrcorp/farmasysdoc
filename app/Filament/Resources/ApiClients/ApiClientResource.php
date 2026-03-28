@@ -9,15 +9,19 @@ use App\Filament\Resources\ApiClients\Pages\ViewApiClient;
 use App\Filament\Resources\ApiClients\Schemas\ApiClientForm;
 use App\Filament\Resources\ApiClients\Schemas\ApiClientInfolist;
 use App\Filament\Resources\ApiClients\Tables\ApiClientsTable;
+use App\Filament\Resources\Concerns\ChecksConfigurationAccess;
 use App\Models\ApiClient;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 class ApiClientResource extends Resource
 {
+    use ChecksConfigurationAccess;
+
     protected static ?string $model = ApiClient::class;
 
     protected static ?string $navigationLabel = 'Clientes API';
@@ -30,12 +34,9 @@ class ApiClientResource extends Resource
 
     protected static ?int $navigationSort = 90;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::CommandLine;
+    protected static string|UnitEnum|null $navigationGroup = 'Configuración';
 
-    public static function getNavigationGroup(): ?string
-    {
-        return 'Integraciones';
-    }
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::CommandLine;
 
     public static function form(Schema $schema): Schema
     {

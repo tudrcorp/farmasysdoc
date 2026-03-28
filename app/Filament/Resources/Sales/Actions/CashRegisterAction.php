@@ -637,12 +637,16 @@ final class CashRegisterAction
                     return;
                 }
 
+                $bcvVesPerUsd = ($vesUsdRate > 0.0 && $paymentVes > 0.00001)
+                    ? round($vesUsdRate, 6)
+                    : null;
+
                 $actor = Auth::user()?->email
                     ?? Auth::user()?->name
                     ?? 'sistema';
 
                 try {
-                    $sale = DB::transaction(function () use ($branchId, $data, $payloadItems, $lines, $products, $subtotal, $taxTotal, $discountTotal, $documentTotal, $actor, $paymentMethod, $paymentUsd, $paymentVes, $paymentReference): Sale {
+                    $sale = DB::transaction(function () use ($branchId, $data, $payloadItems, $lines, $products, $subtotal, $taxTotal, $discountTotal, $documentTotal, $actor, $paymentMethod, $paymentUsd, $paymentVes, $paymentReference, $bcvVesPerUsd): Sale {
                         $qtyByProduct = [];
                         foreach ($lines as $row) {
                             $pid = (int) $row['product_id'];
@@ -684,6 +688,7 @@ final class CashRegisterAction
                             'payment_method' => $paymentMethod,
                             'payment_usd' => round($paymentUsd, 2),
                             'payment_ves' => round($paymentVes, 2),
+                            'bcv_ves_per_usd' => $bcvVesPerUsd,
                             'reference' => $paymentReference !== '' ? $paymentReference : null,
                             'payment_status' => 'paid',
                             'notes' => null,

@@ -29,6 +29,7 @@ class Sale extends Model
         'payment_method',
         'payment_usd',
         'payment_ves',
+        'bcv_ves_per_usd',
         'reference',
         'payment_status',
         'notes',
@@ -50,6 +51,7 @@ class Sale extends Model
             'total' => 'decimal:2',
             'payment_usd' => 'decimal:2',
             'payment_ves' => 'decimal:2',
+            'bcv_ves_per_usd' => 'decimal:6',
             'sold_at' => 'datetime',
         ];
     }

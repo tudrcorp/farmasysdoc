@@ -224,6 +224,18 @@ class SalesTable
                     ->placeholder('—')
                     ->icon(Heroicon::Banknotes)
                     ->iconColor('gray'),
+                TextColumn::make('bcv_ves_per_usd')
+                    ->label('Tasa BCV')
+                    ->tooltip('Bolívares por 1 USD aplicados al cobrar (referencia para validar el pago en Bs.)')
+                    ->formatStateUsing(fn ($state): string => $state !== null && (float) $state > 0
+                        ? 'Bs. '.number_format((float) $state, 2, ',', '.').' / USD'
+                        : '—')
+                    ->sortable()
+                    ->alignEnd()
+                    ->placeholder('—')
+                    ->icon(Heroicon::ChartBar)
+                    ->iconColor('gray')
+                    ->toggleable(),
                 TextColumn::make('payment_status')
                     ->label('Estado cobro')
                     ->formatStateUsing(fn (?string $state): string => self::formatPaymentStatusLabel($state))
@@ -332,6 +344,12 @@ class SalesTable
         $key = strtolower(trim($value));
 
         return match ($key) {
+            'transfer_usd' => 'Transferencias USD',
+            'transfer_ves' => 'Transferencia VES',
+            'pago_movil' => 'Pago móvil',
+            'zelle' => 'Zelle',
+            'efectivo_usd' => 'Efectivo USD',
+            'mixed' => 'Pago múltiple',
             'cash', 'efectivo' => 'Efectivo',
             'card', 'tarjeta', 'debit', 'credit' => 'Tarjeta',
             'transfer', 'transferencia', 'nequi', 'daviplata' => 'Transferencia / digital',

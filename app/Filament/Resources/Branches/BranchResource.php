@@ -9,20 +9,26 @@ use App\Filament\Resources\Branches\Pages\ViewBranch;
 use App\Filament\Resources\Branches\Schemas\BranchForm;
 use App\Filament\Resources\Branches\Schemas\BranchInfolist;
 use App\Filament\Resources\Branches\Tables\BranchesTable;
+use App\Filament\Resources\Concerns\ChecksConfigurationAccess;
 use App\Models\Branch;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 class BranchResource extends Resource
 {
+    use ChecksConfigurationAccess;
+
     protected static ?string $model = Branch::class;
 
     protected static ?string $navigationLabel = 'Almacenes';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::BuildingStorefront;
+
+    protected static string|UnitEnum|null $navigationGroup = 'Configuración';
 
     public static function form(Schema $schema): Schema
     {

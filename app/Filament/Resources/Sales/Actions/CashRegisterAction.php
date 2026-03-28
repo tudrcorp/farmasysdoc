@@ -13,6 +13,7 @@ use App\Models\Sale;
 use App\Services\Dolar\DolarApiDolaresService;
 use App\Services\Dolar\DolarApiEstadoService;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
@@ -40,14 +41,88 @@ use RuntimeException;
 
 final class CashRegisterAction
 {
-    public static function make(): Action
+    /**
+     * Primer paso: buscar cliente (nombre o documento). Al elegir uno se abre la caja; «Continuar» sin elegir = mostrador.
+     */
+    public static function makeClientGate(): Action
     {
-        return Action::make('box')
+        return Action::make('posClientGate')
             ->label('Caja')
             ->icon(Heroicon::Cube)
             ->color('primary')
+            ->modalHeading('Cliente de la venta')
+            ->modalDescription('Busque por nombre o por documento de identidad. Al seleccionar un cliente (clic o Enter) se abrirá el carrito con ese cliente. Use «Continuar» sin elegir para venta en mostrador.')
+            ->modalIcon(Heroicon::User)
+            ->modalWidth(Width::Large)
+            ->modalSubmitActionLabel('Continuar')
+            ->modalCancelAction(fn (Action $action): Action => $action->color('gray'))
+            ->extraAttributes([
+                'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
+            ])
+            ->mountUsing(function (Action $action, ?Schema $schema): void {
+                $schema?->fill(['client_id' => null]);
+
+                $livewire = $action->getLivewire();
+                if ($livewire instanceof LivewireComponent) {
+                    $livewire->js(self::mountPosClientGateFocusSelectJs());
+                }
+            })
+            ->schema([
+                Grid::make(1)
+                    ->schema([
+                        Select::make('client_id')
+                            ->label('Cliente')
+                            ->placeholder('Nombre o documento de identidad…')
+                            ->extraAttributes([
+                                'class' => 'farmadoc-pos-client-gate-select',
+                            ])
+                            ->live()
+                            ->searchable()
+                            ->searchDebounce(100)
+                            ->getSearchResultsUsing(fn (string $search): array => self::posClientSearchResults($search))
+                            ->getOptionLabelUsing(fn ($value): ?string => self::posClientOptionLabel($value))
+                            ->afterStateUpdated(function (mixed $state, Select $component): void {
+                                if (blank($state)) {
+                                    return;
+                                }
+
+                                $livewire = $component->getLivewire();
+                                if (! is_object($livewire) || ! method_exists($livewire, 'replaceMountedAction')) {
+                                    return;
+                                }
+
+                                $livewire->replaceMountedAction('posRegister', [
+                                    'client_id' => (int) $state,
+                                ]);
+                            })
+                            ->native(false)
+                            ->prefixIcon(Heroicon::User)
+                            ->columnSpanFull(),
+                    ])
+                    ->columnSpanFull(),
+            ])
+            ->action(function (array $data, Action $action): void {
+                $livewire = $action->getLivewire();
+                if (! is_object($livewire) || ! method_exists($livewire, 'replaceMountedAction')) {
+                    return;
+                }
+
+                $cid = $data['client_id'] ?? null;
+                $livewire->replaceMountedAction('posRegister', [
+                    'client_id' => filled($cid) ? (int) $cid : null,
+                ]);
+            });
+    }
+
+    /**
+     * Caja registradora (carrito, cobro). Se abre desde {@see makeClientGate()} con el cliente en argumentos.
+     */
+    public static function makeRegister(): Action
+    {
+        return Action::make('posRegister')
+            ->label('Caja registradora')
             ->modalHeading('Caja registradora')
-            ->modalDescription('Busque productos, indique cantidades y confirme el cobro. El total se actualiza al instante.')
+            ->modalDescription('Cargue productos, revise totales y confirme el cobro.')
             ->modalIcon(Heroicon::Banknotes)
             ->modalWidth(Width::SevenExtraLarge)
             ->modalSubmitActionLabel('Registrar venta')
@@ -56,11 +131,19 @@ final class CashRegisterAction
                 'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
             ])
             ->mountUsing(function (Action $action, ?Schema $schema): void {
-                $schema?->fill(self::defaultPosFormState());
+                $args = $action->getArguments();
+                $clientId = $args['client_id'] ?? null;
+
+                $state = self::defaultPosFormState();
+                if (filled($clientId)) {
+                    $state['client_id'] = (int) $clientId;
+                }
+
+                $schema?->fill($state);
 
                 $livewire = $action->getLivewire();
                 if ($livewire instanceof LivewireComponent) {
-                    $livewire->js(self::mountPosModalFocusClientSelectJs());
+                    $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: true));
                 }
             })
             ->schema([
@@ -73,80 +156,39 @@ final class CashRegisterAction
                     ])
                     ->schema([
                         Section::make('Venta')
-                            ->description('Busque productos, indique cantidades y confirme el cobro. El total se actualiza al instante.')
+                            ->description('Cliente definido en el paso anterior. Busque productos, indique cantidades y confirme el cobro.')
                             ->icon(Heroicon::ShoppingCart)
                             ->iconColor('primary')
                             ->extraAttributes([
                                 'class' => 'farmadoc-pos-cart-section',
                             ])
                             ->schema([
-                                Select::make('client_id')
+                                Hidden::make('client_id'),
+                                TextEntry::make('pos_client_summary')
                                     ->label('Cliente')
-                                    ->placeholder('Mostrador / sin cliente')
-                                    ->extraAttributes([
-                                        'class' => 'farmadoc-pos-client-select',
-                                    ])
-                                    ->searchable()
-                                    ->searchDebounce(200)
-                                    ->getSearchResultsUsing(function (string $search): array {
-                                        $term = trim($search);
-                                        if ($term === '') {
-                                            return Client::query()
-                                                ->where('status', 'active')
-                                                ->orderBy('name')
-                                                ->limit(30)
-                                                ->select(['id', 'name', 'document_number'])
-                                                ->get()
-                                                ->mapWithKeys(fn (Client $client): array => [
-                                                    $client->id => $client->name.(filled($client->document_number) ? ' · '.$client->document_number : ''),
-                                                ])
-                                                ->all();
-                                        }
-
-                                        $like = '%'.addcslashes($term, '%_\\').'%';
-
-                                        return Client::query()
-                                            ->where('status', 'active')
-                                            ->where(function ($query) use ($like): void {
-                                                $query->where('name', 'like', $like)
-                                                    ->orWhere('document_number', 'like', $like);
-                                            })
-                                            ->orderBy('name')
-                                            ->limit(30)
-                                            ->select(['id', 'name', 'document_number'])
-                                            ->get()
-                                            ->mapWithKeys(fn (Client $client): array => [
-                                                $client->id => $client->name.(filled($client->document_number) ? ' · '.$client->document_number : ''),
-                                            ])
-                                            ->all();
-                                    })
-                                    ->getOptionLabelUsing(function ($value): ?string {
-                                        if (blank($value)) {
-                                            return null;
+                                    ->state(function (Get $get): string {
+                                        $id = $get('client_id');
+                                        if (! filled($id)) {
+                                            return 'Mostrador / sin cliente';
                                         }
 
                                         $client = Client::query()
                                             ->select(['id', 'name', 'document_number'])
-                                            ->find((int) $value);
+                                            ->find((int) $id);
+
                                         if (! $client) {
-                                            return null;
+                                            return 'Cliente #'.(int) $id;
                                         }
 
-                                        return $client->name.(filled($client->document_number) ? ' · '.$client->document_number : '');
+                                        $doc = filled($client->document_number)
+                                            ? ' · Doc. '.$client->document_number
+                                            : '';
+
+                                        return $client->name.$doc;
                                     })
-                                    ->afterStateUpdated(function (mixed $state, $livewire): void {
-                                        if (blank($state)) {
-                                            return;
-                                        }
-
-                                        if (! $livewire instanceof LivewireComponent) {
-                                            return;
-                                        }
-
-                                        $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: true));
-                                    })
-                                    ->native(false)
-                                    ->prefixIcon(Heroicon::User)
+                                    ->dehydrated(false)
+                                    ->icon(Heroicon::User)
+                                    ->iconColor('gray')
                                     ->columnSpanFull(),
                                 Repeater::make('line_items')
                                     ->label('')
@@ -1221,13 +1263,13 @@ final class CashRegisterAction
     }
 
     /**
-     * Abre el select de cliente y enfoca el campo de búsqueda al montar el modal (Livewire js queue).
+     * Modal «Cliente»: abre el select y enfoca la búsqueda al montar.
      */
-    private static function mountPosModalFocusClientSelectJs(): string
+    private static function mountPosClientGateFocusSelectJs(): string
     {
         return <<<'JS'
             setTimeout(() => {
-                const wrap = document.querySelector('.farmadoc-pos-client-select');
+                const wrap = document.querySelector('.farmadoc-pos-client-gate-select');
                 if (! wrap) {
                     return;
                 }
@@ -1249,6 +1291,59 @@ final class CashRegisterAction
                 }, 120);
             }, 200);
         JS;
+    }
+
+    /**
+     * @return array<int|string, string>
+     */
+    private static function posClientSearchResults(string $search): array
+    {
+        $term = trim($search);
+        if ($term === '') {
+            return Client::query()
+                ->where('status', 'active')
+                ->orderBy('name')
+                ->limit(30)
+                ->select(['id', 'name', 'document_number'])
+                ->get()
+                ->mapWithKeys(fn (Client $client): array => [
+                    $client->id => $client->name.(filled($client->document_number) ? ' · '.$client->document_number : ''),
+                ])
+                ->all();
+        }
+
+        $like = '%'.addcslashes($term, '%_\\').'%';
+
+        return Client::query()
+            ->where('status', 'active')
+            ->where(function ($query) use ($like): void {
+                $query->where('name', 'like', $like)
+                    ->orWhere('document_number', 'like', $like);
+            })
+            ->orderBy('name')
+            ->limit(30)
+            ->select(['id', 'name', 'document_number'])
+            ->get()
+            ->mapWithKeys(fn (Client $client): array => [
+                $client->id => $client->name.(filled($client->document_number) ? ' · '.$client->document_number : ''),
+            ])
+            ->all();
+    }
+
+    private static function posClientOptionLabel(mixed $value): ?string
+    {
+        if (blank($value)) {
+            return null;
+        }
+
+        $client = Client::query()
+            ->select(['id', 'name', 'document_number'])
+            ->find((int) $value);
+        if (! $client) {
+            return null;
+        }
+
+        return $client->name.(filled($client->document_number) ? ' · '.$client->document_number : '');
     }
 
     /**

@@ -14,6 +14,18 @@ class ListSales extends ListRecords
 
     protected static ?string $title = 'Listado de Ventas';
 
+    /**
+     * Registra la acción de caja (carrito) en caché sin mostrarla en la cabecera.
+     * No usar ->hidden() en esa acción: en Filament las acciones ocultas se tratan como deshabilitadas
+     * y no se pueden montar con replaceMountedAction / mountAction.
+     */
+    public function cacheInteractsWithHeaderActions(): void
+    {
+        parent::cacheInteractsWithHeaderActions();
+
+        $this->cacheAction(CashRegisterAction::makeRegister());
+    }
+
     protected function getHeaderActions(): array
     {
         return [
@@ -24,7 +36,7 @@ class ListSales extends ListRecords
                 ->extraAttributes([
                     'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
                 ]),
-            CashRegisterAction::make()
+            CashRegisterAction::makeClientGate(),
         ];
     }
 }

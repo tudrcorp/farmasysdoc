@@ -163,7 +163,7 @@
                 <div
                     x-ref="panel"
                     x-cloak
-                    x-float.placement.bottom-start.offset.flip.shift="{ offset: 8 }"
+                    x-float.placement.bottom-start.offset.shift="{ offset: 8 }"
                     wire:ignore
                     wire:key="{{ $livewireKey }}.panel"
                     @class([

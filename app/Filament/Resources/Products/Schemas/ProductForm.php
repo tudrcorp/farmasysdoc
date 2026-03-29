@@ -6,6 +6,7 @@ use App\Enums\ProductType;
 use App\Models\ActiveIngredient;
 use App\Models\PresentationType;
 use App\Models\Supplier;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -100,6 +101,28 @@ class ProductForm
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
+
+                Section::make('Imágenes del producto')
+                    ->description('Fotografía para catálogo, fichas y listados. Estilo vidrio iOS en panel.')
+                    ->icon(Heroicon::Photo)
+                    ->schema([
+                        FileUpload::make('image')
+                            ->label('Fotografía principal')
+                            ->helperText('Opcional. JPG, PNG o WebP (máx. 4 MB). Visible en tabla y detalle.')
+                            ->image()
+                            ->disk('public')
+                            ->directory('products')
+                            ->visibility('public')
+                            ->maxSize(4096)
+                            ->imageEditor()
+                            ->panelLayout('integrated')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull()
+                    ->extraAttributes([
+                        'class' => 'fi-farmaadmin-ios-product-images-section',
+                    ]),
 
                 Section::make('Unidad de venta y precios')
                     ->description('Cómo se vende el artículo y valores de lista e impuesto.')

@@ -41,13 +41,11 @@ class ClientForm
                                 Select::make('document_type')
                                     ->label('Tipo de documento')
                                     ->options([
-                                        'CC' => 'Cédula de ciudadanía',
-                                        'CE' => 'Cédula de extranjería',
-                                        'NIT' => 'NIT',
+                                        'CC' => 'Cédula de Identidad',
+                                        'CE' => 'Cédula Extranjero',
+                                        'RIF' => 'Registro de Información Fiscal',
+                                        'NIT' => 'Número de Identificación Tributaria',
                                         'PAS' => 'Pasaporte',
-                                        'TI' => 'Tarjeta de identidad',
-                                        'RUT' => 'RUT',
-                                        'OTRO' => 'Otro',
                                     ])
                                     ->native(false)
                                     ->searchable()

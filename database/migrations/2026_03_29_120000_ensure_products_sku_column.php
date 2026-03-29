@@ -8,8 +8,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Añade `sku` a `products` cuando la tabla existe sin esa columna (BD previa al esquema actual).
-     * En instalaciones nuevas, `create_products_table` ya define `sku` y este método no hace nada.
+     * Idempotente: asegura la columna `sku` si falta (p. ej. migración previa vacía o esquema antiguo).
      */
     public function up(): void
     {
@@ -35,10 +34,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Sin operación: no eliminar `sku` al revertir, porque en migraciones limpias `create_products_table`
-     * ya la creó y `up()` no añadió nada; un down() genérico rompería ese esquema.
-     */
     public function down(): void
     {
         //

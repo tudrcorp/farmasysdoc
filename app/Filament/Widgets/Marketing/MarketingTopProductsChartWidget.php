@@ -15,11 +15,11 @@ class MarketingTopProductsChartWidget extends ChartWidget
 
     protected ?string $heading = 'Productos más vendidos';
 
-    protected ?string $description = 'Unidades vendidas — mismo lenguaje visual que el resumen.';
+    protected ?string $description = 'Unidades vendidas — paleta de marca y contenedor vidrio iOS.';
 
-    protected ?string $maxHeight = '360px';
+    protected ?string $maxHeight = '320px';
 
-    protected string $color = 'primary';
+    protected string $color = 'gray';
 
     protected function getType(): string
     {
@@ -42,10 +42,10 @@ class MarketingTopProductsChartWidget extends ChartWidget
                     'backgroundColor' => MarketingBarChartStyle::seriousBarFills($n),
                     'hoverBackgroundColor' => MarketingBarChartStyle::seriousBarHovers($n),
                     'borderColor' => MarketingBarChartStyle::barBorderColors($n),
-                    'hoverBorderColor' => 'rgba(255, 255, 255, 0.42)',
+                    'hoverBorderColor' => 'rgba(255, 255, 255, 0.4)',
                     'borderWidth' => 1,
-                    'hoverBorderWidth' => 2,
-                    'borderRadius' => 12,
+                    'hoverBorderWidth' => 1,
+                    'borderRadius' => 8,
                     'borderSkipped' => false,
                 ],
             ],
@@ -69,16 +69,16 @@ class MarketingTopProductsChartWidget extends ChartWidget
                         'beginAtZero' => true,
                         'ticks' => [
                             'font' => [
-                                'size' => 11,
-                                'weight' => '600',
+                                'size' => 10,
+                                'weight' => '500',
                             ],
                         ],
                     ]),
                     'y' => array_replace_recursive($scale, [
                         'ticks' => [
                             'font' => [
-                                'size' => 10,
-                                'weight' => '600',
+                                'size' => 9,
+                                'weight' => '500',
                             ],
                         ],
                     ]),

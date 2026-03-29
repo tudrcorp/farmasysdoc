@@ -22,6 +22,7 @@ class Product extends Model
         'name',
         'slug',
         'description',
+        'image',
         'product_type',
         'brand',
         'sale_price',
@@ -140,5 +141,64 @@ class Product extends Model
     public function purchaseItems(): HasMany
     {
         return $this->hasMany(PurchaseItem::class);
+    }
+
+    /**
+     * Placeholder para la columna de imagen en tablas (SVG como data URI).
+     */
+    public function tableImagePlaceholderDataUri(): string
+    {
+        return self::initialsAvatarDataUri((string) $this->name);
+    }
+
+    /**
+     * Genera un data URI SVG con iniciales derivadas del nombre (UTF-8).
+     */
+    public static function initialsAvatarDataUri(string $name, int $size = 88): string
+    {
+        $initials = self::initialsFromCommercialName($name);
+        $escaped = htmlspecialchars($initials, ENT_QUOTES | ENT_XML1, 'UTF-8');
+        $rx = (int) round($size * 0.22);
+        $fontSize = (int) round($size * 0.34);
+
+        $svg = <<<SVG
+            <svg xmlns="http://www.w3.org/2000/svg" width="{$size}" height="{$size}" viewBox="0 0 {$size} {$size}">
+            <rect width="100%" height="100%" fill="#e4e4e7" rx="{$rx}"/>
+            <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="#52525b" font-family="system-ui,-apple-system,sans-serif" font-size="{$fontSize}" font-weight="600">{$escaped}</text>
+            </svg>
+        SVG;
+
+        return 'data:image/svg+xml,'.rawurlencode($svg);
+    }
+
+    /**
+     * Iniciales para avatar: dos palabras → primera de cada una; una palabra → dos primeras letras; vacío → «?».
+     */
+    public static function initialsFromCommercialName(string $name): string
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return '?';
+        }
+
+        $parts = preg_split('/\s+/u', $name, -1, PREG_SPLIT_NO_EMPTY);
+        if ($parts === false || $parts === []) {
+            return mb_strtoupper(mb_substr($name, 0, 1, 'UTF-8'), 'UTF-8');
+        }
+
+        if (count($parts) >= 2) {
+            $first = mb_substr($parts[0], 0, 1, 'UTF-8');
+            $last = mb_substr($parts[count($parts) - 1], 0, 1, 'UTF-8');
+
+            return mb_strtoupper($first.$last, 'UTF-8');
+        }
+
+        $word = $parts[0];
+        $len = mb_strlen($word, 'UTF-8');
+        if ($len <= 1) {
+            return mb_strtoupper($word, 'UTF-8');
+        }
+
+        return mb_strtoupper(mb_substr($word, 0, 2, 'UTF-8'), 'UTF-8');
     }
 }

@@ -9,6 +9,8 @@ class CreateClient extends CreateRecord
 {
     protected static string $resource = ClientResource::class;
 
+    protected static ?string $title = 'Crear Nuevo Cliente';
+
     /**
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>

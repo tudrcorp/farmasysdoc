@@ -21,6 +21,8 @@ class DatabaseSeeder extends Seeder
             SupplierSeeder::class,
             ProductSeeder::class,
             InventorySeeder::class,
+            // Opcional: 200 ventas demo del año en curso (clientes/productos dedicados):
+            // DemoSalesYearSeeder::class,
         ]);
 
         $defaultBranch = Branch::query()->where('is_headquarters', true)->first()

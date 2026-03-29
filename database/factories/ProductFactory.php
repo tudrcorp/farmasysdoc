@@ -31,6 +31,7 @@ class ProductFactory extends Factory
             'name' => $name,
             'slug' => Str::slug($name).'-'.fake()->unique()->numerify('###'),
             'description' => fake()->optional()->paragraph(),
+            'image' => null,
             'product_type' => fake()->randomElement(ProductType::cases()),
             'brand' => fake()->optional()->company(),
             'presentation' => fake()->optional()->randomElement(['Caja x 10', 'Frasco 120 ml', 'Bolsa 1 kg']),

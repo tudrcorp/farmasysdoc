@@ -9,11 +9,13 @@ use App\Filament\Resources\Sales\SaleResource;
 use App\Models\Client;
 use App\Models\Sale;
 use App\Support\Filament\BranchAuthScope;
+use App\Support\Filament\SaleEffectiveDateScope;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
@@ -22,9 +24,7 @@ use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Enums\FiltersLayout;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -278,53 +278,71 @@ class SalesTable
             ->defaultPaginationPageOption(25)
             ->persistFiltersInSession()
             ->deferFilters(false)
-            ->filtersFormColumns(2)
-            ->filtersLayout(FiltersLayout::AboveContentCollapsible)
-            ->emptyStateHeading('Sin ventas registradas')
-            ->emptyStateDescription('Registre una venta para ver totales, cliente, sucursal y estado de cobro. Use «Crear» en el encabezado.')
+            ->emptyStateHeading('Sin ventas en el período')
+            ->emptyStateDescription('Por defecto solo se listan las ventas del día actual. Ajuste «Desde» y «Hasta» en los filtros para consultar otro rango.')
             ->emptyStateIcon(Heroicon::ShoppingBag)
             ->recordUrl(fn (Sale $record): string => SaleResource::getUrl('view', ['record' => $record], isAbsolute: false))
             ->recordAction('view')
             ->filters([
-                SelectFilter::make('status')
-                    ->label('Estado')
-                    ->options(SaleStatus::options())
-                    ->multiple()
-                    ->searchable(),
-                SelectFilter::make('branch_id')
-                    ->label('Sucursal')
-                    ->relationship(
-                        name: 'branch',
-                        titleAttribute: 'name',
-                        modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name'),
-                    )
-                    ->searchable()
-                    ->preload()
-                    ->multiple(),
-                TernaryFilter::make('client_assigned')
-                    ->label('Cliente')
-                    ->placeholder('Todos')
-                    ->trueLabel('Con cliente')
-                    ->falseLabel('Sin cliente')
-                    ->queries(
-                        true: fn (Builder $query) => $query->whereNotNull('client_id'),
-                        false: fn (Builder $query) => $query->whereNull('client_id'),
-                    ),
+                Filter::make('sold_date_range')
+                    ->label('Fecha de venta')
+                    ->schema([
+                        DatePicker::make('sold_from')
+                            ->label('Desde')
+                            ->native(false),
+                        DatePicker::make('sold_until')
+                            ->label('Hasta')
+                            ->native(false),
+                    ])
+                    ->default(fn (): array => [
+                        'sold_from' => now()->toDateString(),
+                        'sold_until' => now()->toDateString(),
+                    ])
+                    ->query(function (Builder $query, array $data): void {
+                        SaleEffectiveDateScope::apply(
+                            $query,
+                            filled($data['sold_from'] ?? null) ? (string) $data['sold_from'] : null,
+                            filled($data['sold_until'] ?? null) ? (string) $data['sold_until'] : null,
+                        );
+                    }),
+                // SelectFilter::make('status')
+                //     ->label('Estado')
+                //     ->options(SaleStatus::options())
+                //     ->multiple()
+                //     ->searchable(),
+                // SelectFilter::make('branch_id')
+                //     ->label('Sucursal')
+                //     ->relationship(
+                //         name: 'branch',
+                //         titleAttribute: 'name',
+                //         modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name'),
+                //     )
+                //     ->searchable()
+                //     ->preload()
+                //     ->multiple(),
+                // TernaryFilter::make('client_assigned')
+                //     ->label('Cliente')
+                //     ->placeholder('Todos')
+                //     ->trueLabel('Con cliente')
+                //     ->falseLabel('Sin cliente')
+                //     ->queries(
+                //         true: fn (Builder $query) => $query->whereNotNull('client_id'),
+                //         false: fn (Builder $query) => $query->whereNull('client_id'),
+                //     ),
             ])
             ->recordActions([
-                ViewAction::make()
-                    ->label('Ver venta')
-                    ->icon(Heroicon::Eye),
-                Action::make('printFiscalReceipt')
-                    ->label('Factura fiscal')
-                    ->icon(Heroicon::Printer)
-                    ->color('gray')
-                    ->tooltip('Ticket térmico (texto/ESC-POS) — prueba de impresión')
-                    ->url(fn (Sale $record): string => route('sales.fiscal-receipt', $record))
-                    ->openUrlInNewTab(),
-                EditAction::make()
-                    ->label('Editar')
-                    ->icon(Heroicon::PencilSquare),
+                ActionGroup::make([
+                    ViewAction::make()
+                        ->label('Ver venta')
+                        ->icon(Heroicon::Eye),
+                    Action::make('printFiscalReceipt')
+                        ->label('Factura fiscal')
+                        ->icon(Heroicon::Printer)
+                        ->color('gray')
+                        ->tooltip('Ticket térmico (texto/ESC-POS) — prueba de impresión')
+                        ->url(fn (Sale $record): string => route('sales.fiscal-receipt', $record))
+                        ->openUrlInNewTab(),
+                ]),
             ])
             ->recordActionsColumnLabel('Acciones')
             ->toolbarActions([

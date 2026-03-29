@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Products\Schemas;
 use App\Enums\ProductType;
 use App\Models\Product;
 use Filament\Infolists\Components\IconEntry;
+use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -40,10 +41,6 @@ class ProductInfolist
                             'lg' => 3,
                         ])
                             ->schema([
-                                TextEntry::make('sku')
-                                    ->label('SKU')
-                                    ->icon(Heroicon::Tag)
-                                    ->copyable(),
                                 TextEntry::make('barcode')
                                     ->label('Código de barras / EAN')
                                     ->placeholder('—')
@@ -94,6 +91,27 @@ class ProductInfolist
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
+
+                Section::make('Imágenes del producto')
+                    ->description('Vista previa con estilo vidrio iOS.')
+                    ->icon(Heroicon::Photo)
+                    ->schema([
+                        ImageEntry::make('image')
+                            ->label('Fotografía principal')
+                            ->disk('public')
+                            ->visibility('public')
+                            ->height(220)
+                            ->placeholder('Sin imagen registrada')
+                            ->extraImgAttributes([
+                                'class' => 'fi-farmaadmin-ios-product-infolist-img',
+                            ])
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull()
+                    ->extraAttributes([
+                        'class' => 'fi-farmaadmin-ios-product-images-infolist-section',
+                    ]),
 
                 Section::make('Unidad de venta y precios')
                     ->description('Cómo se vende el artículo y valores de lista e impuesto.')

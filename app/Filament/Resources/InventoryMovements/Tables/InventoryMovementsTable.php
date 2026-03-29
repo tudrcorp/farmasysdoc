@@ -57,7 +57,7 @@ class InventoryMovementsTable
                     ->sortable(),
                 TextColumn::make('quantity')
                     ->label('Cantidad')
-                    ->numeric(3)
+                    ->numeric(0)
                     ->sortable()
                     ->alignEnd()
                     ->weight('medium')

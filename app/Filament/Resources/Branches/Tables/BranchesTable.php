@@ -34,8 +34,7 @@ class BranchesTable
                     ->description(fn (Branch $record): ?string => filled($record->legal_name) ? $record->legal_name : null)
                     ->searchable()
                     ->sortable()
-                    ->weight('medium')
-                    ->wrap(),
+                    ->weight('medium'),
                 TextColumn::make('location')
                     ->label('Ciudad / Depto.')
                     ->state(fn (Branch $record): string => self::formatLocation($record))

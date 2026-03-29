@@ -16,8 +16,8 @@ use Filament\Actions\Exports\Models\Export;
 use Filament\Actions\ViewAction;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
@@ -34,6 +34,21 @@ class ProductsTable
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('supplier'))
             ->columns([
+                ImageColumn::make('image')
+                    ->label('Imagen')
+                    ->disk('public')
+                    ->visibility('public')
+                    ->height(44)
+                    ->width(44)
+                    ->square()
+                    ->defaultImageUrl(fn (Product $record): string => $record->tableImagePlaceholderDataUri())
+                    ->extraImgAttributes([
+                        'class' => 'fi-farmaadmin-ios-product-table-img',
+                    ])
+                    ->extraAttributes([
+                        'class' => 'fi-farmaadmin-ios-product-table-image-cell',
+                    ])
+                    ->toggleable(),
                 TextColumn::make('barcode')
                     ->label('Codigo')
                     ->badge()
@@ -50,7 +65,6 @@ class ProductsTable
                     ->searchable()
                     ->sortable()
                     ->weight('medium')
-                    ->wrap()
                     ->lineClamp(2)
                     ->tooltip(fn (Product $record): string => $record->name)
                     ->icon(Heroicon::ShoppingBag)
@@ -259,8 +273,6 @@ class ProductsTable
             ->defaultPaginationPageOption(25)
             ->persistFiltersInSession()
             ->deferFilters(false)
-            ->filtersFormColumns(2)
-            ->filtersLayout(FiltersLayout::AboveContentCollapsible)
             ->emptyStateHeading('Sin productos en el catálogo')
             ->emptyStateDescription('Crea un producto para registrar SKU, precios, tipo y datos regulatorios. Usa el botón «Crear» del encabezado.')
             ->emptyStateIcon(Heroicon::Cube)

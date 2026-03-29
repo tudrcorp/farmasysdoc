@@ -8,6 +8,7 @@ use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -27,6 +28,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->ensureLivewireTemporaryUploadDirectoriesExist();
 
         FilamentView::registerRenderHook(
             PanelsRenderHook::SIMPLE_LAYOUT_START,
@@ -56,5 +58,17 @@ class AppServiceProvider extends ServiceProvider
                 ->uncompromised()
             : null,
         );
+    }
+
+    /**
+     * Livewire escribe en `livewire-tmp/` bajo el root del disco; si el directorio no existe, falla filesize/mime.
+     */
+    protected function ensureLivewireTemporaryUploadDirectoriesExist(): void
+    {
+        $directory = config('livewire.temporary_file_upload.directory') ?: 'livewire-tmp';
+
+        foreach ([storage_path('app/public'), storage_path('app/private')] as $root) {
+            File::ensureDirectoryExists($root.'/'.$directory);
+        }
     }
 }

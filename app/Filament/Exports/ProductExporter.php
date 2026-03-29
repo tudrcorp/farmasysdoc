@@ -27,6 +27,8 @@ class ProductExporter extends Exporter
                 ->label('Slug'),
             ExportColumn::make('description')
                 ->label('Descripción'),
+            ExportColumn::make('image')
+                ->label('Imagen (ruta)'),
             ExportColumn::make('product_type')
                 ->label('Tipo de producto'),
             ExportColumn::make('brand')

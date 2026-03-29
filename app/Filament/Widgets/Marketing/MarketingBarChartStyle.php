@@ -2,85 +2,35 @@
 
 namespace App\Filament\Widgets\Marketing;
 
+use App\Filament\Widgets\Support\BrandChartPalette;
+
 /**
- * Paleta sobria y opciones de interactividad compartidas para gráficos de barras del hub de marketing.
+ * Gráficos del hub de marketing: opciones tipo iOS discretas (paleta vía {@see BrandChartPalette}).
  */
 final class MarketingBarChartStyle
 {
     /**
-     * Tonos corporativos (azul pizarra, teal, slate) con opacidad tipo “vidrio” sobre fondo claro.
-     *
      * @return list<string>
      */
     public static function seriousBarFills(int $count): array
     {
-        $palette = [
-            'rgba(30, 58, 95, 0.88)',
-            'rgba(15, 98, 109, 0.86)',
-            'rgba(51, 65, 85, 0.88)',
-            'rgba(21, 94, 117, 0.86)',
-            'rgba(30, 64, 175, 0.82)',
-            'rgba(55, 65, 81, 0.88)',
-            'rgba(14, 116, 144, 0.86)',
-            'rgba(71, 85, 105, 0.84)',
-            'rgba(23, 37, 84, 0.88)',
-            'rgba(13, 148, 136, 0.84)',
-            'rgba(47, 69, 83, 0.88)',
-            'rgba(8, 145, 178, 0.84)',
-        ];
-
-        $out = [];
-        for ($i = 0; $i < $count; $i++) {
-            $out[] = $palette[$i % count($palette)];
-        }
-
-        return $out;
+        return BrandChartPalette::barFills($count);
     }
 
     /**
-     * Misma familia cromática, más opaca al hover (contraste con el fondo glass).
-     *
      * @return list<string>
      */
     public static function seriousBarHovers(int $count): array
     {
-        $palette = [
-            'rgba(30, 58, 95, 0.98)',
-            'rgba(15, 98, 109, 0.96)',
-            'rgba(51, 65, 85, 0.98)',
-            'rgba(21, 94, 117, 0.96)',
-            'rgba(30, 64, 175, 0.94)',
-            'rgba(55, 65, 81, 0.98)',
-            'rgba(14, 116, 144, 0.96)',
-            'rgba(71, 85, 105, 0.95)',
-            'rgba(23, 37, 84, 0.98)',
-            'rgba(13, 148, 136, 0.96)',
-            'rgba(47, 69, 83, 0.98)',
-            'rgba(8, 145, 178, 0.95)',
-        ];
-
-        $out = [];
-        for ($i = 0; $i < $count; $i++) {
-            $out[] = $palette[$i % count($palette)];
-        }
-
-        return $out;
+        return BrandChartPalette::barHovers($count);
     }
 
     /**
-     * Borde sutil tipo vidrio para cada barra.
-     *
      * @return list<string>
      */
     public static function barBorderColors(int $count): array
     {
-        $c = 'rgba(255, 255, 255, 0.22)';
-        $out = [];
-        for ($i = 0; $i < $count; $i++) {
-            $out[] = $c;
-        }
-
-        return $out;
+        return BrandChartPalette::barBorderColors($count);
     }
 
     /**
@@ -92,29 +42,29 @@ final class MarketingBarChartStyle
 
         return [
             'animation' => [
-                'duration' => 780,
+                'duration' => 520,
                 'easing' => 'easeOutCubic',
             ],
             'animations' => [
                 'colors' => [
-                    'duration' => 220,
+                    'duration' => 180,
                     'easing' => 'easeOutQuad',
                 ],
                 'numbers' => [
-                    'duration' => 780,
+                    'duration' => 520,
                     'easing' => 'easeOutCubic',
                 ],
             ],
             'datasets' => [
                 'bar' => [
-                    'categoryPercentage' => 0.76,
-                    'barPercentage' => 0.82,
+                    'categoryPercentage' => 0.68,
+                    'barPercentage' => 0.74,
                 ],
             ],
             'elements' => [
                 'bar' => [
                     'borderWidth' => 1,
-                    'borderRadius' => 12,
+                    'borderRadius' => 8,
                     'borderSkipped' => false,
                 ],
             ],
@@ -134,27 +84,27 @@ final class MarketingBarChartStyle
                 'tooltip' => [
                     'enabled' => true,
                     'animation' => [
-                        'duration' => 160,
+                        'duration' => 140,
                     ],
-                    'backgroundColor' => 'rgba(15, 23, 42, 0.88)',
-                    'titleColor' => 'rgba(248, 250, 252, 0.98)',
-                    'bodyColor' => 'rgba(226, 232, 240, 0.95)',
-                    'borderColor' => 'rgba(255, 255, 255, 0.12)',
+                    'backgroundColor' => 'rgba(28, 28, 30, 0.82)',
+                    'titleColor' => 'rgba(255, 255, 255, 0.96)',
+                    'bodyColor' => 'rgba(235, 235, 245, 0.92)',
+                    'borderColor' => 'rgba(255, 255, 255, 0.1)',
                     'borderWidth' => 1,
                     'titleFont' => [
-                        'size' => 13,
+                        'size' => 12,
                         'weight' => '600',
                     ],
                     'bodyFont' => [
-                        'size' => 12,
+                        'size' => 11,
                         'weight' => '500',
                     ],
-                    'padding' => 14,
-                    'cornerRadius' => 14,
+                    'padding' => 10,
+                    'cornerRadius' => 11,
                     'displayColors' => true,
-                    'boxPadding' => 6,
-                    'caretPadding' => 10,
-                    'caretSize' => 7,
+                    'boxPadding' => 5,
+                    'caretPadding' => 8,
+                    'caretSize' => 6,
                     'intersect' => false,
                     'mode' => 'index',
                     'position' => 'nearest',
@@ -163,7 +113,7 @@ final class MarketingBarChartStyle
             'transitions' => [
                 'active' => [
                     'animation' => [
-                        'duration' => 200,
+                        'duration' => 160,
                     ],
                 ],
                 'resize' => [
@@ -176,7 +126,7 @@ final class MarketingBarChartStyle
     }
 
     /**
-     * Rejilla y ejes discretos para tarjetas glass.
+     * Rejilla y ejes muy discretos (legibles sin competir con la paleta de barras).
      *
      * @return array<string, mixed>
      */
@@ -185,18 +135,18 @@ final class MarketingBarChartStyle
         $grid = [
             'display' => true,
             'drawOnChartArea' => true,
-            'drawBorder' => true,
-            'color' => 'rgba(148, 163, 184, 0.18)',
+            'drawBorder' => false,
+            'color' => 'rgba(148, 163, 184, 0.1)',
             'lineWidth' => 1,
         ];
 
         $border = [
             'display' => true,
-            'color' => 'rgba(148, 163, 184, 0.28)',
+            'color' => 'rgba(148, 163, 184, 0.12)',
         ];
 
         $tickFont = [
-            'size' => 10,
+            'size' => 9,
             'weight' => '500',
         ];
 

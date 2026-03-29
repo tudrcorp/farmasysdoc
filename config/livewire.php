@@ -129,7 +129,22 @@ return [
     */
 
     'temporary_file_upload' => [
-        'disk' => env('LIVEWIRE_TEMPORARY_FILE_UPLOAD_DISK'), // Example: 'local', 's3'             | Default: 'default'
+        /*
+         * Debe coincidir con el disco de los FileUpload de Filament que guardan en `public` (p. ej. imágenes).
+         *
+         * Si la variable de entorno existe pero está vacía (`LIVEWIRE_TEMPORARY_FILE_UPLOAD_DISK=`),
+         * `env(..., 'public')` devuelve '' y Livewire hace `'' ?: config('filesystems.default')` → disco `local`
+         * (`storage/app/private`), donde no está el temporal → UnableToRetrieveMetadata (file_size).
+         */
+        'disk' => (function (): string {
+            $configured = env('LIVEWIRE_TEMPORARY_FILE_UPLOAD_DISK');
+
+            if (is_string($configured) && $configured !== '') {
+                return $configured;
+            }
+
+            return 'public';
+        })(),
         'rules' => null,                                      // Example: ['file', 'mimes:png,jpg'] | Default: ['required', 'file', 'max:12288'] (12MB)
         'directory' => null,                                  // Example: 'tmp'                     | Default: 'livewire-tmp'
         'middleware' => null,                                 // Example: 'throttle:5,1'            | Default: 'throttle:60,1'

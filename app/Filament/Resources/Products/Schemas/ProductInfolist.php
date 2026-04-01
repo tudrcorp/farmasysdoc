@@ -136,26 +136,11 @@ class ProductInfolist
                                     ->placeholder('—')
                                     ->icon(Heroicon::Beaker),
                             ]),
-                        Grid::make([
-                            'default' => 1,
-                            'sm' => 3,
-                        ])
-                            ->schema([
-                                TextEntry::make('sale_price')
-                                    ->label('Precio de venta')
-                                    ->money('COP')
-                                    ->icon(Heroicon::Banknotes),
-                                TextEntry::make('cost_price')
-                                    ->label('Costo')
-                                    ->placeholder('—')
-                                    ->money('COP')
-                                    ->icon(Heroicon::ReceiptPercent),
-                                TextEntry::make('tax_rate')
-                                    ->label('Tasa de impuesto')
-                                    ->suffix(' %')
-                                    ->numeric(2)
-                                    ->icon(Heroicon::Calculator),
-                            ]),
+                        TextEntry::make('id')
+                            ->label('Precios e impuestos')
+                            ->formatStateUsing(fn (): string => 'Definidos por sucursal en Inventario (costo, precio lista, IVA y descuento %). La caja usa el registro de inventario de la sucursal.')
+                            ->icon(Heroicon::BuildingStorefront)
+                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

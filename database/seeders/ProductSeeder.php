@@ -371,7 +371,12 @@ class ProductSeeder extends Seeder
 
         foreach ($products as $product) {
             $supplierCode = $product['supplier_code'];
-            unset($product['supplier_code']);
+            unset(
+                $product['supplier_code'],
+                $product['sale_price'],
+                $product['cost_price'],
+                $product['tax_rate'],
+            );
 
             $supplierId = $supplierIdsByCode->get($supplierCode);
 

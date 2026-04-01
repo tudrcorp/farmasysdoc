@@ -67,8 +67,8 @@ class StatsListSaleOverview extends StatsOverviewWidget
                 ->color('gray')
                 ->icon(Heroicon::PaperAirplane)
                 ->extraAttributes(['class' => 'fi-marketing-stat-tone-send']),
-            Stat::make('Pago móvil', Number::currency($totals['pago_movil'], 'USD', 'en', 2))
-                ->description('Cobros vía pago móvil (USD)')
+            Stat::make('Pago Movil', Number::currency($totals['pago_movil'], 'USD', 'en', 2))
+                ->description('Cobros vía Pago Movil (USD)')
                 ->descriptionColor('gray')
                 ->color('gray')
                 ->icon(Heroicon::DevicePhoneMobile)

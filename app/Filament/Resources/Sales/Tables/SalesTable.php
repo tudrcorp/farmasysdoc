@@ -362,12 +362,13 @@ class SalesTable
         $key = strtolower(trim($value));
 
         return match ($key) {
-            'transfer_usd' => 'Transferencias USD',
-            'transfer_ves' => 'Transferencia VES',
-            'pago_movil' => 'Pago móvil',
-            'zelle' => 'Zelle',
             'efectivo_usd' => 'Efectivo USD',
-            'mixed' => 'Pago múltiple',
+            'efectivo_ves' => 'Efectivo VES',
+            'transfer_ves' => 'Transferencia VES',
+            'zelle' => 'Zelle',
+            'pago_movil' => 'Pago Movil',
+            'mixed' => 'Pago Multiple',
+            'transfer_usd' => 'Transferencias USD',
             'cash', 'efectivo' => 'Efectivo',
             'card', 'tarjeta', 'debit', 'credit' => 'Tarjeta',
             'transfer', 'transferencia', 'nequi', 'daviplata' => 'Transferencia / digital',

@@ -77,17 +77,35 @@ class DemoSalesYearSeeder extends Seeder
                 $soldAt = Carbon::createFromTimestamp(random_int($minTs, $maxTs));
 
                 $quantity = (float) fake()->randomFloat(3, 1, 8);
-                $unitPrice = (float) $product->sale_price;
-                if ($unitPrice <= 0) {
-                    $unitPrice = fake()->randomFloat(2, 5, 250);
-                }
+                $listPrice = (float) fake()->randomFloat(2, 5, 250);
+                $taxRate = (float) fake()->randomElement([0, 5, 19]);
+                $unitCost = round($listPrice * 0.65, 4);
 
-                $taxRate = (float) ($product->tax_rate ?? 19);
+                $inventory = Inventory::query()->updateOrCreate(
+                    [
+                        'branch_id' => $branch->id,
+                        'product_id' => $product->id,
+                    ],
+                    [
+                        'quantity' => 999,
+                        'reserved_quantity' => 0,
+                        'sale_price' => $listPrice,
+                        'cost_price' => $unitCost,
+                        'tax_rate' => $taxRate,
+                        'discount_percent' => 0,
+                        'allow_negative_stock' => false,
+                        'created_by' => 'demo_sales_seeder',
+                        'updated_by' => 'demo_sales_seeder',
+                    ],
+                );
+
+                $inventory->refresh();
+
+                $unitPrice = $inventory->effectiveSaleUnitPrice();
                 $lineSubtotal = round($quantity * $unitPrice, 2);
                 $taxAmount = round($lineSubtotal * ($taxRate / 100), 2);
                 $lineTotal = round($lineSubtotal + $taxAmount, 2);
 
-                $unitCost = (float) ($product->cost_price ?? round($unitPrice * 0.65, 4));
                 $lineCostTotal = round($quantity * $unitCost, 2);
                 $grossProfit = round($lineTotal - $lineCostTotal, 2);
 
@@ -115,7 +133,7 @@ class DemoSalesYearSeeder extends Seeder
                 SaleItem::query()->create([
                     'sale_id' => $sale->id,
                     'product_id' => $product->id,
-                    'inventory_id' => null,
+                    'inventory_id' => $inventory->id,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'unit_cost' => $unitCost,

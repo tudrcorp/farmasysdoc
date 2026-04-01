@@ -7,6 +7,7 @@ use App\Models\ActiveIngredient;
 use App\Models\PresentationType;
 use App\Models\Supplier;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -124,42 +125,13 @@ class ProductForm
                         'class' => 'fi-farmaadmin-ios-product-images-section',
                     ]),
 
-                Section::make('Unidad de venta y precios')
-                    ->description('Cómo se vende el artículo y valores de lista e impuesto.')
+                Section::make('Unidad de venta')
+                    ->description('Precio de venta, costo, IVA y descuentos se definen por sucursal en Inventario al dar de alta o editar el producto en cada almacén.')
                     ->icon(Heroicon::CurrencyDollar)
                     ->schema([
-                        Grid::make([
-                            'default' => 1,
-                            'sm' => 3,
-                        ])
-                            ->schema([
-                                TextInput::make('sale_price')
-                                    ->label('Precio de venta')
-                                    ->helperText('Precio al público o lista base.')
-                                    ->required()
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->step(0.01)
-                                    ->prefix('$'),
-                                TextInput::make('cost_price')
-                                    ->label('Costo')
-                                    ->helperText('Costo de adquisición o valoración interna.')
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->step(0.01)
-                                    ->prefix('$'),
-                                TextInput::make('tax_rate')
-                                    ->label('Tasa de impuesto')
-                                    ->helperText('Porcentaje (ej. IVA). Use 0 si no aplica.')
-                                    ->required()
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->maxValue(100)
-                                    ->step(0.01)
-                                    ->default(0.0)
-                                    ->suffix('%')
-                                    ->prefixIcon(Heroicon::Calculator),
-                            ]),
+                        Placeholder::make('pricing_inventory_hint')
+                            ->label('')
+                            ->content('Use el recurso Inventario para cada combinación sucursal + producto: allí se cargan costo, precio lista, tasa impositiva y descuento % local. La caja registradora toma siempre esos valores del inventario de la sucursal.'),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

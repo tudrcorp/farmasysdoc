@@ -109,24 +109,6 @@ class ProductsTable
                     })
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('sale_price')
-                    ->label('Precio venta')
-                    ->money()
-                    ->sortable()
-                    ->alignEnd()
-                    ->weight('medium'),
-                TextColumn::make('cost_price')
-                    ->label('Costo')
-                    ->money()
-                    ->sortable()
-                    ->alignEnd()
-                    ->placeholder('—')
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('tax_rate')
-                    ->label('IVA / impuesto')
-                    ->formatStateUsing(fn ($state): string => $state !== null && $state !== '' ? number_format((float) $state, 2, ',', '.').' %' : '—')
-                    ->sortable()
-                    ->alignEnd(),
                 TextColumn::make('barcode')
                     ->label('Código de barras')
                     ->searchable()

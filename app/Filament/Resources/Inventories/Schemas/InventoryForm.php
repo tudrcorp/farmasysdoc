@@ -7,6 +7,7 @@ use App\Models\ActiveIngredient;
 use App\Models\Inventory;
 use App\Models\Product;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -139,6 +140,65 @@ class InventoryForm
                             ->columnSpanFull(),
                     ])
                     ->visible(fn (Get $get): bool => filled($get('product_id')))
+                    ->columns(1)
+                    ->columnSpanFull(),
+
+                Section::make('Precios y tributos en esta sucursal')
+                    ->description('Estos valores alimentan la caja registradora y los márgenes de la venta en esta sucursal únicamente.')
+                    ->icon(Heroicon::CurrencyDollar)
+                    ->visible(fn (Get $get): bool => filled($get('branch_id')))
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                            'lg' => 4,
+                        ])
+                            ->schema([
+                                TextInput::make('sale_price')
+                                    ->label('Precio de venta (lista)')
+                                    ->helperText('Precio público antes del descuento % local.')
+                                    ->required()
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->step(0.01)
+                                    ->prefix('$')
+                                    ->default(0)
+                                    ->prefixIcon(Heroicon::Banknotes),
+                                TextInput::make('cost_price')
+                                    ->label('Costo unitario')
+                                    ->helperText('Costo de reposición o valoración en esta sucursal.')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->step(0.01)
+                                    ->prefix('$')
+                                    ->prefixIcon(Heroicon::ReceiptPercent),
+                                TextInput::make('tax_rate')
+                                    ->label('Tasa de impuesto (IVA u otro)')
+                                    ->required()
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->maxValue(100)
+                                    ->step(0.01)
+                                    ->default(0)
+                                    ->suffix('%')
+                                    ->prefixIcon(Heroicon::Calculator),
+                                TextInput::make('discount_percent')
+                                    ->label('Descuento % (promoción local)')
+                                    ->helperText('Se aplica sobre el precio lista antes del impuesto.')
+                                    ->required()
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->maxValue(100)
+                                    ->step(0.01)
+                                    ->default(0)
+                                    ->suffix('%')
+                                    ->prefixIcon(Heroicon::Tag),
+                            ]),
+                        Placeholder::make('pos_pricing_hint')
+                            ->label('')
+                            ->visible(fn (Get $get): bool => filled($get('product_id')))
+                            ->content('En el POS el precio efectivo es: precio lista × (1 − descuento %). El impuesto se calcula sobre ese subtotal.'),
+                    ])
                     ->columns(1)
                     ->columnSpanFull(),
 

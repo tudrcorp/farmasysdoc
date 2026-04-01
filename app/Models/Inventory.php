@@ -19,6 +19,10 @@ class Inventory extends Model
     protected $fillable = [
         'branch_id',
         'product_id',
+        'sale_price',
+        'cost_price',
+        'tax_rate',
+        'discount_percent',
         'quantity',
         'reserved_quantity',
         'reorder_point',
@@ -43,6 +47,10 @@ class Inventory extends Model
     protected function casts(): array
     {
         return [
+            'sale_price' => 'decimal:2',
+            'cost_price' => 'decimal:2',
+            'tax_rate' => 'decimal:2',
+            'discount_percent' => 'decimal:2',
             'quantity' => 'decimal:3',
             'reserved_quantity' => 'decimal:3',
             'reorder_point' => 'decimal:3',
@@ -123,6 +131,28 @@ class Inventory extends Model
 
             return $available;
         });
+    }
+
+    /**
+     * Precio unitario de venta tras aplicar el descuento % de la sucursal (antes de impuesto).
+     */
+    public function effectiveSaleUnitPrice(): float
+    {
+        $list = (float) $this->sale_price;
+        $pct = max(0.0, min(100.0, (float) $this->discount_percent));
+
+        return round($list * (1 - $pct / 100), 2);
+    }
+
+    /**
+     * Valor monetario del descuento de línea (lista − efectivo) para una cantidad dada.
+     */
+    public function monetaryLineDiscountForQuantity(float $quantity): float
+    {
+        $list = (float) $this->sale_price;
+        $pct = max(0.0, min(100.0, (float) $this->discount_percent));
+
+        return round($quantity * $list * ($pct / 100), 2);
     }
 
     /**

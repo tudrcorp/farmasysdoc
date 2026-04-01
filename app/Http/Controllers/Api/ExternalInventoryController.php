@@ -31,6 +31,8 @@ class ExternalInventoryController extends Controller
                 fn (Inventory $inventory): float => (float) $inventory->available_quantity
             );
 
+            $referenceInventory = $product->inventories->sortBy('sale_price')->first();
+
             return [
                 'id' => $product->id,
                 'sku' => $product->sku,
@@ -40,8 +42,8 @@ class ExternalInventoryController extends Controller
                 'concentration' => $product->concentration,
                 'presentation' => $product->presentation,
                 'presentation_type' => $product->presentation_type,
-                'sale_price' => (float) $product->sale_price,
-                'tax_rate' => (float) $product->tax_rate,
+                'sale_price' => $referenceInventory !== null ? $referenceInventory->effectiveSaleUnitPrice() : 0.0,
+                'tax_rate' => $referenceInventory !== null ? (float) $referenceInventory->tax_rate : 0.0,
                 'requires_prescription' => $product->requires_prescription,
                 'is_controlled_substance' => $product->is_controlled_substance,
                 'health_registration_number' => $product->health_registration_number,

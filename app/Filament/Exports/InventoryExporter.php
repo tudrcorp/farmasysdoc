@@ -21,6 +21,14 @@ class InventoryExporter extends Exporter
                 ->label('Sucursal'),
             ExportColumn::make('product.name')
                 ->label('Producto'),
+            ExportColumn::make('sale_price')
+                ->label('Precio venta (lista)'),
+            ExportColumn::make('cost_price')
+                ->label('Costo unitario'),
+            ExportColumn::make('tax_rate')
+                ->label('Tasa impuesto (%)'),
+            ExportColumn::make('discount_percent')
+                ->label('Descuento (%)'),
             ExportColumn::make('quantity')
                 ->label('Cantidad'),
             ExportColumn::make('reserved_quantity')

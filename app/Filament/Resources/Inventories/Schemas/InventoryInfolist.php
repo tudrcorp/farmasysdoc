@@ -96,6 +96,44 @@ class InventoryInfolist
                     ->columns(1)
                     ->columnSpanFull(),
 
+                Section::make('Precios y tributos (sucursal)')
+                    ->description('Valores usados en la caja y en el margen de venta para esta sucursal.')
+                    ->icon(Heroicon::CurrencyDollar)
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                            'lg' => 4,
+                        ])
+                            ->schema([
+                                TextEntry::make('sale_price')
+                                    ->label('Precio lista')
+                                    ->money('USD')
+                                    ->icon(Heroicon::Banknotes),
+                                TextEntry::make('effective_sale_hint')
+                                    ->label('Precio efectivo (tras desc.)')
+                                    ->getStateUsing(fn (Inventory $record): string => '$'.number_format($record->effectiveSaleUnitPrice(), 2, '.', ','))
+                                    ->icon(Heroicon::ShoppingCart),
+                                TextEntry::make('cost_price')
+                                    ->label('Costo unitario')
+                                    ->placeholder('—')
+                                    ->money('USD')
+                                    ->icon(Heroicon::ReceiptPercent),
+                                TextEntry::make('tax_rate')
+                                    ->label('Tasa impuesto')
+                                    ->suffix(' %')
+                                    ->numeric(2)
+                                    ->icon(Heroicon::Calculator),
+                                TextEntry::make('discount_percent')
+                                    ->label('Descuento %')
+                                    ->suffix(' %')
+                                    ->numeric(2)
+                                    ->icon(Heroicon::Tag),
+                            ]),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
                 Section::make('Políticas y ubicación')
                     ->description('Umbrales de reposición y ubicación física en la sucursal.')
                     ->icon(Heroicon::MapPin)

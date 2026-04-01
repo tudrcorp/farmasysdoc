@@ -51,7 +51,7 @@ final class CashRegisterAction
             ->icon(Heroicon::Cube)
             ->color('primary')
             ->modalHeading('Cliente de la venta')
-            ->modalDescription('Busque por nombre o por documento de identidad. Al seleccionar un cliente (clic o Enter) se abrirá el carrito con ese cliente. Use «Continuar» sin elegir para venta en mostrador.')
+            ->modalDescription('Busque por nombre o documento; al elegir un cliente se abre el carrito. Si no aparece en la lista, complete abajo nombre, cédula y teléfono y pulse Continuar o Enter para registrarlo y pasar a los productos. «Continuar» con todo vacío = mostrador.')
             ->modalIcon(Heroicon::User)
             ->modalWidth(Width::Large)
             ->modalSubmitActionLabel('Continuar')
@@ -60,7 +60,12 @@ final class CashRegisterAction
                 'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
             ])
             ->mountUsing(function (Action $action, ?Schema $schema): void {
-                $schema?->fill(['client_id' => null]);
+                $schema?->fill([
+                    'client_id' => null,
+                    'quick_client_name' => null,
+                    'quick_client_document' => null,
+                    'quick_client_phone' => null,
+                ]);
 
                 $livewire = $action->getLivewire();
                 if ($livewire instanceof LivewireComponent) {
@@ -98,6 +103,31 @@ final class CashRegisterAction
                             ->native(false)
                             ->prefixIcon(Heroicon::User)
                             ->columnSpanFull(),
+                        Section::make('Cliente nuevo')
+                            ->description('Visible mientras no haya cliente seleccionado arriba. Registra en el catálogo y abre la caja.')
+                            ->icon(Heroicon::UserPlus)
+                            ->iconColor('gray')
+                            ->visible(fn (Get $get): bool => blank($get('client_id')))
+                            ->extraAttributes([
+                                'class' => 'farmadoc-pos-client-quick-register',
+                            ])
+                            ->schema([
+                                TextInput::make('quick_client_name')
+                                    ->label('Nombre completo')
+                                    ->maxLength(255)
+                                    ->columnSpanFull(),
+                                TextInput::make('quick_client_document')
+                                    ->label('Cédula / documento')
+                                    ->maxLength(120)
+                                    ->columnSpan(['default' => 1, 'sm' => 1]),
+                                TextInput::make('quick_client_phone')
+                                    ->label('Teléfono')
+                                    ->tel()
+                                    ->maxLength(120)
+                                    ->columnSpan(['default' => 1, 'sm' => 1]),
+                            ])
+                            ->columns(['default' => 1, 'sm' => 2])
+                            ->columnSpanFull(),
                     ])
                     ->columnSpanFull(),
             ])
@@ -108,8 +138,61 @@ final class CashRegisterAction
                 }
 
                 $cid = $data['client_id'] ?? null;
+                if (filled($cid)) {
+                    $livewire->replaceMountedAction('posRegister', [
+                        'client_id' => (int) $cid,
+                    ]);
+
+                    return;
+                }
+
+                $quickName = trim((string) ($data['quick_client_name'] ?? ''));
+                $quickDoc = trim((string) ($data['quick_client_document'] ?? ''));
+                $quickPhone = trim((string) ($data['quick_client_phone'] ?? ''));
+
+                $anyQuick = $quickName !== '' || $quickDoc !== '' || $quickPhone !== '';
+                if ($anyQuick) {
+                    if ($quickName === '' || $quickDoc === '' || $quickPhone === '') {
+                        Notification::make()
+                            ->title('Datos incompletos')
+                            ->body('Para registrar un cliente nuevo complete los tres campos (nombre, cédula y teléfono), o déjelos vacíos y use «Continuar» para mostrador.')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+
+                    $existing = Client::query()
+                        ->where('document_number', $quickDoc)
+                        ->first();
+                    if ($existing instanceof Client) {
+                        Notification::make()
+                            ->title('Cliente ya registrado')
+                            ->body('Ya existe un cliente con ese documento; se abrirá la venta con ese registro.')
+                            ->success()
+                            ->send();
+                        $livewire->replaceMountedAction('posRegister', [
+                            'client_id' => $existing->id,
+                        ]);
+
+                        return;
+                    }
+
+                    $client = self::createClientFromPosQuickForm($quickName, $quickDoc, $quickPhone);
+                    Notification::make()
+                        ->title('Cliente registrado')
+                        ->body('Se guardó el cliente y puede cargar productos.')
+                        ->success()
+                        ->send();
+                    $livewire->replaceMountedAction('posRegister', [
+                        'client_id' => $client->id,
+                    ]);
+
+                    return;
+                }
+
                 $livewire->replaceMountedAction('posRegister', [
-                    'client_id' => filled($cid) ? (int) $cid : null,
+                    'client_id' => null,
                 ]);
             });
     }
@@ -242,14 +325,27 @@ final class CashRegisterAction
                                                     return null;
                                                 }
 
-                                                $product = self::posProduct((int) $value);
+                                                $branchId = Auth::user()?->branch_id;
+                                                if (blank($branchId)) {
+                                                    return null;
+                                                }
+
+                                                $id = (int) $value;
+                                                self::warmPosDataForBranch((int) $branchId, [$id]);
+                                                $product = self::posProduct($id);
                                                 if (! $product) {
                                                     return null;
                                                 }
 
-                                                return filled($product->barcode)
+                                                $label = filled($product->barcode)
                                                     ? $product->barcode.' · '.$product->name
                                                     : $product->name;
+                                                $inv = self::posBranchInventory((int) $branchId, $id);
+                                                if ($inv instanceof Inventory) {
+                                                    $label .= ' · '.self::formatMoney($inv->effectiveSaleUnitPrice());
+                                                }
+
+                                                return $label;
                                             })
                                             ->afterStateUpdated(function (
                                                 mixed $state,
@@ -420,11 +516,11 @@ final class CashRegisterAction
                                         Select::make('payment_method')
                                             ->label('Cobro')
                                             ->options([
-                                                'transfer_usd' => 'Transferencias USD',
-                                                'transfer_ves' => 'Transferencia VES',
-                                                'pago_movil' => 'Pago Mobil',
-                                                'zelle' => 'Zelle',
                                                 'efectivo_usd' => 'Efectivo USD',
+                                                'efectivo_ves' => 'Efectivo VES',
+                                                'transfer_ves' => 'Transferencia VES',
+                                                'zelle' => 'Zelle',
+                                                'pago_movil' => 'Pago Movil',
                                                 'mixed' => 'Pago Multiple',
                                             ])
                                             ->default('efectivo_usd')
@@ -498,7 +594,7 @@ final class CashRegisterAction
 
                 $productIds = collect($lines)->pluck('product_id')->unique()->values()->all();
                 $products = Product::query()
-                    ->select(['id', 'name', 'barcode', 'sale_price', 'cost_price', 'tax_rate'])
+                    ->select(['id', 'name', 'barcode'])
                     ->whereIn('id', $productIds)
                     ->get()
                     ->keyBy('id');
@@ -508,7 +604,7 @@ final class CashRegisterAction
                 $inventoryByProductId = Inventory::query()
                     ->where('branch_id', $branchId)
                     ->whereIn('product_id', $productIds)
-                    ->get(['id', 'product_id'])
+                    ->get()
                     ->keyBy('product_id');
 
                 $validLines = [];
@@ -551,13 +647,7 @@ final class CashRegisterAction
                 $discountRequested = (float) ($data['discount_total'] ?? 0);
 
                 $pricing = self::finalizePosPricingFromValidLines(
-                    array_map(
-                        static fn (array $entry): array => [
-                            'product' => $entry['product'],
-                            'quantity' => $entry['quantity'],
-                        ],
-                        $validLines,
-                    ),
+                    $validLines,
                     $paymentMethod,
                     (float) ($data['mixed_usd_paid'] ?? 0),
                     $discountRequested,
@@ -575,9 +665,10 @@ final class CashRegisterAction
                     $qty = $entry['quantity'];
                     $inventory = $entry['inventory'];
                     $productId = (int) $product->id;
-                    $unit = (float) $product->sale_price;
-                    $unitCost = (float) ($product->cost_price ?? 0);
-                    $taxRate = (float) ($product->tax_rate ?? 0);
+                    $unit = $inventory->effectiveSaleUnitPrice();
+                    $unitCost = (float) ($inventory->cost_price ?? 0);
+                    $taxRate = (float) ($inventory->tax_rate ?? 0);
+                    $lineDiscount = $inventory->monetaryLineDiscountForQuantity($qty);
                     $pl = $pricing['per_line'][$i];
                     $lineSubtotal = $pl['line_subtotal'];
                     $taxAmount = $pl['tax_amount'];
@@ -591,7 +682,7 @@ final class CashRegisterAction
                         'quantity' => $qty,
                         'unit_price' => $unit,
                         'unit_cost' => $unitCost,
-                        'discount_amount' => 0,
+                        'discount_amount' => $lineDiscount,
                         'tax_rate' => $taxRate,
                         'line_subtotal' => $lineSubtotal,
                         'tax_amount' => $taxAmount,
@@ -729,7 +820,7 @@ final class CashRegisterAction
                                 'inventory_id' => $inventory->id,
                                 'movement_type' => InventoryMovementType::Sale,
                                 'quantity' => -1 * abs($qty),
-                                'unit_cost' => (float) ($product->cost_price ?? 0),
+                                'unit_cost' => (float) ($inventory->cost_price ?? 0),
                                 'reference_type' => Sale::class,
                                 'reference_id' => $sale->id,
                                 'notes' => 'Venta '.$sale->sale_number,
@@ -798,7 +889,7 @@ final class CashRegisterAction
 
         return match ($paymentMethod) {
             'efectivo_usd', 'transfer_usd', 'zelle' => [$documentTotalUsd, 0.0],
-            'transfer_ves', 'pago_movil' => [0.0, round($documentTotalUsd * $rate, 2)],
+            'transfer_ves', 'pago_movil', 'efectivo_ves' => [0.0, round($documentTotalUsd * $rate, 2)],
             'mixed' => [
                 round(max(0.0, min($documentTotalUsd, $mixedUsdPaid)), 2),
                 round(max(0.0, $documentTotalUsd - max(0.0, min($documentTotalUsd, $mixedUsdPaid))) * $rate, 2),
@@ -810,7 +901,7 @@ final class CashRegisterAction
     private static function isUsdOnlyPaymentMethod(string $paymentMethod): bool
     {
         return match ($paymentMethod) {
-            'transfer_ves', 'pago_movil', 'mixed' => false,
+            'transfer_ves', 'pago_movil', 'efectivo_ves', 'mixed' => false,
             default => true,
         };
     }
@@ -825,7 +916,7 @@ final class CashRegisterAction
         }
 
         return match ($paymentMethod) {
-            'transfer_ves', 'pago_movil' => 1.0,
+            'transfer_ves', 'pago_movil', 'efectivo_ves' => 1.0,
             'efectivo_usd', 'transfer_usd', 'zelle' => 0.0,
             'mixed' => max(0.0, min(1.0,
                 ($documentTotalUsd - min($documentTotalUsd, max(0.0, $mixedUsdPaid))) / $documentTotalUsd)),
@@ -834,7 +925,7 @@ final class CashRegisterAction
     }
 
     /**
-     * @param  list<array{product: Product, quantity: float}>  $lines
+     * @param  list<array{product: Product, quantity: float, inventory: Inventory}>  $lines
      * @return array{
      *     subtotal: float,
      *     tax_total: float,
@@ -865,10 +956,10 @@ final class CashRegisterAction
         $taxFullPerLine = [];
 
         foreach ($lines as $line) {
-            $product = $line['product'];
+            $inventory = $line['inventory'];
             $qty = $line['quantity'];
-            $unit = (float) $product->sale_price;
-            $taxRate = (float) ($product->tax_rate ?? 0);
+            $unit = $inventory->effectiveSaleUnitPrice();
+            $taxRate = (float) ($inventory->tax_rate ?? 0);
             $ls = round($qty * $unit, 2);
             $tf = round($ls * ($taxRate / 100), 2);
             $lineSubtotals[] = $ls;
@@ -920,8 +1011,8 @@ final class CashRegisterAction
         $perLine = [];
 
         foreach ($lines as $i => $line) {
-            $product = $line['product'];
-            $taxRate = (float) ($product->tax_rate ?? 0);
+            $inventory = $line['inventory'];
+            $taxRate = (float) ($inventory->tax_rate ?? 0);
             $ls = $lineSubtotals[$i];
             $ta = $taxPerLineRounded[$i] ?? 0.0;
             $perLine[] = [
@@ -945,12 +1036,25 @@ final class CashRegisterAction
 
     /**
      * @param  list<array<string, mixed>>  $rows
-     * @param  callable(int): (?Product)  $productResolver
-     * @return list<array{product: Product, quantity: float}>
+     * @return list<array{product: Product, quantity: float, inventory: Inventory}>
      */
-    private static function buildValidPosLinesFromRaw(array $rows, callable $productResolver): array
+    private static function buildValidPosLinesFromRaw(array $rows, int $branchId): array
     {
         $valid = [];
+
+        $productIds = [];
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $pid = $row['product_id'] ?? null;
+            $qty = (float) ($row['quantity'] ?? 0);
+            if (filled($pid) && $qty > 0) {
+                $productIds[] = (int) $pid;
+            }
+        }
+
+        self::warmPosDataForBranch($branchId, $productIds);
 
         foreach ($rows as $row) {
             if (! is_array($row)) {
@@ -964,15 +1068,22 @@ final class CashRegisterAction
                 continue;
             }
 
-            $product = $productResolver((int) $pid);
+            $productId = (int) $pid;
+            $product = self::posProduct($productId);
 
             if (! $product instanceof Product) {
+                continue;
+            }
+
+            $inventory = self::posBranchInventory($branchId, $productId);
+            if (! $inventory instanceof Inventory) {
                 continue;
             }
 
             $valid[] = [
                 'product' => $product,
                 'quantity' => $qty,
+                'inventory' => $inventory,
             ];
         }
 
@@ -998,6 +1109,11 @@ final class CashRegisterAction
 
     private static function computeSaleTotal(Get $get): float
     {
+        $branchId = Auth::user()?->branch_id;
+        if (blank($branchId)) {
+            return 0.0;
+        }
+
         $rows = $get('line_items') ?? [];
         if (! is_array($rows)) {
             return 0.0;
@@ -1008,9 +1124,7 @@ final class CashRegisterAction
             return 0.0;
         }
 
-        self::warmPosProductsForIds($productIds);
-
-        $valid = self::buildValidPosLinesFromRaw($rows, self::posProduct(...));
+        $valid = self::buildValidPosLinesFromRaw($rows, (int) $branchId);
         if ($valid === []) {
             return 0.0;
         }
@@ -1031,6 +1145,11 @@ final class CashRegisterAction
      */
     private static function computeLineTotalFromRowState(array $rowState, Get $get): float
     {
+        $branchId = Auth::user()?->branch_id;
+        if (blank($branchId)) {
+            return 0.0;
+        }
+
         $rows = $get('line_items') ?? [];
         if (! is_array($rows)) {
             return 0.0;
@@ -1041,9 +1160,7 @@ final class CashRegisterAction
             return 0.0;
         }
 
-        self::warmPosProductsForIds($productIds);
-
-        $valid = self::buildValidPosLinesFromRaw($rows, self::posProduct(...));
+        $valid = self::buildValidPosLinesFromRaw($rows, (int) $branchId);
         if ($valid === []) {
             return 0.0;
         }
@@ -1061,13 +1178,13 @@ final class CashRegisterAction
             return 0.0;
         }
 
-        $product = self::posProduct((int) $productId);
-        if (! $product) {
+        $inventory = self::posBranchInventory((int) $branchId, (int) $productId);
+        if (! $inventory instanceof Inventory) {
             return 0.0;
         }
 
-        $unit = (float) $product->sale_price;
-        $taxRate = (float) ($product->tax_rate ?? 0);
+        $unit = $inventory->effectiveSaleUnitPrice();
+        $taxRate = (float) ($inventory->tax_rate ?? 0);
         $lineSubtotal = round($qty * $unit, 2);
         $taxAtFull = round($lineSubtotal * ($taxRate / 100), 2);
         $taxAmount = round($taxAtFull * $f, 2);
@@ -1076,39 +1193,95 @@ final class CashRegisterAction
     }
 
     /**
-     * Precarga productos del POS en la petición actual (evita N+1 en totales y etiquetas del repeater).
+     * Precarga productos e inventario de la sucursal para el POS (evita N+1).
      *
      * @param  list<int>  $productIds
      */
-    private static function warmPosProductsForIds(array $productIds): void
+    private static function warmPosDataForBranch(int $branchId, array $productIds): void
     {
         $ids = array_values(array_unique(array_filter(array_map('intval', $productIds), fn (int $id): bool => $id > 0)));
         if ($ids === []) {
             return;
         }
 
-        /** @var array<int, Product|null> $map */
-        $map = request()->attributes->get('cash_register.pos_products_by_id');
-        if (! is_array($map)) {
-            $map = [];
+        /** @var array<int, Product|null> $productMap */
+        $productMap = request()->attributes->get('cash_register.pos_products_by_id', []);
+        if (! is_array($productMap)) {
+            $productMap = [];
         }
 
-        $missing = array_values(array_diff($ids, array_keys($map)));
-        if ($missing === []) {
+        $missingProducts = array_values(array_diff($ids, array_keys($productMap)));
+        if ($missingProducts !== []) {
+            $fetchedProducts = Product::query()
+                ->select(['id', 'name', 'barcode'])
+                ->whereIn('id', $missingProducts)
+                ->get()
+                ->keyBy('id');
+
+            foreach ($missingProducts as $pid) {
+                $productMap[$pid] = $fetchedProducts->get($pid);
+            }
+
+            request()->attributes->set('cash_register.pos_products_by_id', $productMap);
+        }
+
+        if ($branchId <= 0) {
             return;
         }
 
-        $fetched = Product::query()
-            ->select(['id', 'name', 'barcode', 'sale_price', 'tax_rate'])
-            ->whereIn('id', $missing)
-            ->get()
-            ->keyBy('id');
-
-        foreach ($missing as $id) {
-            $map[$id] = $fetched->get($id);
+        $invKey = 'cash_register.pos_inventory.'.$branchId;
+        /** @var array<int, Inventory> $invMap */
+        $invMap = request()->attributes->get($invKey, []);
+        if (! is_array($invMap)) {
+            $invMap = [];
         }
 
-        request()->attributes->set('cash_register.pos_products_by_id', $map);
+        $missingInv = array_values(array_diff($ids, array_keys($invMap)));
+        if ($missingInv !== []) {
+            $fetchedInv = Inventory::query()
+                ->where('branch_id', $branchId)
+                ->whereIn('product_id', $missingInv)
+                ->get()
+                ->keyBy('product_id');
+
+            foreach ($missingInv as $pid) {
+                $row = $fetchedInv->get($pid);
+                if ($row instanceof Inventory) {
+                    $invMap[$pid] = $row;
+                }
+            }
+
+            request()->attributes->set($invKey, $invMap);
+        }
+    }
+
+    /**
+     * @deprecated Usar {@see warmPosDataForBranch}; se mantiene para llamadas que solo conocen productIds.
+     *
+     * @param  list<int>  $productIds
+     */
+    private static function warmPosProductsForIds(array $productIds): void
+    {
+        $branchId = Auth::user()?->branch_id;
+
+        self::warmPosDataForBranch(filled($branchId) ? (int) $branchId : 0, $productIds);
+    }
+
+    private static function posBranchInventory(int $branchId, int $productId): ?Inventory
+    {
+        if ($branchId <= 0 || $productId <= 0) {
+            return null;
+        }
+
+        self::warmPosDataForBranch($branchId, [$productId]);
+
+        $invKey = 'cash_register.pos_inventory.'.$branchId;
+        /** @var array<int, Inventory>|null $map */
+        $map = request()->attributes->get($invKey);
+
+        return is_array($map) && isset($map[$productId]) && $map[$productId] instanceof Inventory
+            ? $map[$productId]
+            : null;
     }
 
     private static function posProduct(int $id): ?Product
@@ -1153,10 +1326,14 @@ final class CashRegisterAction
                     ->first();
 
                 if ($row !== null) {
-                    self::warmPosProductsForIds([$id]);
+                    self::warmPosDataForBranch($branchId, [$id]);
                     $label = filled($row->barcode)
                         ? $row->barcode.' · '.$row->name
                         : $row->name;
+                    $inv = self::posBranchInventory($branchId, $id);
+                    if ($inv instanceof Inventory) {
+                        $label .= ' · '.self::formatMoney($inv->effectiveSaleUnitPrice());
+                    }
 
                     return [$id => $label];
                 }
@@ -1189,13 +1366,17 @@ final class CashRegisterAction
         }
 
         $ids = $rows->pluck('id')->map(fn (mixed $id): int => (int) $id)->unique()->values()->all();
-        self::warmPosProductsForIds($ids);
+        self::warmPosDataForBranch($branchId, $ids);
 
-        return $rows->mapWithKeys(function ($row): array {
+        return $rows->mapWithKeys(function ($row) use ($branchId): array {
             $id = (int) $row->id;
             $label = filled($row->barcode)
                 ? $row->barcode.' · '.$row->name
                 : $row->name;
+            $inv = self::posBranchInventory($branchId, $id);
+            if ($inv instanceof Inventory) {
+                $label .= ' · '.self::formatMoney($inv->effectiveSaleUnitPrice());
+            }
 
             return [$id => $label];
         })->all();
@@ -1296,6 +1477,32 @@ final class CashRegisterAction
                 }, 120);
             }, 200);
         JS;
+    }
+
+    /**
+     * Alta rápida desde la modal de caja: cumple columnas obligatorias de {@see Client} con valores neutros.
+     */
+    private static function createClientFromPosQuickForm(string $name, string $documentNumber, string $phone): Client
+    {
+        $user = Auth::user();
+        $actor = filled($user?->email)
+            ? (string) $user->email
+            : (filled($user?->name) ? (string) $user->name : 'pos');
+
+        return Client::query()->create([
+            'name' => $name,
+            'document_type' => 'CC',
+            'document_number' => $documentNumber,
+            'email' => 'pos+'.Str::uuid()->toString().'@mostrador.invalid',
+            'phone' => $phone,
+            'address' => '—',
+            'city' => '—',
+            'state' => '—',
+            'country' => 'Colombia',
+            'status' => 'active',
+            'created_by' => $actor,
+            'updated_by' => $actor,
+        ]);
     }
 
     /**
@@ -1409,7 +1616,7 @@ final class CashRegisterAction
     private static function requiresVesConversion(string $paymentMethod, float $documentTotalUsd, float $mixedUsdPaid): bool
     {
         return match ($paymentMethod) {
-            'transfer_ves', 'pago_movil' => true,
+            'transfer_ves', 'pago_movil', 'efectivo_ves' => true,
             'mixed' => max(0.0, $documentTotalUsd - min($documentTotalUsd, max(0.0, $mixedUsdPaid))) > 0.00001,
             default => false,
         };

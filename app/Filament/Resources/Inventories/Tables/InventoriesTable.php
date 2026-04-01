@@ -94,6 +94,31 @@ class InventoriesTable
                     ->sortable()
                     ->alignEnd()
                     ->weight('medium'),
+                TextColumn::make('sale_price')
+                    ->label('Precio lista')
+                    ->money()
+                    ->sortable()
+                    ->alignEnd()
+                    ->weight('medium')
+                    ->toggleable(),
+                TextColumn::make('effective_sale_unit')
+                    ->label('Precio efectivo')
+                    ->state(fn (Inventory $record): float => $record->effectiveSaleUnitPrice())
+                    ->money()
+                    ->alignEnd()
+                    ->toggleable(),
+                TextColumn::make('tax_rate')
+                    ->label('IVA %')
+                    ->formatStateUsing(fn ($state): string => $state !== null && $state !== '' ? number_format((float) $state, 2, ',', '.').' %' : '—')
+                    ->sortable()
+                    ->alignEnd()
+                    ->toggleable(),
+                TextColumn::make('discount_percent')
+                    ->label('Desc. %')
+                    ->formatStateUsing(fn ($state): string => $state !== null && $state !== '' ? number_format((float) $state, 2, ',', '.').' %' : '—')
+                    ->sortable()
+                    ->alignEnd()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('reserved_quantity')
                     ->label('Reservado')
                     ->numeric()

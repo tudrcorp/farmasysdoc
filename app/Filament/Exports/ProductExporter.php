@@ -41,12 +41,6 @@ class ProductExporter extends Exporter
                 ->label('Contenido unitario'),
             ExportColumn::make('net_content_label')
                 ->label('Etiqueta de contenido neto'),
-            ExportColumn::make('sale_price')
-                ->label('Precio de venta'),
-            ExportColumn::make('cost_price')
-                ->label('Precio de costo'),
-            ExportColumn::make('tax_rate')
-                ->label('Tasa de impuesto (%)'),
             ExportColumn::make('active_ingredient')
                 ->label('Principio activo'),
             ExportColumn::make('concentration')

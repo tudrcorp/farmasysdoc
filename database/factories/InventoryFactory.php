@@ -24,6 +24,10 @@ class InventoryFactory extends Factory
         return [
             'branch_id' => Branch::factory(),
             'product_id' => Product::factory(),
+            'sale_price' => fake()->randomFloat(2, 5, 500),
+            'cost_price' => fake()->optional()->randomFloat(2, 3, 400),
+            'tax_rate' => fake()->randomElement([0.0, 5.0, 19.0]),
+            'discount_percent' => 0.0,
             'quantity' => fake()->randomFloat(3, 0, 500),
             'reserved_quantity' => 0,
             'reorder_point' => fake()->optional()->randomFloat(3, 5, 50),

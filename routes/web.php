@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\FiscalReceiptController;
+use App\Http\Controllers\Sales\CashRegisterClosePdfController;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
@@ -12,6 +13,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('sales/{sale}/fiscal-receipt', [FiscalReceiptController::class, 'show'])
         ->name('sales.fiscal-receipt');
+
+    Route::get('sales/cash-close-pdf', CashRegisterClosePdfController::class)
+        ->middleware('signed')
+        ->name('sales.cash-close-pdf');
 });
 
 Route::get('/pp', function () {

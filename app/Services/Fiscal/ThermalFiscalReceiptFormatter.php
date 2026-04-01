@@ -206,11 +206,12 @@ final class ThermalFiscalReceiptFormatter
     {
         return match ($method) {
             'efectivo_usd' => 'EFECTIVO USD',
-            'transfer_usd' => 'T. TRANSFER USD',
-            'transfer_ves' => 'T. TRANSFER VES',
+            'efectivo_ves' => 'EFECTIVO VES',
+            'transfer_ves' => 'TRANSF. VES',
             'pago_movil' => 'PAGO MOVIL',
             'zelle' => 'ZELLE',
-            'mixed' => 'PAGO MIXTO',
+            'mixed' => 'PAGO MULTIPLE',
+            'transfer_usd' => 'T. TRANSFER USD',
             default => 'PAGO: '.Str::upper((string) ($method ?? '—')),
         };
     }

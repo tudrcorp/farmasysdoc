@@ -78,8 +78,6 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
             'barcode',
             'slug',
             'brand',
-            'sale_price',
-            'tax_rate',
             'is_active',
             'active_ingredient',
             'description',
@@ -174,8 +172,7 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
             $details = array_merge($details, [
                 'Marca' => filled($product->brand) ? (string) $product->brand : '—',
                 'Principio activo' => $this->formatActiveIngredient($product->active_ingredient),
-                'Precio venta' => '$'.number_format((float) $product->sale_price, 2, '.', ','),
-                'IVA %' => number_format((float) ($product->tax_rate ?? 0), 2, '.', ',').'%',
+                'Precios / IVA' => 'Por sucursal (recurso Inventario)',
             ]);
 
             $branches = $stockByBranchPerProduct[$product->id] ?? [];

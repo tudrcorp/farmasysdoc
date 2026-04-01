@@ -14,7 +14,7 @@
             color: #1a1a1a;
             margin: 0;
             padding: 0;
-            background: #fafafa;
+            background: #ffffff;
         }
 
         /* Marcas de agua (fijas en cada página) */
@@ -63,48 +63,44 @@
             position: relative;
             z-index: 1;
             padding: 4px 2px 16px 2px;
+            background: #ffffff;
         }
 
         .doc-header {
             width: 100%;
             margin-bottom: 14px;
-            padding-bottom: 10px;
+            padding-bottom: 12px;
             border-bottom: 3px solid #18acb2;
+            text-align: center;
         }
-        .doc-header-table {
-            width: 100%;
-            border-collapse: collapse;
+        .doc-header-logo {
+            margin: 0 0 10px 0;
         }
-        .doc-header-table td {
-            vertical-align: middle;
-            border: none;
-            padding: 0;
-        }
-        .doc-logo-cell {
-            width: 118px;
-            padding-right: 12px !important;
-        }
-        .doc-logo-cell img {
-            max-height: 54px;
+        .doc-header-logo img {
+            max-height: 56px;
             width: auto;
             display: block;
+            margin-left: auto;
+            margin-right: auto;
         }
         .doc-title {
             font-size: 16pt;
-            margin: 0 0 4px 0;
+            margin: 0 0 6px 0;
             padding: 0;
             color: #0e5c5f;
             font-weight: bold;
             border: none;
+            text-align: center;
         }
         .doc-sub {
             font-size: 8.5pt;
             color: #444;
-            line-height: 1.4;
+            line-height: 1.45;
+            text-align: center;
         }
         .doc-badge {
             display: inline-block;
-            margin-top: 6px;
+            margin-top: 8px;
             background: #fce422;
             color: #1a1a1a;
             font-size: 7pt;
@@ -124,12 +120,16 @@
         .meta {
             font-size: 8.5pt;
             color: #444;
-            margin-bottom: 12px;
             line-height: 1.45;
             padding: 10px 12px;
             background: #ffffff;
             border: 1px solid #c5e8ea;
             border-radius: 2px;
+        }
+        .doc-header .meta {
+            margin: 12px auto 0 auto;
+            max-width: 100%;
+            text-align: center;
         }
         table {
             width: 100%;
@@ -193,11 +193,13 @@
             border: 1px solid #c5e8ea;
             background: #f0fafb;
             padding: 10px 12px;
+            text-align: center;
         }
         .security-strip {
             margin-top: 8px;
             font-size: 7pt;
             color: #666;
+            text-align: center;
         }
     </style>
 </head>
@@ -210,31 +212,26 @@
 
     <div class="content-shell">
         <header class="doc-header">
-            <table class="doc-header-table">
-                <tr>
-                    @if (filled($pdf_logo_data_uri ?? null))
-                        <td class="doc-logo-cell">
-                            <img src="{{ $pdf_logo_data_uri }}" alt="{{ $app_name }}">
-                        </td>
-                    @endif
-                    <td @unless(filled($pdf_logo_data_uri ?? null)) colspan="2" @endunless>
-                        <h1 class="doc-title">Cierre de caja — reporte de ventas</h1>
-                        <div class="doc-sub">
-                            <strong>{{ $app_name }}</strong><br>
-                            Período: <strong>{{ $period_full_label }}</strong>
-                        </div>
-                        <span class="doc-badge">DOCUMENTO INTERNO</span>
-                    </td>
-                </tr>
-            </table>
+            @if (filled($pdf_logo_data_uri ?? null))
+                <div class="doc-header-logo">
+                    <img src="{{ $pdf_logo_data_uri }}" alt="{{ $app_name }}">
+                </div>
+            @endif
+            <h1 class="doc-title">Cierre de caja — reporte de ventas</h1>
+            <div class="doc-sub">
+                <strong>{{ $app_name }}</strong><br>
+                Período: <strong>{{ $period_full_label }}</strong>
+            </div>
+            <div>
+                <span class="doc-badge">DOCUMENTO INTERNO</span>
+            </div>
+            <div class="meta">
+                Generado: <strong>{{ $generated_at }}</strong><br>
+                Usuario: <strong>{{ $generated_by }}</strong><br>
+                Alcance: <strong>{{ $scope_note }}</strong><br>
+                Huella documento: <strong>{{ $pdf_document_ref }}</strong>
+            </div>
         </header>
-
-        <div class="meta">
-            Generado: <strong>{{ $generated_at }}</strong> · Usuario: <strong>{{ $generated_by }}</strong><br>
-            Alcance: <strong>{{ $scope_note }}</strong><br>
-            Huella documento: <strong>{{ $pdf_document_ref }}</strong><br>
-            <span class="muted">Incluye solo ventas en estado «Completada». Fecha efectiva = fecha/hora de venta (sold_at) o de registro (created_at) si no hay sold_at.</span>
-        </div>
 
         <h2>Resumen consolidado</h2>
         <table class="summary-grid">

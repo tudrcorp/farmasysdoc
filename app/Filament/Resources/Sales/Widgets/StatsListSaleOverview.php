@@ -2,19 +2,16 @@
 
 namespace App\Filament\Resources\Sales\Widgets;
 
-use App\Models\Sale;
-use App\Support\Filament\BranchAuthScope;
-use App\Support\Filament\SaleEffectiveDateScope;
-use Filament\Pages\Concerns\ExposesTableToWidgets;
+use App\Filament\Resources\Sales\Widgets\Concerns\InteractsWithSalesListStatsQuery;
 use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Number;
-use Livewire\Attributes\Reactive;
 
 class StatsListSaleOverview extends StatsOverviewWidget
 {
+    use InteractsWithSalesListStatsQuery;
+
     protected static bool $isDiscovered = false;
 
     /**
@@ -24,91 +21,52 @@ class StatsListSaleOverview extends StatsOverviewWidget
 
     protected int|string|array $columnSpan = 'full';
 
+    protected ?string $pollingInterval = '10s';
+
     /**
      * @var int|array<string, ?int>|null
      */
-    protected int|array|null $columns = ['@sm' => 1, '@md' => 2, '@lg' => 4];
+    protected int|array|null $columns = ['@sm' => 1, '@md' => 2, '@lg' => 3];
 
-    protected ?string $heading = 'Totales en USD por forma de pago';
+    protected ?string $heading = 'Resumen del período';
 
-    protected ?string $description = 'Alineado al rango «Fecha de venta» de los filtros de la tabla.';
-
-    /**
-     * Inyectado desde la página de listado vía {@see ExposesTableToWidgets}.
-     *
-     * @var array<string, mixed>|null
-     */
-    #[Reactive]
-    public ?array $tableFilters = null;
+    protected ?string $description = 'Alineado al rango «Fecha de venta» de los filtros de la tabla. Incluye todas las ventas del criterio, sin filtrar por método de pago.';
 
     /**
      * @return array<Stat>
      */
     protected function getStats(): array
     {
-        $totals = $this->getPaymentUsdTotals();
+        $base = $this->scopedSaleQuery();
+
+        $documentTotalUsd = (float) (clone $base)->sum('total');
+        $totalUsdCollected = (float) (clone $base)->sum('payment_usd');
+        $totalVesCollected = (float) (clone $base)->sum('payment_ves');
 
         return [
-            Stat::make('Total general (USD)', Number::currency($totals['all'], 'USD', 'en', 2))
-                ->description('Suma de cobros en USD del período')
+            Stat::make('Total ventas (USD documento)', Number::currency($documentTotalUsd, 'USD', 'en', 2))
+                ->description('Suma del total de cada venta en el período')
+                ->descriptionColor('gray')
+                ->color('gray')
+                ->icon(Heroicon::ChartBarSquare)
+                ->extraAttributes(['class' => 'fi-marketing-stat-tone-money']),
+            Stat::make('Cobros USD (todas)', Number::currency($totalUsdCollected, 'USD', 'en', 2))
+                ->description('Suma de payment_usd en el período')
                 ->descriptionColor('gray')
                 ->color('gray')
                 ->icon(Heroicon::CurrencyDollar)
                 ->extraAttributes(['class' => 'fi-marketing-stat-tone-money']),
-            Stat::make('Efectivo USD', Number::currency($totals['efectivo_usd'], 'USD', 'en', 2))
-                ->description('Ventas en efectivo (USD)')
+            Stat::make('Cobros VES (todas)', self::formatBs($totalVesCollected))
+                ->description('Suma de payment_ves en el período')
                 ->descriptionColor('gray')
                 ->color('gray')
                 ->icon(Heroicon::Banknotes)
                 ->extraAttributes(['class' => 'fi-marketing-stat-tone-mail']),
-            Stat::make('Zelle', Number::currency($totals['zelle'], 'USD', 'en', 2))
-                ->description('Cobros vía Zelle')
-                ->descriptionColor('gray')
-                ->color('gray')
-                ->icon(Heroicon::PaperAirplane)
-                ->extraAttributes(['class' => 'fi-marketing-stat-tone-send']),
-            Stat::make('Pago Movil', Number::currency($totals['pago_movil'], 'USD', 'en', 2))
-                ->description('Cobros vía Pago Movil (USD)')
-                ->descriptionColor('gray')
-                ->color('gray')
-                ->icon(Heroicon::DevicePhoneMobile)
-                ->extraAttributes(['class' => 'fi-marketing-stat-tone-phone']),
         ];
     }
 
-    /**
-     * @return array{all: float, efectivo_usd: float, zelle: float, pago_movil: float}
-     */
-    protected function getPaymentUsdTotals(): array
+    private static function formatBs(float $amount): string
     {
-        $base = $this->scopedSaleQuery();
-
-        return [
-            'all' => (float) (clone $base)->sum('payment_usd'),
-            'efectivo_usd' => (float) (clone $base)->where('payment_method', 'efectivo_usd')->sum('payment_usd'),
-            'zelle' => (float) (clone $base)->where('payment_method', 'zelle')->sum('payment_usd'),
-            'pago_movil' => (float) (clone $base)->where('payment_method', 'pago_movil')->sum('payment_usd'),
-        ];
-    }
-
-    /**
-     * @return Builder<Sale>
-     */
-    protected function scopedSaleQuery(): Builder
-    {
-        $query = Sale::query();
-        BranchAuthScope::apply($query);
-
-        $filters = $this->tableFilters ?? [];
-        $range = $filters['sold_date_range'] ?? [];
-        $range = is_array($range) ? $range : [];
-
-        SaleEffectiveDateScope::apply(
-            $query,
-            filled($range['sold_from'] ?? null) ? (string) $range['sold_from'] : null,
-            filled($range['sold_until'] ?? null) ? (string) $range['sold_until'] : null,
-        );
-
-        return $query;
+        return 'Bs. '.number_format(round($amount, 2), 2, ',', '.');
     }
 }

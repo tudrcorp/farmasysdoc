@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Sales\Pages;
 
 use App\Filament\Resources\Sales\Actions\CashRegisterAction;
 use App\Filament\Resources\Sales\SaleResource;
+use App\Filament\Resources\Sales\Widgets\StatsListSaleByPaymentMethod;
 use App\Filament\Resources\Sales\Widgets\StatsListSaleOverview;
 use Carbon\Carbon;
 use Filament\Actions\Action;
@@ -32,6 +33,7 @@ class ListSales extends ListRecords
     {
         return [
             StatsListSaleOverview::class,
+            StatsListSaleByPaymentMethod::class,
         ];
     }
 

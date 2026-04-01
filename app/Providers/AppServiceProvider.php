@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\Filesystem\ResilientFilesystem;
 use Carbon\CarbonImmutable;
 use Filament\Support\Facades\FilamentView;
 use Filament\View\PanelsRenderHook;
@@ -19,7 +20,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton('files', fn (): ResilientFilesystem => new ResilientFilesystem);
     }
 
     /**

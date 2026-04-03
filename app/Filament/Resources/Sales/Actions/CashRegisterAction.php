@@ -385,6 +385,40 @@ final class CashRegisterAction
                                                     return;
                                                 }
 
+                                                $keysList = array_values($keys);
+                                                $currentIndex = null;
+                                                foreach ($keysList as $i => $k) {
+                                                    if ((string) $k === (string) $currentItemKey) {
+                                                        $currentIndex = $i;
+                                                        break;
+                                                    }
+                                                }
+
+                                                $newProductId = (int) $state;
+                                                if ($currentIndex !== null && $currentIndex > 0) {
+                                                    $prevKey = $keysList[$currentIndex - 1];
+                                                    $prevRow = $lineItems[$prevKey] ?? null;
+                                                    if (is_array($prevRow) && filled($prevRow['product_id'] ?? null)
+                                                        && (int) $prevRow['product_id'] === $newProductId) {
+                                                        $prevQty = (float) ($prevRow['quantity'] ?? 1);
+                                                        $currRow = $lineItems[$currentItemKey] ?? [];
+                                                        $currQty = is_array($currRow)
+                                                            ? (float) ($currRow['quantity'] ?? 1)
+                                                            : 1.0;
+                                                        $mergedQty = round(max(0.001, $prevQty + max(0.001, $currQty)), 3);
+
+                                                        $set("{$lineItemsPath}.{$prevKey}.quantity", $mergedQty, isAbsolute: true);
+                                                        $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
+                                                        $set("{$lineItemsPath}.{$currentItemKey}.quantity", 1, isAbsolute: true);
+
+                                                        if ($livewire instanceof LivewireComponent) {
+                                                            $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
+                                                        }
+
+                                                        return;
+                                                    }
+                                                }
+
                                                 /*
                                                  * Solo añadir una fila nueva con Set puntual (data_set). No reemplazar
                                                  * todo line_items: evita estado desincronizado y remount del Select

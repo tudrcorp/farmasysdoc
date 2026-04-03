@@ -276,6 +276,7 @@ class SaleInfolist
             'pago_movil' => 'Pago Movil',
             'mixed' => 'Pago Multiple',
             'transfer_usd' => 'Transferencias USD',
+            'traslado_sucursal' => 'Traslado entre sucursales (costo)',
             'cash', 'efectivo' => 'Efectivo',
             'card', 'tarjeta', 'debit', 'credit' => 'Tarjeta',
             'transfer', 'transferencia', 'nequi', 'daviplata' => 'Transferencia / digital',

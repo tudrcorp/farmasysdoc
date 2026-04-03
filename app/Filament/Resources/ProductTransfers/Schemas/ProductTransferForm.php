@@ -2,7 +2,10 @@
 
 namespace App\Filament\Resources\ProductTransfers\Schemas;
 
+use App\Models\ProductTransfer;
 use App\Models\User;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Grid;
@@ -10,8 +13,10 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Operation;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class ProductTransferForm
 {
@@ -69,6 +74,38 @@ class ProductTransferForm
         return $data;
     }
 
+    /**
+     * Usuario de sucursal (no admin) que pertenece a la sucursal **destino** del traslado:
+     * en edición solo debe poder cambiar el estado (recepción).
+     */
+    public static function isReceivingBranchUser(?ProductTransfer $record): bool
+    {
+        if (! $record instanceof ProductTransfer) {
+            return false;
+        }
+
+        $user = auth()->user();
+        if (! $user instanceof User || $user->isAdministrator() || ! filled($user->branch_id)) {
+            return false;
+        }
+
+        return (int) $user->branch_id === (int) $record->to_branch_id;
+    }
+
+    /**
+     * @param  Operation|string|null  $operation
+     */
+    public static function isReceiverOnlyStatusEdit(mixed $operation, ?Model $record): bool
+    {
+        $op = $operation instanceof Operation ? $operation->value : (string) $operation;
+
+        if ($op !== Operation::Edit->value) {
+            return false;
+        }
+
+        return $record instanceof ProductTransfer && self::isReceivingBranchUser($record);
+    }
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -93,35 +130,17 @@ class ProductTransferForm
                     ->columnSpanFull(),
 
                 Section::make('Movimiento de inventario')
-                    ->description('Producto y sucursales de origen y destino.')
+                    ->description('Sucursal que envía y que recibe. Los productos y cantidades se indican abajo.')
                     ->icon(Heroicon::ArrowsRightLeft)
+                    ->visible(function (?Model $record, Operation|string|null $operation): bool {
+                        return ! self::isReceiverOnlyStatusEdit($operation, $record);
+                    })
                     ->schema([
                         Grid::make([
                             'default' => 1,
                             'sm' => 2,
                         ])
                             ->schema([
-                                Select::make('product_id')
-                                    ->label('Producto')
-                                    ->relationship(
-                                        name: 'product',
-                                        titleAttribute: 'name',
-                                        modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name'),
-                                    )
-                                    ->searchable()
-                                    ->preload()
-                                    ->native(false)
-                                    ->required()
-                                    ->helperText('Solo productos activos.')
-                                    ->prefixIcon(Heroicon::Cube),
-                                TextInput::make('quantity')
-                                    ->label('Cantidad')
-                                    ->numeric()
-                                    ->integer()
-                                    ->minValue(1)
-                                    ->required()
-                                    ->default(1)
-                                    ->prefixIcon(Heroicon::Calculator),
                                 Select::make('from_branch_id')
                                     ->label('Sucursal origen')
                                     ->relationship(
@@ -195,8 +214,60 @@ class ProductTransferForm
                     ->columns(1)
                     ->columnSpanFull(),
 
+                Section::make('Productos a trasladar')
+                    ->description('Indique cada producto y la cantidad. Debe existir stock disponible en la sucursal origen.')
+                    ->icon(Heroicon::Cube)
+                    ->visible(function (?Model $record, Operation|string|null $operation): bool {
+                        return ! self::isReceiverOnlyStatusEdit($operation, $record);
+                    })
+                    ->schema([
+                        Repeater::make('items')
+                            ->relationship()
+                            ->label('')
+                            ->saveRelationshipsWhenHidden(false)
+                            ->minItems(1)
+                            ->defaultItems(1)
+                            ->reorderable(false)
+                            ->addActionLabel('Añadir producto')
+                            ->table([
+                                TableColumn::make('Producto')->width('65%'),
+                                TableColumn::make('Cantidad'),
+                            ])
+                            ->schema([
+                                Select::make('product_id')
+                                    ->label('Producto')
+                                    ->relationship(
+                                        name: 'product',
+                                        titleAttribute: 'name',
+                                        modifyQueryUsing: fn (Builder $query): Builder => $query->where('is_active', true)->orderBy('name'),
+                                    )
+                                    ->searchable()
+                                    ->preload()
+                                    ->native(false)
+                                    ->required()
+                                    ->prefixIcon(Heroicon::Cube),
+                                TextInput::make('quantity')
+                                    ->label('Cantidad')
+                                    ->numeric()
+                                    ->minValue(0.001)
+                                    ->step(0.001)
+                                    ->required()
+                                    ->default(1)
+                                    ->prefixIcon(Heroicon::Calculator),
+                            ])
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
                 Section::make('Estado y tipo')
-                    ->description('Clasificación operativa del traslado.')
+                    ->description(function (?Model $record, Operation|string|null $operation): string {
+                        if (self::isReceiverOnlyStatusEdit($operation, $record)) {
+                            return 'Como usuario de la sucursal destino solo puede modificar el estado (p. ej. «Completado» al recibir la mercancía). Origen, destino, líneas y tipo de traslado no se pueden editar desde esta pantalla.';
+                        }
+
+                        return 'El estado «Completado» solo puede aplicarlo quien pertenezca a la sucursal destino (o un administrador). Al completar se mueve el inventario y se registra una venta interna a costo en la sucursal emisora.';
+                    })
                     ->icon(Heroicon::Tag)
                     ->schema([
                         Grid::make([
@@ -217,7 +288,10 @@ class ProductTransferForm
                                     ->required()
                                     ->native(false)
                                     ->default('internal')
-                                    ->prefixIcon(Heroicon::Squares2x2),
+                                    ->prefixIcon(Heroicon::Squares2x2)
+                                    ->visible(function (?Model $record, Operation|string|null $operation): bool {
+                                        return ! self::isReceiverOnlyStatusEdit($operation, $record);
+                                    }),
                             ]),
                     ])
                     ->columns(1)

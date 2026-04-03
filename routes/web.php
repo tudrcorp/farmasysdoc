@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Dev\BdvConciliationTestController;
 use App\Http\Controllers\FiscalReceiptController;
+use App\Http\Controllers\ProductTransfers\ProductTransferReportPdfController;
 use App\Http\Controllers\Sales\CashRegisterClosePdfController;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
@@ -18,6 +19,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('sales/cash-close-pdf', CashRegisterClosePdfController::class)
         ->middleware('signed')
         ->name('sales.cash-close-pdf');
+
+    Route::get('product-transfers/report-pdf', ProductTransferReportPdfController::class)
+        ->middleware('signed')
+        ->name('product-transfers.report-pdf');
 });
 
 Route::get('/pp', function () {

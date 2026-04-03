@@ -386,37 +386,45 @@ final class CashRegisterAction
                                                 }
 
                                                 $keysList = array_values($keys);
-                                                $currentIndex = null;
-                                                foreach ($keysList as $i => $k) {
+                                                $newProductId = (int) $state;
+
+                                                $mergeTargetKey = null;
+                                                foreach ($keysList as $k) {
                                                     if ((string) $k === (string) $currentItemKey) {
-                                                        $currentIndex = $i;
+                                                        continue;
+                                                    }
+
+                                                    $row = $lineItems[$k] ?? null;
+                                                    if (is_array($row) && filled($row['product_id'] ?? null)
+                                                        && (int) $row['product_id'] === $newProductId) {
+                                                        $mergeTargetKey = $k;
                                                         break;
                                                     }
                                                 }
 
-                                                $newProductId = (int) $state;
-                                                if ($currentIndex !== null && $currentIndex > 0) {
-                                                    $prevKey = $keysList[$currentIndex - 1];
-                                                    $prevRow = $lineItems[$prevKey] ?? null;
-                                                    if (is_array($prevRow) && filled($prevRow['product_id'] ?? null)
-                                                        && (int) $prevRow['product_id'] === $newProductId) {
-                                                        $prevQty = (float) ($prevRow['quantity'] ?? 1);
-                                                        $currRow = $lineItems[$currentItemKey] ?? [];
-                                                        $currQty = is_array($currRow)
-                                                            ? (float) ($currRow['quantity'] ?? 1)
-                                                            : 1.0;
-                                                        $mergedQty = round(max(0.001, $prevQty + max(0.001, $currQty)), 3);
+                                                if ($mergeTargetKey !== null) {
+                                                    $targetRow = $lineItems[$mergeTargetKey] ?? [];
+                                                    $targetQty = is_array($targetRow)
+                                                        ? (float) ($targetRow['quantity'] ?? 1)
+                                                        : 1.0;
+                                                    $currRow = $lineItems[$currentItemKey] ?? [];
+                                                    $currQty = is_array($currRow)
+                                                        ? (float) ($currRow['quantity'] ?? 1)
+                                                        : 1.0;
+                                                    $mergedQty = round(
+                                                        max(0.001, $targetQty + max(0.001, $currQty)),
+                                                        3,
+                                                    );
 
-                                                        $set("{$lineItemsPath}.{$prevKey}.quantity", $mergedQty, isAbsolute: true);
-                                                        $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
-                                                        $set("{$lineItemsPath}.{$currentItemKey}.quantity", 1, isAbsolute: true);
+                                                    $set("{$lineItemsPath}.{$mergeTargetKey}.quantity", $mergedQty, isAbsolute: true);
+                                                    $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
+                                                    $set("{$lineItemsPath}.{$currentItemKey}.quantity", 1, isAbsolute: true);
 
-                                                        if ($livewire instanceof LivewireComponent) {
-                                                            $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
-                                                        }
-
-                                                        return;
+                                                    if ($livewire instanceof LivewireComponent) {
+                                                        $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
                                                     }
+
+                                                    return;
                                                 }
 
                                                 /*

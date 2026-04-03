@@ -4,20 +4,37 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProductTransfer extends Model
 {
+    /**
+     * @var list<string>
+     */
     protected $fillable = [
         'code',
-        'product_id',
         'from_branch_id',
         'to_branch_id',
-        'quantity',
         'status',
         'transfer_type',
         'created_by',
         'updated_by',
+        'total_transfer_cost',
+        'completed_by',
+        'completed_at',
+        'sale_id',
     ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'total_transfer_cost' => 'decimal:2',
+            'completed_at' => 'datetime',
+        ];
+    }
 
     /**
      * Formato: TRAS-{año 2 dígitos}000{id}, p. ej. TRAS-260001 para id 1 en 2026.
@@ -27,18 +44,35 @@ class ProductTransfer extends Model
         return 'TRAS-'.date('y').'000'.$id;
     }
 
-    public function product(): BelongsTo
-    {
-        return $this->belongsTo(Product::class);
-    }
-
+    /**
+     * @return BelongsTo<Branch, $this>
+     */
     public function fromBranch(): BelongsTo
     {
         return $this->belongsTo(Branch::class, 'from_branch_id');
     }
 
+    /**
+     * @return BelongsTo<Branch, $this>
+     */
     public function toBranch(): BelongsTo
     {
         return $this->belongsTo(Branch::class, 'to_branch_id');
+    }
+
+    /**
+     * @return HasMany<ProductTransferItem, $this>
+     */
+    public function items(): HasMany
+    {
+        return $this->hasMany(ProductTransferItem::class);
+    }
+
+    /**
+     * @return BelongsTo<Sale, $this>
+     */
+    public function sale(): BelongsTo
+    {
+        return $this->belongsTo(Sale::class);
     }
 }

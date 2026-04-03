@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ProductCategories;
 
+use App\Filament\Resources\Concerns\ChecksConfigurationAccess;
 use App\Filament\Resources\ProductCategories\Pages\CreateProductCategory;
 use App\Filament\Resources\ProductCategories\Pages\EditProductCategory;
 use App\Filament\Resources\ProductCategories\Pages\ListProductCategories;
@@ -19,6 +20,8 @@ use UnitEnum;
 
 class ProductCategoryResource extends Resource
 {
+    use ChecksConfigurationAccess;
+
     protected static ?string $model = ProductCategory::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::Swatch;

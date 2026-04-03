@@ -4,6 +4,7 @@ namespace App\Filament\Resources\ProductTransfers\Tables;
 
 use App\Filament\Resources\ProductTransfers\ProductTransferResource;
 use App\Models\ProductTransfer;
+use App\Models\User;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -19,7 +20,7 @@ class ProductTransfersTable
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
-                'product',
+                'items',
                 'fromBranch',
                 'toBranch',
             ]))
@@ -36,20 +37,13 @@ class ProductTransfersTable
                     ->icon(Heroicon::Hashtag)
                     ->iconColor('gray')
                     ->placeholder('—'),
-                TextColumn::make('product.name')
-                    ->label('Producto')
-                    ->description(fn (ProductTransfer $record): ?string => filled($record->product?->barcode)
-                        ? 'SKU: '.$record->product->barcode
-                        : null)
-                    ->searchable()
+                TextColumn::make('items_count')
+                    ->counts('items')
+                    ->label('Líneas')
                     ->sortable()
-                    ->weight('medium')
-                    ->lineClamp(2)
-                    ->wrap()
-                    ->tooltip(fn (ProductTransfer $record): string => (string) ($record->product?->name ?? ''))
+                    ->alignEnd()
                     ->icon(Heroicon::Cube)
-                    ->iconColor('gray')
-                    ->placeholder('—'),
+                    ->iconColor('gray'),
                 TextColumn::make('fromBranch.name')
                     ->label('Origen')
                     ->description(fn (ProductTransfer $record): ?string => filled($record->fromBranch?->code)
@@ -80,13 +74,13 @@ class ProductTransfersTable
                     ->icon(Heroicon::MapPin)
                     ->iconColor('gray')
                     ->placeholder('—'),
-                TextColumn::make('quantity')
-                    ->label('Cantidad')
-                    ->numeric()
+                TextColumn::make('total_transfer_cost')
+                    ->label('Costo traslado')
+                    ->money('USD')
                     ->sortable()
                     ->alignEnd()
-                    ->icon(Heroicon::Calculator)
-                    ->iconColor('gray'),
+                    ->placeholder('—')
+                    ->toggleable(),
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
@@ -110,6 +104,19 @@ class ProductTransfersTable
                     ->placeholder('—')
                     ->icon(Heroicon::UserCircle)
                     ->iconColor('gray'),
+                TextColumn::make('completed_by')
+                    ->label('Completado por')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->placeholder('—')
+                    ->icon(Heroicon::CheckCircle)
+                    ->iconColor('gray'),
+                TextColumn::make('completed_at')
+                    ->label('Completado el')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->placeholder('—'),
                 TextColumn::make('updated_by')
                     ->label('Actualizado por')
                     ->searchable()
@@ -147,15 +154,18 @@ class ProductTransfersTable
                 ViewAction::make()
                     ->label('Ver traslado')
                     ->icon(Heroicon::Eye),
+                ProductTransferResource::markCompletedAction(),
                 EditAction::make()
                     ->label('Editar')
-                    ->icon(Heroicon::PencilSquare),
+                    ->icon(Heroicon::PencilSquare)
+                    ->visible(fn (): bool => auth()->user() instanceof User && auth()->user()->isAdministrator()),
             ])
             ->recordActionsColumnLabel('Acciones')
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make()
-                        ->label('Eliminar seleccionados'),
+                        ->label('Eliminar seleccionados')
+                        ->visible(fn (): bool => auth()->user() instanceof User && auth()->user()->isAdministrator()),
                 ]),
             ]);
     }

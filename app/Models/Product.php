@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\ProductType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -23,7 +22,6 @@ class Product extends Model
         'slug',
         'description',
         'image',
-        'product_type',
         'brand',
         'active_ingredient',
         'concentration',
@@ -43,6 +41,10 @@ class Product extends Model
         'created_by',
         'updated_by',
         'sku',
+        'product_category_id',
+        'sale_price',
+        'cost_price',
+        'discount_percent',
     ];
 
     /**
@@ -51,8 +53,10 @@ class Product extends Model
     protected function casts(): array
     {
         return [
-            'product_type' => ProductType::class,
             'unit_content' => 'decimal:3',
+            'sale_price' => 'decimal:2',
+            'cost_price' => 'decimal:2',
+            'discount_percent' => 'decimal:2',
             'requires_prescription' => 'boolean',
             'is_controlled_substance' => 'boolean',
             'requires_calibration' => 'boolean',
@@ -60,6 +64,42 @@ class Product extends Model
             'warranty_months' => 'integer',
             'active_ingredient' => 'array',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (Product $product): void {
+            if ($product->product_category_id === null) {
+                return;
+            }
+
+            $cost = $product->cost_price;
+            $costAmount = ($cost === null || $cost === '') ? 0.0 : (float) $cost;
+
+            $product->sale_price = self::salePriceFromCostAndCategoryProfit(
+                $costAmount,
+                (int) $product->product_category_id,
+            );
+        });
+    }
+
+    /**
+     * Precio de venta (lista) = costo + (costo × % de ganancia de la categoría).
+     * Ej.: costo 100 y margen 80 % → 100 + 80 = 180.
+     */
+    public static function salePriceFromCostAndCategoryProfit(float $costAmount, ?int $productCategoryId): float
+    {
+        $cost = max(0.0, $costAmount);
+        $profitPercent = 0.0;
+
+        if ($productCategoryId !== null && $productCategoryId > 0) {
+            $category = ProductCategory::query()->find($productCategoryId);
+            if ($category !== null) {
+                $profitPercent = max(0.0, (float) $category->profit_percentage);
+            }
+        }
+
+        return round($cost + ($cost * $profitPercent / 100), 2);
     }
 
     /**
@@ -70,6 +110,14 @@ class Product extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    /**
+     * @return BelongsTo<ProductCategory, $this>
+     */
+    public function productCategory(): BelongsTo
+    {
+        return $this->belongsTo(ProductCategory::class, 'product_category_id');
     }
 
     /**
@@ -101,6 +149,28 @@ class Product extends Model
     public function inventoryForBranch(Branch $branch): ?Inventory
     {
         return $this->inventories()->where('branch_id', $branch->id)->first();
+    }
+
+    /**
+     * Precio unitario de venta tras aplicar el descuento % del catálogo (antes de impuesto).
+     */
+    public function effectiveSaleUnitPrice(): float
+    {
+        $list = (float) $this->sale_price;
+        $pct = max(0.0, min(100.0, (float) $this->discount_percent));
+
+        return round($list * (1 - $pct / 100), 2);
+    }
+
+    /**
+     * Valor monetario del descuento de línea (lista − efectivo) para una cantidad dada.
+     */
+    public function monetaryLineDiscountForQuantity(float $quantity): float
+    {
+        $list = (float) $this->sale_price;
+        $pct = max(0.0, min(100.0, (float) $this->discount_percent));
+
+        return round($quantity * $list * ($pct / 100), 2);
     }
 
     /**

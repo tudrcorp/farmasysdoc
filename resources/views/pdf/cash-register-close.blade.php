@@ -367,7 +367,6 @@
                         <th class="num">Cant.</th>
                         <th class="num">P. unit.</th>
                         <th class="num">Desc.</th>
-                        <th class="center">IVA %</th>
                         <th class="num">Subtotal</th>
                         <th class="num">Impuesto</th>
                         <th class="num">Total línea</th>
@@ -383,7 +382,6 @@
                             <td class="num">{{ number_format((float) $item->quantity, 3, ',', '.') }}</td>
                             <td class="num">{{ number_format((float) $item->unit_price, 2, ',', '.') }}</td>
                             <td class="num">{{ number_format((float) $item->discount_amount, 2, ',', '.') }}</td>
-                            <td class="center">{{ number_format((float) $item->tax_rate, 2, ',', '.') }}</td>
                             <td class="num">{{ number_format((float) $item->line_subtotal, 2, ',', '.') }}</td>
                             <td class="num">{{ number_format((float) $item->tax_amount, 2, ',', '.') }}</td>
                             <td class="num"><strong>{{ number_format((float) $item->line_total, 2, ',', '.') }}</strong></td>

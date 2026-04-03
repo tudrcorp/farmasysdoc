@@ -21,14 +21,12 @@ class InventoryExporter extends Exporter
                 ->label('Sucursal'),
             ExportColumn::make('product.name')
                 ->label('Producto'),
-            ExportColumn::make('sale_price')
-                ->label('Precio venta (lista)'),
-            ExportColumn::make('cost_price')
-                ->label('Costo unitario'),
-            ExportColumn::make('tax_rate')
-                ->label('Tasa impuesto (%)'),
-            ExportColumn::make('discount_percent')
-                ->label('Descuento (%)'),
+            ExportColumn::make('product.sale_price')
+                ->label('Precio venta lista (producto)'),
+            ExportColumn::make('product.cost_price')
+                ->label('Costo unitario (producto)'),
+            ExportColumn::make('product.discount_percent')
+                ->label('Descuento % (producto)'),
             ExportColumn::make('quantity')
                 ->label('Cantidad'),
             ExportColumn::make('reserved_quantity')
@@ -49,8 +47,8 @@ class InventoryExporter extends Exporter
                 ->label('Último arqueo'),
             ExportColumn::make('notes')
                 ->label('Notas'),
-            ExportColumn::make('product_type')
-                ->label('Tipo de producto'),
+            ExportColumn::make('productCategory.name')
+                ->label('Categoría (snapshot)'),
             ExportColumn::make('active_ingredient')
                 ->label('Principio activo'),
             ExportColumn::make('concentration')

@@ -137,7 +137,7 @@ final class ThermalFiscalReceiptFormatter
     {
         $code = str_pad((string) min(9999, max(1, $lineIndex)), 4, '0', STR_PAD_LEFT);
         $name = Str::upper((string) ($item->product_name_snapshot ?? 'PRODUCTO'));
-        $tag = $this->taxTagFromRate((float) $item->tax_rate);
+        $tag = ((float) $item->tax_amount > 0.00001) ? 'G' : 'E';
         $desc = $code.'/'.$name.' ('.$tag.')';
         $wrapped = $this->wrapUpper($desc, $width);
         $lineTotalBs = $this->toBs((float) $item->line_total, $rate);
@@ -165,14 +165,14 @@ final class ThermalFiscalReceiptFormatter
 
     private function dominantTaxPercent(Sale $sale): float
     {
-        $items = $sale->items;
-        if ($items->isEmpty()) {
-            return 16.0;
+        $sub = (float) $sale->subtotal;
+        $tax = (float) $sale->tax_total;
+
+        if ($sub <= 0.00001 || $tax <= 0.00001) {
+            return 0.0;
         }
 
-        $rates = $items->groupBy(fn (SaleItem $i): string => (string) (float) $i->tax_rate);
-
-        return (float) $rates->sortByDesc(fn ($group): int => $group->count())->keys()->first();
+        return round($tax / $sub * 100, 2);
     }
 
     private function taxTagLabel(float $percent): string
@@ -180,15 +180,6 @@ final class ThermalFiscalReceiptFormatter
         $p = number_format($percent, 2, ',', '.');
 
         return 'G '.$p.'%';
-    }
-
-    private function taxTagFromRate(float $taxRate): string
-    {
-        if ($taxRate <= 0) {
-            return 'E';
-        }
-
-        return 'G';
     }
 
     private function clientDocument(?Client $client): string

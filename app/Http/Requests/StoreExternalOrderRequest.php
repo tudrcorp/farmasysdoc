@@ -56,7 +56,6 @@ class StoreExternalOrderRequest extends FormRequest
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
             'items.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
-            'items.*.tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.product_name_snapshot' => ['nullable', 'string', 'max:255'],
             'items.*.sku_snapshot' => ['nullable', 'string', 'max:255'],
         ];
@@ -74,7 +73,6 @@ class StoreExternalOrderRequest extends FormRequest
             'items.min' => 'Debe enviar al menos una línea en items.',
             'items.*.product_id.required' => 'Cada línea debe incluir product_id.',
             'items.*.quantity.gt' => 'La cantidad de cada línea debe ser mayor que cero.',
-            'items.*.tax_rate.max' => 'La tasa de impuesto no puede ser mayor a 100.',
         ];
     }
 

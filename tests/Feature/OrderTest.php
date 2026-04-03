@@ -51,10 +51,9 @@ test('order has items and can link inventory for dispatch', function () {
         'quantity' => 3,
         'unit_price' => 20.00,
         'discount_amount' => 0,
-        'tax_rate' => 19,
         'line_subtotal' => 60.00,
-        'tax_amount' => 11.40,
-        'line_total' => 71.40,
+        'tax_amount' => 0,
+        'line_total' => 60.00,
         'product_name_snapshot' => $product->name,
         'sku_snapshot' => $product->sku,
     ]);

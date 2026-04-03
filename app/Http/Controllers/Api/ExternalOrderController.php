@@ -69,10 +69,9 @@ class ExternalOrderController extends Controller
                 $quantity = (float) $item['quantity'];
                 $unitPrice = (float) $item['unit_price'];
                 $discount = (float) ($item['discount_amount'] ?? 0);
-                $taxRate = (float) ($item['tax_rate'] ?? 0);
 
                 $lineSubtotal = max(0, ($quantity * $unitPrice) - $discount);
-                $taxAmount = round($lineSubtotal * ($taxRate / 100), 2);
+                $taxAmount = 0.0;
                 $lineTotal = round($lineSubtotal + $taxAmount, 2);
 
                 $product = Product::query()->find($item['product_id']);
@@ -84,7 +83,6 @@ class ExternalOrderController extends Controller
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'discount_amount' => $discount,
-                    'tax_rate' => $taxRate,
                     'line_subtotal' => $lineSubtotal,
                     'tax_amount' => $taxAmount,
                     'line_total' => $lineTotal,

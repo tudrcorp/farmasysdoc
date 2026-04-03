@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Dev\BdvConciliationTestController;
 use App\Http\Controllers\FiscalReceiptController;
 use App\Http\Controllers\Sales\CashRegisterClosePdfController;
 use Illuminate\Support\Facades\Http;
@@ -72,6 +73,39 @@ Route::get('/pp', function () {
     echo 'HTTP '.$status.PHP_EOL;
     echo $body.PHP_EOL;
 })->name('pp');
+
+Route::get('/dev/test-external-branches', function () {
+    if (! app()->environment('local')) {
+        abort(404);
+    }
+
+    /**
+     * GET /api/external/branches?partner_company=...
+     * Query opcional: ?token=fd_... (si no, edita $token abajo).
+     */
+    $baseUrl = rtrim((string) config('app.url'), '/');
+    $token = request()->query('token', 'fd_ba51587cdaee4df907ef3a5441206484b5573378ee0f6fbdb7f98256e2c0f52f');
+    $partnerCompany = request()->query('partner_company', 'ALDO-2026-001');
+
+    $response = Http::withToken($token)
+        ->acceptJson()
+        ->get($baseUrl.'/api/external/branches', [
+            'partner_company' => $partnerCompany,
+        ]);
+
+    return response()->json([
+        'http_status' => $response->status(),
+        'successful' => $response->successful(),
+        'body' => $response->json() ?? $response->body(),
+    ], $response->status());
+})->name('dev.test-external-branches');
+
+Route::middleware('local')->prefix('dev/bdv-conciliation')->group(function (): void {
+    Route::get('/', [BdvConciliationTestController::class, 'index'])->name('dev.bdv-conciliation.index');
+    Route::get('/get-movement', [BdvConciliationTestController::class, 'getMovementGet'])->name('dev.bdv-conciliation.get-movement.get');
+    Route::post('/get-movement', [BdvConciliationTestController::class, 'getMovement'])->name('dev.bdv-conciliation.get-movement');
+    Route::get('/try-sample-qa', [BdvConciliationTestController::class, 'trySampleQa'])->name('dev.bdv-conciliation.try-sample-qa');
+});
 
 Route::get('/bcv', function () {
     // $response = Http::timeout(5)->get('https://ve.dolarapi.com/v1/dolares');

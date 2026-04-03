@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Products\Schemas;
 
-use App\Enums\ProductType;
 use App\Models\Product;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\ImageEntry;
@@ -46,29 +45,16 @@ class ProductInfolist
                                     ->placeholder('—')
                                     ->icon(Heroicon::QrCode)
                                     ->copyable(),
-                                TextEntry::make('product_type')
-                                    ->label('Tipo de producto')
-                                    ->formatStateUsing(fn (?ProductType $state): string => $state?->label() ?? '—')
-                                    ->badge()
-                                    ->color(fn (?ProductType $state): string => match ($state) {
-                                        ProductType::Medication => 'danger',
-                                        ProductType::Perfumery => 'info',
-                                        ProductType::PersonalHygiene => 'success',
-                                        ProductType::Food => 'warning',
-                                        ProductType::MedicalEquipment => 'gray',
-                                        default => 'gray',
-                                    })
-                                    ->icon(Heroicon::Squares2x2),
+                                TextEntry::make('slug')
+                                    ->label('Slug (URL)')
+                                    ->placeholder('—')
+                                    ->icon(Heroicon::Link)
+                                    ->copyable(),
                             ]),
                         TextEntry::make('name')
                             ->label('Nombre comercial')
                             ->icon(Heroicon::ShoppingBag)
                             ->columnSpanFull(),
-                        TextEntry::make('slug')
-                            ->label('Slug (URL)')
-                            ->placeholder('—')
-                            ->icon(Heroicon::Link)
-                            ->copyable(),
                         TextEntry::make('description')
                             ->label('Descripción')
                             ->placeholder('—')
@@ -114,9 +100,38 @@ class ProductInfolist
                     ]),
 
                 Section::make('Unidad de venta y precios')
-                    ->description('Cómo se vende el artículo y valores de lista e impuesto.')
+                    ->description('Precio de venta (lista) = costo + (costo × % de ganancia de la categoría). Contenido comercial y valores únicos para todas las sucursales.')
                     ->icon(Heroicon::CurrencyDollar)
                     ->schema([
+                        TextEntry::make('productCategory.name')
+                            ->label('Categoría')
+                            ->placeholder('—')
+                            ->icon(Heroicon::Swatch),
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                            'lg' => 4,
+                        ])
+                            ->schema([
+                                TextEntry::make('sale_price')
+                                    ->label('Precio lista (calculado)')
+                                    ->money('USD')
+                                    ->icon(Heroicon::Banknotes),
+                                TextEntry::make('effective_sale_unit')
+                                    ->label('Precio efectivo (tras desc.)')
+                                    ->getStateUsing(fn (Product $record): string => '$'.number_format($record->effectiveSaleUnitPrice(), 2, '.', ','))
+                                    ->icon(Heroicon::ShoppingCart),
+                                TextEntry::make('cost_price')
+                                    ->label('Costo de compra')
+                                    ->placeholder('—')
+                                    ->money('USD')
+                                    ->icon(Heroicon::ReceiptPercent),
+                                TextEntry::make('discount_percent')
+                                    ->label('Descuento')
+                                    ->suffix(' %')
+                                    ->numeric(2)
+                                    ->icon(Heroicon::Tag),
+                            ]),
                         Grid::make([
                             'default' => 1,
                             'sm' => 2,
@@ -136,11 +151,6 @@ class ProductInfolist
                                     ->placeholder('—')
                                     ->icon(Heroicon::Beaker),
                             ]),
-                        TextEntry::make('id')
-                            ->label('Precios e impuestos')
-                            ->formatStateUsing(fn (): string => 'Definidos por sucursal en Inventario (costo, precio lista, IVA y descuento %). La caja usa el registro de inventario de la sucursal.')
-                            ->icon(Heroicon::BuildingStorefront)
-                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

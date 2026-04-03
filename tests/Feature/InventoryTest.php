@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\InventoryMovementType;
-use App\Enums\ProductType;
 use App\Models\Branch;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
@@ -84,9 +83,8 @@ test('duplicate inventory for same product and branch is not allowed', function 
 
 test('inventory copies pharmacy snapshot from product on create', function () {
     $branch = Branch::factory()->create();
-    $product = Product::factory()->create([
+    $product = Product::factory()->medication()->create([
         'sku' => 'INV-SNAP-1',
-        'product_type' => ProductType::Medication,
         'active_ingredient' => ['Paracetamol'],
         'concentration' => '500 mg',
         'presentation_type' => 'Tableta',
@@ -99,7 +97,7 @@ test('inventory copies pharmacy snapshot from product on create', function () {
 
     $inventory->refresh();
 
-    expect($inventory->product_type)->toBe(ProductType::Medication)
+    expect($inventory->product_category_id)->toBe($product->product_category_id)
         ->and($inventory->active_ingredient)->toBe(['Paracetamol'])
         ->and($inventory->concentration)->toBe('500 mg')
         ->and($inventory->presentation_type)->toBe('Tableta');
@@ -107,16 +105,14 @@ test('inventory copies pharmacy snapshot from product on create', function () {
 
 test('inventory refreshes pharmacy snapshot when product_id changes', function () {
     $branch = Branch::factory()->create();
-    $productA = Product::factory()->create([
+    $productA = Product::factory()->medication()->create([
         'sku' => 'INV-SNAP-A',
-        'product_type' => ProductType::Medication,
         'active_ingredient' => ['Ibuprofeno'],
         'concentration' => '400 mg',
         'presentation_type' => 'Cápsula',
     ]);
-    $productB = Product::factory()->create([
+    $productB = Product::factory()->medication()->create([
         'sku' => 'INV-SNAP-B',
-        'product_type' => ProductType::Medication,
         'active_ingredient' => ['Omeprazol'],
         'concentration' => '20 mg',
         'presentation_type' => 'Cápsula gastrorresistente',

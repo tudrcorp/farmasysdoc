@@ -26,6 +26,8 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
 
     private static ?bool $productsTableHasSku = null;
 
+    private static ?bool $productsTableHasSlug = null;
+
     public function getResults(string $query): ?GlobalSearchResults
     {
         $term = trim($query);
@@ -71,35 +73,43 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
         $like = '%'.addcslashes($term, '%_\\').'%';
 
         $hasSku = $this->productsTableHasSkuColumn();
+        $hasSlug = $this->productsTableHasSlugColumn();
 
         $select = [
             'id',
             'name',
             'barcode',
-            'slug',
             'brand',
             'is_active',
             'active_ingredient',
             'description',
             'manufacturer',
+            'sale_price',
         ];
 
         if ($hasSku) {
             $select[] = 'sku';
         }
 
+        if ($hasSlug) {
+            $select[] = 'slug';
+        }
+
         $products = Product::query()
             ->select($select)
-            ->where(function ($q) use ($like, $term, $hasSku): void {
+            ->where(function ($q) use ($like, $term, $hasSku, $hasSlug): void {
                 $q->where('name', 'like', $like)
                     ->orWhere('barcode', 'like', $like)
-                    ->orWhere('slug', 'like', $like)
                     ->orWhere('brand', 'like', $like)
                     ->orWhere('manufacturer', 'like', $like)
                     ->orWhere('description', 'like', $like);
 
                 if ($hasSku) {
                     $q->orWhere('sku', 'like', $like);
+                }
+
+                if ($hasSlug) {
+                    $q->orWhere('slug', 'like', $like);
                 }
 
                 if ($term !== '') {
@@ -157,7 +167,7 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
 
         return $products->filter(function (Product $product): bool {
             return ProductResource::canView($product);
-        })->map(function (Product $product) use ($stockByProduct, $stockByBranchPerProduct, $hasSku): GlobalSearchResult {
+        })->map(function (Product $product) use ($stockByProduct, $stockByBranchPerProduct, $hasSku, $hasSlug): GlobalSearchResult {
             $url = ProductResource::getUrl('view', ['record' => $product], isAbsolute: false);
             $stock = $stockByProduct[$product->id] ?? 0.0;
 
@@ -169,10 +179,14 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
                 $details['SKU'] = filled($product->sku) ? (string) $product->sku : '—';
             }
 
+            if ($hasSlug) {
+                $details['Slug'] = filled($product->slug) ? (string) $product->slug : '—';
+            }
+
             $details = array_merge($details, [
                 'Marca' => filled($product->brand) ? (string) $product->brand : '—',
                 'Principio activo' => $this->formatActiveIngredient($product->active_ingredient),
-                'Precios / IVA' => 'Por sucursal (recurso Inventario)',
+                'Precio venta' => '$'.number_format((float) ($product->sale_price ?? 0), 2, '.', ','),
             ]);
 
             $branches = $stockByBranchPerProduct[$product->id] ?? [];
@@ -351,5 +365,10 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
     private function productsTableHasSkuColumn(): bool
     {
         return self::$productsTableHasSku ??= Schema::hasColumn('products', 'sku');
+    }
+
+    private function productsTableHasSlugColumn(): bool
+    {
+        return self::$productsTableHasSlug ??= Schema::hasColumn('products', 'slug');
     }
 }

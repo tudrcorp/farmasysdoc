@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\ProductType;
 use App\Models\Product;
 use App\Models\Supplier;
 
@@ -10,7 +9,10 @@ test('product can be persisted with medication fields', function () {
         'sku' => 'MED-001',
     ]);
 
-    expect($product->product_type)->toBe(ProductType::Medication)
+    $product->load('productCategory');
+
+    expect($product->productCategory)->not->toBeNull()
+        ->and($product->productCategory->is_medication)->toBeTrue()
         ->and($product->active_ingredient)->not->toBeNull()
         ->and($product->presentation_type)->not->toBeNull();
 });
@@ -21,7 +23,10 @@ test('product can be persisted with food fields', function () {
         'sku' => 'FOOD-001',
     ]);
 
-    expect($product->product_type)->toBe(ProductType::Food)
+    $product->load('productCategory');
+
+    expect($product->productCategory)->not->toBeNull()
+        ->and($product->productCategory->is_medication)->toBeFalse()
         ->and($product->ingredients)->not->toBeNull();
 });
 
@@ -31,7 +36,10 @@ test('product can be persisted with medical equipment fields', function () {
         'sku' => 'EQ-001',
     ]);
 
-    expect($product->product_type)->toBe(ProductType::MedicalEquipment)
+    $product->load('productCategory');
+
+    expect($product->productCategory)->not->toBeNull()
+        ->and($product->productCategory->is_medication)->toBeFalse()
         ->and($product->manufacturer)->not->toBeNull()
         ->and($product->model)->not->toBeNull();
 });

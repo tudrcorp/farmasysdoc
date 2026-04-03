@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Inventories\Schemas;
 
-use App\Enums\ProductType;
 use App\Models\Inventory;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -39,11 +38,10 @@ class InventoryInfolist
                                         : '000'.$record->product_id)
                                     ->icon(Heroicon::QrCode)
                                     ->copyable(),
-                                TextEntry::make('product_type')
-                                    ->label('Tipo de producto')
-                                    ->badge()
-                                    ->formatStateUsing(fn (?ProductType $state): string => $state?->label() ?? '—')
-                                    ->icon(Heroicon::Squares2x2),
+                                TextEntry::make('productCategory.name')
+                                    ->label('Categoría (catálogo)')
+                                    ->placeholder('—')
+                                    ->icon(Heroicon::Swatch),
                                 TextEntry::make('active_ingredient')
                                     ->label('Principio(s) activo(s)')
                                     ->placeholder('—')
@@ -96,8 +94,8 @@ class InventoryInfolist
                     ->columns(1)
                     ->columnSpanFull(),
 
-                Section::make('Precios y tributos (sucursal)')
-                    ->description('Valores usados en la caja y en el margen de venta para esta sucursal.')
+                Section::make('Precios (catálogo del producto)')
+                    ->description('Misma política comercial en todas las sucursales; proviene del registro del producto.')
                     ->icon(Heroicon::CurrencyDollar)
                     ->schema([
                         Grid::make([
@@ -106,28 +104,27 @@ class InventoryInfolist
                             'lg' => 4,
                         ])
                             ->schema([
-                                TextEntry::make('sale_price')
+                                TextEntry::make('product.sale_price')
                                     ->label('Precio lista')
                                     ->money('USD')
+                                    ->placeholder('—')
                                     ->icon(Heroicon::Banknotes),
-                                TextEntry::make('effective_sale_hint')
+                                TextEntry::make('product_effective_sale')
                                     ->label('Precio efectivo (tras desc.)')
-                                    ->getStateUsing(fn (Inventory $record): string => '$'.number_format($record->effectiveSaleUnitPrice(), 2, '.', ','))
+                                    ->getStateUsing(fn (Inventory $record): string => $record->product !== null
+                                        ? '$'.number_format($record->product->effectiveSaleUnitPrice(), 2, '.', ',')
+                                        : '—')
                                     ->icon(Heroicon::ShoppingCart),
-                                TextEntry::make('cost_price')
+                                TextEntry::make('product.cost_price')
                                     ->label('Costo unitario')
                                     ->placeholder('—')
                                     ->money('USD')
                                     ->icon(Heroicon::ReceiptPercent),
-                                TextEntry::make('tax_rate')
-                                    ->label('Tasa impuesto')
-                                    ->suffix(' %')
-                                    ->numeric(2)
-                                    ->icon(Heroicon::Calculator),
-                                TextEntry::make('discount_percent')
+                                TextEntry::make('product.discount_percent')
                                     ->label('Descuento %')
                                     ->suffix(' %')
                                     ->numeric(2)
+                                    ->placeholder('—')
                                     ->icon(Heroicon::Tag),
                             ]),
                     ])

@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Inventories\Tables;
 
-use App\Enums\ProductType;
 use App\Filament\Exports\InventoryExporter;
 use App\Filament\Resources\Inventories\InventoryResource;
 use App\Models\Branch;
@@ -37,7 +36,7 @@ class InventoriesTable
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => BranchAuthScope::apply($query)
-                ->with(['branch', 'product']))
+                ->with(['branch', 'product', 'productCategory']))
             ->columns([
                 TextColumn::make('branch.name')
                     ->label('Sucursal')
@@ -94,26 +93,22 @@ class InventoriesTable
                     ->sortable()
                     ->alignEnd()
                     ->weight('medium'),
-                TextColumn::make('sale_price')
+                TextColumn::make('product.sale_price')
                     ->label('Precio lista')
                     ->money()
                     ->sortable()
                     ->alignEnd()
                     ->weight('medium')
                     ->toggleable(),
-                TextColumn::make('effective_sale_unit')
+                TextColumn::make('product_effective_sale')
                     ->label('Precio efectivo')
-                    ->state(fn (Inventory $record): float => $record->effectiveSaleUnitPrice())
+                    ->state(fn (Inventory $record): float => $record->product !== null
+                        ? $record->product->effectiveSaleUnitPrice()
+                        : 0.0)
                     ->money()
                     ->alignEnd()
                     ->toggleable(),
-                TextColumn::make('tax_rate')
-                    ->label('IVA %')
-                    ->formatStateUsing(fn ($state): string => $state !== null && $state !== '' ? number_format((float) $state, 2, ',', '.').' %' : '—')
-                    ->sortable()
-                    ->alignEnd()
-                    ->toggleable(),
-                TextColumn::make('discount_percent')
+                TextColumn::make('product.discount_percent')
                     ->label('Desc. %')
                     ->formatStateUsing(fn ($state): string => $state !== null && $state !== '' ? number_format((float) $state, 2, ',', '.').' %' : '—')
                     ->sortable()
@@ -223,11 +218,16 @@ class InventoriesTable
                     ->getOptionLabelFromRecordUsing(fn (Branch $record): string => $record->name)
                     ->searchable()
                     ->preload(),
-                SelectFilter::make('product_type')
-                    ->label('Tipo de producto')
-                    ->options(ProductType::options())
+                SelectFilter::make('product_category_id')
+                    ->label('Categoría (snapshot)')
+                    ->relationship(
+                        name: 'productCategory',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn (Builder $query): Builder => $query->orderBy('name'),
+                    )
                     ->multiple()
-                    ->searchable(),
+                    ->searchable()
+                    ->preload(),
                 TernaryFilter::make('allow_negative_stock')
                     ->label('Permitir saldo negativo')
                     ->placeholder('Todos')
@@ -270,7 +270,7 @@ class InventoriesTable
      */
     private static function streamSelectedInventoriesCsv(Collection $records): StreamedResponse
     {
-        $records->loadMissing(['branch', 'product']);
+        $records->loadMissing(['branch', 'product', 'productCategory']);
 
         $columns = InventoryExporter::getColumns();
         $columnMap = collect($columns)
@@ -331,10 +331,12 @@ class InventoriesTable
 
     private static function formatProductMeta(Inventory $record): string
     {
-        $type = $record->product_type instanceof ProductType ? $record->product_type->label() : null;
+        $category = filled($record->productCategory?->name)
+            ? (string) $record->productCategory->name
+            : null;
         $presentation = $record->presentation_type;
 
-        $parts = array_filter([$type, $presentation]);
+        $parts = array_filter([$category, $presentation]);
 
         return $parts !== [] ? implode(' · ', $parts) : '—';
     }

@@ -4,8 +4,10 @@ namespace Database\Seeders;
 
 use App\Enums\ProductType;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\Supplier;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 
 class ProductSeeder extends Seeder
 {
@@ -22,7 +24,6 @@ class ProductSeeder extends Seeder
                 'sku' => 'MED-PARA-500-001',
                 'barcode' => '7701234500011',
                 'name' => 'Paracetamol 500 mg Tabletas x 100',
-                'slug' => 'paracetamol-500mg-tabletas-100',
                 'description' => 'Analgesico y antipiretico de alta rotacion.',
                 'product_type' => ProductType::Medication,
                 'brand' => 'Andino Pharma',
@@ -32,7 +33,6 @@ class ProductSeeder extends Seeder
                 'net_content_label' => '100 tabletas',
                 'sale_price' => 18500,
                 'cost_price' => 12900,
-                'tax_rate' => 0,
                 'active_ingredient' => ['Paracetamol'],
                 'concentration' => '500 mg',
                 'presentation_type' => 'Tableta/Comprimido',
@@ -57,7 +57,6 @@ class ProductSeeder extends Seeder
                 'sku' => 'MED-IBUP-400-002',
                 'barcode' => '7701234500012',
                 'name' => 'Ibuprofeno 400 mg Capsulas x 30',
-                'slug' => 'ibuprofeno-400mg-capsulas-30',
                 'description' => 'Antiinflamatorio no esteroideo para dolor moderado.',
                 'product_type' => ProductType::Medication,
                 'brand' => 'Andino Pharma',
@@ -67,7 +66,6 @@ class ProductSeeder extends Seeder
                 'net_content_label' => '30 capsulas',
                 'sale_price' => 21900,
                 'cost_price' => 15400,
-                'tax_rate' => 0,
                 'active_ingredient' => ['Ibuprofeno'],
                 'concentration' => '400 mg',
                 'presentation_type' => 'Capsula dura',
@@ -92,7 +90,6 @@ class ProductSeeder extends Seeder
                 'sku' => 'MED-AMOX-875-003',
                 'barcode' => '7701234500013',
                 'name' => 'Amoxicilina 875 mg + Ac. Clavulanico x 14',
-                'slug' => 'amoxicilina-clavulanico-875-125mg-14',
                 'description' => 'Antibiotico de amplio espectro para infecciones respiratorias.',
                 'product_type' => ProductType::Medication,
                 'brand' => 'Andino Pharma',
@@ -102,7 +99,6 @@ class ProductSeeder extends Seeder
                 'net_content_label' => '14 tabletas',
                 'sale_price' => 46800,
                 'cost_price' => 33750,
-                'tax_rate' => 0,
                 'active_ingredient' => ['Amoxicilina/Clavulanico'],
                 'concentration' => '875 mg / 125 mg',
                 'presentation_type' => 'Tableta/Comprimido',
@@ -127,7 +123,6 @@ class ProductSeeder extends Seeder
                 'sku' => 'PER-LOC-HIDRA-004',
                 'barcode' => '7701234500014',
                 'name' => 'Locion Hidratante Dermiplus 400 ml',
-                'slug' => 'locion-hidratante-dermiplus-400ml',
                 'description' => 'Cuidado diario para piel sensible con pH balanceado.',
                 'product_type' => ProductType::Perfumery,
                 'brand' => 'DermiPlus',
@@ -137,7 +132,6 @@ class ProductSeeder extends Seeder
                 'net_content_label' => '400 ml',
                 'sale_price' => 32500,
                 'cost_price' => 21800,
-                'tax_rate' => 19,
                 'active_ingredient' => null,
                 'concentration' => null,
                 'presentation_type' => 'Locion',
@@ -162,7 +156,6 @@ class ProductSeeder extends Seeder
                 'sku' => 'HIG-GEL-ANTI-005',
                 'barcode' => '7701234500015',
                 'name' => 'Gel Antibacterial 70% 250 ml',
-                'slug' => 'gel-antibacterial-70-250ml',
                 'description' => 'Gel de higiene de manos con secado rapido.',
                 'product_type' => ProductType::PersonalHygiene,
                 'brand' => 'DermiPlus',
@@ -172,7 +165,6 @@ class ProductSeeder extends Seeder
                 'net_content_label' => '250 ml',
                 'sale_price' => 12900,
                 'cost_price' => 8200,
-                'tax_rate' => 19,
                 'active_ingredient' => null,
                 'concentration' => null,
                 'presentation_type' => 'Gel',
@@ -197,7 +189,6 @@ class ProductSeeder extends Seeder
                 'sku' => 'ALI-ENTERAL-006',
                 'barcode' => '7701234500016',
                 'name' => 'Formula Enteral Hipercalorica 1 L',
-                'slug' => 'formula-enteral-hipercalorica-1l',
                 'description' => 'Formula para soporte nutricional en pacientes con alto requerimiento.',
                 'product_type' => ProductType::Food,
                 'brand' => 'NutriVida',
@@ -207,7 +198,6 @@ class ProductSeeder extends Seeder
                 'net_content_label' => '1 L',
                 'sale_price' => 45800,
                 'cost_price' => 33600,
-                'tax_rate' => 5,
                 'active_ingredient' => null,
                 'concentration' => null,
                 'presentation_type' => 'Emulsion',
@@ -232,7 +222,6 @@ class ProductSeeder extends Seeder
                 'sku' => 'ALI-SUPL-ADUL-007',
                 'barcode' => '7701234500017',
                 'name' => 'Suplemento Proteico Adulto Vainilla 400 g',
-                'slug' => 'suplemento-proteico-adulto-vainilla-400g',
                 'description' => 'Suplemento en polvo para soporte nutricional oral.',
                 'product_type' => ProductType::Food,
                 'brand' => 'NutriVida',
@@ -242,7 +231,6 @@ class ProductSeeder extends Seeder
                 'net_content_label' => '400 g',
                 'sale_price' => 39200,
                 'cost_price' => 28100,
-                'tax_rate' => 5,
                 'active_ingredient' => null,
                 'concentration' => null,
                 'presentation_type' => 'Polvo para reconstituir',
@@ -267,7 +255,6 @@ class ProductSeeder extends Seeder
                 'sku' => 'EQU-TENS-08',
                 'barcode' => '7701234500018',
                 'name' => 'Tensiometro Digital de Brazo TM-800',
-                'slug' => 'tensiometro-digital-brazo-tm-800',
                 'description' => 'Dispositivo automatico para control de presion arterial.',
                 'product_type' => ProductType::MedicalEquipment,
                 'brand' => 'TecnoMed',
@@ -277,7 +264,6 @@ class ProductSeeder extends Seeder
                 'net_content_label' => 'Unidad',
                 'sale_price' => 149900,
                 'cost_price' => 112500,
-                'tax_rate' => 19,
                 'active_ingredient' => null,
                 'concentration' => null,
                 'presentation_type' => null,
@@ -302,7 +288,6 @@ class ProductSeeder extends Seeder
                 'sku' => 'EQU-GLUCO-09',
                 'barcode' => '7701234500019',
                 'name' => 'Glucometro Portatil GM-220',
-                'slug' => 'glucometro-portatil-gm-220',
                 'description' => 'Equipo para medicion de glucosa capilar en segundos.',
                 'product_type' => ProductType::MedicalEquipment,
                 'brand' => 'TecnoMed',
@@ -312,7 +297,6 @@ class ProductSeeder extends Seeder
                 'net_content_label' => 'Unidad',
                 'sale_price' => 99500,
                 'cost_price' => 73100,
-                'tax_rate' => 19,
                 'active_ingredient' => null,
                 'concentration' => null,
                 'presentation_type' => null,
@@ -337,7 +321,6 @@ class ProductSeeder extends Seeder
                 'sku' => 'MED-LOS-50-010',
                 'barcode' => '7701234500020',
                 'name' => 'Losartan 50 mg Tabletas x 30',
-                'slug' => 'losartan-50mg-tabletas-30',
                 'description' => 'Antihipertensivo de uso cronico.',
                 'product_type' => ProductType::Medication,
                 'brand' => 'GenCaribe',
@@ -347,7 +330,6 @@ class ProductSeeder extends Seeder
                 'net_content_label' => '30 tabletas',
                 'sale_price' => 17400,
                 'cost_price' => 11850,
-                'tax_rate' => 0,
                 'active_ingredient' => ['Losartan'],
                 'concentration' => '50 mg',
                 'presentation_type' => 'Tableta/Comprimido',
@@ -371,12 +353,37 @@ class ProductSeeder extends Seeder
 
         foreach ($products as $product) {
             $supplierCode = $product['supplier_code'];
-            unset(
-                $product['supplier_code'],
-                $product['sale_price'],
-                $product['cost_price'],
-                $product['tax_rate'],
+            unset($product['supplier_code']);
+            $product['discount_percent'] = $product['discount_percent'] ?? 0;
+
+            $isMedication = ($product['product_type'] ?? null) === ProductType::Medication;
+            unset($product['product_type']);
+
+            $product['slug'] = Str::slug($product['sku']);
+
+            $sale = (float) $product['sale_price'];
+            $cost = isset($product['cost_price']) && $product['cost_price'] !== null && $product['cost_price'] !== ''
+                ? (float) $product['cost_price']
+                : 0.0;
+            $profitPercent = $cost > 0.00001
+                ? round((($sale / $cost) - 1) * 100, 4)
+                : 0.0;
+            $slug = 'cat-'.Str::slug($product['sku']);
+
+            $category = ProductCategory::query()->updateOrCreate(
+                ['slug' => $slug],
+                [
+                    'name' => 'Cat. '.$product['name'],
+                    'description' => null,
+                    'image' => null,
+                    'is_active' => true,
+                    'is_medication' => $isMedication,
+                    'profit_percentage' => $profitPercent,
+                    'created_by' => 'ProductSeeder',
+                    'updated_by' => 'ProductSeeder',
+                ],
             );
+            $product['product_category_id'] = $category->id;
 
             $supplierId = $supplierIdsByCode->get($supplierCode);
 

@@ -2,21 +2,22 @@
 
 namespace App\Filament\Resources\Products\Schemas;
 
-use App\Enums\ProductType;
 use App\Models\ActiveIngredient;
 use App\Models\PresentationType;
+use App\Models\Product;
 use App\Models\Supplier;
 use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
 class ProductForm
@@ -59,13 +60,6 @@ class ProductForm
                                     ->unique(ignoreRecord: true)
                                     ->prefixIcon(Heroicon::QrCode)
                                     ->dehydrateStateUsing(fn (?string $state): ?string => $state === '' || $state === null ? null : $state),
-                                Select::make('product_type')
-                                    ->label('Tipo de producto')
-                                    ->options(ProductType::options())
-                                    ->native(false)
-                                    ->searchable()
-                                    ->required()
-                                    ->prefixIcon(Heroicon::Squares2x2),
                             ]),
                         TextInput::make('name')
                             ->label('Nombre comercial')
@@ -73,27 +67,23 @@ class ProductForm
                             ->helperText('Nombre principal del producto en catálogo.')
                             ->required()
                             ->maxLength(255)
+                            ->prefixIcon(Heroicon::ShoppingBag)
                             ->live(onBlur: true)
                             ->afterStateUpdated(function (?string $state, Set $set): void {
-                                if (blank($state)) {
-                                    $set('slug', null);
-
-                                    return;
+                                if (filled($state)) {
+                                    $set('slug', Str::slug($state));
                                 }
-
-                                $set('slug', Str::slug(Str::lower($state)));
                             })
-                            ->prefixIcon(Heroicon::ShoppingBag)
                             ->columnSpanFull(),
                         TextInput::make('slug')
                             ->label('Slug (URL)')
-                            ->placeholder('se-genera-o-se-edita-manualmente')
-                            ->helperText('Opcional. Identificador amigable para enlaces o integraciones.')
-                            ->disabled()
-                            ->dehydrated(true)
+                            ->required()
                             ->maxLength(255)
+                            ->unique(ignoreRecord: true)
+                            ->alphaDash()
+                            ->helperText('Identificador único para URLs y búsqueda. Se sugiere desde el nombre; puede ajustarlo.')
                             ->prefixIcon(Heroicon::Link)
-                            ->dehydrateStateUsing(fn (?string $state): ?string => $state === '' || $state === null ? null : $state),
+                            ->columnSpanFull(),
                         Textarea::make('description')
                             ->label('Descripción')
                             ->placeholder('Características, uso, advertencias breves para el mostrador…')
@@ -125,13 +115,69 @@ class ProductForm
                         'class' => 'fi-farmaadmin-ios-product-images-section',
                     ]),
 
-                Section::make('Unidad de venta')
-                    ->description('Precio de venta, costo, IVA y descuentos se definen por sucursal en Inventario al dar de alta o editar el producto en cada almacén.')
+                Section::make('Precios e impuestos')
+                    ->description('El precio de venta se calcula: costo + (costo × % de ganancia de la categoría). Misma política en todas las sucursales.')
                     ->icon(Heroicon::CurrencyDollar)
                     ->schema([
-                        Placeholder::make('pricing_inventory_hint')
-                            ->label('')
-                            ->content('Use el recurso Inventario para cada combinación sucursal + producto: allí se cargan costo, precio lista, tasa impositiva y descuento % local. La caja registradora toma siempre esos valores del inventario de la sucursal.'),
+                        Select::make('product_category_id')
+                            ->label('Categoría del producto')
+                            ->relationship(
+                                name: 'productCategory',
+                                titleAttribute: 'name',
+                                modifyQueryUsing: fn (Builder $query): Builder => $query->where('is_active', true)->orderBy('name'),
+                            )
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function (Get $get, Set $set): void {
+                                self::syncComputedSalePriceToForm($get, $set);
+                            })
+                            ->helperText('El margen % definido en la categoría se aplica sobre el costo para obtener el precio de venta (lista).')
+                            ->prefixIcon(Heroicon::Swatch)
+                            ->columnSpanFull(),
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                            'lg' => 4,
+                        ])
+                            ->schema([
+                                TextInput::make('cost_price')
+                                    ->label('Costo de compra')
+                                    ->helperText('Base para calcular el precio de venta junto con el margen de la categoría.')
+                                    ->required()
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->step(0.01)
+                                    ->prefix('$')
+                                    ->default(0)
+                                    ->live(onBlur: true)
+                                    ->afterStateUpdated(function (Get $get, Set $set): void {
+                                        self::syncComputedSalePriceToForm($get, $set);
+                                    })
+                                    ->prefixIcon(Heroicon::ReceiptPercent),
+                                TextInput::make('sale_price')
+                                    ->label('Precio de venta (lista)')
+                                    ->helperText('Calculado automáticamente. Antes del descuento % comercial del producto.')
+                                    ->disabled()
+                                    ->dehydrated(true)
+                                    ->numeric()
+                                    ->prefix('$')
+                                    ->default(0)
+                                    ->prefixIcon(Heroicon::Banknotes),
+                                TextInput::make('discount_percent')
+                                    ->label('Descuento (%)')
+                                    ->helperText('Porcentaje sobre el precio lista en catálogo.')
+                                    ->required()
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->maxValue(100)
+                                    ->step(0.01)
+                                    ->default(0)
+                                    ->suffix('%')
+                                    ->prefixIcon(Heroicon::Tag),
+                            ]),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
@@ -285,5 +331,25 @@ class ProductForm
                     ->columns(1)
                     ->columnSpanFull(),
             ]);
+    }
+
+    private static function syncComputedSalePriceToForm(Get $get, Set $set): void
+    {
+        if (! filled($get('product_category_id'))) {
+            $set('sale_price', 0);
+
+            return;
+        }
+
+        $cost = $get('cost_price');
+        $costAmount = ($cost === null || $cost === '') ? 0.0 : (float) $cost;
+
+        $set(
+            'sale_price',
+            Product::salePriceFromCostAndCategoryProfit(
+                $costAmount,
+                (int) $get('product_category_id'),
+            ),
+        );
     }
 }

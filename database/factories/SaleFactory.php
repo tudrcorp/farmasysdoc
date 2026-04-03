@@ -22,7 +22,7 @@ class SaleFactory extends Factory
     public function definition(): array
     {
         $subtotal = fake()->randomFloat(2, 20, 500);
-        $taxTotal = round($subtotal * 0.19, 2);
+        $taxTotal = 0.0;
         $discount = 0;
         $total = $subtotal + $taxTotal - $discount;
 

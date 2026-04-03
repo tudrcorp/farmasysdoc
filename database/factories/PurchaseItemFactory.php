@@ -23,10 +23,9 @@ class PurchaseItemFactory extends Factory
     {
         $qty = fake()->randomFloat(3, 5, 100);
         $unitCost = fake()->randomFloat(4, 1, 150);
-        $taxRate = 19.0;
         $lineSubtotal = round($qty * $unitCost, 2);
-        $taxAmount = round($lineSubtotal * ($taxRate / 100), 2);
-        $lineTotal = $lineSubtotal + $taxAmount;
+        $taxAmount = 0.0;
+        $lineTotal = $lineSubtotal;
 
         return [
             'purchase_id' => Purchase::factory(),
@@ -35,7 +34,6 @@ class PurchaseItemFactory extends Factory
             'quantity_ordered' => $qty,
             'quantity_received' => 0,
             'unit_cost' => $unitCost,
-            'tax_rate' => $taxRate,
             'line_subtotal' => $lineSubtotal,
             'tax_amount' => $taxAmount,
             'line_total' => $lineTotal,

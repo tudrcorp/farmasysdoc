@@ -26,6 +26,8 @@
                 <a href="#api-status" class="rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-900/5 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white">Estado API</a>
                 <a href="#endpoints" class="rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-900/5 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white">Endpoints</a>
                 <a href="#inventory" class="rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-900/5 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white">Inventario</a>
+                <a href="#external-branches" class="rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-900/5 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white">Sucursales</a>
+                <a href="#inventory-by-branch" class="rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-900/5 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white">Inventario sucursal</a>
                 <a href="#external-orders" class="rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-900/5 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white">Pedidos</a>
                 <a href="#service-orders" class="rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-900/5 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white">Orden servicio</a>
                 <a href="#playground" class="rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-900/5 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white">Playground</a>
@@ -70,7 +72,7 @@
                         <li class="flex gap-3"><span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">1</span><span>Opcional: consulta <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">GET /api/external/status</code> para verificar que la API está <strong>activa</strong> sin token (reduce carga si el servicio no está disponible).</span></li>
                         <li class="flex gap-3"><span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">2</span><span>Crea tu cliente API en el panel y copia el secreto que empieza por <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">fd_</code> (no la huella truncada).</span></li>
                         <li class="flex gap-3"><span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">3</span><span>Agrega el header <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">Authorization: Bearer TOKEN</code> en las operaciones con datos.</span></li>
-                        <li class="flex gap-3"><span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">4</span><span>Obtén el <strong>código de compañía aliada</strong> en el panel (<code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">partner_companies.code</code>) y envíalo como <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">partner_company</code> en inventario, pedidos y órdenes de servicio.</span></li>
+                        <li class="flex gap-3"><span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">4</span><span>Obtén el <strong>código de compañía aliada</strong> en el panel (<code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">partner_companies.code</code>) y envíalo como <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">partner_company</code> en inventario, listado de sucursales, inventario por sucursal, pedidos y órdenes de servicio.</span></li>
                         <li class="flex gap-3"><span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">5</span><span>Consume los endpoints con JSON o query. Maneja errores 401, 403 y 422.</span></li>
                     </ol>
                 </div>
@@ -82,7 +84,7 @@
             <div class="mt-6 grid gap-4 sm:grid-cols-2">
                 <article class="rounded-2xl border border-zinc-200/80 bg-zinc-50/80 p-4 dark:border-white/10 dark:bg-zinc-900/70">
                     <h3 class="font-semibold">Header requerido</h3>
-                    <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-300">Las operaciones con datos (inventario, pedidos, órdenes de servicio) deben enviar token Bearer. La excepción es <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">GET /api/external/status</code>: no usa token ni <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">partner_company</code>.</p>
+                    <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-300">Las operaciones con datos (inventario global, inventario por sucursal, sucursales, pedidos, órdenes de servicio) deben enviar token Bearer. La excepción es <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">GET /api/external/status</code>: no usa token ni <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">partner_company</code>.</p>
                     <pre class="mt-3 overflow-auto rounded-xl bg-zinc-900 p-3 text-xs text-zinc-100"><code id="auth-header-code">Authorization: Bearer fd_tu_secreto_del_panel</code></pre>
                     <button data-copy-target="auth-header-code" class="copy-btn mt-3 rounded-xl bg-zinc-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">Copiar</button>
                 </article>
@@ -111,13 +113,15 @@
 
         <section id="endpoints" class="space-y-4">
             <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/90 p-4 text-sm leading-relaxed text-zinc-700 dark:border-white/10 dark:bg-zinc-900/60 dark:text-zinc-200">
-                <p><strong>Prefijo común:</strong> <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">/api/external</code>. En inventario, pedidos y órdenes de servicio debes enviar <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">partner_company</code> (código en <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">partner_companies.code</code>). <strong>Excepción:</strong> <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">GET /status</code> no lleva token ni <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">partner_company</code>. <strong>POST:</strong> cuerpo JSON con <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">Content-Type: application/json</code>. <strong>Errores 422:</strong> cuerpo con <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">message</code> y <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">errors</code> (objeto por campo).</p>
+                <p><strong>Prefijo común:</strong> <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">/api/external</code>. En inventario (global y por sucursal), listado de sucursales, pedidos y órdenes de servicio debes enviar <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">partner_company</code> (código en <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">partner_companies.code</code>). El inventario por sucursal además requiere <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">branch_id</code> (id numérico de una sucursal <strong>activa</strong>). <strong>Excepción:</strong> <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">GET /status</code> no lleva token ni <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">partner_company</code>. <strong>POST:</strong> cuerpo JSON con <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">Content-Type: application/json</code>. <strong>Errores 422:</strong> cuerpo con <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">message</code> y <code class="rounded bg-zinc-200/80 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800">errors</code> (objeto por campo).</p>
             </div>
             <h2 class="text-2xl font-bold">Endpoints disponibles</h2>
             <p class="text-sm text-zinc-600 dark:text-zinc-300">Los nombres de parámetros coinciden con la validación del servidor (Laravel FormRequest). Usa las tablas como referencia al armar tu integración.</p>
             <div class="flex flex-wrap gap-2 text-xs">
                 <a href="#api-status" class="rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-900 dark:bg-slate-500/25 dark:text-slate-100">GET estado</a>
                 <a href="#inventory" class="rounded-full bg-cyan-100 px-3 py-1 font-semibold text-cyan-900 dark:bg-cyan-500/20 dark:text-cyan-100">GET inventario</a>
+                <a href="#external-branches" class="rounded-full bg-sky-100 px-3 py-1 font-semibold text-sky-900 dark:bg-sky-500/20 dark:text-sky-100">GET sucursales</a>
+                <a href="#inventory-by-branch" class="rounded-full bg-teal-100 px-3 py-1 font-semibold text-teal-900 dark:bg-teal-500/20 dark:text-teal-100">GET inventario sucursal</a>
                 <a href="#external-orders" class="rounded-full bg-emerald-100 px-3 py-1 font-semibold text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-100">POST pedidos</a>
                 <a href="#service-orders" class="rounded-full bg-violet-100 px-3 py-1 font-semibold text-violet-900 dark:bg-violet-500/20 dark:text-violet-100">POST orden servicio</a>
             </div>
@@ -206,7 +210,6 @@
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">presentation</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">Presentación</td></tr>
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">presentation_type</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">Tipo de presentación</td></tr>
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">sale_price</td><td class="px-3 py-2">number</td><td class="px-3 py-2">Precio de venta</td></tr>
-                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">tax_rate</td><td class="px-3 py-2">number</td><td class="px-3 py-2">Tasa de impuesto (%)</td></tr>
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">requires_prescription</td><td class="px-3 py-2">boolean</td><td class="px-3 py-2">Requiere fórmula</td></tr>
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">is_controlled_substance</td><td class="px-3 py-2">boolean</td><td class="px-3 py-2">Sustancia controlada</td></tr>
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">health_registration_number</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">Registro sanitario</td></tr>
@@ -227,11 +230,187 @@
       "presentation": "Tableta",
       "presentation_type": "Tableta",
       "sale_price": 1200.5,
-      "tax_rate": 19,
       "requires_prescription": false,
       "is_controlled_substance": false,
       "health_registration_number": null,
       "total_available_quantity": 90
+    }
+  ]
+}</code></pre>
+            </details>
+
+            <details id="external-branches" class="group rounded-3xl border border-zinc-200/80 bg-white/80 p-6 shadow-xl shadow-zinc-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-white/5 dark:open:bg-zinc-900/40">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">GET</p>
+                        <h3 class="font-mono text-base sm:text-lg">/api/external/branches</h3>
+                    </div>
+                    <span class="rounded-full bg-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">Sucursales</span>
+                </summary>
+                <p class="mt-4 text-sm text-zinc-600 dark:text-zinc-300">Lista las <strong>sucursales activas</strong> registradas en el sistema (identificador, código interno, nombre y ubicación básica). Úsalo para obtener <code class="rounded bg-zinc-100 px-1 font-mono text-xs dark:bg-zinc-800">branch_id</code> antes de consultar <a href="#inventory-by-branch" class="font-semibold text-cyan-700 underline dark:text-cyan-300">inventario por sucursal</a>.</p>
+                <div class="mt-4 overflow-x-auto rounded-2xl border border-zinc-200/80 dark:border-white/10">
+                    <table class="w-full min-w-[32rem] border-collapse text-left text-xs sm:text-sm">
+                        <thead>
+                            <tr class="border-b border-zinc-200 bg-zinc-50/90 dark:border-white/10 dark:bg-zinc-900/80">
+                                <th class="px-3 py-2 font-semibold">Parámetro</th>
+                                <th class="px-3 py-2 font-semibold">Dónde</th>
+                                <th class="px-3 py-2 font-semibold">Tipo</th>
+                                <th class="px-3 py-2 font-semibold">Obligatorio</th>
+                                <th class="px-3 py-2 font-semibold">Reglas / notas</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-zinc-700 dark:text-zinc-200">
+                            <tr class="border-b border-zinc-100 dark:border-white/5">
+                                <td class="px-3 py-2 font-mono">partner_company</td>
+                                <td class="px-3 py-2">Query string</td>
+                                <td class="px-3 py-2">string</td>
+                                <td class="px-3 py-2">Sí</td>
+                                <td class="px-3 py-2">Código del aliado; debe existir en <code class="font-mono">partner_companies.code</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="mt-3 text-xs text-zinc-500 dark:text-zinc-400">Ejemplo: <code class="rounded bg-zinc-100 px-1 font-mono dark:bg-zinc-800">GET /api/external/branches?partner_company=ALDO-2026-001</code></p>
+                <h4 class="mt-6 text-sm font-semibold text-zinc-800 dark:text-zinc-100">Campos en cada elemento de <code class="font-mono">data[]</code></h4>
+                <div class="mt-2 overflow-x-auto rounded-2xl border border-zinc-200/80 dark:border-white/10">
+                    <table class="w-full min-w-[28rem] border-collapse text-left text-xs sm:text-sm">
+                        <thead>
+                            <tr class="border-b border-zinc-200 bg-zinc-50/90 dark:border-white/10 dark:bg-zinc-900/80">
+                                <th class="px-3 py-2 font-semibold">Campo</th>
+                                <th class="px-3 py-2 font-semibold">Tipo</th>
+                                <th class="px-3 py-2 font-semibold">Descripción</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-zinc-700 dark:text-zinc-200">
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">id</td><td class="px-3 py-2">integer</td><td class="px-3 py-2">ID de la sucursal (usar como <code class="font-mono">branch_id</code> en otros endpoints)</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">code</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">Código interno (p. ej. <code class="font-mono">SUC-1</code>)</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">name</td><td class="px-3 py-2">string</td><td class="px-3 py-2">Nombre comercial de la sucursal</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">city</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">Ciudad</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">state</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">Departamento / estado</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">country</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">País</td></tr>
+                            <tr><td class="px-3 py-2 font-mono">is_headquarters</td><td class="px-3 py-2">boolean</td><td class="px-3 py-2">Indica si es sede principal</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="mt-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Respuesta HTTP 200 — ejemplo</p>
+                <pre class="mt-2 overflow-auto rounded-xl bg-zinc-900 p-3 text-xs text-zinc-100"><code>{
+  "data": [
+    {
+      "id": 1,
+      "code": "SUC-1",
+      "name": "Farmacia Centro",
+      "city": "Bogotá",
+      "state": "Cundinamarca",
+      "country": "CO",
+      "is_headquarters": true
+    }
+  ]
+}</code></pre>
+            </details>
+
+            <details id="inventory-by-branch" class="group rounded-3xl border border-zinc-200/80 bg-white/80 p-6 shadow-xl shadow-zinc-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-white/5 dark:open:bg-zinc-900/40">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-teal-700 dark:text-teal-300">GET</p>
+                        <h3 class="font-mono text-base sm:text-lg">/api/external/inventory-by-branch</h3>
+                    </div>
+                    <span class="rounded-full bg-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">Inventario / sucursal</span>
+                </summary>
+                <p class="mt-4 text-sm text-zinc-600 dark:text-zinc-300">Devuelve todas las <strong>filas de inventario</strong> de una sucursal concreta (existencias, reservado, precios e impuestos a nivel sucursal) y datos del producto asociado. La sucursal debe estar <strong>activa</strong>.</p>
+                <div class="mt-4 overflow-x-auto rounded-2xl border border-zinc-200/80 dark:border-white/10">
+                    <table class="w-full min-w-[36rem] border-collapse text-left text-xs sm:text-sm">
+                        <thead>
+                            <tr class="border-b border-zinc-200 bg-zinc-50/90 dark:border-white/10 dark:bg-zinc-900/80">
+                                <th class="px-3 py-2 font-semibold">Parámetro</th>
+                                <th class="px-3 py-2 font-semibold">Dónde</th>
+                                <th class="px-3 py-2 font-semibold">Tipo</th>
+                                <th class="px-3 py-2 font-semibold">Obligatorio</th>
+                                <th class="px-3 py-2 font-semibold">Reglas / notas</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-zinc-700 dark:text-zinc-200">
+                            <tr class="border-b border-zinc-100 dark:border-white/5">
+                                <td class="px-3 py-2 font-mono">partner_company</td>
+                                <td class="px-3 py-2">Query string</td>
+                                <td class="px-3 py-2">string</td>
+                                <td class="px-3 py-2">Sí</td>
+                                <td class="px-3 py-2">Código del aliado; debe existir en <code class="font-mono">partner_companies.code</code></td>
+                            </tr>
+                            <tr>
+                                <td class="px-3 py-2 font-mono">branch_id</td>
+                                <td class="px-3 py-2">Query string</td>
+                                <td class="px-3 py-2">integer</td>
+                                <td class="px-3 py-2">Sí</td>
+                                <td class="px-3 py-2">ID de sucursal <strong>activa</strong> (p. ej. obtenido con <code class="font-mono">GET /branches</code>)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="mt-3 text-xs text-zinc-500 dark:text-zinc-400">Ejemplo: <code class="rounded bg-zinc-100 px-1 font-mono dark:bg-zinc-800">GET /api/external/inventory-by-branch?partner_company=ALDO-2026-001&amp;branch_id=1</code></p>
+                <h4 class="mt-6 text-sm font-semibold text-zinc-800 dark:text-zinc-100">Objeto <code class="font-mono">branch</code> (cabecera)</h4>
+                <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-300"><code class="font-mono">id</code>, <code class="font-mono">code</code>, <code class="font-mono">name</code>, <code class="font-mono">city</code>, <code class="font-mono">state</code>, <code class="font-mono">country</code>.</p>
+                <h4 class="mt-4 text-sm font-semibold text-zinc-800 dark:text-zinc-100">Campos en cada elemento de <code class="font-mono">data[]</code></h4>
+                <div class="mt-2 overflow-x-auto rounded-2xl border border-zinc-200/80 dark:border-white/10">
+                    <table class="w-full min-w-[36rem] border-collapse text-left text-xs sm:text-sm">
+                        <thead>
+                            <tr class="border-b border-zinc-200 bg-zinc-50/90 dark:border-white/10 dark:bg-zinc-900/80">
+                                <th class="px-3 py-2 font-semibold">Campo</th>
+                                <th class="px-3 py-2 font-semibold">Tipo</th>
+                                <th class="px-3 py-2 font-semibold">Descripción</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-zinc-700 dark:text-zinc-200">
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">inventory_id</td><td class="px-3 py-2">integer</td><td class="px-3 py-2">ID de la fila de inventario</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">product_id</td><td class="px-3 py-2">integer</td><td class="px-3 py-2">ID del producto</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">sku</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">SKU</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">name</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">Nombre del producto (null si el producto ya no existe)</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">barcode</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">Código de barras</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">product_category_id</td><td class="px-3 py-2">integer|null</td><td class="px-3 py-2">ID de categoría en catálogo</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">product_category_name</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">Nombre de la categoría</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">active_ingredient</td><td class="px-3 py-2">array|null</td><td class="px-3 py-2">Principio(s) activo(s) según catálogo</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">concentration</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">Concentración</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">presentation_type</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">Tipo de presentación</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">product_is_active</td><td class="px-3 py-2">boolean|null</td><td class="px-3 py-2">Si el producto está activo en catálogo</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">quantity</td><td class="px-3 py-2">number</td><td class="px-3 py-2">Existencias en sucursal</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">reserved_quantity</td><td class="px-3 py-2">number</td><td class="px-3 py-2">Cantidad reservada</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">available_quantity</td><td class="px-3 py-2">number</td><td class="px-3 py-2">Disponible para venta (según reglas de stock negativo)</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">sale_price</td><td class="px-3 py-2">number</td><td class="px-3 py-2">Precio de lista en sucursal</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">effective_sale_unit_price</td><td class="px-3 py-2">number</td><td class="px-3 py-2">Precio unitario tras descuento % de la sucursal</td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">discount_percent</td><td class="px-3 py-2">number</td><td class="px-3 py-2">Descuento % en sucursal</td></tr>
+                            <tr><td class="px-3 py-2 font-mono">allow_negative_stock</td><td class="px-3 py-2">boolean</td><td class="px-3 py-2">Permite saldo negativo en esta fila</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="mt-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Respuesta HTTP 200 — ejemplo (fragmento)</p>
+                <pre class="mt-2 overflow-auto rounded-xl bg-zinc-900 p-3 text-xs text-zinc-100"><code>{
+  "branch": {
+    "id": 1,
+    "code": "SUC-1",
+    "name": "Farmacia Centro",
+    "city": "Bogotá",
+    "state": "Cundinamarca",
+    "country": "CO"
+  },
+  "data": [
+    {
+      "inventory_id": 10,
+      "product_id": 15,
+      "sku": "MED-500-A",
+      "name": "Acetaminofen 500 mg",
+      "barcode": "001234",
+      "product_category_id": 3,
+      "product_category_name": "Medicamentos",
+      "active_ingredient": ["Paracetamol"],
+      "concentration": "500 mg",
+      "presentation_type": "Tableta",
+      "product_is_active": true,
+      "quantity": 100,
+      "reserved_quantity": 5,
+      "available_quantity": 95,
+      "sale_price": 1200.5,
+      "effective_sale_unit_price": 1140.48,
+      "discount_percent": 5,
+      "allow_negative_stock": false
     }
   ]
 }</code></pre>
@@ -245,7 +424,7 @@
                     </div>
                     <span class="rounded-full bg-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">Pedidos</span>
                 </summary>
-                <p class="mt-4 text-sm text-zinc-600 dark:text-zinc-300">Crea un <strong>pedido de venta</strong> con líneas de producto, precios e impuestos. El servidor recalcula subtotales y totales.</p>
+                <p class="mt-4 text-sm text-zinc-600 dark:text-zinc-300">Crea un <strong>pedido de venta</strong> con líneas de producto, precios y descuentos por línea. El servidor recalcula subtotales y totales (sin IVA por línea; <code class="rounded bg-zinc-100 px-1 font-mono text-xs dark:bg-zinc-800">tax_total</code> queda en 0).</p>
                 <h4 class="mt-4 text-sm font-semibold text-zinc-800 dark:text-zinc-100">Cuerpo JSON — campos raíz</h4>
                 <div class="mt-2 overflow-x-auto rounded-2xl border border-zinc-200/80 dark:border-white/10">
                     <table class="w-full min-w-[40rem] border-collapse text-left text-xs sm:text-sm">
@@ -299,7 +478,6 @@
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">unit_price</td><td class="px-3 py-2">number</td><td class="px-3 py-2">Sí</td><td class="px-3 py-2">≥ 0</td></tr>
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">inventory_id</td><td class="px-3 py-2">integer|null</td><td class="px-3 py-2">No</td><td class="px-3 py-2">Debe existir en <code class="font-mono">inventories</code></td></tr>
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">discount_amount</td><td class="px-3 py-2">number|null</td><td class="px-3 py-2">No</td><td class="px-3 py-2">≥ 0</td></tr>
-                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">tax_rate</td><td class="px-3 py-2">number|null</td><td class="px-3 py-2">No</td><td class="px-3 py-2">0–100 (%)</td></tr>
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">product_name_snapshot</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">No</td><td class="px-3 py-2">Máx. 255</td></tr>
                             <tr><td class="px-3 py-2 font-mono">sku_snapshot</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">No</td><td class="px-3 py-2">Máx. 255</td></tr>
                         </tbody>
@@ -315,9 +493,9 @@
     "status": "pendiente",
     "items_count": 1,
     "subtotal": 24000,
-    "tax_total": 4560,
+    "tax_total": 0,
     "discount_total": 0,
-    "total": 28560
+    "total": 24000
   }
 }</code></pre>
             </details>
@@ -405,6 +583,8 @@
                     <select id="pg-endpoint" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm shadow-sm outline-none ring-cyan-500 transition focus:ring-2 dark:border-white/10 dark:bg-zinc-900">
                         <option value="status">GET estado de la API (sin token)</option>
                         <option value="inventory">GET inventario (por principio activo)</option>
+                        <option value="branches">GET listar sucursales activas</option>
+                        <option value="inventory_by_branch">GET inventario por sucursal</option>
                         <option value="orders">POST crear pedido</option>
                         <option value="service_orders">POST orden de servicio (aliado)</option>
                     </select>
@@ -475,6 +655,8 @@
         const endpointParamHints = {
             status: '<strong>GET /api/external/status</strong> — sin query, sin <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">Authorization</code>, sin <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">partner_company</code>. Respuesta: <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">status: active</code> si todo está bien.',
             inventory: '<strong>GET /api/external/inventory</strong> — query: <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">partner_company</code> (código en partner_companies, oblig.) y <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">active_ingredient</code> (string, oblig., mín. 2, máx. 2000).',
+            branches: '<strong>GET /api/external/branches</strong> — query obligatorio: <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">partner_company</code>. Lista sucursales <strong>activas</strong> con <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">id</code>, <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">code</code>, nombre y ubicación.',
+            inventory_by_branch: '<strong>GET /api/external/inventory-by-branch</strong> — query: <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">partner_company</code> (oblig.) y <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">branch_id</code> (entero, sucursal <strong>activa</strong>). Respuesta: objeto <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">branch</code> + arreglo <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">data</code> con líneas de inventario.',
             orders: '<strong>POST /api/external/orders</strong> — JSON raíz: <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">partner_company</code> (código oblig.), <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">client_id</code> (int, oblig.) e <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">items[]</code> con <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">product_id</code>, <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">quantity</code> &gt; 0, <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">unit_price</code> ≥ 0. El ejemplo incluye campos opcionales frecuentes.',
             service_orders: '<strong>POST /api/external/service-orders</strong> — JSON: <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">partner_company</code> (código en partner_companies), datos de paciente, <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">diagnosis</code>, <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">items[]</code> con <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">name</code> e <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">indicacion</code>. No envíes <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">ordered_at</code> (lo asigna el servidor).',
         };
@@ -726,6 +908,157 @@ try {
     exit(1);
 }`,
             },
+            branches: {
+                curl: (baseUrl, token) => `# === GET /api/external/branches ===
+# Query obligatorio: partner_company (codigo en partner_companies.code)
+curl -sS -X GET "${baseUrl}/api/external/branches?partner_company=ALDO-2026-001" \\
+  -H "Accept: application/json" \\
+  -H "Authorization: Bearer ${token}" \\
+  -w "\\nHTTP %{http_code}\\n"`,
+                javascript: (baseUrl, token) => `// === GET /api/external/branches ===
+const baseUrl = ${JSON.stringify(baseUrl)};
+const token = ${JSON.stringify(token || 'TU_TOKEN_AQUI')};
+const params = new URLSearchParams({ partner_company: 'ALDO-2026-001' });
+const url = \`\${baseUrl}/api/external/branches?\${params.toString()}\`;
+const response = await fetch(url, {
+  method: 'GET',
+  headers: { Accept: 'application/json', Authorization: \`Bearer \${token}\` },
+});
+const bodyText = await response.text();
+let data;
+try { data = JSON.parse(bodyText); } catch { data = bodyText; }
+console.log('HTTP', response.status);
+console.log(data);`,
+                python: (baseUrl, token) => `"""GET /api/external/branches — partner_company obligatorio."""
+import requests
+BASE_URL = ${JSON.stringify(baseUrl)}
+TOKEN = ${JSON.stringify(token || 'TU_TOKEN_AQUI')}
+session = requests.Session()
+session.headers.update({"Accept": "application/json", "Authorization": f"Bearer {TOKEN}"})
+params = {"partner_company": "ALDO-2026-001"}
+response = session.get(f"{BASE_URL}/api/external/branches", params=params, timeout=30)
+print(response.status_code)
+print(response.json())`,
+                php: (baseUrl, token) => `&lt;?php
+/**
+ * GET /api/external/branches — query: partner_company
+ */
+$baseUrl = ${JSON.stringify(baseUrl)};
+$token = ${JSON.stringify(token || 'TU_TOKEN_AQUI')};
+$query = http_build_query(['partner_company' => 'ALDO-2026-001']);
+$url = rtrim($baseUrl, '/') . '/api/external/branches?' . $query;
+$ch = curl_init($url);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        'Accept: application/json',
+        'Authorization: Bearer ' . $token,
+    ],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+curl_close($ch);
+echo 'HTTP ' . $status . PHP_EOL;
+echo $body . PHP_EOL;`,
+                guzzle: (baseUrl, token) => `&lt;?php
+require __DIR__ . '/vendor/autoload.php';
+use GuzzleHttp\\Client;
+use GuzzleHttp\\Exception\\RequestException;
+$baseUrl = ${JSON.stringify(baseUrl)};
+$token = ${JSON.stringify(token || 'TU_TOKEN_AQUI')};
+$client = new Client(['base_uri' => rtrim($baseUrl, '/') . '/', 'timeout' => 30]);
+try {
+    $response = $client->get('api/external/branches', [
+        'query' => ['partner_company' => 'ALDO-2026-001'],
+        'headers' => ['Accept' => 'application/json', 'Authorization' => 'Bearer ' . $token],
+    ]);
+    echo 'HTTP ' . $response->getStatusCode() . PHP_EOL;
+    echo (string) $response->getBody() . PHP_EOL;
+} catch (RequestException $e) {
+    echo $e->getMessage() . PHP_EOL;
+    exit(1);
+}`,
+            },
+            inventory_by_branch: {
+                curl: (baseUrl, token) => `# === GET /api/external/inventory-by-branch ===
+# Query: partner_company (oblig.), branch_id entero sucursal activa
+curl -sS -X GET "${baseUrl}/api/external/inventory-by-branch?partner_company=ALDO-2026-001&branch_id=1" \\
+  -H "Accept: application/json" \\
+  -H "Authorization: Bearer ${token}" \\
+  -w "\\nHTTP %{http_code}\\n"`,
+                javascript: (baseUrl, token) => `// === GET /api/external/inventory-by-branch ===
+const baseUrl = ${JSON.stringify(baseUrl)};
+const token = ${JSON.stringify(token || 'TU_TOKEN_AQUI')};
+const params = new URLSearchParams({
+  partner_company: 'ALDO-2026-001',
+  branch_id: '1',
+});
+const url = \`\${baseUrl}/api/external/inventory-by-branch?\${params.toString()}\`;
+const response = await fetch(url, {
+  method: 'GET',
+  headers: { Accept: 'application/json', Authorization: \`Bearer \${token}\` },
+});
+const bodyText = await response.text();
+let data;
+try { data = JSON.parse(bodyText); } catch { data = bodyText; }
+console.log('HTTP', response.status);
+console.log(data);`,
+                python: (baseUrl, token) => `"""GET /api/external/inventory-by-branch — partner_company + branch_id."""
+import requests
+BASE_URL = ${JSON.stringify(baseUrl)}
+TOKEN = ${JSON.stringify(token || 'TU_TOKEN_AQUI')}
+session = requests.Session()
+session.headers.update({"Accept": "application/json", "Authorization": f"Bearer {TOKEN}"})
+params = {"partner_company": "ALDO-2026-001", "branch_id": 1}
+response = session.get(f"{BASE_URL}/api/external/inventory-by-branch", params=params, timeout=30)
+print(response.status_code)
+print(response.json())`,
+                php: (baseUrl, token) => `&lt;?php
+/**
+ * GET /api/external/inventory-by-branch
+ */
+$baseUrl = ${JSON.stringify(baseUrl)};
+$token = ${JSON.stringify(token || 'TU_TOKEN_AQUI')};
+$query = http_build_query([
+    'partner_company' => 'ALDO-2026-001',
+    'branch_id' => 1,
+]);
+$url = rtrim($baseUrl, '/') . '/api/external/inventory-by-branch?' . $query;
+$ch = curl_init($url);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        'Accept: application/json',
+        'Authorization: Bearer ' . $token,
+    ],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+curl_close($ch);
+echo 'HTTP ' . $status . PHP_EOL;
+echo $body . PHP_EOL;`,
+                guzzle: (baseUrl, token) => `&lt;?php
+require __DIR__ . '/vendor/autoload.php';
+use GuzzleHttp\\Client;
+use GuzzleHttp\\Exception\\RequestException;
+$baseUrl = ${JSON.stringify(baseUrl)};
+$token = ${JSON.stringify(token || 'TU_TOKEN_AQUI')};
+$client = new Client(['base_uri' => rtrim($baseUrl, '/') . '/', 'timeout' => 30]);
+try {
+    $response = $client->get('api/external/inventory-by-branch', [
+        'query' => [
+            'partner_company' => 'ALDO-2026-001',
+            'branch_id' => 1,
+        ],
+        'headers' => ['Accept' => 'application/json', 'Authorization' => 'Bearer ' . $token],
+    ]);
+    echo 'HTTP ' . $response->getStatusCode() . PHP_EOL;
+    echo (string) $response->getBody() . PHP_EOL;
+} catch (RequestException $e) {
+    echo $e->getMessage() . PHP_EOL;
+    exit(1);
+}`,
+            },
             orders: {
                 curl: (baseUrl, token) => `# === POST /api/external/orders (cuerpo JSON, mismos nombres que Laravel) ===
 # Obligatorios:
@@ -733,7 +1066,7 @@ try {
 #   items[] (min 1 linea)
 # Por linea en items[] obligatorios:
 #   product_id (int), quantity (>0), unit_price (>=0)
-# Opcionales (ejemplos abajo): branch_id, status (enum OrderStatus), convenio_type (enum), tax_rate, etc.
+# Opcionales (ejemplos abajo): branch_id, status (enum OrderStatus), convenio_type (enum), etc.
 #
 BASE="${baseUrl}"
 TOKEN="${token}"
@@ -753,7 +1086,6 @@ curl -sS -X POST "${baseUrl}/api/external/orders" \\
         "quantity": 2,
         "unit_price": 12000,
         "discount_amount": 0,
-        "tax_rate": 19,
         "inventory_id": null
       }
     ]
@@ -778,7 +1110,6 @@ const payload = {
       quantity: 2,
       unit_price: 12000,
       discount_amount: 0,
-      tax_rate: 19,
     },
   ],
 };
@@ -825,7 +1156,6 @@ payload = {
             "quantity": 2,
             "unit_price": 12000,
             "discount_amount": 0,
-            "tax_rate": 19,
         }
     ],
 }
@@ -862,7 +1192,6 @@ $payload = [
             'quantity' => 2,
             'unit_price' => 12000,
             'discount_amount' => 0,
-            'tax_rate' => 19,
         ],
     ],
 ];
@@ -918,7 +1247,6 @@ $payload = [
             'quantity' => 2,
             'unit_price' => 12000,
             'discount_amount' => 0,
-            'tax_rate' => 19,
         ],
     ],
 ];

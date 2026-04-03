@@ -24,11 +24,10 @@ class SaleItemFactory extends Factory
         $quantity = fake()->randomFloat(3, 1, 10);
         $unitPrice = fake()->randomFloat(2, 5, 200);
         $discount = 0.0;
-        $taxRate = 19.0;
         $unitCost = fake()->randomFloat(4, 1, (float) $unitPrice);
         $lineSubtotal = round(($quantity * $unitPrice) - $discount, 2);
-        $taxAmount = round($lineSubtotal * ($taxRate / 100), 2);
-        $lineTotal = $lineSubtotal + $taxAmount;
+        $taxAmount = 0.0;
+        $lineTotal = $lineSubtotal;
         $lineCostTotal = round($quantity * $unitCost, 2);
         $grossProfit = round($lineTotal - $lineCostTotal, 2);
 
@@ -40,7 +39,6 @@ class SaleItemFactory extends Factory
             'unit_price' => $unitPrice,
             'unit_cost' => $unitCost,
             'discount_amount' => $discount,
-            'tax_rate' => $taxRate,
             'line_subtotal' => $lineSubtotal,
             'tax_amount' => $taxAmount,
             'line_total' => $lineTotal,

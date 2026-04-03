@@ -41,10 +41,9 @@ test('purchase has items linked to products', function () {
         'quantity_ordered' => 24,
         'quantity_received' => 0,
         'unit_cost' => 5.5000,
-        'tax_rate' => 19,
         'line_subtotal' => 132.00,
-        'tax_amount' => 25.08,
-        'line_total' => 157.08,
+        'tax_amount' => 0,
+        'line_total' => 132.00,
         'product_name_snapshot' => $product->name,
         'sku_snapshot' => $product->sku,
     ]);

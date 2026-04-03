@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Inventories\Schemas;
 
-use App\Enums\ProductType;
 use App\Models\ActiveIngredient;
 use App\Models\Inventory;
 use App\Models\Product;
@@ -64,7 +63,7 @@ class InventoryForm
                                     ->live(onBlur: false)
                                     ->afterStateUpdated(function (?string $state, Set $set): void {
                                         if (blank($state)) {
-                                            $set('product_type', null);
+                                            $set('product_category_id', null);
                                             $set('active_ingredient', []);
                                             $set('concentration', null);
                                             $set('presentation_type', null);
@@ -113,9 +112,12 @@ class InventoryForm
                             'sm' => 2,
                         ])
                             ->schema([
-                                Select::make('product_type')
-                                    ->label('Tipo de producto')
-                                    ->options(ProductType::options())
+                                Select::make('product_category_id')
+                                    ->label('Categoría (catálogo)')
+                                    ->relationship(
+                                        name: 'productCategory',
+                                        titleAttribute: 'name',
+                                    )
                                     ->disabled()
                                     ->dehydrated(true)
                                     ->native(false),
@@ -143,61 +145,14 @@ class InventoryForm
                     ->columns(1)
                     ->columnSpanFull(),
 
-                Section::make('Precios y tributos en esta sucursal')
-                    ->description('Estos valores alimentan la caja registradora y los márgenes de la venta en esta sucursal únicamente.')
+                Section::make('Precios del producto')
+                    ->description('Precio de venta, costo, IVA y descuento % están en el catálogo del producto y son iguales en todas las sucursales.')
                     ->icon(Heroicon::CurrencyDollar)
-                    ->visible(fn (Get $get): bool => filled($get('branch_id')))
+                    ->visible(fn (Get $get): bool => filled($get('product_id')))
                     ->schema([
-                        Grid::make([
-                            'default' => 1,
-                            'sm' => 2,
-                            'lg' => 4,
-                        ])
-                            ->schema([
-                                TextInput::make('sale_price')
-                                    ->label('Precio de venta (lista)')
-                                    ->helperText('Precio público antes del descuento % local.')
-                                    ->required()
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->step(0.01)
-                                    ->prefix('$')
-                                    ->default(0)
-                                    ->prefixIcon(Heroicon::Banknotes),
-                                TextInput::make('cost_price')
-                                    ->label('Costo unitario')
-                                    ->helperText('Costo de reposición o valoración en esta sucursal.')
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->step(0.01)
-                                    ->prefix('$')
-                                    ->prefixIcon(Heroicon::ReceiptPercent),
-                                TextInput::make('tax_rate')
-                                    ->label('Tasa de impuesto (IVA u otro)')
-                                    ->required()
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->maxValue(100)
-                                    ->step(0.01)
-                                    ->default(0)
-                                    ->suffix('%')
-                                    ->prefixIcon(Heroicon::Calculator),
-                                TextInput::make('discount_percent')
-                                    ->label('Descuento % (promoción local)')
-                                    ->helperText('Se aplica sobre el precio lista antes del impuesto.')
-                                    ->required()
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->maxValue(100)
-                                    ->step(0.01)
-                                    ->default(0)
-                                    ->suffix('%')
-                                    ->prefixIcon(Heroicon::Tag),
-                            ]),
-                        Placeholder::make('pos_pricing_hint')
+                        Placeholder::make('pricing_from_product_hint')
                             ->label('')
-                            ->visible(fn (Get $get): bool => filled($get('product_id')))
-                            ->content('En el POS el precio efectivo es: precio lista × (1 − descuento %). El impuesto se calcula sobre ese subtotal.'),
+                            ->content('Edite el producto en Catálogo → Productos para cambiar lista, costo, impuesto o descuento %. La caja y las integraciones leen esos valores automáticamente.'),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

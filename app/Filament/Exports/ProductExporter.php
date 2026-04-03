@@ -21,6 +21,8 @@ class ProductExporter extends Exporter
                 ->label('ID proveedor'),
             ExportColumn::make('barcode')
                 ->label('Código de barras'),
+            ExportColumn::make('sku')
+                ->label('SKU'),
             ExportColumn::make('name')
                 ->label('Nombre'),
             ExportColumn::make('slug')
@@ -29,8 +31,8 @@ class ProductExporter extends Exporter
                 ->label('Descripción'),
             ExportColumn::make('image')
                 ->label('Imagen (ruta)'),
-            ExportColumn::make('product_type')
-                ->label('Tipo de producto'),
+            ExportColumn::make('productCategory.name')
+                ->label('Categoría'),
             ExportColumn::make('brand')
                 ->label('Marca'),
             ExportColumn::make('presentation')
@@ -41,6 +43,12 @@ class ProductExporter extends Exporter
                 ->label('Contenido unitario'),
             ExportColumn::make('net_content_label')
                 ->label('Etiqueta de contenido neto'),
+            ExportColumn::make('sale_price')
+                ->label('Precio venta (lista)'),
+            ExportColumn::make('cost_price')
+                ->label('Costo de compra'),
+            ExportColumn::make('discount_percent')
+                ->label('Descuento (%)'),
             ExportColumn::make('active_ingredient')
                 ->label('Principio activo'),
             ExportColumn::make('concentration')

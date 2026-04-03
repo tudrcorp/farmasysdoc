@@ -8,6 +8,7 @@ use App\Models\Client;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Supplier;
@@ -78,8 +79,34 @@ class DemoSalesYearSeeder extends Seeder
 
                 $quantity = (float) fake()->randomFloat(3, 1, 8);
                 $listPrice = (float) fake()->randomFloat(2, 5, 250);
-                $taxRate = (float) fake()->randomElement([0, 5, 19]);
                 $unitCost = round($listPrice * 0.65, 4);
+
+                $profitPercent = $unitCost > 0.00001
+                    ? round((($listPrice / $unitCost) - 1) * 100, 4)
+                    : 0.0;
+
+                $category = ProductCategory::query()->updateOrCreate(
+                    [
+                        'slug' => 'demo-sales-'.$year.'-'.$product->id,
+                    ],
+                    [
+                        'name' => 'Cat. demo ventas '.$year.' #'.$product->id,
+                        'description' => null,
+                        'image' => null,
+                        'is_active' => true,
+                        'is_medication' => false,
+                        'profit_percentage' => $profitPercent,
+                        'created_by' => 'demo_sales_seeder',
+                        'updated_by' => 'demo_sales_seeder',
+                    ],
+                );
+
+                $product->update([
+                    'product_category_id' => $category->id,
+                    'cost_price' => $unitCost,
+                    'discount_percent' => 0,
+                ]);
+                $product->refresh();
 
                 $inventory = Inventory::query()->updateOrCreate(
                     [
@@ -89,10 +116,6 @@ class DemoSalesYearSeeder extends Seeder
                     [
                         'quantity' => 999,
                         'reserved_quantity' => 0,
-                        'sale_price' => $listPrice,
-                        'cost_price' => $unitCost,
-                        'tax_rate' => $taxRate,
-                        'discount_percent' => 0,
                         'allow_negative_stock' => false,
                         'created_by' => 'demo_sales_seeder',
                         'updated_by' => 'demo_sales_seeder',
@@ -101,10 +124,10 @@ class DemoSalesYearSeeder extends Seeder
 
                 $inventory->refresh();
 
-                $unitPrice = $inventory->effectiveSaleUnitPrice();
+                $unitPrice = (float) $product->sale_price;
                 $lineSubtotal = round($quantity * $unitPrice, 2);
-                $taxAmount = round($lineSubtotal * ($taxRate / 100), 2);
-                $lineTotal = round($lineSubtotal + $taxAmount, 2);
+                $taxAmount = 0.0;
+                $lineTotal = $lineSubtotal;
 
                 $lineCostTotal = round($quantity * $unitCost, 2);
                 $grossProfit = round($lineTotal - $lineCostTotal, 2);
@@ -138,7 +161,6 @@ class DemoSalesYearSeeder extends Seeder
                     'unit_price' => $unitPrice,
                     'unit_cost' => $unitCost,
                     'discount_amount' => 0,
-                    'tax_rate' => $taxRate,
                     'line_subtotal' => $lineSubtotal,
                     'tax_amount' => $taxAmount,
                     'line_total' => $lineTotal,

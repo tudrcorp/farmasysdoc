@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\ProductType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IndexExternalInventoryRequest;
 use App\Models\Inventory;
@@ -18,11 +17,13 @@ class ExternalInventoryController extends Controller
 
         $products = Product::query()
             ->where('is_active', true)
-            ->where('product_type', ProductType::Medication)
+            ->whereHas('productCategory', function ($query): void {
+                $query->where('is_medication', true);
+            })
             ->whereNotNull('active_ingredient')
             ->where('active_ingredient', '!=', '')
             ->whereActiveIngredientContains($term)
-            ->with('inventories')
+            ->with(['inventories', 'productCategory'])
             ->orderBy('name')
             ->get();
 
@@ -30,8 +31,6 @@ class ExternalInventoryController extends Controller
             $totalAvailable = (float) $product->inventories->sum(
                 fn (Inventory $inventory): float => (float) $inventory->available_quantity
             );
-
-            $referenceInventory = $product->inventories->sortBy('sale_price')->first();
 
             return [
                 'id' => $product->id,
@@ -42,8 +41,7 @@ class ExternalInventoryController extends Controller
                 'concentration' => $product->concentration,
                 'presentation' => $product->presentation,
                 'presentation_type' => $product->presentation_type,
-                'sale_price' => $referenceInventory !== null ? $referenceInventory->effectiveSaleUnitPrice() : 0.0,
-                'tax_rate' => $referenceInventory !== null ? (float) $referenceInventory->tax_rate : 0.0,
+                'sale_price' => $product->effectiveSaleUnitPrice(),
                 'requires_prescription' => $product->requires_prescription,
                 'is_controlled_substance' => $product->is_controlled_substance,
                 'health_registration_number' => $product->health_registration_number,

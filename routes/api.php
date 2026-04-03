@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\ExternalApiStatusController;
+use App\Http\Controllers\Api\ExternalBranchesController;
+use App\Http\Controllers\Api\ExternalBranchInventoryController;
 use App\Http\Controllers\Api\ExternalInventoryController;
 use App\Http\Controllers\Api\ExternalOrderController;
 use App\Http\Controllers\Api\ExternalServiceOrderController;
@@ -13,8 +15,12 @@ Route::get('external/status', ExternalApiStatusController::class)
 Route::prefix('external')
     ->middleware('api.client')
     ->group(function (): void {
+        Route::get('/branches', [ExternalBranchesController::class, 'index'])
+            ->name('api.external.branches.index');
         Route::get('/inventory', [ExternalInventoryController::class, 'index'])
             ->name('api.external.inventory.index');
+        Route::get('/inventory-by-branch', [ExternalBranchInventoryController::class, 'index'])
+            ->name('api.external.inventory-by-branch.index');
         Route::post('/orders', [ExternalOrderController::class, 'store'])
             ->name('api.external.orders.store');
         Route::post('/service-orders', [ExternalServiceOrderController::class, 'store'])

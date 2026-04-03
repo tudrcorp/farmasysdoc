@@ -57,14 +57,12 @@ test('external ally can create order and items with valid bearer token', functio
                 'quantity' => 2,
                 'unit_price' => 10000,
                 'discount_amount' => 500,
-                'tax_rate' => 19,
             ],
             [
                 'product_id' => $productB->id,
                 'quantity' => 1,
                 'unit_price' => 15000,
                 'discount_amount' => 0,
-                'tax_rate' => 5,
             ],
         ],
     ]);
@@ -80,9 +78,9 @@ test('external ally can create order and items with valid bearer token', functio
     $order = Order::query()->firstOrFail();
 
     expect($order->subtotal)->toBe('34500.00')
-        ->and($order->tax_total)->toBe('4455.00')
+        ->and($order->tax_total)->toBe('0.00')
         ->and($order->discount_total)->toBe('500.00')
-        ->and($order->total)->toBe('38955.00')
+        ->and($order->total)->toBe('34500.00')
         ->and($order->created_by)->toBe('api:Aliado Integrador')
         ->and($apiClient->fresh()->last_used_at)->not->toBeNull();
 });

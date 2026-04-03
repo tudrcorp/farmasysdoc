@@ -2,8 +2,8 @@
 
 namespace Database\Factories;
 
-use App\Enums\ProductType;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\Supplier;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -29,15 +29,18 @@ class ProductFactory extends Factory
             'sku' => fake()->unique()->bothify('SKU-####-???'),
             'barcode' => fake()->unique()->ean13(),
             'name' => $name,
-            'slug' => Str::slug($name).'-'.fake()->unique()->numerify('###'),
+            'slug' => Str::slug(fake()->unique()->bothify('prod-####-???')),
             'description' => fake()->optional()->paragraph(),
             'image' => null,
-            'product_type' => fake()->randomElement(ProductType::cases()),
+            'product_category_id' => ProductCategory::factory(),
             'brand' => fake()->optional()->company(),
             'presentation' => fake()->optional()->randomElement(['Caja x 10', 'Frasco 120 ml', 'Bolsa 1 kg']),
             'unit_of_measure' => fake()->randomElement(['unit', 'kg', 'l', 'box', 'pack']),
             'unit_content' => fake()->optional()->randomFloat(3, 0.1, 5),
             'net_content_label' => fake()->optional()->randomElement(['400 ml', '500 g', '1 L']),
+            'sale_price' => fake()->randomFloat(2, 5, 500),
+            'cost_price' => fake()->optional()->randomFloat(2, 3, 400),
+            'discount_percent' => 0.0,
             'active_ingredient' => null,
             'concentration' => null,
             'presentation_type' => null,
@@ -62,8 +65,8 @@ class ProductFactory extends Factory
     public function medication(): static
     {
         return $this->state(fn (array $attributes): array => [
-            'product_type' => ProductType::Medication,
-            'active_ingredient' => fake()->sentence(6),
+            'product_category_id' => ProductCategory::factory()->medication(),
+            'active_ingredient' => [fake()->word()],
             'concentration' => fake()->randomElement(['500 mg', '10 mg/ml']),
             'presentation_type' => fake()->randomElement(['Tabletas', 'Jarabe', 'Cápsulas', 'Solución inyectable', 'Crema']),
             'requires_prescription' => fake()->boolean(30),
@@ -74,7 +77,6 @@ class ProductFactory extends Factory
     public function food(): static
     {
         return $this->state(fn (array $attributes): array => [
-            'product_type' => ProductType::Food,
             'ingredients' => fake()->sentence(),
             'allergens' => fake()->optional()->randomElement(['Contiene gluten', 'Leche', 'Soya']),
             'nutritional_information' => fake()->optional()->paragraph(),
@@ -84,7 +86,6 @@ class ProductFactory extends Factory
     public function medicalEquipment(): static
     {
         return $this->state(fn (array $attributes): array => [
-            'product_type' => ProductType::MedicalEquipment,
             'manufacturer' => fake()->company(),
             'model' => fake()->bothify('MD-###'),
             'warranty_months' => fake()->numberBetween(6, 36),

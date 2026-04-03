@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Products\Tables;
 
-use App\Enums\ProductType;
 use App\Filament\Exports\ProductExporter;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product;
@@ -32,7 +31,7 @@ class ProductsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('supplier'))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['supplier', 'productCategory']))
             ->columns([
                 ImageColumn::make('image')
                     ->label('Imagen')
@@ -80,6 +79,13 @@ class ProductsTable
                     ->tooltip(fn (Product $record): string => $record->is_active
                         ? 'Activo: visible para ventas y catálogo'
                         : 'Inactivo: puede ocultarse en ventas'),
+                TextColumn::make('effective_sale_unit')
+                    ->label('P. efectivo')
+                    ->state(fn (Product $record): float => $record->effectiveSaleUnitPrice())
+                    ->money()
+                    ->alignEnd()
+                    ->toggleable()
+                    ->tooltip('Precio tras descuento % del catálogo'),
                 TextColumn::make('supplier_label')
                     ->label('Proveedor')
                     ->state(fn (Product $record): string => self::formatSupplierLabel($record))
@@ -96,19 +102,21 @@ class ProductsTable
                     ->icon(Heroicon::Truck)
                     ->iconColor('gray')
                     ->toggleable(),
-                TextColumn::make('product_type')
-                    ->label('Tipo')
-                    ->badge()
-                    ->formatStateUsing(fn (?ProductType $state): string => $state instanceof ProductType ? $state->label() : '—')
-                    ->color(fn (?ProductType $state): string => match ($state) {
-                        ProductType::Medication => 'danger',
-                        ProductType::MedicalEquipment => 'info',
-                        ProductType::Food => 'success',
-                        ProductType::Perfumery, ProductType::PersonalHygiene => 'warning',
-                        default => 'gray',
-                    })
+                TextColumn::make('productCategory.name')
+                    ->label('Categoría')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->placeholder('—')
+                    ->icon(Heroicon::Swatch)
+                    ->iconColor('gray'),
+                TextColumn::make('slug')
+                    ->label('Slug')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->placeholder('—')
+                    ->icon(Heroicon::Link)
+                    ->iconColor('gray'),
                 TextColumn::make('barcode')
                     ->label('Código de barras')
                     ->searchable()
@@ -117,12 +125,6 @@ class ProductsTable
                     ->placeholder('—')
                     ->icon(Heroicon::QrCode)
                     ->iconColor('gray')
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('slug')
-                    ->label('Slug')
-                    ->searchable()
-                    ->limit(28)
-                    ->tooltip(fn (Product $record): ?string => filled($record->slug) ? $record->slug : null)
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('active_ingredient')
                     ->label('Principio activo')
@@ -256,7 +258,7 @@ class ProductsTable
             ->persistFiltersInSession()
             ->deferFilters(false)
             ->emptyStateHeading('Sin productos en el catálogo')
-            ->emptyStateDescription('Crea un producto para registrar SKU, precios, tipo y datos regulatorios. Usa el botón «Crear» del encabezado.')
+            ->emptyStateDescription('Crea un producto para registrar SKU, precios, categoría y datos regulatorios. Usa el botón «Crear» del encabezado.')
             ->emptyStateIcon(Heroicon::Cube)
             ->recordUrl(fn (Product $record): string => ProductResource::getUrl('view', ['record' => $record], isAbsolute: false))
             ->recordAction('view')
@@ -276,11 +278,16 @@ class ProductsTable
                     ->placeholder('Todos')
                     ->trueLabel('Solo controlados')
                     ->falseLabel('Sin control especial'),
-                SelectFilter::make('product_type')
-                    ->label('Tipo de producto')
-                    ->options(ProductType::options())
+                SelectFilter::make('product_category_id')
+                    ->label('Categoría')
+                    ->relationship(
+                        name: 'productCategory',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn (Builder $query): Builder => $query->where('is_active', true)->orderBy('name'),
+                    )
                     ->multiple()
-                    ->searchable(),
+                    ->searchable()
+                    ->preload(),
                 SelectFilter::make('supplier_id')
                     ->label('Proveedor')
                     ->relationship(
@@ -321,7 +328,7 @@ class ProductsTable
      */
     private static function streamSelectedProductsCsv(Collection $records): StreamedResponse
     {
-        $records->loadMissing('supplier');
+        $records->loadMissing(['supplier', 'productCategory']);
 
         $columns = ProductExporter::getColumns();
         $columnMap = collect($columns)

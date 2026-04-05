@@ -35,7 +35,7 @@ final class ProductTransferStockValidator
         foreach ($totalsByProduct as $productId => $neededQty) {
             $inv = $inventories->get($productId);
             $available = $inv !== null
-                ? (float) $inv->quantity - (float) $inv->reserved_quantity
+                ? (float) $inv->quantity
                 : 0.0;
 
             if ($inv !== null && $inv->allow_negative_stock) {

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\PartnerCompanies\Tables;
 
+use App\Enums\OrderStatus;
 use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Models\PartnerCompany;
 use Filament\Actions\BulkActionGroup;
@@ -21,7 +22,15 @@ class PartnerCompaniesTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->withCount('orderServices'))
+            ->modifyQueryUsing(function (Builder $query): Builder {
+                return $query
+                    ->withCount('orderServices')
+                    ->withCount([
+                        'orders as finalized_orders_count' => function (Builder $q): void {
+                            $q->where('status', OrderStatus::Completed->value);
+                        },
+                    ]);
+            })
             ->columns([
                 TextColumn::make('code')
                     ->label('Código')
@@ -60,6 +69,16 @@ class PartnerCompaniesTable
                     ->placeholder('—')
                     ->icon(Heroicon::Identification)
                     ->iconColor('gray'),
+                TextColumn::make('assigned_credit_limit')
+                    ->label('Saldo crédito')
+                    ->money('USD')
+                    ->sortable()
+                    ->alignEnd()
+                    ->placeholder('—')
+                    ->icon(Heroicon::Banknotes)
+                    ->iconColor('gray')
+                    ->tooltip('Saldo disponible en USD (se reduce con consumos registrados en histórico)')
+                    ->toggleable(),
                 TextColumn::make('email')
                     ->label('Correo')
                     ->searchable()
@@ -142,6 +161,23 @@ class PartnerCompaniesTable
                     ->copyMessage('Referencia copiada')
                     ->placeholder('—')
                     ->toggleable(),
+                TextColumn::make('date_created')
+                    ->label('Creación convenio')
+                    ->date('d/m/Y')
+                    ->sortable()
+                    ->placeholder('—')
+                    ->icon(Heroicon::CalendarDays)
+                    ->iconColor('gray')
+                    ->tooltip('Fecha de creación del convenio'),
+                TextColumn::make('date_updated')
+                    ->label('Actualiz. convenio')
+                    ->date('d/m/Y')
+                    ->sortable()
+                    ->placeholder('—')
+                    ->icon(Heroicon::ArrowPath)
+                    ->iconColor('gray')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->tooltip('Fecha de actualización del convenio'),
                 TextColumn::make('order_services_count')
                     ->label('Órdenes de servicio')
                     ->numeric()
@@ -149,6 +185,16 @@ class PartnerCompaniesTable
                     ->alignCenter()
                     ->badge()
                     ->color(fn (PartnerCompany $record): string => ((int) $record->order_services_count) > 0 ? 'info' : 'gray'),
+                TextColumn::make('finalized_orders_count')
+                    ->label('Pedidos finalizados')
+                    ->numeric()
+                    ->sortable()
+                    ->alignCenter()
+                    ->badge()
+                    ->color(fn (PartnerCompany $record): string => ((int) ($record->finalized_orders_count ?? 0)) > 0 ? 'success' : 'gray')
+                    ->tooltip('Cantidad de pedidos del aliado en estado Finalizado')
+                    ->icon(Heroicon::CheckBadge)
+                    ->iconColor('gray'),
                 IconColumn::make('is_active')
                     ->label('Estado')
                     ->boolean()

@@ -5,15 +5,17 @@ namespace App\Providers\Filament;
 use App\Filament\GlobalSearch\FarmaadminGlobalSearchProvider;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\Auth\Register;
+use App\Filament\Pages\FarmaadminDashboard;
 use App\Filament\Pages\Marketing\MarketingHubPage;
+use App\Filament\Resources\Deliveries\DeliveryResource;
 use App\Filament\Widgets\FarmaadminAccountWidget;
 use App\Models\User;
+use App\Support\Filament\FarmaadminDeliveryUserAccess;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Navigation\NavigationGroup;
-use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -63,9 +65,15 @@ class FarmaadminPanelProvider extends PanelProvider
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
-                Dashboard::class,
                 MarketingHubPage::class,
             ])
+            ->homeUrl(function (): string {
+                if (FarmaadminDeliveryUserAccess::isRestrictedDeliveryUser()) {
+                    return DeliveryResource::getUrl(panel: 'farmaadmin', isAbsolute: false);
+                }
+
+                return FarmaadminDashboard::getUrl(panel: 'farmaadmin', isAbsolute: false);
+            })
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
                 FarmaadminAccountWidget::class,

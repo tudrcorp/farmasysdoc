@@ -4,12 +4,24 @@ namespace App\Filament\Resources\PartnerCompanies\Pages;
 
 use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Models\PartnerCompany;
+use App\Support\PartnerCompanyAlliedUsersFormSync;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
 
 class CreatePartnerCompany extends CreateRecord
 {
     protected static string $resource = PartnerCompanyResource::class;
+
+    protected function beforeValidate(): void
+    {
+        $rows = PartnerCompanyAlliedUsersFormSync::normalizeRows(
+            $this->form->getRawState()['partner_users'] ?? [],
+        );
+
+        if ($rows !== []) {
+            PartnerCompanyAlliedUsersFormSync::validateRowsForCreate($rows);
+        }
+    }
 
     /**
      * @param  array<string, mixed>  $data
@@ -33,5 +45,15 @@ class CreatePartnerCompany extends CreateRecord
         $this->record->update([
             'code' => PartnerCompany::formatCode($this->record->getKey()),
         ]);
+
+        $this->record->refresh();
+
+        $rows = PartnerCompanyAlliedUsersFormSync::normalizeRows(
+            $this->form->getRawState()['partner_users'] ?? [],
+        );
+
+        if ($rows !== []) {
+            PartnerCompanyAlliedUsersFormSync::createUsers($this->record, $rows);
+        }
     }
 }

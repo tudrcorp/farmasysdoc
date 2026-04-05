@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ProductTransfers\Schemas;
 
+use App\Enums\ProductTransferStatus;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Models\ProductTransfer;
 use App\Models\ProductTransferItem;
@@ -30,13 +31,12 @@ class ProductTransferInfolist
                                 TextEntry::make('status')
                                     ->label('Estado')
                                     ->badge()
-                                    ->formatStateUsing(fn (?string $state): string => match (strtolower((string) $state)) {
-                                        'pending' => 'Pendiente',
-                                        'in_progress' => 'En proceso',
-                                        'completed' => 'Completado',
-                                        'cancelled' => 'Cancelado',
-                                        default => (string) $state,
-                                    }),
+                                    ->formatStateUsing(fn (mixed $state): string => ProductTransferStatus::labelForStored(
+                                        $state instanceof ProductTransferStatus ? $state : (filled($state) ? (string) $state : null),
+                                    ))
+                                    ->color(fn (mixed $state): string => ProductTransferStatus::filamentColorForStored(
+                                        $state instanceof ProductTransferStatus ? $state : (filled($state) ? (string) $state : null),
+                                    )),
                                 TextEntry::make('transfer_type')
                                     ->label('Tipo')
                                     ->formatStateUsing(fn (?string $state): string => match (strtolower((string) $state)) {
@@ -49,7 +49,7 @@ class ProductTransferInfolist
                                     ->label('Costo total (traslado)')
                                     ->money('USD')
                                     ->placeholder('—')
-                                    ->visible(fn (ProductTransfer $record): bool => $record->status === 'completed'),
+                                    ->visible(fn (ProductTransfer $record): bool => ProductTransferStatus::isCompletedValue($record->status)),
                             ]),
                     ]),
                 Section::make('Sucursales')

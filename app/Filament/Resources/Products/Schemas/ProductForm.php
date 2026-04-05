@@ -178,6 +178,11 @@ class ProductForm
                                     ->suffix('%')
                                     ->prefixIcon(Heroicon::Tag),
                             ]),
+                        Toggle::make('applies_vat')
+                            ->label('Grava IVA en pedidos')
+                            ->helperText(fn (): string => 'Si está activo, en pedidos se calcula el IVA sobre la base de cada línea (precio neto tras el descuento %). Tasa global: '.config('orders.default_vat_rate_percent').'%.')
+                            ->default(false)
+                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

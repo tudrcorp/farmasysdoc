@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Orders;
 
+use App\Enums\OrderStatus;
+use App\Filament\Resources\Concerns\RestrictsAccessForDeliveryUsers;
 use App\Filament\Resources\Orders\Pages\CreateOrder;
 use App\Filament\Resources\Orders\Pages\EditOrder;
 use App\Filament\Resources\Orders\Pages\ListOrders;
@@ -18,9 +20,12 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class OrderResource extends Resource
 {
+    use RestrictsAccessForDeliveryUsers;
+
     protected static ?string $model = Order::class;
 
     protected static ?string $navigationLabel = 'Ordenes';
@@ -51,7 +56,67 @@ class OrderResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return BranchAuthScope::apply(parent::getEloquentQuery());
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+        if ($user instanceof User && ! $user->isAdministrator() && $user->isPartnerCompanyUser()) {
+            return $query->where('partner_company_id', (int) $user->partner_company_id);
+        }
+
+        return BranchAuthScope::apply($query);
+    }
+
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+        if (! $user instanceof User) {
+            return false;
+        }
+
+        return $user->isAdministrator() || filled($user->branch_id) || $user->isPartnerCompanyUser();
+    }
+
+    public static function canView(Model $record): bool
+    {
+        if (! $record instanceof Order) {
+            return false;
+        }
+
+        $user = auth()->user();
+        if (! $user instanceof User) {
+            return false;
+        }
+
+        if ($user->isAdministrator()) {
+            return true;
+        }
+
+        if ($user->isDeliveryUser()) {
+            return false;
+        }
+
+        if ($user->isPartnerCompanyUser()) {
+            return (int) $record->partner_company_id === (int) $user->partner_company_id;
+        }
+
+        if (! filled($user->branch_id)) {
+            return false;
+        }
+
+        return $record->branch_id === null || (int) $record->branch_id === (int) $user->branch_id;
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        if (! static::canView($record) || ! $record instanceof Order) {
+            return false;
+        }
+
+        $user = auth()->user();
+        if ($user instanceof User && $user->isPartnerCompanyUser() && ! $user->isAdministrator()) {
+            return $record->status === OrderStatus::Pending;
+        }
+
+        return true;
     }
 
     public static function getRelations(): array

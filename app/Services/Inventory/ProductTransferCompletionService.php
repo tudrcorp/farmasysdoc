@@ -3,6 +3,7 @@
 namespace App\Services\Inventory;
 
 use App\Enums\InventoryMovementType;
+use App\Enums\ProductTransferStatus;
 use App\Enums\SaleStatus;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
@@ -213,7 +214,7 @@ final class ProductTransferCompletionService
             }
 
             $locked->forceFill([
-                'status' => 'completed',
+                'status' => ProductTransferStatus::Completed,
                 'total_transfer_cost' => $subtotal,
                 'completed_by' => $actor,
                 'completed_at' => now(),

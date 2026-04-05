@@ -30,6 +30,7 @@ class ClientFactory extends Factory
             'state' => fake()->randomElement(['Cundinamarca', 'Antioquia']),
             'country' => 'Colombia',
             'status' => 'active',
+            'customer_discount' => 0,
             'created_by' => 'factory',
             'updated_by' => 'factory',
         ];

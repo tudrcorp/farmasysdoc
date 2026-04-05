@@ -174,6 +174,26 @@ class ClientForm
                     ->columns(1)
                     ->columnSpanFull(),
 
+                Section::make('Condiciones comerciales')
+                    ->description('Descuento por cliente en porcentaje; el sistema puede usarlo al calcular ventas.')
+                    ->icon(Heroicon::ReceiptPercent)
+                    ->schema([
+                        TextInput::make('customer_discount')
+                            ->label('Descuento del cliente')
+                            ->helperText('Porcentaje entre 0 y 100. Use 0 si este cliente no tiene descuento acordado.')
+                            ->numeric()
+                            ->inputMode('decimal')
+                            ->suffix('%')
+                            ->minValue(0)
+                            ->maxValue(100)
+                            ->default(0)
+                            ->step(0.01)
+                            ->required()
+                            ->prefixIcon(Heroicon::Tag),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
                 Section::make('Estado del cliente')
                     ->description('Controla si puede comprar o recibir pedidos en el sistema.')
                     ->icon(Heroicon::ShieldCheck)

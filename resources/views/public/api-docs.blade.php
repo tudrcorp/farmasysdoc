@@ -442,7 +442,7 @@
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">items</td><td class="px-3 py-2">array</td><td class="px-3 py-2">Sí</td><td class="px-3 py-2">Mínimo 1 elemento</td></tr>
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">order_number</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">No</td><td class="px-3 py-2">Si se envía, único en <code class="font-mono">orders.order_number</code></td></tr>
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">branch_id</td><td class="px-3 py-2">integer|null</td><td class="px-3 py-2">No</td><td class="px-3 py-2">ID de sucursal existente en <code class="font-mono">branches</code></td></tr>
-                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">status</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">No</td><td class="px-3 py-2">Enum: <code class="text-[11px]">pendiente</code>, <code class="text-[11px]">confirmed</code>, <code class="text-[11px]">preparing</code>, <code class="text-[11px]">listo-para-despacho</code>, <code class="text-[11px]">despachado</code>, <code class="text-[11px]">en-transito</code>, <code class="text-[11px]">entregado</code>, <code class="text-[11px]">cancelado</code></td></tr>
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">status</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">No</td><td class="px-3 py-2">Enum: <code class="text-[11px]">pendiente</code>, <code class="text-[11px]">en-proceso</code>, <code class="text-[11px]">finalizado</code></td></tr>
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">convenio_type</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">No</td><td class="px-3 py-2">Enum: <code class="text-[11px]">particular</code>, <code class="text-[11px]">seguro-privado</code>, <code class="text-[11px]">eps</code>, <code class="text-[11px]">medicina-prepagada</code>, <code class="text-[11px]">convenio-corporativo</code>, <code class="text-[11px]">otro</code></td></tr>
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">convenio_partner_name</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">No</td><td class="px-3 py-2">Máx. 255</td></tr>
                             <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">convenio_reference</td><td class="px-3 py-2">string|null</td><td class="px-3 py-2">No</td><td class="px-3 py-2">Máx. 255</td></tr>
@@ -1093,7 +1093,7 @@ curl -sS -X POST "${baseUrl}/api/external/orders" \\
   -w "\\nHTTP %{http_code}\\n"`,
                 javascript: (baseUrl, token) => `// === POST /api/external/orders ===
 // Obligatorio: partner_company, client_id, items[] con product_id, quantity>0, unit_price>=0
-// Opcional: branch_id, status (pendiente|confirmed|...), convenio_type (particular|eps|...), etc.
+// Opcional: branch_id, status (pendiente|en-proceso|finalizado), convenio_type (particular|eps|...), etc.
 
 const baseUrl = ${JSON.stringify(baseUrl)};
 const token = ${JSON.stringify(token || 'TU_TOKEN_AQUI')};

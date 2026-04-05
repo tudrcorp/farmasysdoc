@@ -3,15 +3,20 @@
 namespace App\Filament\Resources\Concerns;
 
 use App\Models\User;
+use App\Support\Filament\FarmaadminDeliveryUserAccess;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Recursos del grupo de navegación «Configuración»: solo rol ADMINISTRADOR.
+ * Recursos restringidos a rol ADMINISTRADOR (p. ej. configuración o aliados comerciales).
  */
 trait ChecksConfigurationAccess
 {
     public static function canViewAny(): bool
     {
+        if (FarmaadminDeliveryUserAccess::denies(static::class)) {
+            return false;
+        }
+
         $user = auth()->user();
 
         return $user instanceof User && $user->isAdministrator();

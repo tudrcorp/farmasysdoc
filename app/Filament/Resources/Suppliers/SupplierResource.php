@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Suppliers;
 
+use App\Filament\Resources\Concerns\RestrictsAccessForDeliveryUsers;
 use App\Filament\Resources\Suppliers\Pages\CreateSupplier;
 use App\Filament\Resources\Suppliers\Pages\EditSupplier;
 use App\Filament\Resources\Suppliers\Pages\ListSuppliers;
@@ -19,6 +20,8 @@ use Filament\Tables\Table;
 
 class SupplierResource extends Resource
 {
+    use RestrictsAccessForDeliveryUsers;
+
     protected static ?string $model = Supplier::class;
 
     protected static ?string $navigationLabel = 'Proveedores';

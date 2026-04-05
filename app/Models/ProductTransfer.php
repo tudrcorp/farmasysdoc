@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ProductTransferStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -31,6 +32,7 @@ class ProductTransfer extends Model
     protected function casts(): array
     {
         return [
+            'status' => ProductTransferStatus::class,
             'total_transfer_cost' => 'decimal:2',
             'completed_at' => 'datetime',
         ];

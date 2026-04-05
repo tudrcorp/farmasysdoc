@@ -5,13 +5,16 @@ namespace App\Filament\Resources\Users\Tables;
 use App\Filament\Resources\Branches\BranchResource;
 use App\Filament\Resources\Users\UserResource;
 use App\Models\Branch;
+use App\Models\Rol;
 use App\Models\User;
+use App\Support\Users\UserRoleLabels;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
@@ -68,6 +71,57 @@ class UsersTable
                     ->openUrlInNewTab(false)
                     ->limit(32)
                     ->tooltip(fn (User $record): string => $record->branch?->name ?? 'Sin sucursal'),
+                TextColumn::make('roles')
+                    ->label('Roles')
+                    ->formatStateUsing(function (mixed $state): string {
+                        $roles = self::normalizeRolesColumnState($state);
+                        if ($roles === []) {
+                            return '—';
+                        }
+
+                        return collect($roles)
+                            ->map(fn (mixed $role): string => UserRoleLabels::label($role))
+                            ->unique()
+                            ->sort()
+                            ->values()
+                            ->join(' · ');
+                    })
+                    ->searchable(query: function (Builder $query, string $search): void {
+                        $needle = addcslashes($search, '%_\\');
+                        $query->where('roles', 'like', '%"'.$needle.'"%');
+                    })
+                    ->icon(Heroicon::ShieldCheck)
+                    ->iconColor('gray'),
+                TextColumn::make('delivery_identity_document')
+                    ->label('Cédula (entrega)')
+                    ->icon(Heroicon::Identification)
+                    ->iconColor('gray')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->sortable()
+                    ->getStateUsing(fn (User $record): ?string => $record->isDeliveryUser()
+                        ? (filled($record->delivery_identity_document) ? (string) $record->delivery_identity_document : null)
+                        : null)
+                    ->toggleable(isToggledHiddenByDefault: false),
+                TextColumn::make('delivery_mobile_phone')
+                    ->label('Móvil (entrega)')
+                    ->icon(Heroicon::Phone)
+                    ->iconColor('gray')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->sortable()
+                    ->getStateUsing(fn (User $record): ?string => $record->isDeliveryUser()
+                        ? (filled($record->delivery_mobile_phone) ? (string) $record->delivery_mobile_phone : null)
+                        : null)
+                    ->toggleable(isToggledHiddenByDefault: false),
+                ImageColumn::make('delivery_photo_path')
+                    ->label('Foto entrega')
+                    ->disk('public')
+                    ->circular()
+                    ->height(40)
+                    ->width(40)
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->placeholder('—'),
                 IconColumn::make('is_email_verified')
                     ->label('Correo verif.')
                     ->boolean()
@@ -162,6 +216,21 @@ class UsersTable
                         true: fn (Builder $query) => $query->whereNotNull('two_factor_confirmed_at'),
                         false: fn (Builder $query) => $query->whereNull('two_factor_confirmed_at'),
                     ),
+                SelectFilter::make('role')
+                    ->label('Rol')
+                    ->options(fn (): array => Rol::query()
+                        ->where('is_active', true)
+                        ->orderBy('name')
+                        ->get()
+                        ->mapWithKeys(fn (Rol $rol): array => [
+                            $rol->name => UserRoleLabels::label($rol->name),
+                        ])
+                        ->all())
+                    ->query(function (Builder $query, array $data): void {
+                        if (filled($data['value'] ?? null)) {
+                            $query->whereJsonContains('roles', $data['value']);
+                        }
+                    }),
             ])
             ->recordActions([
                 ViewAction::make()
@@ -178,5 +247,32 @@ class UsersTable
                         ->label('Eliminar seleccionados'),
                 ]),
             ]);
+    }
+
+    /**
+     * La columna JSON puede llegar como array (cast Eloquent) o como string JSON desde la consulta de la tabla.
+     *
+     * @return list<string>
+     */
+    private static function normalizeRolesColumnState(mixed $state): array
+    {
+        if ($state === null || $state === '') {
+            return [];
+        }
+
+        if (is_array($state)) {
+            return array_values(array_filter($state, fn (mixed $role): bool => filled($role)));
+        }
+
+        if (is_string($state)) {
+            $decoded = json_decode($state, true);
+            if (is_array($decoded)) {
+                return array_values(array_filter($decoded, fn (mixed $role): bool => filled($role)));
+            }
+
+            return filled($state) ? [$state] : [];
+        }
+
+        return [];
     }
 }

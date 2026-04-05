@@ -4,30 +4,35 @@ namespace App\Enums;
 
 use App\Enums\Concerns\HasSpanishLabels;
 
+/**
+ * Estados del pedido (semáforo): pendiente → en proceso → finalizado.
+ */
 enum OrderStatus: string
 {
     use HasSpanishLabels;
 
     case Pending = 'pendiente';
-    case Confirmed = 'confirmed';
-    case Preparing = 'preparing';
-    case ReadyForDispatch = 'listo-para-despacho';
-    case Dispatched = 'despachado';
-    case InTransit = 'en-transito';
-    case Delivered = 'entregado';
-    case Cancelled = 'cancelado';
+    case InProgress = 'en-proceso';
+    case Completed = 'finalizado';
 
     public function label(): string
     {
         return match ($this) {
             self::Pending => 'Pendiente',
-            self::Confirmed => 'Confirmado',
-            self::Preparing => 'En preparación',
-            self::ReadyForDispatch => 'Listo para despacho',
-            self::Dispatched => 'Despachado',
-            self::InTransit => 'En tránsito',
-            self::Delivered => 'Entregado',
-            self::Cancelled => 'Cancelado',
+            self::InProgress => 'En proceso',
+            self::Completed => 'Finalizado',
+        };
+    }
+
+    /**
+     * Color de badge Filament alineado al semáforo: rojo, amarillo, verde.
+     */
+    public function filamentColor(): string
+    {
+        return match ($this) {
+            self::Pending => 'danger',
+            self::InProgress => 'warning',
+            self::Completed => 'success',
         };
     }
 }

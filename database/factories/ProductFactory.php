@@ -41,6 +41,7 @@ class ProductFactory extends Factory
             'sale_price' => fake()->randomFloat(2, 5, 500),
             'cost_price' => fake()->optional()->randomFloat(2, 3, 400),
             'discount_percent' => 0.0,
+            'applies_vat' => false,
             'active_ingredient' => null,
             'concentration' => null,
             'presentation_type' => null,

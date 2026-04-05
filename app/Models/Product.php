@@ -45,6 +45,7 @@ class Product extends Model
         'sale_price',
         'cost_price',
         'discount_percent',
+        'applies_vat',
     ];
 
     /**
@@ -61,6 +62,7 @@ class Product extends Model
             'is_controlled_substance' => 'boolean',
             'requires_calibration' => 'boolean',
             'is_active' => 'boolean',
+            'applies_vat' => 'boolean',
             'warranty_months' => 'integer',
             'active_ingredient' => 'array',
         ];

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\OrderServices;
 
+use App\Filament\Resources\Concerns\RestrictsAccessForDeliveryUsers;
 use App\Filament\Resources\OrderServices\Pages\CreateOrderService;
 use App\Filament\Resources\OrderServices\Pages\EditOrderService;
 use App\Filament\Resources\OrderServices\Pages\ListOrderServices;
@@ -9,15 +10,19 @@ use App\Filament\Resources\OrderServices\Pages\ViewOrderService;
 use App\Filament\Resources\OrderServices\Schemas\OrderServiceForm;
 use App\Filament\Resources\OrderServices\Schemas\OrderServiceInfolist;
 use App\Filament\Resources\OrderServices\Tables\OrderServicesTable;
+use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Models\OrderService;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 class OrderServiceResource extends Resource
 {
+    use RestrictsAccessForDeliveryUsers;
+
     protected static ?string $model = OrderService::class;
 
     protected static ?string $navigationLabel = 'Ordenes de servicio';
@@ -26,10 +31,11 @@ class OrderServiceResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::ListBullet;
 
-    public static function getNavigationGroup(): ?string
-    {
-        return 'Aliados Comerciales';
-    }
+    /**
+     * Misma clave que {@see PartnerCompanyResource}
+     * para un solo grupo «Aliados Comerciales» en el sidebar.
+     */
+    protected static string|UnitEnum|null $navigationGroup = 'commercial_allies';
 
     public static function form(Schema $schema): Schema
     {

@@ -10,6 +10,7 @@ use App\Filament\Resources\Clients\Pages\ViewClient;
 use App\Filament\Resources\Clients\Schemas\ClientForm;
 use App\Filament\Resources\Clients\Schemas\ClientInfolist;
 use App\Filament\Resources\Clients\Tables\ClientsTable;
+use App\Filament\Resources\Concerns\RestrictsAccessForDeliveryUsers;
 use App\Models\Client;
 use App\Models\User;
 use BackedEnum;
@@ -21,6 +22,8 @@ use Illuminate\Support\Collection;
 
 class ClientResource extends Resource
 {
+    use RestrictsAccessForDeliveryUsers;
+
     protected static ?string $model = Client::class;
 
     protected static ?string $recordTitleAttribute = 'name';

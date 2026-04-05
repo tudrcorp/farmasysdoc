@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\InventoryMovements;
 
+use App\Filament\Resources\Concerns\RestrictsAccessForDeliveryUsers;
 use App\Filament\Resources\InventoryMovements\Pages\CreateInventoryMovement;
 use App\Filament\Resources\InventoryMovements\Pages\EditInventoryMovement;
 use App\Filament\Resources\InventoryMovements\Pages\ListInventoryMovements;
@@ -18,6 +19,8 @@ use Filament\Tables\Table;
 
 class InventoryMovementResource extends Resource
 {
+    use RestrictsAccessForDeliveryUsers;
+
     protected static ?string $model = InventoryMovement::class;
 
     protected static ?string $navigationLabel = 'Movimientos';

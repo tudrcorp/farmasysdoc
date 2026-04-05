@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Purchases;
 
+use App\Filament\Resources\Concerns\RestrictsAccessForDeliveryUsers;
 use App\Filament\Resources\Purchases\Pages\CreatePurchase;
 use App\Filament\Resources\Purchases\Pages\EditPurchase;
 use App\Filament\Resources\Purchases\Pages\ListPurchases;
@@ -19,6 +20,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class PurchaseResource extends Resource
 {
+    use RestrictsAccessForDeliveryUsers;
+
     protected static ?string $model = Purchase::class;
 
     protected static ?string $navigationLabel = 'Compras';

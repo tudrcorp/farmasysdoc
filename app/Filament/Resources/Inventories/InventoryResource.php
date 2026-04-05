@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Inventories;
 
+use App\Filament\Resources\Concerns\RestrictsAccessForDeliveryUsers;
 use App\Filament\Resources\Inventories\Pages\CreateInventory;
 use App\Filament\Resources\Inventories\Pages\EditInventory;
 use App\Filament\Resources\Inventories\Pages\ListInventories;
@@ -20,6 +21,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class InventoryResource extends Resource
 {
+    use RestrictsAccessForDeliveryUsers;
+
     protected static ?string $model = Inventory::class;
 
     protected static ?string $navigationLabel = 'Inventario';

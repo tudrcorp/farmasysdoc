@@ -102,6 +102,32 @@ class ClientInfolist
                     ->columns(1)
                     ->columnSpanFull(),
 
+                Section::make('Condiciones comerciales')
+                    ->description('Descuento acordado para este cliente.')
+                    ->icon(Heroicon::ReceiptPercent)
+                    ->schema([
+                        TextEntry::make('customer_discount')
+                            ->label('Descuento del cliente')
+                            ->formatStateUsing(function (?string $state): string {
+                                if ($state === null || $state === '') {
+                                    return '0 %';
+                                }
+
+                                if (! is_numeric($state)) {
+                                    return '—';
+                                }
+
+                                $n = (float) $state;
+
+                                return rtrim(rtrim(number_format($n, 2, ',', '.'), '0'), ',').' %';
+                            })
+                            ->icon(Heroicon::Tag)
+                            ->badge()
+                            ->color(fn (?string $state): string => is_numeric($state) && (float) $state > 0 ? 'success' : 'gray'),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
                 Section::make('Comportamiento (marketing)')
                     ->description('Ventas completadas: total, desglose por sucursal, top 5 de productos y fechas clave.')
                     ->icon(Heroicon::ChartBar)

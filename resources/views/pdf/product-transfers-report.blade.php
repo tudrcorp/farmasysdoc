@@ -84,7 +84,7 @@
                 <th style="width:18%">Código</th>
                 <td>{{ $transfer->code }}</td>
                 <th style="width:12%">Estado</th>
-                <td>{{ $transfer->status }}</td>
+                <td>{{ \App\Enums\ProductTransferStatus::labelForStored($transfer->status) }}</td>
             </tr>
             <tr>
                 <th>Origen</th>
@@ -98,7 +98,7 @@
                 <th>Registro</th>
                 <td>{{ $transfer->created_at?->format('d/m/Y H:i') }}</td>
             </tr>
-            @if ($transfer->status === 'completed')
+            @if (\App\Enums\ProductTransferStatus::isCompletedValue($transfer->status))
                 <tr>
                     <th>Completado por</th>
                     <td>{{ $transfer->completed_by ?? '—' }}</td>

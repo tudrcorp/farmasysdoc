@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ProductTransfers\Pages;
 
+use App\Enums\ProductTransferStatus;
 use App\Filament\Resources\ProductTransfers\ProductTransferResource;
 use App\Filament\Resources\ProductTransfers\Schemas\ProductTransferForm;
 use App\Models\ProductTransfer;
@@ -33,7 +34,8 @@ class EditProductTransfer extends EditRecord
             $data['transfer_type'] = $record->transfer_type;
         }
 
-        $willComplete = ($data['status'] ?? '') === 'completed' && $record->status !== 'completed';
+        $willComplete = ($data['status'] ?? '') === ProductTransferStatus::Completed->value
+            && ! ProductTransferStatus::isCompletedValue($record->status);
 
         if ($willComplete) {
             $svc = app(ProductTransferCompletionService::class);
@@ -67,8 +69,8 @@ class EditProductTransfer extends EditRecord
             return parent::handleRecordUpdate($record, $data);
         }
 
-        $wasCompleted = $record->status === 'completed';
-        $willComplete = ($data['status'] ?? '') === 'completed';
+        $wasCompleted = ProductTransferStatus::isCompletedValue($record->status);
+        $willComplete = ($data['status'] ?? '') === ProductTransferStatus::Completed->value;
 
         $except = ['items'];
         if ($willComplete && ! $wasCompleted) {

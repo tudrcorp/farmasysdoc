@@ -4,11 +4,15 @@ namespace App\Filament\GlobalSearch;
 
 use App\Enums\SaleStatus;
 use App\Filament\Resources\Clients\ClientResource;
+use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Client;
 use App\Models\Inventory;
+use App\Models\PartnerCompany;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\User;
+use App\Support\Filament\FarmaadminDeliveryUserAccess;
 use Carbon\Carbon;
 use Filament\GlobalSearch\GlobalSearchResult;
 use Filament\GlobalSearch\GlobalSearchResults;
@@ -23,6 +27,8 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
     private const PRODUCT_LIMIT = 18;
 
     private const CLIENT_LIMIT = 12;
+
+    private const PARTNER_COMPANY_LIMIT = 10;
 
     private static ?bool $productsTableHasSku = null;
 
@@ -40,6 +46,10 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
             $term = mb_substr($term, 0, 500);
         }
 
+        if (auth()->user() instanceof User && FarmaadminDeliveryUserAccess::isRestrictedDeliveryUser()) {
+            return GlobalSearchResults::make();
+        }
+
         $builder = GlobalSearchResults::make();
 
         $productResults = $this->productGlobalSearchResults($term);
@@ -50,6 +60,11 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
         $clientResults = $this->clientGlobalSearchResults($term);
         if ($clientResults->isNotEmpty()) {
             $builder->category('Clientes', $clientResults->all());
+        }
+
+        $partnerResults = $this->partnerCompanyGlobalSearchResults($term);
+        if ($partnerResults->isNotEmpty()) {
+            $builder->category('Compañías aliadas', $partnerResults->all());
         }
 
         $default = app(DefaultGlobalSearchProvider::class)->getResults($term);
@@ -301,6 +316,86 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
             $title = filled($client->document_number)
                 ? $client->name.' · '.$client->document_number
                 : $client->name;
+
+            return new GlobalSearchResult(
+                title: $title,
+                url: $url,
+                details: $details,
+            );
+        });
+    }
+
+    /**
+     * @return Collection<int, GlobalSearchResult>
+     */
+    private function partnerCompanyGlobalSearchResults(string $term): Collection
+    {
+        if (! PartnerCompanyResource::canAccess()) {
+            return collect();
+        }
+
+        $like = '%'.addcslashes($term, '%_\\').'%';
+
+        $partners = PartnerCompany::query()
+            ->select([
+                'id',
+                'code',
+                'legal_name',
+                'trade_name',
+                'tax_id',
+                'email',
+                'phone',
+                'city',
+                'state',
+                'country',
+                'agreement_reference',
+                'date_created',
+                'date_updated',
+                'assigned_credit_limit',
+                'is_active',
+            ])
+            ->where(function ($q) use ($like): void {
+                $q->where('legal_name', 'like', $like)
+                    ->orWhere('trade_name', 'like', $like)
+                    ->orWhere('tax_id', 'like', $like)
+                    ->orWhere('code', 'like', $like)
+                    ->orWhere('email', 'like', $like)
+                    ->orWhere('agreement_reference', 'like', $like);
+            })
+            ->orderBy('legal_name')
+            ->limit(self::PARTNER_COMPANY_LIMIT)
+            ->get()
+            ->filter(fn (PartnerCompany $company): bool => PartnerCompanyResource::canView($company));
+
+        return $partners->map(function (PartnerCompany $company): GlobalSearchResult {
+            $url = PartnerCompanyResource::getUrl('view', ['record' => $company], isAbsolute: false);
+
+            $geo = array_filter([(string) ($company->city ?? ''), (string) ($company->state ?? ''), (string) ($company->country ?? '')]);
+            $location = $geo !== [] ? implode(' · ', $geo) : '—';
+
+            $details = [
+                'Código' => filled($company->code) ? (string) $company->code : '—',
+                'NIT / ID fiscal' => filled($company->tax_id) ? (string) $company->tax_id : '—',
+                'Nombre comercial' => filled($company->trade_name) ? (string) $company->trade_name : '—',
+                'Correo' => filled($company->email) ? (string) $company->email : '—',
+                'Teléfono' => filled($company->phone) ? (string) $company->phone : '—',
+                'Ubicación' => $location,
+                'Ref. convenio' => filled($company->agreement_reference) ? (string) $company->agreement_reference : '—',
+                'Creación convenio' => $company->date_created
+                    ? $company->date_created->format('d/m/Y')
+                    : '—',
+                'Actualización convenio' => $company->date_updated
+                    ? $company->date_updated->format('d/m/Y')
+                    : '—',
+                'Saldo crédito (USD)' => $company->assigned_credit_limit !== null && $company->assigned_credit_limit !== ''
+                    ? '$'.number_format((float) $company->assigned_credit_limit, 2, '.', ',')
+                    : '—',
+                'Estado' => $company->is_active ? 'Activa' : 'Inactiva',
+            ];
+
+            $title = filled($company->code)
+                ? $company->legal_name.' · '.$company->code
+                : $company->legal_name;
 
             return new GlobalSearchResult(
                 title: $title,

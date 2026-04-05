@@ -33,7 +33,7 @@ class SalesTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => BranchAuthScope::apply($query)
+            ->modifyQueryUsing(fn (Builder $query): Builder => BranchAuthScope::applyToSalesQuery($query)
                 ->with(['branch', 'client'])
                 ->withCount('items'))
             ->columns([

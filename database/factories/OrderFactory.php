@@ -32,6 +32,8 @@ class OrderFactory extends Factory
             'order_number' => fake()->unique()->bothify('PED-2026-#####'),
             'client_id' => Client::factory(),
             'branch_id' => Branch::factory(),
+            'partner_company_id' => null,
+            'is_wholesale' => false,
             'status' => OrderStatus::Pending,
             'convenio_type' => ConvenioType::Particular,
             'convenio_partner_name' => null,

@@ -1520,6 +1520,7 @@ final class CashRegisterAction
             'state' => '—',
             'country' => 'Colombia',
             'status' => 'active',
+            'customer_discount' => 0,
             'created_by' => $actor,
             'updated_by' => $actor,
         ]);

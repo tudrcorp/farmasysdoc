@@ -5,6 +5,10 @@ namespace App\Filament\Resources\PartnerCompanies\Schemas;
 use App\Models\City;
 use App\Models\Country;
 use App\Models\State;
+use App\Models\User;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -259,6 +263,34 @@ class PartnerCompanyForm
                                     ->placeholder('Código o número del acuerdo')
                                     ->maxLength(255)
                                     ->prefixIcon(Heroicon::DocumentDuplicate),
+                                TextInput::make('assigned_credit_limit')
+                                    ->label('Saldo de crédito disponible (USD)')
+                                    ->helperText('Saldo actual en USD. Cada consumo (pedido a crédito en «En proceso») lo descuenta automáticamente. Para ampliar cupo, aumente este valor. Opcional.')
+                                    ->numeric()
+                                    ->prefix('$')
+                                    ->suffix('USD')
+                                    ->minValue(0)
+                                    ->step(0.01)
+                                    ->nullable()
+                                    ->dehydrateStateUsing(fn (mixed $state): ?float => $state === '' || $state === null
+                                        ? null
+                                        : (float) $state)
+                                    ->prefixIcon(Heroicon::Banknotes),
+                                DatePicker::make('date_created')
+                                    ->label('Fecha de creación del convenio')
+                                    ->helperText('Fecha en que se formaliza o registra el convenio con el aliado.')
+                                    ->required()
+                                    ->default(now())
+                                    ->native(false)
+                                    ->displayFormat('d/m/Y')
+                                    ->prefixIcon(Heroicon::CalendarDays),
+                                DatePicker::make('date_updated')
+                                    ->label('Fecha de actualización del convenio')
+                                    ->helperText('Opcional. Use cuando el convenio se modifique o renueve.')
+                                    ->native(false)
+                                    ->displayFormat('d/m/Y')
+                                    ->prefixIcon(Heroicon::ArrowPath)
+                                    ->nullable(),
                                 Textarea::make('agreement_terms')
                                     ->label('Términos del convenio')
                                     ->placeholder('Condiciones comerciales, plazos y alcance del convenio')
@@ -270,6 +302,65 @@ class PartnerCompanyForm
                                     ->rows(3)
                                     ->columnSpanFull(),
                             ]),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
+                Section::make('Usuarios del panel (aliado)')
+                    ->description('Solo administradores: cree o gestione las cuentas que podrán operar en nombre de esta compañía aliada. Cada usuario recibe acceso al panel con el correo y la contraseña indicados.')
+                    ->icon(Heroicon::UserGroup)
+                    ->visible(fn (): bool => auth()->user() instanceof User && auth()->user()->isAdministrator())
+                    ->schema([
+                        Repeater::make('partner_users')
+                            ->label('')
+                            ->schema([
+                                Grid::make([
+                                    'default' => 1,
+                                    'lg' => 2,
+                                ])
+                                    ->schema([
+                                        Hidden::make('user_id')
+                                            ->dehydrated(),
+                                        TextInput::make('name')
+                                            ->label('Nombre completo')
+                                            ->required()
+                                            ->maxLength(255)
+                                            ->prefixIcon(Heroicon::UserCircle),
+                                        TextInput::make('email')
+                                            ->label('Correo electrónico')
+                                            ->email()
+                                            ->required()
+                                            ->maxLength(255)
+                                            ->prefixIcon(Heroicon::Envelope)
+                                            ->autocomplete(false),
+                                        TextInput::make('password')
+                                            ->label('Contraseña')
+                                            ->password()
+                                            ->revealable()
+                                            ->maxLength(255)
+                                            ->minLength(8)
+                                            ->helperText(fn (Get $get): string => filled($get('user_id'))
+                                                ? 'Opcional al editar. Déjela en blanco para no cambiar la contraseña.'
+                                                : 'Mínimo 8 caracteres. Se usará para iniciar sesión en el panel.')
+                                            ->required(fn (Get $get): bool => blank($get('user_id')))
+                                            ->dehydrated(fn (Get $get): bool => filled($get('password')))
+                                            ->prefixIcon(Heroicon::Key),
+                                        Toggle::make('is_active')
+                                            ->label('Usuario activo')
+                                            ->helperText('Si está desactivado, no podrá acceder al panel como usuario de esta compañía aliada.')
+                                            ->default(true)
+                                            ->inline(false)
+                                            ->columnSpanFull(),
+                                    ]),
+                            ])
+                            ->defaultItems(0)
+                            ->addActionLabel('Añadir usuario')
+                            ->collapsible()
+                            ->itemLabel(fn (?array $state): ?string => filled($state['name'] ?? null)
+                                ? (string) $state['name']
+                                : 'Nuevo usuario')
+                            ->columnSpanFull()
+                            ->dehydrated(false),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

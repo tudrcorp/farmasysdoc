@@ -118,6 +118,25 @@ class ClientsTable
                     ->iconColor('gray')
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->tooltip('Pedidos asociados'),
+                TextColumn::make('customer_discount')
+                    ->label('Dto. %')
+                    ->sortable()
+                    ->alignEnd()
+                    ->icon(Heroicon::ReceiptPercent)
+                    ->iconColor('gray')
+                    ->formatStateUsing(function ($state): string {
+                        if ($state === null || $state === '') {
+                            return '0';
+                        }
+
+                        if (! is_numeric($state)) {
+                            return '—';
+                        }
+
+                        return rtrim(rtrim(number_format((float) $state, 2, ',', '.'), '0'), ',');
+                    })
+                    ->tooltip('Descuento comercial del cliente (porcentaje)')
+                    ->toggleable(),
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()

@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Users\Schemas;
 
 use App\Models\Rol;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Pages\CreateRecord;
@@ -20,7 +21,7 @@ class UserForm
         return $schema
             ->components([
                 Section::make('Datos del usuario')
-                    ->description('Identificación en el panel y vínculo con la sucursal donde opera.')
+                    ->description('Identificación en el panel. La sucursal aplica salvo rol Entregas (logística a nivel empresa).')
                     ->icon(Heroicon::UserCircle)
                     ->schema([
                         Grid::make([
@@ -53,23 +54,55 @@ class UserForm
                                     ->options(Rol::all()->pluck('name', 'name'))
                                     ->required()
                                     ->multiple()
+                                    ->live()
                                     ->native(false),
                             ]),
                         Select::make('branch_id')
                             ->label('Sucursal')
                             ->placeholder('Seleccione la sucursal')
-                            ->helperText('El usuario queda asociado a una sola sucursal activa.')
+                            ->helperText(fn (Get $get): string => self::formRolesIncludeDelivery($get('roles'))
+                                ? 'Los usuarios con rol Entregas operan para toda la empresa; deje vacío o no aplica sucursal.'
+                                : 'El usuario queda asociado a una sola sucursal activa.')
                             ->relationship(
                                 name: 'branch',
                                 titleAttribute: 'name',
                                 modifyQueryUsing: fn ($query) => $query->where('is_active', true)->orderBy('name'),
                             )
-                            ->required()
+                            ->required(fn (Get $get): bool => ! self::formRolesIncludeDelivery($get('roles')))
                             ->searchable()
                             ->preload()
                             ->native(false)
                             ->prefixIcon(Heroicon::BuildingOffice2)
                             ->columnSpanFull(),
+                        TextInput::make('delivery_identity_document')
+                            ->label('Cédula de identidad')
+                            ->helperText('Documento del repartidor; puede mostrarse al aliado junto con la foto.')
+                            ->maxLength(64)
+                            ->prefixIcon(Heroicon::Identification)
+                            ->columnSpanFull()
+                            ->required(fn (Get $get): bool => self::formRolesIncludeDelivery($get('roles')))
+                            ->visible(fn (Get $get): bool => self::formRolesIncludeDelivery($get('roles'))),
+                        TextInput::make('delivery_mobile_phone')
+                            ->label('Teléfono móvil')
+                            ->helperText('Contacto del repartidor; puede mostrarse al aliado junto con los demás datos.')
+                            ->tel()
+                            ->maxLength(32)
+                            ->prefixIcon(Heroicon::Phone)
+                            ->columnSpanFull()
+                            ->required(fn (Get $get): bool => self::formRolesIncludeDelivery($get('roles')))
+                            ->visible(fn (Get $get): bool => self::formRolesIncludeDelivery($get('roles'))),
+                        FileUpload::make('delivery_photo_path')
+                            ->label('Foto del repartidor')
+                            ->helperText('Visible para la compañía aliada en el pedido cuando este usuario toma la entrega. Solo aplica con rol Entregas.')
+                            ->image()
+                            ->disk('public')
+                            ->directory('delivery-photos')
+                            ->visibility('public')
+                            ->maxSize(2048)
+                            ->imageEditor()
+                            ->panelLayout('integrated')
+                            ->columnSpanFull()
+                            ->visible(fn (Get $get): bool => self::formRolesIncludeDelivery($get('roles'))),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
@@ -126,5 +159,10 @@ class UserForm
                     ->columnSpanFull()
                     ->collapsed(),
             ]);
+    }
+
+    private static function formRolesIncludeDelivery(mixed $roles): bool
+    {
+        return is_array($roles) && in_array('DELIVERY', $roles, true);
     }
 }

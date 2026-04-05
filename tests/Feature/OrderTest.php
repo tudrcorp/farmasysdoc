@@ -17,7 +17,7 @@ test('order belongs to client and branch with convenio fields', function () {
         'client_id' => $client->id,
         'branch_id' => $branch->id,
         'order_number' => 'PED-TEST-001',
-        'status' => OrderStatus::Confirmed,
+        'status' => OrderStatus::InProgress,
         'convenio_type' => ConvenioType::Eps,
         'convenio_partner_name' => 'EPS Sanitas',
         'convenio_reference' => 'AUT-12345678',

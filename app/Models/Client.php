@@ -28,7 +28,18 @@ class Client extends Model
         'status',
         'created_by',
         'updated_by',
+        'customer_discount',
     ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'customer_discount' => 'decimal:2',
+        ];
+    }
 
     /**
      * @return HasMany<Sale, $this>

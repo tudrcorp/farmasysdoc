@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\ProductTransfers;
 
+use App\Enums\ProductTransferStatus;
+use App\Filament\Resources\Concerns\RestrictsAccessForDeliveryUsers;
 use App\Filament\Resources\ProductTransfers\Pages\CreateProductTransfer;
 use App\Filament\Resources\ProductTransfers\Pages\EditProductTransfer;
 use App\Filament\Resources\ProductTransfers\Pages\ListProductTransfers;
@@ -25,6 +27,8 @@ use Illuminate\Validation\ValidationException;
 
 class ProductTransferResource extends Resource
 {
+    use RestrictsAccessForDeliveryUsers;
+
     protected static ?string $model = ProductTransfer::class;
 
     protected static ?string $navigationLabel = 'Traslados';
@@ -71,7 +75,8 @@ class ProductTransferResource extends Resource
     }
 
     /**
-     * Administrador: todos los traslados. Resto: solo los dirigidos a su sucursal (receptora).
+     * Administrador: todos los traslados. Usuario de sucursal: solo aquellos cuyo destino (`to_branch_id`)
+     * coincide con su sucursal. Sin usuario autenticado o sin sucursal asignada: ningún registro.
      *
      * @return Builder<ProductTransfer>
      */
@@ -80,7 +85,11 @@ class ProductTransferResource extends Resource
         $query = parent::getEloquentQuery();
 
         $user = auth()->user();
-        if (! $user instanceof User || $user->isAdministrator()) {
+        if (! $user instanceof User) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if ($user->isAdministrator() || $user->isDeliveryUser()) {
             return $query;
         }
 
@@ -102,7 +111,7 @@ class ProductTransferResource extends Resource
             return false;
         }
 
-        if ($user->isAdministrator()) {
+        if ($user->isAdministrator() || $user->isDeliveryUser()) {
             return true;
         }
 
@@ -126,7 +135,7 @@ class ProductTransferResource extends Resource
             return false;
         }
 
-        if ($record->status === 'completed') {
+        if ($record->status === ProductTransferStatus::Completed) {
             return false;
         }
 
@@ -189,8 +198,7 @@ class ProductTransferResource extends Resource
             return false;
         }
 
-        $status = strtolower((string) $record->status);
-        if (in_array($status, ['completed', 'cancelled'], true)) {
+        if (in_array($record->status, [ProductTransferStatus::Completed, ProductTransferStatus::Cancelled], true)) {
             return false;
         }
 
@@ -203,7 +211,7 @@ class ProductTransferResource extends Resource
             return false;
         }
 
-        if ($record->status === 'completed') {
+        if ($record->status === ProductTransferStatus::Completed) {
             return false;
         }
 

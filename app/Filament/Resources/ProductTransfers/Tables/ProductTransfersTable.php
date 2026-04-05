@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ProductTransfers\Tables;
 
+use App\Enums\ProductTransferStatus;
 use App\Filament\Resources\ProductTransfers\ProductTransferResource;
 use App\Models\ProductTransfer;
 use App\Models\User;
@@ -84,8 +85,12 @@ class ProductTransfersTable
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => self::formatStatusLabel($state))
-                    ->color(fn (?string $state): string => self::statusBadgeColor($state))
+                    ->formatStateUsing(fn (mixed $state): string => ProductTransferStatus::labelForStored(
+                        $state instanceof ProductTransferStatus ? $state : (filled($state) ? (string) $state : null),
+                    ))
+                    ->color(fn (mixed $state): string => ProductTransferStatus::filamentColorForStored(
+                        $state instanceof ProductTransferStatus ? $state : (filled($state) ? (string) $state : null),
+                    ))
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('transfer_type')
@@ -168,40 +173,6 @@ class ProductTransfersTable
                         ->visible(fn (): bool => auth()->user() instanceof User && auth()->user()->isAdministrator()),
                 ]),
             ]);
-    }
-
-    private static function formatStatusLabel(?string $state): string
-    {
-        if (blank($state)) {
-            return '—';
-        }
-
-        $key = strtolower(trim($state));
-
-        return match ($key) {
-            'pending', 'pendiente' => 'Pendiente',
-            'in_progress', 'en_proceso', 'en proceso' => 'En proceso',
-            'completed', 'completado', 'completada' => 'Completado',
-            'cancelled', 'cancelado', 'cancelada' => 'Cancelado',
-            default => (string) $state,
-        };
-    }
-
-    private static function statusBadgeColor(?string $state): string
-    {
-        if (blank($state)) {
-            return 'gray';
-        }
-
-        $key = strtolower(trim($state));
-
-        return match ($key) {
-            'pending', 'pendiente' => 'warning',
-            'in_progress', 'en_proceso' => 'info',
-            'completed', 'completado', 'completada' => 'success',
-            'cancelled', 'cancelado', 'cancelada' => 'danger',
-            default => 'gray',
-        };
     }
 
     private static function formatTransferTypeLabel(?string $state): string

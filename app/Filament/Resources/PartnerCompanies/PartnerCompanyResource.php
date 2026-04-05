@@ -24,11 +24,17 @@ class PartnerCompanyResource extends Resource
 
     protected static ?string $model = PartnerCompany::class;
 
+    protected static ?string $modelLabel = 'compañía aliada';
+
+    protected static ?string $pluralModelLabel = 'compañías aliadas';
+
+    protected static ?string $recordTitleAttribute = 'legal_name';
+
     protected static ?string $navigationLabel = 'Compañías aliadas';
 
     protected static ?int $navigationSort = 1;
 
-    protected static string|UnitEnum|null $navigationGroup = 'Configuración';
+    protected static string|UnitEnum|null $navigationGroup = 'commercial_allies';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::BuildingOffice2;
 

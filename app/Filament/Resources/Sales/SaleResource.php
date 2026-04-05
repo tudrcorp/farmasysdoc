@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Sales;
 
+use App\Filament\Resources\Concerns\RestrictsAccessForDeliveryUsers;
 use App\Filament\Resources\Sales\Pages\CreateSale;
 use App\Filament\Resources\Sales\Pages\EditSale;
 use App\Filament\Resources\Sales\Pages\ListSales;
@@ -21,6 +22,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class SaleResource extends Resource
 {
+    use RestrictsAccessForDeliveryUsers;
+
     protected static ?string $model = Sale::class;
 
     protected static ?string $navigationLabel = 'Ventas';
@@ -51,7 +54,7 @@ class SaleResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return BranchAuthScope::apply(parent::getEloquentQuery());
+        return BranchAuthScope::applyToSalesQuery(parent::getEloquentQuery());
     }
 
     public static function getRelations(): array

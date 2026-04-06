@@ -28,6 +28,7 @@ class Delivery extends Model
         'status',
         'taken_by',
         'order_snapshot',
+        'delivery_evidence_path',
     ];
 
     /**

@@ -54,7 +54,6 @@ class OrderResource extends Resource
             urlResource: self::class,
             includeBranchAndClientFilters: false,
             partnerOrderNumberDeliveryModal: true,
-            partnerMarkDeliveredWithRatingAction: true,
         );
     }
 

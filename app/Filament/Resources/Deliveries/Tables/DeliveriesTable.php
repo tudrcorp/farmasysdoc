@@ -9,6 +9,7 @@ use App\Models\Delivery;
 use App\Models\Order;
 use App\Models\User;
 use App\Support\Deliveries\DeliveryTypeLabels;
+use App\Support\Deliveries\MarkDeliveryCompletedWithEvidence;
 use App\Support\Deliveries\MarkDeliveryInProgress;
 use App\Support\Orders\PartnerOrderDeliverySync;
 use App\Support\Partners\InsufficientPartnerCreditException;
@@ -18,7 +19,9 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Grid;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
@@ -199,6 +202,7 @@ class DeliveriesTable
                             $action->halt();
                         }
                     }),
+                self::completeDeliveryWithEvidenceTableAction(),
                 ViewAction::make()
                     ->label('Ver')
                     ->icon(Heroicon::Eye),
@@ -231,6 +235,121 @@ class DeliveriesTable
         }
 
         return $record->order->status !== OrderStatus::Completed;
+    }
+
+    /**
+     * Cierra la entrega con foto: pedido vinculado → Finalizado (solo repartidor asignado o administrador).
+     */
+    public static function completeDeliveryWithEvidenceTableAction(): Action
+    {
+        return Action::make('completeDeliveryWithEvidence')
+            ->label('Evidencia de entrega')
+            ->tooltip('Subir foto de la entrega y finalizar el pedido')
+            ->icon(Heroicon::Photo)
+            ->color('success')
+            ->visible(fn (Delivery $record): bool => self::canCompleteDeliveryWithEvidence($record))
+            ->modalHeading('Registrar evidencia de entrega')
+            ->modalDescription(
+                'Suba una fotografía que evidencie la entrega en destino. '
+                .'El pedido vinculado pasará a «Finalizado», esta entrega a «Completado» y la imagen quedará archivada.'
+            )
+            ->modalIcon(Heroicon::Photo)
+            ->modalIconColor('success')
+            ->modalWidth(Width::Medium)
+            ->slideOver()
+            ->schema([
+                Grid::make(1)
+                    ->schema([
+                        FileUpload::make('delivery_evidence')
+                            ->label('Foto de la entrega')
+                            ->helperText('JPG, PNG o WebP. Máximo 5 MB.')
+                            ->image()
+                            ->required()
+                            ->disk('public')
+                            ->directory('deliveries/evidence')
+                            ->visibility('public')
+                            ->maxSize(5120)
+                            ->columnSpanFull(),
+                    ]),
+            ])
+            ->modalSubmitActionLabel('Confirmar entrega')
+            ->modalSubmitAction(fn (Action $action): Action => $action
+                ->extraAttributes([
+                    'class' => 'farmadoc-ios-action farmadoc-ios-action--success',
+                ]))
+            ->modalCancelAction(fn (Action $action): Action => $action
+                ->label('Cancelar')
+                ->color('gray')
+                ->extraAttributes([
+                    'class' => 'farmadoc-ios-action farmadoc-ios-action--gray',
+                ]))
+            ->extraModalWindowAttributes([
+                'class' => 'fi-ios-order-items-modal-window',
+            ])
+            ->action(function (array $data, Delivery $record): void {
+                $user = auth()->user();
+                if (! $user instanceof User) {
+                    Notification::make()
+                        ->danger()
+                        ->title('Debe iniciar sesión.')
+                        ->send();
+
+                    return;
+                }
+
+                $path = $data['delivery_evidence'] ?? null;
+                if (! is_string($path) || trim($path) === '') {
+                    Notification::make()
+                        ->danger()
+                        ->title('Adjunte una imagen de evidencia.')
+                        ->send();
+
+                    return;
+                }
+
+                try {
+                    MarkDeliveryCompletedWithEvidence::execute($record, $user, $path);
+                } catch (InvalidArgumentException $e) {
+                    Notification::make()
+                        ->danger()
+                        ->title($e->getMessage())
+                        ->send();
+
+                    return;
+                }
+
+                Notification::make()
+                    ->success()
+                    ->title('Entrega registrada')
+                    ->body('La evidencia quedó guardada y el pedido pasó a estado Finalizado.')
+                    ->send();
+            });
+    }
+
+    private static function canCompleteDeliveryWithEvidence(Delivery $record): bool
+    {
+        if ($record->status !== DeliveryStatus::InProgress) {
+            return false;
+        }
+
+        $user = auth()->user();
+        if (! $user instanceof User) {
+            return false;
+        }
+
+        if (! $user->isAdministrator() && ! $user->isDeliveryUser()) {
+            return false;
+        }
+
+        if ($user->isAdministrator()) {
+            return true;
+        }
+
+        if ($record->user_id === null) {
+            return false;
+        }
+
+        return (int) $record->user_id === (int) $user->getAuthIdentifier();
     }
 
     /**

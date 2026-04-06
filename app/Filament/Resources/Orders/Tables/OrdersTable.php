@@ -7,7 +7,6 @@ use App\Enums\OrderStatus;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\User;
 use App\Support\Filament\BranchAuthScope;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -26,6 +25,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Storage;
 
 class OrdersTable
 {
@@ -33,14 +33,14 @@ class OrdersTable
      * @param  class-string<\Filament\Resources\Resource>  $urlResource  Recurso cuyas URLs de registro se usan en la tabla (p. ej. panel aliados).
      * @param  bool  $includeBranchAndClientFilters  En el panel aliados suele desactivarse para no listar todos los clientes/sucursales del sistema.
      * @param  bool  $partnerOrderNumberDeliveryModal  Panel aliados: clic en Nº pedido abre datos y foto del repartidor si el pedido está en proceso.
-     * @param  bool  $partnerMarkDeliveredWithRatingAction  Panel aliados: acción para pasar de En proceso a Finalizado con calificación 1–5.
+     * @param  bool  $adminDeliveryInsightsColumns  Farmaadmin: minutos solicitud→entrega y calificación del aliado.
      */
     public static function configure(
         Table $table,
         string $urlResource = OrderResource::class,
         bool $includeBranchAndClientFilters = true,
         bool $partnerOrderNumberDeliveryModal = false,
-        bool $partnerMarkDeliveredWithRatingAction = false,
+        bool $adminDeliveryInsightsColumns = false,
     ): Table {
         $orderNumberColumn = TextColumn::make('order_number')
             ->label('Nº pedido')
@@ -130,8 +130,8 @@ class OrdersTable
                     ->searchable()
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('partner_zelle_reference_email')
-                    ->label('Correo Zelle')
+                TextColumn::make('partner_zelle_reference_name')
+                    ->label('Nombre Zelle')
                     ->searchable()
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -167,6 +167,26 @@ class OrdersTable
                     ->color(fn (?OrderStatus $state): string => $state instanceof OrderStatus ? $state->filamentColor() : 'gray')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('delivered_at')
+                    ->label('Completado el')
+                    ->formatStateUsing(function (mixed $state, Order $record): string {
+                        if ($record->status !== OrderStatus::Completed) {
+                            return '—';
+                        }
+                        $dt = $record->delivered_at ?? $record->updated_at;
+
+                        return $dt !== null
+                            ? $dt->timezone(config('app.timezone'))->format('d/m/Y H:i')
+                            : '—';
+                    })
+                    ->sortable()
+                    ->tooltip(fn (Order $record): string => $record->status === OrderStatus::Completed
+                        ? 'Fecha de cierre del pedido (entrega registrada o última actualización si no hay fecha de entrega).'
+                        : 'Disponible cuando el pedido esté en estado Finalizado.')
+                    ->placeholder('—')
+                    ->icon(Heroicon::CheckCircle)
+                    ->iconColor(fn (Order $record): string => $record->status === OrderStatus::Completed ? 'success' : 'gray'),
+                ...self::adminDeliveryInsightColumns($adminDeliveryInsightsColumns),
                 TextColumn::make('convenio_type')
                     ->label('Convenio')
                     ->badge()
@@ -194,7 +214,8 @@ class OrdersTable
                     ->sortable()
                     ->placeholder('—')
                     ->icon(Heroicon::CalendarDays)
-                    ->iconColor('gray'),
+                    ->iconColor('gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('delivery_summary')
                     ->label('Destino / contacto')
                     ->state(fn (Order $record): string => self::formatDeliverySummary($record))
@@ -257,12 +278,6 @@ class OrdersTable
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('dispatched_at')
                     ->label('Despachado')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable()
-                    ->placeholder('—')
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('delivered_at')
-                    ->label('Entregado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->placeholder('—')
@@ -363,7 +378,8 @@ class OrdersTable
                 ])),
             ])
             ->recordActions([
-                ...($partnerMarkDeliveredWithRatingAction ? [self::partnerMarkDeliveredCompletedAction()] : []),
+                ...($partnerOrderNumberDeliveryModal ? [self::partnerRateDeliveryServiceAction()] : []),
+                self::viewPartnerCashPaymentProofTableAction(),
                 ViewAction::make()
                     ->label('Ver pedido')
                     ->icon(Heroicon::Eye),
@@ -382,44 +398,81 @@ class OrdersTable
     }
 
     /**
-     * Panel aliados: confirma recepción, marca el pedido como finalizado y guarda la calificación del servicio de entrega.
+     * @return list<TextColumn>
      */
-    public static function partnerMarkDeliveredCompletedAction(): Action
+    private static function adminDeliveryInsightColumns(bool $enabled): array
     {
-        return Action::make('partnerMarkOrderDelivered')
-            ->label('Marcar entregado')
-            ->icon(Heroicon::CheckBadge)
-            ->color('success')
-            ->modalHeading('¡Gracias por usar Farmadoc Delivery!')
-            ->modalDescription(
-                'Apreciamos su confianza. Al confirmar, el pedido quedará en estado Finalizado. '
-                .'Si lo desea, puede calificar la experiencia de entrega con las estrellas de abajo.'
-            )
+        if (! $enabled) {
+            return [];
+        }
+
+        return [
+            TextColumn::make('delivery_fulfillment_duration_minutes')
+                ->label('Min. solicitud → entrega')
+                ->formatStateUsing(fn (?int $state): string => $state !== null ? number_format($state, 0, ',', '.').' min' : '—')
+                ->sortable()
+                ->alignment(Alignment::End)
+                ->tooltip('Minutos desde la creación del pedido hasta el cierre con evidencia en Entregas.')
+                ->icon(Heroicon::Clock)
+                ->iconColor('gray'),
+            TextColumn::make('partner_delivery_rating')
+                ->label('Calif. entrega (aliado)')
+                ->formatStateUsing(fn (?int $state): string => $state !== null && $state >= 1 && $state <= 5 ? $state.'/5' : '—')
+                ->badge()
+                ->color(fn (?int $state): string => match (true) {
+                    $state === null => 'gray',
+                    $state >= 4 => 'success',
+                    $state === 3 => 'warning',
+                    default => 'danger',
+                })
+                ->sortable()
+                ->alignment(Alignment::Center)
+                ->icon(Heroicon::Star)
+                ->iconColor('warning')
+                ->tooltip('Estrellas registradas por el aliado tras la entrega.'),
+        ];
+    }
+
+    /**
+     * Panel aliados: calificar el servicio de delivery en pedidos finalizados (visible en Farmaadmin).
+     */
+    public static function partnerRateDeliveryServiceAction(): Action
+    {
+        return Action::make('partnerRateDeliveryService')
+            ->label('Calificar entrega')
+            ->tooltip('Evaluar la experiencia de delivery de este pedido finalizado')
+            ->icon(Heroicon::Star)
+            ->color('warning')
+            ->modalHeading('Calificar servicio de entrega')
+            ->modalDescription('Puede actualizar la calificación en cualquier momento. Se mostrará en el panel administrador.')
             ->modalIcon(Heroicon::Star)
             ->modalIconColor('warning')
             ->modalWidth(Width::Medium)
-            ->modalSubmitActionLabel('Confirmar entrega finalizada')
-            ->visible(fn (Order $record): bool => $record->status === OrderStatus::InProgress)
+            ->modalSubmitActionLabel('Guardar calificación')
+            ->fillForm(fn (Order $record): array => [
+                'rating' => $record->partner_delivery_rating,
+            ])
             ->schema([
                 Grid::make(1)
                     ->schema([
                         ViewField::make('rating')
                             ->view('filament.forms.partner-delivery-star-rating')
-                            ->label('Calificación del servicio de entrega')
-                            ->helperText('Opcional. Pulse la estrella que mejor refleje su experiencia; las elegidas se muestran en amarillo.')
+                            ->label('Calificación')
+                            ->helperText('Elija de 1 a 5 estrellas.')
                             ->extraFieldWrapperAttributes([
                                 'class' => '[&_.fi-fo-field-label-col]:w-full [&_.fi-fo-field-label-col]:text-center [&_.fi-fo-field-label-ctn]:flex [&_.fi-fo-field-label-ctn]:justify-center [&_.fi-fo-field-content-col]:text-center',
                             ])
                             ->columnSpanFull(),
                     ]),
             ])
+            ->visible(fn (Order $record): bool => $record->status === OrderStatus::Completed
+                && filled($record->partner_company_id))
             ->action(function (array $data, Order $record): void {
                 $record->refresh();
 
-                if ($record->status !== OrderStatus::InProgress) {
+                if ($record->status !== OrderStatus::Completed) {
                     Notification::make()
-                        ->title('El pedido ya no está en proceso')
-                        ->body('Actualice la tabla e intente de nuevo si aplica.')
+                        ->title('El pedido ya no está finalizado')
                         ->warning()
                         ->send();
 
@@ -427,46 +480,92 @@ class OrdersTable
                 }
 
                 $ratingRaw = $data['rating'] ?? null;
-                $rating = null;
-                if ($ratingRaw !== null && $ratingRaw !== '') {
-                    if (! is_numeric($ratingRaw)) {
-                        Notification::make()
-                            ->title('Calificación no válida')
-                            ->danger()
-                            ->send();
+                if ($ratingRaw === null || $ratingRaw === '') {
+                    Notification::make()
+                        ->title('Seleccione una calificación')
+                        ->body('Pulse de 1 a 5 estrellas antes de guardar.')
+                        ->warning()
+                        ->send();
 
-                        return;
-                    }
-                    $r = (int) $ratingRaw;
-                    if ($r < 1 || $r > 5) {
-                        Notification::make()
-                            ->title('Calificación no válida')
-                            ->danger()
-                            ->send();
-
-                        return;
-                    }
-                    $rating = $r;
+                    return;
                 }
 
-                $actor = auth()->user();
-                $updatedBy = $actor instanceof User ? ($actor->email ?? null) : null;
+                if (! is_numeric($ratingRaw)) {
+                    Notification::make()
+                        ->title('Calificación no válida')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                $r = (int) $ratingRaw;
+                if ($r < 1 || $r > 5) {
+                    Notification::make()
+                        ->title('La calificación debe estar entre 1 y 5')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
 
                 $record->update([
-                    'status' => OrderStatus::Completed,
-                    'partner_delivery_rating' => $rating,
-                    'delivered_at' => $record->delivered_at ?? now(),
-                    'updated_by' => $updatedBy,
+                    'partner_delivery_rating' => $r,
                 ]);
 
                 Notification::make()
-                    ->title('Pedido finalizado')
-                    ->body($rating !== null
-                        ? 'Gracias por calificar nuestro servicio de delivery.'
-                        : 'Gracias por usar Farmadoc Delivery.')
+                    ->title('Calificación guardada')
                     ->success()
                     ->send();
             });
+    }
+
+    /**
+     * Muestra el comprobante de pago de contado en un slide-over estilo iOS.
+     */
+    public static function viewPartnerCashPaymentProofTableAction(): Action
+    {
+        return Action::make('viewPartnerCashPaymentProof')
+            ->label('Ver comprobante')
+            ->tooltip('Ver el comprobante de pago cargado por el aliado')
+            ->icon(Heroicon::DocumentArrowDown)
+            ->color('gray')
+            ->modalHeading('Comprobante de pago')
+            ->modalDescription('Archivo enviado por el aliado al registrar el pedido en pago de contado.')
+            ->modalIcon(Heroicon::DocumentArrowDown)
+            ->modalIconColor('primary')
+            ->modalContent(function (Order $record): View {
+                return view('filament.tables.partner-payment-proof-ios-modal', self::buildPartnerPaymentProofModalPayload($record));
+            })
+            ->modalWidth(Width::Large)
+            ->slideOver()
+            ->modalSubmitAction(false)
+            ->modalCancelAction(fn (Action $action): Action => $action
+                ->label('Listo')
+                ->color('primary')
+                ->extraAttributes([
+                    'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
+                ]))
+            ->extraModalWindowAttributes([
+                'class' => 'fi-ios-payment-proof-modal-window',
+            ])
+            ->visible(fn (Order $record): bool => filled($record->partner_cash_payment_proof_path));
+    }
+
+    /**
+     * @return array{url: string, isPdf: bool, fileName: string}
+     */
+    private static function buildPartnerPaymentProofModalPayload(Order $order): array
+    {
+        $path = (string) $order->partner_cash_payment_proof_path;
+        $url = Storage::disk('public')->url($path);
+        $lower = strtolower($path);
+
+        return [
+            'url' => $url,
+            'isPdf' => str_ends_with($lower, '.pdf'),
+            'fileName' => basename($path) !== '' ? basename($path) : 'comprobante',
+        ];
     }
 
     /**

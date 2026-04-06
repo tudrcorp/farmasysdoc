@@ -27,6 +27,7 @@ final class PartnerOrderFormMutator
             if (($data['partner_payment_terms'] ?? null) === OrderPartnerPaymentTerms::Credit->value) {
                 $data['partner_cash_payment_method'] = null;
                 self::stripPartnerPaymentReferenceFields($data);
+                $data['partner_cash_payment_proof_path'] = null;
             } else {
                 self::normalizePartnerPaymentReferenceFields($data);
             }
@@ -40,9 +41,11 @@ final class PartnerOrderFormMutator
                 $data['partner_payment_terms'] = null;
                 $data['partner_cash_payment_method'] = null;
                 self::stripPartnerPaymentReferenceFields($data);
+                $data['partner_cash_payment_proof_path'] = null;
             } elseif (($data['partner_payment_terms'] ?? null) === OrderPartnerPaymentTerms::Credit->value) {
                 $data['partner_cash_payment_method'] = null;
                 self::stripPartnerPaymentReferenceFields($data);
+                $data['partner_cash_payment_proof_path'] = null;
             } else {
                 self::normalizePartnerPaymentReferenceFields($data);
             }
@@ -66,7 +69,9 @@ final class PartnerOrderFormMutator
             $data['partner_cash_payment_method'],
             $data['partner_pago_movil_reference'],
             $data['partner_zelle_reference_email'],
+            $data['partner_zelle_reference_name'],
             $data['partner_zelle_transaction_number'],
+            $data['partner_cash_payment_proof_path'],
         );
     }
 
@@ -77,6 +82,7 @@ final class PartnerOrderFormMutator
     {
         $data['partner_pago_movil_reference'] = null;
         $data['partner_zelle_reference_email'] = null;
+        $data['partner_zelle_reference_name'] = null;
         $data['partner_zelle_transaction_number'] = null;
     }
 
@@ -89,6 +95,7 @@ final class PartnerOrderFormMutator
     {
         if (($data['partner_payment_terms'] ?? null) !== OrderPartnerPaymentTerms::Cash->value) {
             self::stripPartnerPaymentReferenceFields($data);
+            $data['partner_cash_payment_proof_path'] = null;
 
             return;
         }
@@ -101,6 +108,7 @@ final class PartnerOrderFormMutator
 
         if ($method !== OrderPartnerCashPaymentMethod::Zelle->value) {
             $data['partner_zelle_reference_email'] = null;
+            $data['partner_zelle_reference_name'] = null;
             $data['partner_zelle_transaction_number'] = null;
         }
 

@@ -21,7 +21,7 @@ class ViewOrder extends ViewRecord
             return;
         }
 
-        $order->load(['items.product']);
+        $order->load(['items.product', 'partnerDeliveries.user']);
         $order->setRelation(
             'items',
             $order->items->each(function (OrderItem $item) use ($order): void {

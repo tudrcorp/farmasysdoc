@@ -51,7 +51,7 @@ class OrderResource extends Resource
 
     public static function table(Table $table): Table
     {
-        return OrdersTable::configure($table);
+        return OrdersTable::configure($table, adminDeliveryInsightsColumns: true);
     }
 
     public static function getEloquentQuery(): Builder

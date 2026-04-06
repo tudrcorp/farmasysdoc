@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 class Order extends Model
 {
@@ -76,6 +77,7 @@ class Order extends Model
         'partner_pago_movil_reference',
         'partner_zelle_reference_name',
         'partner_zelle_transaction_number',
+        'partner_cash_payment_proof_path',
         'status',
         'convenio_type',
         'convenio_partner_name',
@@ -91,6 +93,7 @@ class Order extends Model
         'scheduled_delivery_at',
         'dispatched_at',
         'delivered_at',
+        'delivery_fulfillment_duration_minutes',
         'partner_delivery_rating',
         'delivery_assignee',
         'subtotal',
@@ -121,6 +124,7 @@ class Order extends Model
             'scheduled_delivery_at' => 'datetime',
             'dispatched_at' => 'datetime',
             'delivered_at' => 'datetime',
+            'delivery_fulfillment_duration_minutes' => 'integer',
             'partner_delivery_rating' => 'integer',
         ];
     }
@@ -190,6 +194,47 @@ class Order extends Model
             ->first();
 
         return $delivery?->user;
+    }
+
+    /**
+     * Minutos entre creación del pedido y fecha de entrega (p. ej. al cerrar con evidencia).
+     */
+    public static function computeFulfillmentDurationMinutes(?\DateTimeInterface $createdAt, ?\DateTimeInterface $deliveredAt): ?int
+    {
+        if ($createdAt === null || $deliveredAt === null) {
+            return null;
+        }
+
+        $start = Carbon::parse($createdAt);
+        $end = Carbon::parse($deliveredAt);
+
+        if ($end->lessThan($start)) {
+            return 0;
+        }
+
+        return (int) $start->diffInMinutes($end);
+    }
+
+    /**
+     * Ruta en disco público de la foto de evidencia cargada al cerrar la entrega (tabla `deliveries`, tipo aliado).
+     */
+    public function partnerDeliveryEvidencePath(): ?string
+    {
+        if ($this->relationLoaded('partnerDeliveries')) {
+            $row = $this->partnerDeliveries
+                ->filter(fn (Delivery $d): bool => filled($d->delivery_evidence_path))
+                ->sortByDesc(static fn (Delivery $d): int => (int) $d->getKey())
+                ->first();
+
+            return filled($row?->delivery_evidence_path) ? (string) $row->delivery_evidence_path : null;
+        }
+
+        $path = $this->partnerDeliveries()
+            ->whereNotNull('delivery_evidence_path')
+            ->orderByDesc('id')
+            ->value('delivery_evidence_path');
+
+        return filled($path) ? (string) $path : null;
     }
 
     /**

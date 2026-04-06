@@ -104,6 +104,13 @@ class DeliveryInfolist
                                         && filled($record->user?->delivery_photo_path))
                                     ->state(fn (Delivery $record): ?string => $record->user?->delivery_photo_path)
                                     ->columnSpan(['default' => 1, 'sm' => 2]),
+                                ImageEntry::make('delivery_evidence_path')
+                                    ->label('Evidencia de entrega')
+                                    ->disk('public')
+                                    ->height(220)
+                                    ->imageHeight(220)
+                                    ->visible(fn (Delivery $record): bool => filled($record->delivery_evidence_path))
+                                    ->columnSpan(['default' => 1, 'sm' => 2]),
                             ]),
                     ])
                     ->columns(1)

@@ -3,6 +3,7 @@
 namespace App\Filament\BusinessPartners\Resources\Orders\Pages;
 
 use App\Filament\BusinessPartners\Resources\Orders\OrderResource;
+use App\Filament\Resources\Orders\Tables\OrdersTable;
 use App\Models\Order;
 use App\Models\OrderItem;
 use Filament\Actions\EditAction;
@@ -33,6 +34,8 @@ class ViewOrder extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            OrdersTable::partnerRateDeliveryServiceAction()
+                ->label('Calificar servicio de entrega'),
             EditAction::make()
                 ->visible(fn (): bool => static::getResource()::canEdit($this->getRecord())),
         ];

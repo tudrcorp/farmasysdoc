@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Models\User;
 use App\Support\Orders\OrderTotalsCalculator;
 use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
@@ -181,6 +182,7 @@ class OrderForm
                                         if ((string) $state !== OrderPartnerPaymentTerms::Cash->value) {
                                             $set('partner_cash_payment_method', null);
                                             self::resetPartnerPaymentReferenceFields($set);
+                                            $set('partner_cash_payment_proof_path', null);
                                         }
                                     })
                                     ->helperText('De contado: elija el medio abajo. Crédito: sin selección de medio.')
@@ -267,6 +269,29 @@ class OrderForm
                                             ->columnSpanFull(),
                                     ]),
                             ]),
+                        FileUpload::make('partner_cash_payment_proof_path')
+                            ->label('Comprobante de la operación')
+                            ->helperText('Adjunte imagen (JPG, PNG, WebP) o PDF del comprobante. Máximo 5 MB.')
+                            ->disk('public')
+                            ->directory('orders/partner-payment-proofs')
+                            ->visibility('public')
+                            ->acceptedFileTypes([
+                                'image/jpeg',
+                                'image/png',
+                                'image/webp',
+                                'image/gif',
+                                'application/pdf',
+                            ])
+                            ->maxSize(5120)
+                            ->downloadable()
+                            ->openable()
+                            ->columnSpanFull()
+                            ->visible(fn (Get $get): bool => self::partnerDeliverySectionVisible($get)
+                                && (string) $get('partner_payment_terms') === OrderPartnerPaymentTerms::Cash->value)
+                            ->required(fn (Get $get): bool => self::partnerDeliverySectionVisible($get)
+                                && (string) $get('partner_payment_terms') === OrderPartnerPaymentTerms::Cash->value)
+                            ->dehydrated(fn (Get $get): bool => self::partnerDeliverySectionVisible($get)
+                                && (string) $get('partner_payment_terms') === OrderPartnerPaymentTerms::Cash->value),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
@@ -653,7 +678,7 @@ class OrderForm
     private static function resetPartnerPaymentReferenceFields(Set $set): void
     {
         $set('partner_pago_movil_reference', null);
-        $set('partner_zelle_reference_email', null);
+        $set('partner_zelle_reference_name', null);
         $set('partner_zelle_transaction_number', null);
     }
 
@@ -663,5 +688,6 @@ class OrderForm
         $set('partner_payment_terms', null);
         $set('partner_cash_payment_method', null);
         self::resetPartnerPaymentReferenceFields($set);
+        $set('partner_cash_payment_proof_path', null);
     }
 }

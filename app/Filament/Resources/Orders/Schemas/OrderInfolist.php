@@ -17,11 +17,13 @@ use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\Storage;
 
 class OrderInfolist
 {
@@ -125,12 +127,12 @@ class OrderInfolist
                                     ->visible(fn (Order $record): bool => filled($record->partner_company_id)
                                         && $record->partner_payment_terms === OrderPartnerPaymentTerms::Cash
                                         && $record->partner_cash_payment_method === OrderPartnerCashPaymentMethod::PagoMovil),
-                                TextEntry::make('partner_zelle_reference_email')
-                                    ->label('Correo referencia Zelle')
+                                TextEntry::make('partner_zelle_reference_name')
+                                    ->label('Nombre (Zelle)')
                                     ->icon(Heroicon::Envelope)
                                     ->placeholder('—')
                                     ->copyable()
-                                    ->copyMessage('Correo copiado')
+                                    ->copyMessage('Copiado')
                                     ->visible(fn (Order $record): bool => filled($record->partner_company_id)
                                         && $record->partner_payment_terms === OrderPartnerPaymentTerms::Cash
                                         && $record->partner_cash_payment_method === OrderPartnerCashPaymentMethod::Zelle),
@@ -143,6 +145,18 @@ class OrderInfolist
                                     ->visible(fn (Order $record): bool => filled($record->partner_company_id)
                                         && $record->partner_payment_terms === OrderPartnerPaymentTerms::Cash
                                         && $record->partner_cash_payment_method === OrderPartnerCashPaymentMethod::Zelle),
+                                TextEntry::make('partner_cash_payment_proof_path')
+                                    ->label('Comprobante de pago')
+                                    ->icon(Heroicon::DocumentArrowDown)
+                                    ->placeholder('—')
+                                    ->formatStateUsing(fn (?string $state): string => filled($state) ? 'Ver / descargar' : '—')
+                                    ->url(fn (Order $record): ?string => filled($record->partner_cash_payment_proof_path)
+                                        ? Storage::disk('public')->url($record->partner_cash_payment_proof_path)
+                                        : null)
+                                    ->openUrlInNewTab()
+                                    ->visible(fn (Order $record): bool => filled($record->partner_company_id)
+                                        && $record->partner_payment_terms === OrderPartnerPaymentTerms::Cash
+                                        && filled($record->partner_cash_payment_proof_path)),
                                 TextEntry::make('is_wholesale')
                                     ->label('Tipo de pedido')
                                     ->badge()
@@ -247,11 +261,17 @@ class OrderInfolist
                 Section::make('Entrega')
                     ->description('Destinatario, contacto, dirección y seguimiento.')
                     ->icon(Heroicon::Truck)
+                    ->extraAttributes([
+                        'class' => 'fi-order-infolist-delivery-section',
+                    ])
                     ->schema([
                         Grid::make([
                             'default' => 1,
                             'sm' => 2,
                         ])
+                            ->extraAttributes([
+                                'class' => 'fi-order-infolist-delivery-fields-grid',
+                            ])
                             ->schema([
                                 TextEntry::make('delivery_recipient_name')
                                     ->label('Destinatario')
@@ -286,6 +306,16 @@ class OrderInfolist
                                     ->icon(Heroicon::ClipboardDocument)
                                     ->placeholder('—')
                                     ->columnSpan(['default' => 1, 'sm' => 2]),
+                            ]),
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                            'lg' => 3,
+                        ])
+                            ->extraAttributes([
+                                'class' => 'fi-order-infolist-delivery-dates-row',
+                            ])
+                            ->schema([
                                 TextEntry::make('scheduled_delivery_at')
                                     ->label('Entrega programada')
                                     ->dateTime('d/m/Y H:i')
@@ -297,23 +327,68 @@ class OrderInfolist
                                     ->placeholder('—')
                                     ->icon(Heroicon::PaperAirplane),
                                 TextEntry::make('delivered_at')
-                                    ->label('Entregado')
+                                    ->label($enableAdminResourceLinks ? 'Fecha de entrega' : 'Entregado')
                                     ->dateTime('d/m/Y H:i')
                                     ->placeholder('—')
-                                    ->icon(Heroicon::CheckCircle),
+                                    ->icon(Heroicon::CheckCircle)
+                                    ->helperText($enableAdminResourceLinks
+                                        ? 'Registrada al cerrar la entrega con evidencia en el módulo Entregas.'
+                                        : null),
+                            ]),
+                        Fieldset::make('Repartidor asignado')
+                            ->columns(1)
+                            ->extraAttributes([
+                                'class' => 'fi-order-infolist-delivery-assignee-fieldset',
+                            ])
+                            ->visible(fn (Order $record): bool => filled($record->delivery_assignee)
+                                || filled($record->deliveryAssigneeUser()?->delivery_photo_path))
+                            ->schema([
                                 TextEntry::make('delivery_assignee')
-                                    ->label('Responsable de entrega')
+                                    ->label('Nombre en ruta')
                                     ->icon(Heroicon::UserCircle)
-                                    ->placeholder('—'),
+                                    ->placeholder('—')
+                                    ->weight('medium')
+                                    ->columnSpanFull(),
                                 ImageEntry::make('delivery_assignee_photo')
                                     ->label('Foto del repartidor')
                                     ->disk('public')
-                                    ->height(140)
-                                    ->imageHeight(140)
+                                    ->height(200)
+                                    ->imageHeight(200)
                                     ->circular()
+                                    ->alignment(Alignment::Center)
                                     ->visible(fn (Order $record): bool => filled($record->deliveryAssigneeUser()?->delivery_photo_path))
                                     ->state(fn (Order $record): ?string => $record->deliveryAssigneeUser()?->delivery_photo_path)
-                                    ->columnSpan(['default' => 1, 'sm' => 2]),
+                                    ->extraEntryWrapperAttributes([
+                                        'class' => 'fi-order-infolist-delivery-assignee-photo-entry',
+                                    ])
+                                    ->extraImgAttributes([
+                                        'class' => 'fi-order-infolist-delivery-assignee-img',
+                                    ])
+                                    ->columnSpanFull(),
+                            ]),
+                        Fieldset::make('Evidencia de entrega')
+                            ->columns(1)
+                            ->extraAttributes([
+                                'class' => 'fi-order-infolist-delivery-evidence-fieldset',
+                            ])
+                            ->visible(fn (Order $record): bool => $enableAdminResourceLinks
+                                && filled($record->partnerDeliveryEvidencePath()))
+                            ->schema([
+                                ImageEntry::make('partner_delivery_evidence_path')
+                                    ->label('Fotografía en destino')
+                                    ->helperText('Registrada por el usuario de entregas al confirmar la entrega con evidencia.')
+                                    ->disk('public')
+                                    ->circular(false)
+                                    ->alignment(Alignment::Center)
+                                    ->state(fn (Order $record): ?string => $record->partnerDeliveryEvidencePath())
+                                    ->imageHeight(400)
+                                    ->extraEntryWrapperAttributes([
+                                        'class' => 'fi-order-infolist-delivery-evidence-entry',
+                                    ])
+                                    ->extraImgAttributes([
+                                        'class' => 'fi-order-infolist-delivery-evidence-img',
+                                    ])
+                                    ->columnSpanFull(),
                             ]),
                     ])
                     ->columns(1)

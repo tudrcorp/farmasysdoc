@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="scroll-smooth">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ config('app.name') }} - Bienvenida</title>
     <meta name="description" content="Portal de bienvenida de FarmaSysDoc para aliados y equipo interno.">
     @vite(['resources/css/app.css'])
-</head>
+    </head>
 <body class="relative min-h-screen overflow-x-hidden bg-zinc-100 text-zinc-900 antialiased transition-colors duration-300 dark:bg-zinc-950 dark:text-zinc-100">
     <div class="pointer-events-none fixed inset-0 -z-10">
         <div class="absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(24,172,178,0.28),transparent_55%)] dark:bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(24,172,178,0.18),transparent_55%)]"></div>
@@ -85,16 +85,16 @@
                         <svg class="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
                             <path d="M5 12h14M13 6l6 6-6 6"></path>
                         </svg>
-                    </a>
+                        </a>
 
-                    @if (Route::has('register'))
-                        <a
-                            href="{{ route('register') }}"
+                        @if (Route::has('register'))
+                            <a
+                                href="{{ route('register') }}"
                             class="inline-flex min-h-[3.25rem] flex-1 items-center justify-center rounded-2xl border-2 border-cyan-500/40 bg-white/80 px-8 py-3.5 text-sm font-bold text-cyan-900 shadow-md shadow-cyan-500/10 backdrop-blur transition hover:border-cyan-500/70 hover:bg-white active:scale-[0.98] dark:border-cyan-400/35 dark:bg-zinc-900/70 dark:text-cyan-100 dark:hover:bg-zinc-800/90"
                         >
                             Registrar nuevo usuario
-                        </a>
-                    @endif
+                            </a>
+                        @endif
                 </div>
 
                 <div class="mt-10 flex items-center gap-4">
@@ -109,8 +109,8 @@
                             <rect x="3.5" y="3.5" width="17" height="17" rx="5"></rect>
                             <circle cx="12" cy="12" r="4"></circle>
                             <circle cx="17.3" cy="6.7" r="0.8" fill="currentColor" stroke="none"></circle>
-                        </svg>
-                    </a>
+                                    </svg>
+                                </a>
 
                     <a
                         href="https://tiktok.com"
@@ -121,16 +121,16 @@
                     >
                         <svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor" aria-hidden="true">
                             <path d="M14.4 3h2.9c.2 1.6 1.2 3 2.7 3.7v2.8a7.4 7.4 0 0 1-2.7-.5v5.3c0 3.8-3.1 6.7-6.8 6.7A6.8 6.8 0 0 1 3.7 14c0-3.8 3.1-6.8 6.8-6.8.3 0 .6 0 .9.1V10a3.8 3.8 0 0 0-.9-.1A4 4 0 0 0 6.6 14a4 4 0 0 0 3.9 4c2.2 0 3.9-1.8 3.9-4V3Z"></path>
-                        </svg>
-                    </a>
+                                    </svg>
+                                </a>
                 </div>
-            </div>
+                </div>
         </section>
 
         <footer class="mt-8 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400">
             <p>&copy; {{ now()->year }} {{ config('app.name') }}. Todos los derechos reservados.</p>
         </footer>
-    </main>
+            </main>
 
     <script>
         const root = document.documentElement;
@@ -214,5 +214,5 @@
             }
         }
     </style>
-</body>
+    </body>
 </html>

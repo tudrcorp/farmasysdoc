@@ -4,7 +4,6 @@ namespace App\Filament\Resources\ProductTransfers\Schemas;
 
 use App\Enums\ProductTransferStatus;
 use App\Models\Product;
-use App\Models\ProductTransfer;
 use App\Models\User;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
@@ -28,9 +27,9 @@ class ProductTransferForm
     /**
      * @return array<string, string>
      */
-    public static function statusOptions(): array
+    public static function workflowStatusOptions(): array
     {
-        return ProductTransferStatus::options();
+        return ProductTransferStatus::workflowOptions();
     }
 
     /**
@@ -46,69 +45,36 @@ class ProductTransferForm
     }
 
     /**
-     * Usuario de sucursal (no administrador) con sucursal asignada: origen fijo a esa sucursal.
+     * Sucursal solicitante (receptora): destino fijo a la sucursal de la sesión.
      */
-    protected static function shouldLockFromBranchToUser(): bool
+    protected static function shouldLockToBranchToUser(): bool
     {
         $user = auth()->user();
 
         return $user instanceof User
             && ! $user->isAdministrator()
+            && ! $user->isDeliveryUser()
             && filled($user->branch_id);
     }
 
     /**
-     * Evita manipular `from_branch_id` vía petición: no administradores quedan anclados a su sucursal.
+     * Fija `to_branch_id` al usuario de sucursal (no admin, no delivery).
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    public static function enforceFromBranchForNonAdmin(array $data): array
+    public static function enforceToBranchForRequestingBranch(array $data): array
     {
-        if (self::shouldLockFromBranchToUser()) {
+        if (self::shouldLockToBranchToUser()) {
             /** @var User $user */
             $user = auth()->user();
-            $data['from_branch_id'] = (int) $user->branch_id;
+            $data['to_branch_id'] = (int) $user->branch_id;
         }
 
         return $data;
     }
 
     /**
-     * Usuario de sucursal (no admin) que pertenece a la sucursal **destino** del traslado:
-     * en edición solo debe poder cambiar el estado (recepción).
-     */
-    public static function isReceivingBranchUser(?ProductTransfer $record): bool
-    {
-        if (! $record instanceof ProductTransfer) {
-            return false;
-        }
-
-        $user = auth()->user();
-        if (! $user instanceof User || $user->isAdministrator() || ! filled($user->branch_id)) {
-            return false;
-        }
-
-        return (int) $user->branch_id === (int) $record->to_branch_id;
-    }
-
-    /**
-     * @param  Operation|string|null  $operation
-     */
-    public static function isReceiverOnlyStatusEdit(mixed $operation, ?Model $record): bool
-    {
-        $op = $operation instanceof Operation ? $operation->value : (string) $operation;
-
-        if ($op !== Operation::Edit->value) {
-            return false;
-        }
-
-        return $record instanceof ProductTransfer && self::isReceivingBranchUser($record);
-    }
-
-    /**
-     * Dentro del repeater `items`, `from_branch_id` está dos niveles arriba (`../../`), no en la fila.
-     *
      * @param  Builder<Product>  $query
      * @return Builder<Product>
      */
@@ -205,27 +171,61 @@ class ProductTransferForm
                     ->columnSpanFull(),
 
                 Section::make('Movimiento de inventario')
-                    ->description('Sucursal que envía y que recibe. Los productos y cantidades se indican abajo.')
+                    ->description('La sucursal que **solicita** la mercancía es el **destino** (por defecto su sesión). Elija la sucursal **origen** que envía el stock.')
                     ->icon(Heroicon::ArrowsRightLeft)
-                    ->visible(function (?Model $record, Operation|string|null $operation): bool {
-                        return ! self::isReceiverOnlyStatusEdit($operation, $record);
-                    })
                     ->schema([
                         Grid::make([
                             'default' => 1,
                             'sm' => 2,
                         ])
                             ->schema([
+                                Select::make('to_branch_id')
+                                    ->label('Sucursal destino (solicitante)')
+                                    ->relationship(
+                                        name: 'toBranch',
+                                        titleAttribute: 'name',
+                                        modifyQueryUsing: function (Builder $query): Builder {
+                                            return $query->where('is_active', true)->orderBy('name');
+                                        },
+                                    )
+                                    ->searchable()
+                                    ->preload()
+                                    ->native(false)
+                                    ->required()
+                                    ->live()
+                                    ->afterStateUpdated(function (mixed $state, Set $set, Get $get): void {
+                                        if (blank($state)) {
+                                            return;
+                                        }
+
+                                        if ((string) $get('from_branch_id') === (string) $state) {
+                                            $set('from_branch_id', null);
+                                        }
+                                    })
+                                    ->default(function (): ?int {
+                                        $user = auth()->user();
+                                        if (! $user instanceof User || $user->isAdministrator() || $user->isDeliveryUser()) {
+                                            return null;
+                                        }
+
+                                        return filled($user->branch_id) ? (int) $user->branch_id : null;
+                                    })
+                                    ->disabled(fn (): bool => self::shouldLockToBranchToUser())
+                                    ->dehydrated(true)
+                                    ->helperText(fn (): string => self::shouldLockToBranchToUser()
+                                        ? 'Su sucursal solicita el traslado (receptora); no puede cambiarse.'
+                                        : 'Sucursal que recibirá la mercancía.')
+                                    ->prefixIcon(Heroicon::MapPin),
                                 Select::make('from_branch_id')
-                                    ->label('Sucursal origen')
+                                    ->label('Sucursal origen (emisora)')
                                     ->relationship(
                                         name: 'fromBranch',
                                         titleAttribute: 'name',
-                                        modifyQueryUsing: function (Builder $query): Builder {
+                                        modifyQueryUsing: function (Builder $query, Get $get): Builder {
                                             $query->where('is_active', true)->orderBy('name');
-                                            $user = auth()->user();
-                                            if ($user instanceof User && ! $user->isAdministrator() && filled($user->branch_id)) {
-                                                return $query->whereKey((int) $user->branch_id);
+                                            $toId = $get('to_branch_id');
+                                            if (filled($toId)) {
+                                                $query->whereKeyNot((int) $toId);
                                             }
 
                                             return $query;
@@ -245,56 +245,20 @@ class ProductTransferForm
                                             $set('to_branch_id', null);
                                         }
                                     })
-                                    ->default(function (): ?int {
-                                        $user = auth()->user();
-                                        if (! $user instanceof User || $user->isAdministrator()) {
-                                            return null;
-                                        }
-
-                                        return filled($user->branch_id) ? (int) $user->branch_id : null;
-                                    })
-                                    ->disabled(fn (): bool => self::shouldLockFromBranchToUser())
-                                    ->dehydrated(true)
-                                    ->helperText(fn (): string => self::shouldLockFromBranchToUser()
-                                        ? 'Su sucursal como origen; no puede cambiarse.'
-                                        : 'Sucursal que envía el stock.')
-                                    ->prefixIcon(Heroicon::BuildingStorefront),
-                                Select::make('to_branch_id')
-                                    ->label('Sucursal destino')
-                                    ->relationship(
-                                        name: 'toBranch',
-                                        titleAttribute: 'name',
-                                        modifyQueryUsing: function (Builder $query, Get $get): Builder {
-                                            $query->where('is_active', true)->orderBy('name');
-                                            $fromId = $get('from_branch_id');
-                                            if (filled($fromId)) {
-                                                $query->whereKeyNot((int) $fromId);
-                                            }
-
-                                            return $query;
-                                        },
-                                    )
-                                    ->searchable()
-                                    ->preload()
-                                    ->native(false)
-                                    ->required()
-                                    ->rules(['different:from_branch_id'])
+                                    ->rules(['different:to_branch_id'])
                                     ->validationMessages([
-                                        'different' => 'La sucursal de destino debe ser distinta del origen.',
+                                        'different' => 'La sucursal de origen debe ser distinta del destino.',
                                     ])
-                                    ->helperText('No incluye la sucursal de origen; elija otra activa.')
-                                    ->prefixIcon(Heroicon::MapPin),
+                                    ->helperText('Sucursal que envía el stock.')
+                                    ->prefixIcon(Heroicon::BuildingStorefront),
                             ]),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
 
                 Section::make('Productos a trasladar')
-                    ->description('Indique cada producto y la cantidad. Solo se listan productos con cantidad mayor que cero en inventario de la sucursal origen.')
+                    ->description('Indique cada producto y la cantidad. Solo se listan productos con cantidad mayor que cero en inventario de la sucursal **origen**.')
                     ->icon(Heroicon::Cube)
-                    ->visible(function (?Model $record, Operation|string|null $operation): bool {
-                        return ! self::isReceiverOnlyStatusEdit($operation, $record);
-                    })
                     ->schema([
                         Repeater::make('items')
                             ->relationship()
@@ -340,13 +304,7 @@ class ProductTransferForm
                     ->columnSpanFull(),
 
                 Section::make('Estado y tipo')
-                    ->description(function (?Model $record, Operation|string|null $operation): string {
-                        if (self::isReceiverOnlyStatusEdit($operation, $record)) {
-                            return 'Como usuario de la sucursal destino solo puede modificar el estado (p. ej. «Completado» al recibir la mercancía). Origen, destino, líneas y tipo de traslado no se pueden editar desde esta pantalla.';
-                        }
-
-                        return 'El estado «Completado» solo puede aplicarlo quien pertenezca a la sucursal destino (o un administrador). Al completar se mueve el inventario y se registra una venta interna a costo en la sucursal emisora.';
-                    })
+                    ->description('El alta queda en «Pendiente». Delivery pasa a «En proceso» al tomar el traslado. «Completado» aplica inventario y venta desde la acción en listado o vista (sucursal receptora). Solo administradores editan el estado aquí.')
                     ->icon(Heroicon::Tag)
                     ->schema([
                         Grid::make([
@@ -356,11 +314,32 @@ class ProductTransferForm
                             ->schema([
                                 Select::make('status')
                                     ->label('Estado')
-                                    ->options(self::statusOptions())
-                                    ->required()
+                                    ->options(function (): array {
+                                        $opts = self::workflowStatusOptions();
+                                        $user = auth()->user();
+                                        if ($user instanceof User && $user->isAdministrator()) {
+                                            $opts[ProductTransferStatus::Cancelled->value] = ProductTransferStatus::Cancelled->label();
+                                        }
+
+                                        return $opts;
+                                    })
+                                    ->required(function (?Model $record, Operation|string|null $operation): bool {
+                                        $op = $operation instanceof Operation ? $operation->value : (string) $operation;
+
+                                        return $op === Operation::Edit->value
+                                            && auth()->user() instanceof User
+                                            && auth()->user()->isAdministrator();
+                                    })
                                     ->native(false)
                                     ->default(ProductTransferStatus::Pending->value)
-                                    ->prefixIcon(Heroicon::Signal),
+                                    ->prefixIcon(Heroicon::Signal)
+                                    ->visible(function (?Model $record, Operation|string|null $operation): bool {
+                                        $op = $operation instanceof Operation ? $operation->value : (string) $operation;
+
+                                        return $op === Operation::Edit->value
+                                            && auth()->user() instanceof User
+                                            && auth()->user()->isAdministrator();
+                                    }),
                                 Select::make('transfer_type')
                                     ->label('Tipo de traslado')
                                     ->options(self::transferTypeOptions())
@@ -369,7 +348,10 @@ class ProductTransferForm
                                     ->default('internal')
                                     ->prefixIcon(Heroicon::Squares2x2)
                                     ->visible(function (?Model $record, Operation|string|null $operation): bool {
-                                        return ! self::isReceiverOnlyStatusEdit($operation, $record);
+                                        $op = $operation instanceof Operation ? $operation->value : (string) $operation;
+
+                                        return $op !== Operation::Edit->value
+                                            || (auth()->user() instanceof User && auth()->user()->isAdministrator());
                                     }),
                             ]),
                     ])

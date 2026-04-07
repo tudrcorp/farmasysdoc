@@ -32,6 +32,7 @@ class ViewProductTransfer extends ViewRecord
                 })
                 ->visible(fn (): bool => $this->getRecord() instanceof ProductTransfer
                     && $this->getRecord()->sale_id !== null),
+            ProductTransferResource::takeTransferAction(),
             ProductTransferResource::markCompletedAction(),
             EditAction::make()
                 ->visible(fn (): bool => auth()->user() instanceof User && auth()->user()->isAdministrator()),

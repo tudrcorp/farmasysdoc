@@ -45,6 +45,19 @@ class ProductTransferInfolist
                                         'adjustment' => 'Ajuste',
                                         default => (string) $state,
                                     }),
+                                TextEntry::make('deliveryUser.name')
+                                    ->label('Delivery que tomó el traslado')
+                                    ->placeholder('—')
+                                    ->visible(fn (ProductTransfer $record): bool => filled($record->delivery_user_id)),
+                                TextEntry::make('deliveryUser.email')
+                                    ->label('Correo delivery')
+                                    ->placeholder('—')
+                                    ->visible(fn (ProductTransfer $record): bool => filled($record->delivery_user_id)),
+                                TextEntry::make('in_progress_at')
+                                    ->label('Paso a «En proceso»')
+                                    ->dateTime('d/m/Y H:i')
+                                    ->placeholder('—')
+                                    ->visible(fn (ProductTransfer $record): bool => filled($record->in_progress_at)),
                                 TextEntry::make('total_transfer_cost')
                                     ->label('Costo total (traslado)')
                                     ->money('USD')

@@ -4,7 +4,6 @@ namespace App\Filament\Resources\ProductTransfers\Pages;
 
 use App\Enums\ProductTransferStatus;
 use App\Filament\Resources\ProductTransfers\ProductTransferResource;
-use App\Filament\Resources\ProductTransfers\Schemas\ProductTransferForm;
 use App\Models\ProductTransfer;
 use App\Services\Inventory\ProductTransferCompletionService;
 use App\Support\ProductTransferStockValidator;
@@ -28,20 +27,20 @@ class EditProductTransfer extends EditRecord
         /** @var ProductTransfer $record */
         $record = $this->getRecord();
 
-        if (ProductTransferForm::isReceivingBranchUser($record)) {
-            $data['from_branch_id'] = $record->from_branch_id;
-            $data['to_branch_id'] = $record->to_branch_id;
-            $data['transfer_type'] = $record->transfer_type;
-        }
-
         $willComplete = ($data['status'] ?? '') === ProductTransferStatus::Completed->value
             && ! ProductTransferStatus::isCompletedValue($record->status);
+
+        if ($willComplete && $record->status !== ProductTransferStatus::InProgress) {
+            throw ValidationException::withMessages([
+                'data.status' => 'Solo puede marcarse «Completado» un traslado que esté «En proceso». Use la acción «Marcar completado» en el listado o la vista del traslado.',
+            ]);
+        }
 
         if ($willComplete) {
             $svc = app(ProductTransferCompletionService::class);
             if (! $svc->userMayMarkCompleted(auth()->user(), $record)) {
                 throw ValidationException::withMessages([
-                    'data.status' => 'Solo el personal de la sucursal destino o un administrador puede marcar el traslado como completado.',
+                    'data.status' => 'Solo el personal de la sucursal destino o un administrador puede completar el traslado.',
                 ]);
             }
         }
@@ -55,10 +54,6 @@ class EditProductTransfer extends EditRecord
         $data['updated_by'] = $actor !== null
             ? (filled($actor->email) ? (string) $actor->email : (string) ($actor->name ?? 'usuario'))
             : 'sistema';
-
-        if (! ProductTransferForm::isReceivingBranchUser($record)) {
-            return ProductTransferForm::enforceFromBranchForNonAdmin($data);
-        }
 
         return $data;
     }

@@ -49,6 +49,12 @@ final class ProductTransferCompletionService
             return;
         }
 
+        if ($transfer->status !== ProductTransferStatus::InProgress) {
+            throw ValidationException::withMessages([
+                'data.status' => 'Solo puede completarse un traslado en estado «En proceso» (tras ser tomado por entrega). La sucursal solicitante confirma la recepción con «Marcar completado».',
+            ]);
+        }
+
         if (! $this->userMayMarkCompleted($user, $transfer)) {
             throw ValidationException::withMessages([
                 'data.status' => 'Solo el personal de la sucursal destino o un administrador puede marcar el traslado como completado.',
@@ -71,6 +77,12 @@ final class ProductTransferCompletionService
 
             if (! $locked instanceof ProductTransfer || $locked->sale_id !== null) {
                 return;
+            }
+
+            if ($locked->status !== ProductTransferStatus::InProgress) {
+                throw ValidationException::withMessages([
+                    'data.status' => 'El traslado ya no está «En proceso»; no se puede completar en este estado.',
+                ]);
             }
 
             ProductTransferStockValidator::assertPersistedItemsSufficientStock(

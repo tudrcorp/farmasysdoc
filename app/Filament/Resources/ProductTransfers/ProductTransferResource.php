@@ -75,8 +75,7 @@ class ProductTransferResource extends Resource
     }
 
     /**
-     * Administrador: todos los traslados. Usuario de sucursal: solo aquellos cuyo destino (`to_branch_id`)
-     * coincide con su sucursal. Sin usuario autenticado o sin sucursal asignada: ningún registro.
+     * Administrador: todos. Delivery: todos. Sucursal: traslados donde es origen (envía) o destino (solicita/recibe).
      *
      * @return Builder<ProductTransfer>
      */
@@ -97,7 +96,12 @@ class ProductTransferResource extends Resource
             return $query->whereRaw('1 = 0');
         }
 
-        return $query->where('to_branch_id', (int) $user->branch_id);
+        $branchId = (int) $user->branch_id;
+
+        return $query->where(function (Builder $q) use ($branchId): void {
+            $q->where('to_branch_id', $branchId)
+                ->orWhere('from_branch_id', $branchId);
+        });
     }
 
     public static function canView(Model $record): bool
@@ -119,14 +123,24 @@ class ProductTransferResource extends Resource
             return false;
         }
 
-        return (int) $user->branch_id === (int) $record->to_branch_id;
+        $branchId = (int) $user->branch_id;
+
+        return $branchId === (int) $record->to_branch_id
+            || $branchId === (int) $record->from_branch_id;
     }
 
     public static function canCreate(): bool
     {
         $user = auth()->user();
+        if (! $user instanceof User) {
+            return false;
+        }
 
-        return $user instanceof User && $user->isAdministrator();
+        if ($user->isDeliveryUser()) {
+            return false;
+        }
+
+        return $user->isAdministrator() || filled($user->branch_id);
     }
 
     public static function canEdit(Model $record): bool
@@ -145,7 +159,63 @@ class ProductTransferResource extends Resource
     }
 
     /**
-     * Acción para sucursal receptora (no administrador): completar traslado con confirmación.
+     * Delivery toma un traslado pendiente: estado En proceso y registro del usuario.
+     */
+    public static function takeTransferAction(): Action
+    {
+        return Action::make('takeTransfer')
+            ->label('Tomar traslado')
+            ->tooltip('Indica que usted realizará el envío; el traslado pasa a «En proceso».')
+            ->icon(Heroicon::PlayCircle)
+            ->color('warning')
+            ->requiresConfirmation()
+            ->modalIcon(Heroicon::PlayCircle)
+            ->modalIconColor('warning')
+            ->modalHeading(fn (ProductTransfer $record): string => '¿Tomar el traslado '.$record->code.'?')
+            ->modalDescription('Quedará registrado como responsable de entrega. La sucursal solicitante podrá marcar «Completado» al recibir la mercancía.')
+            ->modalSubmitActionLabel('Sí, tomar traslado')
+            ->successNotificationTitle('Traslado en proceso')
+            ->visible(fn (ProductTransfer $record): bool => self::shouldShowTakeTransferAction($record))
+            ->action(function (ProductTransfer $record, Action $action): void {
+                $user = auth()->user();
+                if (! $user instanceof User || ! $user->isDeliveryUser()) {
+                    return;
+                }
+
+                if ($record->status !== ProductTransferStatus::Pending) {
+                    Notification::make()
+                        ->warning()
+                        ->title('Estado no válido')
+                        ->body('Solo los traslados pendientes pueden tomarse.')
+                        ->send();
+                    $action->halt();
+
+                    return;
+                }
+
+                $actor = filled($user->email) ? (string) $user->email : (string) ($user->name ?? 'usuario');
+
+                $record->forceFill([
+                    'status' => ProductTransferStatus::InProgress,
+                    'delivery_user_id' => $user->id,
+                    'in_progress_at' => now(),
+                    'updated_by' => $actor,
+                ])->save();
+            });
+    }
+
+    public static function shouldShowTakeTransferAction(ProductTransfer $record): bool
+    {
+        $user = auth()->user();
+        if (! $user instanceof User || ! $user->isDeliveryUser()) {
+            return false;
+        }
+
+        return $record->status === ProductTransferStatus::Pending;
+    }
+
+    /**
+     * Sucursal receptora (solicitante) o administrador: completar inventario y venta solo si está En proceso.
      */
     public static function markCompletedAction(): Action
     {
@@ -157,7 +227,7 @@ class ProductTransferResource extends Resource
             ->modalIcon(Heroicon::CheckCircle)
             ->modalIconColor('success')
             ->modalHeading(fn (ProductTransfer $record): string => '¿Completar el traslado '.$record->code.'?')
-            ->modalDescription('Se descontará el stock en origen, se registrará la entrada en destino y se generará la venta interna a costo en la sucursal emisora. Esta operación no se puede deshacer.')
+            ->modalDescription('Confirme que la mercancía llegó a su sucursal. Se descontará el stock en origen, se registrará la entrada en destino y se generará la venta interna a costo en la sucursal emisora. Esta operación no se puede deshacer.')
             ->modalSubmitActionLabel('Sí, completar')
             ->successNotificationTitle('Traslado completado')
             ->visible(fn (ProductTransfer $record): bool => self::shouldShowMarkCompletedAction($record))
@@ -193,12 +263,20 @@ class ProductTransferResource extends Resource
 
     public static function shouldShowMarkCompletedAction(ProductTransfer $record): bool
     {
-        $user = auth()->user();
-        if (! $user instanceof User || $user->isAdministrator()) {
+        if ($record->sale_id !== null) {
             return false;
         }
 
         if (in_array($record->status, [ProductTransferStatus::Completed, ProductTransferStatus::Cancelled], true)) {
+            return false;
+        }
+
+        if ($record->status !== ProductTransferStatus::InProgress) {
+            return false;
+        }
+
+        $user = auth()->user();
+        if (! $user instanceof User) {
             return false;
         }
 

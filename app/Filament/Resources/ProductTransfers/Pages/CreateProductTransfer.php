@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ProductTransfers\Pages;
 
+use App\Enums\ProductTransferStatus;
 use App\Filament\Resources\ProductTransfers\ProductTransferResource;
 use App\Filament\Resources\ProductTransfers\Schemas\ProductTransferForm;
 use App\Models\ProductTransfer;
@@ -24,6 +25,8 @@ class CreateProductTransfer extends CreateRecord
             ? (filled($actor->email) ? (string) $actor->email : (string) ($actor->name ?? 'usuario'))
             : 'sistema';
 
+        $data['status'] = ProductTransferStatus::Pending->value;
+
         $fromBranchId = (int) ($data['from_branch_id'] ?? 0);
         ProductTransferStockValidator::assertSufficientStockAtBranch($fromBranchId, $data['items'] ?? []);
 
@@ -36,7 +39,7 @@ class CreateProductTransfer extends CreateRecord
             ],
         );
 
-        return ProductTransferForm::enforceFromBranchForNonAdmin($merged);
+        return ProductTransferForm::enforceToBranchForRequestingBranch($merged);
     }
 
     protected function afterCreate(): void

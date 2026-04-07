@@ -3,11 +3,12 @@
 namespace App\Enums;
 
 /**
- * Estados permitidos para un traslado de producto entre sucursales.
+ * Estados del flujo de traslado: solicitante crea Pendiente → delivery En proceso → receptor Completado.
  */
 enum ProductTransferStatus: string
 {
     case Pending = 'pending';
+    case InProgress = 'in_progress';
     case Completed = 'completed';
     case Cancelled = 'cancelled';
 
@@ -15,21 +16,34 @@ enum ProductTransferStatus: string
     {
         return match ($this) {
             self::Pending => 'Pendiente',
+            self::InProgress => 'En proceso',
             self::Completed => 'Completado',
             self::Cancelled => 'Cancelado',
         };
     }
 
-    /**
-     * Color de badge en Filament (tabla / infolist).
-     */
     public function filamentColor(): string
     {
         return match ($this) {
-            self::Pending => 'warning',
+            self::Pending => 'gray',
+            self::InProgress => 'warning',
             self::Completed => 'success',
             self::Cancelled => 'danger',
         };
+    }
+
+    /**
+     * Opciones del flujo normal (creación y operación).
+     *
+     * @return array<string, string>
+     */
+    public static function workflowOptions(): array
+    {
+        return [
+            self::Pending->value => self::Pending->label(),
+            self::InProgress->value => self::InProgress->label(),
+            self::Completed->value => self::Completed->label(),
+        ];
     }
 
     /**
@@ -45,9 +59,6 @@ enum ProductTransferStatus: string
         return $out;
     }
 
-    /**
-     * Etiqueta en español para un valor guardado en BD (incluye valores legados).
-     */
     public static function labelForStored(string|self|null $value): string
     {
         if ($value instanceof self) {
@@ -60,10 +71,6 @@ enum ProductTransferStatus: string
 
         $key = strtolower(trim((string) $value));
 
-        if (in_array($key, ['in_progress', 'en_proceso', 'en proceso'], true)) {
-            return self::Pending->label();
-        }
-
         $enum = self::tryFrom($key);
         if ($enum !== null) {
             return $enum->label();
@@ -71,15 +78,13 @@ enum ProductTransferStatus: string
 
         return match ($key) {
             'pendiente' => self::Pending->label(),
+            'en_proceso', 'en proceso', 'en-proceso' => self::InProgress->label(),
             'completado', 'completada' => self::Completed->label(),
             'cancelado', 'cancelada' => self::Cancelled->label(),
             default => (string) $value,
         };
     }
 
-    /**
-     * Color de badge para un valor guardado en BD (incluye legado «en proceso» → pendiente).
-     */
     public static function filamentColorForStored(string|self|null $value): string
     {
         if ($value instanceof self) {
@@ -92,12 +97,9 @@ enum ProductTransferStatus: string
 
         $key = strtolower(trim((string) $value));
 
-        if (in_array($key, ['in_progress', 'en_proceso', 'en proceso'], true)) {
-            return self::Pending->filamentColor();
-        }
-
         return self::tryFrom($key)?->filamentColor() ?? match ($key) {
             'pendiente' => self::Pending->filamentColor(),
+            'en_proceso', 'en proceso', 'en-proceso' => self::InProgress->filamentColor(),
             'completado', 'completada' => self::Completed->filamentColor(),
             'cancelado', 'cancelada' => self::Cancelled->filamentColor(),
             default => 'gray',
@@ -113,6 +115,18 @@ enum ProductTransferStatus: string
         return strtolower(trim((string) $value)) === self::Completed->value;
     }
 
+    public static function isInProgressValue(string|self|null $value): bool
+    {
+        if ($value instanceof self) {
+            return $value === self::InProgress;
+        }
+
+        $key = strtolower(trim((string) $value));
+
+        return $key === self::InProgress->value
+            || in_array($key, ['en_proceso', 'en proceso', 'en-proceso'], true);
+    }
+
     public static function isTerminalValue(string|self|null $value): bool
     {
         if ($value instanceof self) {
@@ -121,6 +135,7 @@ enum ProductTransferStatus: string
 
         $key = strtolower(trim((string) $value));
 
-        return in_array($key, [self::Completed->value, self::Cancelled->value], true);
+        return in_array($key, [self::Completed->value, self::Cancelled->value], true)
+            || in_array($key, ['completado', 'completada', 'cancelado', 'cancelada'], true);
     }
 }

@@ -24,6 +24,8 @@ class ProductTransfer extends Model
         'completed_by',
         'completed_at',
         'sale_id',
+        'delivery_user_id',
+        'in_progress_at',
     ];
 
     /**
@@ -35,6 +37,7 @@ class ProductTransfer extends Model
             'status' => ProductTransferStatus::class,
             'total_transfer_cost' => 'decimal:2',
             'completed_at' => 'datetime',
+            'in_progress_at' => 'datetime',
         ];
     }
 
@@ -76,5 +79,13 @@ class ProductTransfer extends Model
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class);
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function deliveryUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'delivery_user_id');
     }
 }

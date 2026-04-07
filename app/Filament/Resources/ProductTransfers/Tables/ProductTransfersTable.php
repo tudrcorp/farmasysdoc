@@ -24,6 +24,7 @@ class ProductTransfersTable
                 'items',
                 'fromBranch',
                 'toBranch',
+                'deliveryUser',
             ]))
             ->columns([
                 TextColumn::make('code')
@@ -109,6 +110,28 @@ class ProductTransfersTable
                     ->placeholder('—')
                     ->icon(Heroicon::UserCircle)
                     ->iconColor('gray'),
+                TextColumn::make('deliveryUser.name')
+                    ->label('Delivery asignado')
+                    ->description(fn (ProductTransfer $record): ?string => filled($record->deliveryUser?->email)
+                        ? (string) $record->deliveryUser->email
+                        : null)
+                    ->searchable(query: function (Builder $query, string $search): void {
+                        $query->whereHas('deliveryUser', function (Builder $q) use ($search): void {
+                            $q->where('name', 'like', "%{$search}%")
+                                ->orWhere('email', 'like', "%{$search}%");
+                        });
+                    })
+                    ->sortable()
+                    ->placeholder('—')
+                    ->icon(Heroicon::User)
+                    ->iconColor('gray')
+                    ->toggleable(),
+                TextColumn::make('in_progress_at')
+                    ->label('En proceso desde')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable()
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('completed_by')
                     ->label('Completado por')
                     ->searchable()
@@ -151,7 +174,7 @@ class ProductTransfersTable
             ->persistFiltersInSession()
             ->deferFilters(false)
             ->emptyStateHeading('No hay traslados')
-            ->emptyStateDescription('Registre un traslado entre sucursales para verlo en esta lista.')
+            ->emptyStateDescription('La sucursal solicitante puede crear un traslado (origen = quien envía, destino = usted). Delivery y origen verán el pedido hasta completarlo.')
             ->emptyStateIcon(Heroicon::ArrowPath)
             ->recordUrl(fn (ProductTransfer $record): string => ProductTransferResource::getUrl('view', ['record' => $record], isAbsolute: false))
             ->recordAction('view')
@@ -159,6 +182,7 @@ class ProductTransfersTable
                 ViewAction::make()
                     ->label('Ver traslado')
                     ->icon(Heroicon::Eye),
+                ProductTransferResource::takeTransferAction(),
                 ProductTransferResource::markCompletedAction(),
                 EditAction::make()
                     ->label('Editar')

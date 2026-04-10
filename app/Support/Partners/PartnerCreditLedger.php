@@ -10,10 +10,62 @@ use App\Models\PartnerCompany;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Registra el consumo de crédito del aliado cuando un pedido a crédito pasa a «En proceso».
+ * Consumo de crédito del aliado: se registra al pasar el pedido a «Finalizado» (p. ej. con evidencia
+ * de entrega). Antes de iniciar la ruta se valida cupo con {@see assertCreditAvailableForOrder()}.
  */
 final class PartnerCreditLedger
 {
+    /**
+     * Valida cupo antes de iniciar la entrega (sin descontar). Solo si el pedido es a crédito y el
+     * aliado tiene cupo configurado (`assigned_credit_limit` no nulo).
+     *
+     * @throws InsufficientPartnerCreditException
+     */
+    public static function assertCreditAvailableForOrder(Order $order): void
+    {
+        if ($order->partner_company_id === null) {
+            return;
+        }
+
+        if ($order->partner_payment_terms !== OrderPartnerPaymentTerms::Credit) {
+            return;
+        }
+
+        $orderTotal = round((float) $order->total, 2);
+
+        if ($orderTotal <= 0) {
+            return;
+        }
+
+        if (HistoricalOfMovement::query()->where('order_id', $order->id)->exists()) {
+            return;
+        }
+
+        $company = PartnerCompany::query()->whereKey($order->partner_company_id)->first();
+
+        if ($company === null || ! $company->managesAssignedCredit()) {
+            return;
+        }
+
+        $balance = round((float) $company->assigned_credit_limit, 2);
+
+        if ($balance <= 0) {
+            throw new InsufficientPartnerCreditException(
+                'La compañía aliada no tiene saldo de crédito disponible; no se puede iniciar la entrega de este pedido a crédito.'
+            );
+        }
+
+        if ($orderTotal > $balance) {
+            throw new InsufficientPartnerCreditException(
+                sprintf(
+                    'Crédito insuficiente. Disponible: %s. Monto del pedido: %s.',
+                    number_format($balance, 2, ',', '.'),
+                    number_format($orderTotal, 2, ',', '.')
+                )
+            );
+        }
+    }
+
     /**
      * Idempotente por pedido: como máximo un movimiento por `order_id`.
      *
@@ -29,7 +81,7 @@ final class PartnerCreditLedger
             return;
         }
 
-        if ($order->status !== OrderStatus::InProgress) {
+        if ($order->status !== OrderStatus::Completed) {
             return;
         }
 
@@ -47,20 +99,24 @@ final class PartnerCreditLedger
             $company = PartnerCompany::query()
                 ->whereKey($order->partner_company_id)
                 ->lockForUpdate()
-                ->firstOrFail();
+                ->first();
+
+            if ($company === null || ! $company->managesAssignedCredit()) {
+                return;
+            }
 
             $balance = round((float) $company->assigned_credit_limit, 2);
 
             if ($balance <= 0) {
                 throw new InsufficientPartnerCreditException(
-                    'La compañía aliada no tiene saldo de crédito disponible; no se puede poner este pedido a crédito en proceso.'
+                    'La compañía aliada no tiene saldo de crédito disponible; no se puede registrar el consumo de crédito de este pedido.'
                 );
             }
 
             if ($orderTotal > $balance) {
                 throw new InsufficientPartnerCreditException(
                     sprintf(
-                        'Crédito insuficiente. Disponible: %s. Monto del pedido: %s.',
+                        'Crédito insuficiente al cerrar el pedido. Disponible: %s. Monto del pedido: %s.',
                         number_format($balance, 2, ',', '.'),
                         number_format($orderTotal, 2, ',', '.')
                     )

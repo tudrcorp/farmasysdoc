@@ -105,64 +105,134 @@ html.fi.dark .fi-sidebar-close-overlay {
 }
 
 /*
- * Ítem activo — solo glass morphism translúcido (prueba visual; pedir revertir si no encaja).
+ * Ítem activo — liquid glass iOS (primary #FCE422 + info teal marca).
+ * Barra luminosa izquierda (::before), vidrio con blur, brillo interno y filo de luz.
  */
+.fi-sidebar .fi-sidebar-item.fi-active {
+    overflow: visible;
+}
+
 .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn {
     position: relative;
     isolation: isolate;
-    border-inline-start: 3px solid var(--color-primary-500);
-    padding-inline-start: calc(0.5rem - 3px);
+    overflow: visible;
+    border: none;
+    border-radius: 1rem;
+    padding-inline-start: 0.85rem;
+    margin-inline: 0.125rem 0.25rem;
+    background:
+        linear-gradient(
+            102deg,
+            rgb(252 228 34 / 0.2) 0%,
+            rgb(255 255 255 / 0.48) 22%,
+            rgb(255 255 255 / 0.28) 52%,
+            rgb(24 172 178 / 0.09) 100%
+        );
+    box-shadow:
+        inset 1px 1px 0 rgb(255 255 255 / 0.78),
+        inset 0 -1px 0 rgb(255 255 255 / 0.12),
+        inset 14px 0 40px -18px rgb(252 228 34 / 0.35),
+        inset -10px 0 36px -20px rgb(24 172 178 / 0.14),
+        0 0 0 1px rgb(255 255 255 / 0.42),
+        0 10px 32px rgb(15 23 42 / 0.1),
+        0 4px 16px rgb(24 172 178 / 0.1);
+    backdrop-filter: blur(22px) saturate(1.75);
+    -webkit-backdrop-filter: blur(22px) saturate(1.75);
+}
+
+.fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn::before {
+    content: '';
+    position: absolute;
+    left: 0.45rem;
+    top: 50%;
+    z-index: 2;
+    width: 4px;
+    height: 58%;
+    min-height: 1.4rem;
+    transform: translateY(-50%);
+    border-radius: 9999px;
+    pointer-events: none;
     background: linear-gradient(
-        125deg,
-        rgb(255 255 255 / 0.52) 0%,
-        rgb(255 255 255 / 0.28) 42%,
-        rgb(252 228 34 / 0.12) 78%,
-        rgb(24 172 178 / 0.1) 100%
+        180deg,
+        rgb(255 253 200) 0%,
+        var(--color-primary-500) 42%,
+        rgb(212 184 20) 100%
     );
     box-shadow:
-        inset 0 1px 0 rgb(255 255 255 / 0.82),
-        0 0 0 1px rgb(255 255 255 / 0.45),
-        0 10px 28px rgb(15 23 42 / 0.09),
-        0 4px 14px rgb(24 172 178 / 0.12);
-    backdrop-filter: blur(26px) saturate(1.5);
-    -webkit-backdrop-filter: blur(26px) saturate(1.5);
+        0 0 10px rgb(252 228 34 / 0.95),
+        0 0 22px rgb(252 228 34 / 0.45),
+        0 0 28px rgb(24 172 178 / 0.25),
+        inset 0 0 0 1px rgb(255 255 255 / 0.55);
 }
 
 .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-icon {
+    position: relative;
+    z-index: 1;
+    margin-inline-end: 0.125rem;
+    padding: 0.4rem;
+    border-radius: 9999px;
     color: var(--color-primary-800);
-    filter: drop-shadow(0 1px 2px rgb(255 255 255 / 0.4));
+    background: rgb(255 255 255 / 0.38);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.75),
+        0 1px 3px rgb(15 23 42 / 0.06);
+    filter: none;
 }
 
 .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-sidebar-item-label {
+    position: relative;
+    z-index: 1;
     font-weight: 600;
     letter-spacing: -0.02em;
     color: rgb(24 24 27);
 }
 
 .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn .fi-sidebar-item-grouped-border-part {
-    background-color: var(--color-primary-500);
+    background: linear-gradient(180deg, rgb(255 253 200), var(--color-primary-500));
+    box-shadow: 0 0 8px rgb(252 228 34 / 0.5);
 }
 
 .dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn {
+    background:
+        linear-gradient(
+            102deg,
+            rgb(252 228 34 / 0.14) 0%,
+            rgb(255 255 255 / 0.1) 18%,
+            rgb(255 255 255 / 0.04) 48%,
+            rgb(6 78 59 / 0.22) 100%
+        );
+    box-shadow:
+        inset 1px 1px 0 rgb(255 255 255 / 0.16),
+        inset 0 -1px 0 rgb(0 0 0 / 0.35),
+        inset 16px 0 48px -20px rgb(252 228 34 / 0.22),
+        inset -8px 0 40px -22px rgb(24 172 178 / 0.18),
+        0 0 0 1px rgb(255 255 255 / 0.1),
+        0 14px 40px rgb(0 0 0 / 0.55),
+        0 0 40px -10px rgb(24 172 178 / 0.25);
+    backdrop-filter: blur(26px) saturate(1.55);
+    -webkit-backdrop-filter: blur(26px) saturate(1.55);
+}
+
+.dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn::before {
     background: linear-gradient(
-        125deg,
-        rgb(255 255 255 / 0.12) 0%,
-        rgb(255 255 255 / 0.05) 40%,
-        rgb(24 172 178 / 0.14) 72%,
-        rgb(252 228 34 / 0.08) 100%
+        180deg,
+        rgb(254 249 195) 0%,
+        var(--color-primary-400) 45%,
+        rgb(180 150 10) 100%
     );
     box-shadow:
-        inset 0 1px 0 rgb(255 255 255 / 0.14),
-        0 0 0 1px rgb(255 255 255 / 0.12),
-        0 12px 32px rgb(0 0 0 / 0.45),
-        0 0 28px -8px rgb(24 172 178 / 0.2);
-    backdrop-filter: blur(28px) saturate(1.45);
-    -webkit-backdrop-filter: blur(28px) saturate(1.45);
+        0 0 12px rgb(252 228 34 / 0.85),
+        0 0 28px rgb(252 228 34 / 0.35),
+        0 0 36px rgb(45 212 191 / 0.2),
+        inset 0 0 0 1px rgb(255 255 255 / 0.35);
 }
 
 .dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-icon {
     color: var(--color-primary-200);
-    filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.5));
+    background: rgb(255 255 255 / 0.1);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.18),
+        0 2px 8px rgb(0 0 0 / 0.35);
 }
 
 .dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-sidebar-item-label {
@@ -220,38 +290,55 @@ html.fi.dark .fi-sidebar-close-overlay {
 
 .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:hover,
 .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:focus-visible {
-    background: linear-gradient(
-        125deg,
-        rgb(255 255 255 / 0.62) 0%,
-        rgb(255 255 255 / 0.36) 42%,
-        rgb(252 228 34 / 0.18) 78%,
-        rgb(24 172 178 / 0.14) 100%
-    );
+    background:
+        linear-gradient(
+            102deg,
+            rgb(252 228 34 / 0.26) 0%,
+            rgb(255 255 255 / 0.55) 22%,
+            rgb(255 255 255 / 0.34) 52%,
+            rgb(24 172 178 / 0.12) 100%
+        );
     box-shadow:
-        inset 0 1px 0 rgb(255 255 255 / 0.9),
-        0 0 0 1px rgb(255 255 255 / 0.55),
-        0 14px 36px rgb(15 23 42 / 0.11),
-        0 6px 18px rgb(24 172 178 / 0.16);
-    backdrop-filter: blur(30px) saturate(1.55);
-    -webkit-backdrop-filter: blur(30px) saturate(1.55);
+        inset 1px 1px 0 rgb(255 255 255 / 0.88),
+        inset 0 -1px 0 rgb(255 255 255 / 0.14),
+        inset 16px 0 44px -18px rgb(252 228 34 / 0.42),
+        inset -10px 0 38px -18px rgb(24 172 178 / 0.16),
+        0 0 0 1px rgb(255 255 255 / 0.5),
+        0 14px 38px rgb(15 23 42 / 0.12),
+        0 6px 20px rgb(24 172 178 / 0.14);
+    backdrop-filter: blur(26px) saturate(1.85);
+    -webkit-backdrop-filter: blur(26px) saturate(1.85);
+}
+
+.fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:hover::before,
+.fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:focus-visible::before {
+    box-shadow:
+        0 0 12px rgb(252 228 34 / 1),
+        0 0 26px rgb(252 228 34 / 0.5),
+        0 0 32px rgb(24 172 178 / 0.3),
+        inset 0 0 0 1px rgb(255 255 255 / 0.65);
 }
 
 .dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:hover,
 .dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:focus-visible {
-    background: linear-gradient(
-        125deg,
-        rgb(255 255 255 / 0.16) 0%,
-        rgb(255 255 255 / 0.07) 40%,
-        rgb(24 172 178 / 0.2) 72%,
-        rgb(252 228 34 / 0.12) 100%
-    );
+    background:
+        linear-gradient(
+            102deg,
+            rgb(252 228 34 / 0.18) 0%,
+            rgb(255 255 255 / 0.12) 18%,
+            rgb(255 255 255 / 0.05) 48%,
+            rgb(6 78 59 / 0.28) 100%
+        );
     box-shadow:
-        inset 0 1px 0 rgb(255 255 255 / 0.18),
-        0 0 0 1px rgb(255 255 255 / 0.16),
-        0 16px 40px rgb(0 0 0 / 0.5),
-        0 0 36px -6px rgb(24 172 178 / 0.28);
-    backdrop-filter: blur(32px) saturate(1.5);
-    -webkit-backdrop-filter: blur(32px) saturate(1.5);
+        inset 1px 1px 0 rgb(255 255 255 / 0.2),
+        inset 0 -1px 0 rgb(0 0 0 / 0.4),
+        inset 18px 0 52px -20px rgb(252 228 34 / 0.28),
+        inset -8px 0 44px -20px rgb(24 172 178 / 0.22),
+        0 0 0 1px rgb(255 255 255 / 0.12),
+        0 18px 48px rgb(0 0 0 / 0.6),
+        0 0 48px -8px rgb(45 212 191 / 0.22);
+    backdrop-filter: blur(30px) saturate(1.65);
+    -webkit-backdrop-filter: blur(30px) saturate(1.65);
 }
 
 .fi-sidebar .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn:active {
@@ -392,6 +479,23 @@ html.fi.dark .fi-sidebar-close-overlay {
 
     .dark .fi-input-wrp {
         background-color: rgb(22 28 42 / 0.96);
+    }
+
+    .fi-btn.farmadoc-ios-action.farmadoc-ios-action--liquid-glass,
+    a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        background: linear-gradient(to right, var(--color-primary-500), var(--color-primary-600)) !important;
+        color: rgb(24 24 27) !important;
+        box-shadow:
+            0 0 0 1px rgb(255 255 255 / 0.25),
+            0 10px 24px rgb(15 23 42 / 0.15) !important;
+    }
+
+    .dark .fi-btn.farmadoc-ios-action.farmadoc-ios-action--liquid-glass,
+    .dark a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass {
+        background: linear-gradient(to right, var(--color-primary-600), var(--color-primary-700)) !important;
+        color: rgb(250 250 250) !important;
     }
 
     /* Tablas: sin blur */
@@ -1441,6 +1545,146 @@ html.fi.dark .fi-sidebar-close-overlay {
         0 0 0 2px color-mix(in srgb, var(--color-gray-400) 55%, transparent),
         0 14px 28px -12px rgb(0 0 0 / 0.35),
         0 0 34px -8px color-mix(in srgb, var(--color-gray-400) 40%, transparent);
+}
+
+/*
+ * Botón acción — liquid glass iOS (primary + teal). Sin barra lateral; borde fino uniforme.
+ * Combinar con farmadoc-ios-action--primary.
+ */
+.fi-btn.farmadoc-ios-action.farmadoc-ios-action--liquid-glass,
+a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border: none !important;
+    transition:
+        transform 0.32s cubic-bezier(0.34, 1.15, 0.64, 1),
+        box-shadow 0.32s ease,
+        filter 0.32s ease;
+    background:
+        radial-gradient(120% 85% at 18% -8%, rgb(252 228 34 / 0.42) 0%, transparent 52%),
+        radial-gradient(90% 70% at 92% 108%, rgb(24 172 178 / 0.18) 0%, transparent 48%),
+        linear-gradient(
+            118deg,
+            rgb(252 228 34 / 0.28) 0%,
+            rgb(255 255 255 / 0.52) 38%,
+            rgb(255 255 255 / 0.2) 62%,
+            rgb(24 172 178 / 0.1) 100%
+        ) !important;
+    box-shadow:
+        inset 1px 1px 0 rgb(255 255 255 / 0.78),
+        inset -1px -1px 0 rgb(255 255 255 / 0.06),
+        inset 0 -10px 28px -12px rgb(252 228 34 / 0.15),
+        0 0 0 1px rgb(255 255 255 / 0.42),
+        0 1px 0 rgb(255 255 255 / 0.2),
+        0 14px 36px rgb(15 23 42 / 0.1),
+        0 6px 20px rgb(24 172 178 / 0.1),
+        0 0 40px -12px rgb(252 228 34 / 0.25) !important;
+    backdrop-filter: blur(20px) saturate(1.8);
+    -webkit-backdrop-filter: blur(20px) saturate(1.8);
+    color: rgb(24 24 27) !important;
+    filter: none;
+}
+
+.fi-btn.farmadoc-ios-action.farmadoc-ios-action--liquid-glass .fi-icon,
+a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass .fi-icon,
+.fi-btn.farmadoc-ios-action.farmadoc-ios-action--liquid-glass svg,
+a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass svg {
+    color: var(--color-primary-800) !important;
+}
+
+.fi-btn.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:hover,
+a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:hover {
+    transform: translateY(-2px) scale(1.01);
+    filter: brightness(1.03);
+    background:
+        radial-gradient(120% 85% at 18% -8%, rgb(252 228 34 / 0.52) 0%, transparent 52%),
+        radial-gradient(90% 70% at 92% 108%, rgb(24 172 178 / 0.24) 0%, transparent 48%),
+        linear-gradient(
+            118deg,
+            rgb(252 228 34 / 0.36) 0%,
+            rgb(255 255 255 / 0.62) 38%,
+            rgb(255 255 255 / 0.28) 62%,
+            rgb(24 172 178 / 0.14) 100%
+        ) !important;
+    box-shadow:
+        inset 1px 1px 0 rgb(255 255 255 / 0.88),
+        inset -1px -1px 0 rgb(255 255 255 / 0.08),
+        inset 0 -10px 32px -12px rgb(252 228 34 / 0.2),
+        0 0 0 1px rgb(255 255 255 / 0.5),
+        0 1px 0 rgb(255 255 255 / 0.28),
+        0 18px 44px rgb(15 23 42 / 0.12),
+        0 8px 24px rgb(24 172 178 / 0.14),
+        0 0 48px -10px rgb(252 228 34 / 0.32) !important;
+}
+
+.fi-btn.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible,
+a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
+    outline: none;
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--color-primary-400) 65%, transparent),
+        0 0 0 4px rgb(255 255 255 / 0.35),
+        inset 1px 1px 0 rgb(255 255 255 / 0.78),
+        0 14px 36px rgb(15 23 42 / 0.1) !important;
+}
+
+.dark .fi-btn.farmadoc-ios-action.farmadoc-ios-action--liquid-glass,
+.dark a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass {
+    background:
+        radial-gradient(110% 80% at 15% 0%, rgb(252 228 34 / 0.22) 0%, transparent 50%),
+        radial-gradient(85% 65% at 95% 100%, rgb(24 172 178 / 0.2) 0%, transparent 45%),
+        linear-gradient(
+            118deg,
+            rgb(252 228 34 / 0.12) 0%,
+            rgb(255 255 255 / 0.09) 32%,
+            rgb(255 255 255 / 0.03) 58%,
+            rgb(6 78 59 / 0.2) 100%
+        ) !important;
+    box-shadow:
+        inset 1px 1px 0 rgb(255 255 255 / 0.16),
+        inset -1px -1px 0 rgb(0 0 0 / 0.25),
+        0 0 0 1px rgb(255 255 255 / 0.12),
+        0 16px 44px rgb(0 0 0 / 0.48),
+        0 0 44px -10px rgb(45 212 191 / 0.18) !important;
+    backdrop-filter: blur(22px) saturate(1.6);
+    -webkit-backdrop-filter: blur(22px) saturate(1.6);
+    color: rgb(250 250 250) !important;
+}
+
+.dark .fi-btn.farmadoc-ios-action.farmadoc-ios-action--liquid-glass .fi-icon,
+.dark a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass .fi-icon,
+.dark .fi-btn.farmadoc-ios-action.farmadoc-ios-action--liquid-glass svg,
+.dark a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass svg {
+    color: var(--color-primary-200) !important;
+}
+
+.dark .fi-btn.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:hover,
+.dark a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:hover {
+    background:
+        radial-gradient(110% 80% at 15% 0%, rgb(252 228 34 / 0.28) 0%, transparent 50%),
+        radial-gradient(85% 65% at 95% 100%, rgb(24 172 178 / 0.26) 0%, transparent 45%),
+        linear-gradient(
+            118deg,
+            rgb(252 228 34 / 0.16) 0%,
+            rgb(255 255 255 / 0.12) 32%,
+            rgb(255 255 255 / 0.05) 58%,
+            rgb(6 78 59 / 0.26) 100%
+        ) !important;
+    box-shadow:
+        inset 1px 1px 0 rgb(255 255 255 / 0.2),
+        inset -1px -1px 0 rgb(0 0 0 / 0.32),
+        0 0 0 1px rgb(255 255 255 / 0.14),
+        0 20px 52px rgb(0 0 0 / 0.55),
+        0 0 52px -8px rgb(45 212 191 / 0.22) !important;
+}
+
+.dark .fi-btn.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible,
+.dark a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--color-primary-300) 50%, transparent),
+        0 0 0 4px rgb(0 0 0 / 0.35),
+        inset 1px 1px 0 rgb(255 255 255 / 0.16),
+        0 16px 44px rgb(0 0 0 / 0.48) !important;
 }
 
 /*

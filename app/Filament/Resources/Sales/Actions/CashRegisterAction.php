@@ -891,7 +891,11 @@ final class CashRegisterAction
                     ->success()
                     ->send();
 
-                return redirect()->to(SaleResource::getUrl('view', ['record' => $sale], isAbsolute: false));
+                $nextUrl = config('fiscal.auto_print_on_sale_complete', true)
+                    ? route('sales.fiscal-receipt.print', $sale)
+                    : SaleResource::getUrl('view', ['record' => $sale], isAbsolute: false);
+
+                return redirect()->to($nextUrl);
             });
     }
 

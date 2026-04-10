@@ -41,7 +41,7 @@ class Order extends Model
                 return;
             }
 
-            if ($order->status !== OrderStatus::InProgress) {
+            if ($order->status !== OrderStatus::Completed) {
                 return;
             }
 
@@ -49,7 +49,7 @@ class Order extends Model
         });
 
         static::created(function (Order $order): void {
-            if ($order->status !== OrderStatus::InProgress) {
+            if ($order->status !== OrderStatus::Completed) {
                 return;
             }
 

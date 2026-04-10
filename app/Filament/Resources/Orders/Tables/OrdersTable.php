@@ -444,7 +444,7 @@ class OrdersTable
             ->icon(Heroicon::Star)
             ->color('warning')
             ->modalHeading('Calificar servicio de entrega')
-            ->modalDescription('Puede actualizar la calificación en cualquier momento. Se mostrará en el panel administrador.')
+            ->modalDescription('La calificación solo puede registrarse una vez. Quedará visible en el panel administrador.')
             ->modalIcon(Heroicon::Star)
             ->modalIconColor('warning')
             ->modalWidth(Width::Medium)
@@ -466,13 +466,24 @@ class OrdersTable
                     ]),
             ])
             ->visible(fn (Order $record): bool => $record->status === OrderStatus::Completed
-                && filled($record->partner_company_id))
+                && filled($record->partner_company_id)
+                && ! self::orderHasPartnerDeliveryRating($record))
             ->action(function (array $data, Order $record): void {
                 $record->refresh();
 
                 if ($record->status !== OrderStatus::Completed) {
                     Notification::make()
                         ->title('El pedido ya no está finalizado')
+                        ->warning()
+                        ->send();
+
+                    return;
+                }
+
+                if (self::orderHasPartnerDeliveryRating($record)) {
+                    Notification::make()
+                        ->title('Este pedido ya tiene calificación')
+                        ->body('No puede volver a calificar desde aquí.')
                         ->warning()
                         ->send();
 
@@ -518,6 +529,16 @@ class OrdersTable
                     ->success()
                     ->send();
             });
+    }
+
+    /**
+     * El aliado ya registró una calificación de 1 a 5 estrellas.
+     */
+    private static function orderHasPartnerDeliveryRating(Order $record): bool
+    {
+        $r = $record->partner_delivery_rating;
+
+        return $r !== null && $r >= 1 && $r <= 5;
     }
 
     /**

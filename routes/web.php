@@ -16,6 +16,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('sales/{sale}/fiscal-receipt', [FiscalReceiptController::class, 'show'])
         ->name('sales.fiscal-receipt');
 
+    Route::get('sales/{sale}/fiscal-receipt/print', [FiscalReceiptController::class, 'print'])
+        ->name('sales.fiscal-receipt.print');
+
     Route::get('sales/cash-close-pdf', CashRegisterClosePdfController::class)
         ->middleware('signed')
         ->name('sales.cash-close-pdf');

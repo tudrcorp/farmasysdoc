@@ -309,6 +309,13 @@ class DeliveriesTable
 
                 try {
                     MarkDeliveryCompletedWithEvidence::execute($record, $user, $path);
+                } catch (InsufficientPartnerCreditException $e) {
+                    Notification::make()
+                        ->danger()
+                        ->title($e->getMessage())
+                        ->send();
+
+                    return;
                 } catch (InvalidArgumentException $e) {
                     Notification::make()
                         ->danger()

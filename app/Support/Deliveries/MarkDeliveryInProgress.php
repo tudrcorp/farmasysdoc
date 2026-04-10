@@ -6,6 +6,7 @@ use App\Enums\DeliveryStatus;
 use App\Enums\OrderStatus;
 use App\Models\Delivery;
 use App\Models\User;
+use App\Support\Partners\PartnerCreditLedger;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -45,6 +46,8 @@ final class MarkDeliveryInProgress
         $name = self::assigneeDisplayName($user);
 
         DB::transaction(function () use ($delivery, $order, $user, $name): void {
+            PartnerCreditLedger::assertCreditAvailableForOrder($order);
+
             $order->forceFill([
                 'status' => OrderStatus::InProgress,
                 'delivery_assignee' => $name,

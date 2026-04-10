@@ -21,7 +21,7 @@ class ListOrders extends ListRecords
                 ->icon(Heroicon::Plus)
                 ->color('primary')
                 ->extraAttributes([
-                    'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
+                    'class' => 'farmadoc-ios-action farmadoc-ios-action--primary farmadoc-ios-action--liquid-glass',
                 ]),
         ];
     }

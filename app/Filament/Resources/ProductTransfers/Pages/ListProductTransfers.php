@@ -73,11 +73,14 @@ class ListProductTransfers extends ListRecords
                         ->body('Se abrió una pestaña con el PDF. Si no aparece, permita ventanas emergentes.')
                         ->success()
                         ->send();
-                }),
+                })
+                ->extraAttributes([
+                    'class' => 'farmadoc-ios-action farmadoc-ios-action--primary farmadoc-ios-action--liquid-glass',
+                ]),
             CreateAction::make()
                 ->icon(Heroicon::Plus)
                 ->extraAttributes([
-                    'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
+                    'class' => 'farmadoc-ios-action farmadoc-ios-action--primary farmadoc-ios-action--liquid-glass',
                 ]),
         ];
     }

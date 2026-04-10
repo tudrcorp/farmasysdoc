@@ -32,4 +32,19 @@ return [
 
     'mh_footer' => env('FISCAL_MH_FOOTER', 'MH'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Impresión automática al registrar la venta
+    |--------------------------------------------------------------------------
+    | Si está activo, tras cerrar una venta en caja (POS) o crear una venta
+    | completada desde Filament, se redirige a una página que abre el diálogo
+    | de impresión del navegador con el ticket fiscal (texto monoespaciado).
+    | El usuario debe tener la impresora fiscal como predeterminada o elegirla
+    | en el cuadro de impresión. Desactive con FISCAL_AUTO_PRINT_ON_SALE=false.
+    */
+    'auto_print_on_sale_complete' => filter_var(
+        env('FISCAL_AUTO_PRINT_ON_SALE', true),
+        FILTER_VALIDATE_BOOL
+    ),
+
 ];

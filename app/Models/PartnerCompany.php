@@ -94,7 +94,7 @@ class PartnerCompany extends Model
     }
 
     /**
-     * Suma de montos consumidos registrados en histórico (pedidos a crédito en proceso o posteriores).
+     * Suma de montos consumidos registrados en histórico (pedidos a crédito finalizados).
      */
     public function totalCreditConsumedAmount(): float
     {
@@ -107,6 +107,14 @@ class PartnerCompany extends Model
     public function remainingCreditAmount(): float
     {
         return max(0.0, round((float) ($this->assigned_credit_limit ?? 0), 2));
+    }
+
+    /**
+     * Indica si el aliado tiene cupo de crédito configurado (control de consumo y movimientos).
+     */
+    public function managesAssignedCredit(): bool
+    {
+        return $this->assigned_credit_limit !== null;
     }
 
     /**

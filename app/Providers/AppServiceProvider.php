@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\PurchaseItem;
+use App\Observers\PurchaseItemObserver;
 use App\Support\Filesystem\ResilientFilesystem;
 use Carbon\CarbonImmutable;
 use Filament\Support\Facades\FilamentView;
@@ -28,6 +30,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        PurchaseItem::observe(PurchaseItemObserver::class);
+
         $this->configureDefaults();
         $this->ensureLivewireTemporaryUploadDirectoriesExist();
 

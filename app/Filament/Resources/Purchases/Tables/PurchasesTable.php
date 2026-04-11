@@ -4,20 +4,21 @@ namespace App\Filament\Resources\Purchases\Tables;
 
 use App\Enums\PurchaseStatus;
 use App\Filament\Resources\Branches\BranchResource;
-use App\Filament\Resources\Purchases\PurchaseResource;
 use App\Filament\Resources\Suppliers\SupplierResource;
 use App\Models\Purchase;
 use App\Models\Supplier;
 use App\Support\Filament\BranchAuthScope;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 
 class PurchasesTable
@@ -160,6 +161,22 @@ class PurchasesTable
                     ->toggleable()
                     ->icon(Heroicon::DocumentText)
                     ->iconColor('gray'),
+                TextColumn::make('supplier_control_number')
+                    ->label('Nº control')
+                    ->searchable()
+                    ->sortable()
+                    ->placeholder('—')
+                    ->toggleable()
+                    ->icon(Heroicon::FingerPrint)
+                    ->iconColor('gray'),
+                TextColumn::make('supplier_invoice_date')
+                    ->label('Fecha factura')
+                    ->date('d/m/Y')
+                    ->sortable()
+                    ->placeholder('—')
+                    ->toggleable()
+                    ->icon(Heroicon::CalendarDays)
+                    ->iconColor('gray'),
                 TextColumn::make('payment_status')
                     ->label('Pago al proveedor')
                     ->formatStateUsing(fn (?string $state): string => self::formatPaymentStatusLabel($state))
@@ -207,8 +224,7 @@ class PurchasesTable
             ->emptyStateHeading('Sin órdenes de compra')
             ->emptyStateDescription('Cree una compra para gestionar pedidos a proveedores, recepción por sucursal y totales del documento.')
             ->emptyStateIcon(Heroicon::ClipboardDocumentList)
-            ->recordUrl(fn (Purchase $record): string => PurchaseResource::getUrl('edit', ['record' => $record], isAbsolute: false))
-            ->recordAction('edit')
+            ->recordAction('viewPurchaseDetail')
             ->filters([
                 SelectFilter::make('status')
                     ->label('Estado')
@@ -260,9 +276,7 @@ class PurchasesTable
                     ),
             ])
             ->recordActions([
-                EditAction::make()
-                    ->label('Editar')
-                    ->icon(Heroicon::PencilSquare),
+                self::viewPurchaseDetailAction(),
             ])
             ->recordActionsColumnLabel('Acciones')
             ->toolbarActions([
@@ -271,6 +285,33 @@ class PurchasesTable
                         ->label('Eliminar seleccionadas'),
                 ]),
             ]);
+    }
+
+    private static function viewPurchaseDetailAction(): Action
+    {
+        return Action::make('viewPurchaseDetail')
+            ->label('Ver compra')
+            ->icon(Heroicon::Eye)
+            ->modalHeading(fn (Purchase $record): string => 'Compra '.(filled($record->purchase_number) ? (string) $record->purchase_number : '—'))
+            ->modalDescription('Documento de compra y líneas registradas. Las compras guardadas no se pueden modificar.')
+            ->modalIcon(Heroicon::ClipboardDocumentList)
+            ->modalIconColor('primary')
+            ->modalWidth(Width::SevenExtraLarge)
+            ->modalContent(function (Purchase $record): View {
+                $record->loadMissing([
+                    'supplier',
+                    'branch',
+                    'items' => fn ($query) => $query->orderBy('line_number')->orderBy('id'),
+                ]);
+
+                return view('filament.purchases.purchase-detail-modal', [
+                    'purchase' => $record,
+                ]);
+            })
+            ->modalSubmitAction(false)
+            ->modalCancelAction(fn (Action $action): Action => $action
+                ->label('Cerrar')
+                ->color('gray'));
     }
 
     private static function formatSupplierPrimaryName(Purchase $record): string

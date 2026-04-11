@@ -40,6 +40,8 @@ class PurchaseFactory extends Factory
             'discount_total' => $discount,
             'total' => $total,
             'supplier_invoice_number' => null,
+            'supplier_control_number' => null,
+            'supplier_invoice_date' => null,
             'payment_status' => 'pending',
             'notes' => null,
             'created_by' => null,

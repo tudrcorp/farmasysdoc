@@ -34,6 +34,8 @@ class PurchaseItemFactory extends Factory
             'quantity_ordered' => $qty,
             'quantity_received' => 0,
             'unit_cost' => $unitCost,
+            'line_discount_percent' => 0,
+            'line_vat_percent' => 0,
             'line_subtotal' => $lineSubtotal,
             'tax_amount' => $taxAmount,
             'line_total' => $lineTotal,

@@ -24,6 +24,10 @@ class GetMovementRequest extends FormRequest
             'fechaPago' => ['required', 'string', 'date_format:Y-m-d'],
             'importe' => ['required', 'string', 'regex:/^\d+(\.\d+)?$/'],
             'bancoOrigen' => ['required', 'string', 'max:16'],
+            /*
+             * Manual API Conciliación: validar cédula solo en pagos BDV→BDV; en interbancario debe ser false.
+             */
+            'reqCed' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -39,10 +43,10 @@ class GetMovementRequest extends FormRequest
     }
 
     /**
-     * Campos exactos del JSON de entrada del manual BDV.
+     * Cuerpo JSON exacto esperado por el banco (incluye reqCed según manual v2).
      *
-     * @param  array<string, string>  $validated
-     * @return array<string, string>
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
      */
     public static function movementPayloadFromValidated(array $validated): array
     {
@@ -54,13 +58,12 @@ class GetMovementRequest extends FormRequest
             'fechaPago' => $validated['fechaPago'],
             'importe' => $validated['importe'],
             'bancoOrigen' => $validated['bancoOrigen'],
+            'reqCed' => (bool) ($validated['reqCed'] ?? false),
         ];
     }
 
     /**
-     * Campos exactos del JSON de entrada del manual BDV.
-     *
-     * @return array<string, string>
+     * @return array<string, mixed>
      */
     public function movementPayload(): array
     {

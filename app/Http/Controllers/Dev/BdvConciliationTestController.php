@@ -24,11 +24,13 @@ class BdvConciliationTestController extends Controller
         $qa = config('bdv_conciliation.environments.qa', []);
         $prod = config('bdv_conciliation.environments.production', []);
 
+        $paths = config('bdv_conciliation.paths', []);
+
         return response()->json([
-            'document' => 'API Conciliación BDV — MDU-006 (manual enero 2024)',
-            'note' => 'El manual describe un único endpoint: POST /getMovement (conciliación de pagos móvil).',
+            'document' => 'APIs BDV — conciliación y servicios REST (ver también panel Filament «BDV — APIs (pruebas)»)',
+            'note' => 'Proxy local solo expone getMovement. Más servicios: saldo, movimientos, C2P, lote, etc. vía playground o integración propia.',
             'header' => [
-                'X-API-Key' => 'Clave de calidad (manual) o la generada en BDVenLínea Empresa (producción)',
+                'x-api-key' => 'Por servicio: conciliation | suite | lote (ver config/bdv_conciliation.php); mismo nombre en minúsculas que Postman.',
                 'Content-Type' => 'application/json',
             ],
             'environments' => [
@@ -36,13 +38,13 @@ class BdvConciliationTestController extends Controller
                     'key' => 'qa',
                     'label' => $qa['label'] ?? 'Calidad',
                     'base_url' => $qa['base_url'] ?? null,
-                    'path' => '/getMovement',
+                    'path' => is_array($paths) ? ($paths['get_movement'] ?? '/getMovement/v2') : '/getMovement/v2',
                 ],
                 'production' => [
                     'key' => 'production',
                     'label' => $prod['label'] ?? 'Producción',
                     'base_url' => $prod['base_url'] ?? null,
-                    'path' => '/getMovement',
+                    'path' => is_array($paths) ? ($paths['get_movement'] ?? '/getMovement/v2') : '/getMovement/v2',
                 ],
             ],
             'dev_routes' => [
@@ -163,11 +165,11 @@ class BdvConciliationTestController extends Controller
     }
 
     /**
-     * @return array<string, string>
+     * @return array<string, mixed>
      */
     private function samplePayloadFromManual(): array
     {
-        return [
+        return GetMovementRequest::movementPayloadFromValidated([
             'cedulaPagador' => 'V27037606',
             'telefonoPagador' => '04127141363',
             'telefonoDestino' => '04127141363',
@@ -175,7 +177,8 @@ class BdvConciliationTestController extends Controller
             'fechaPago' => '2023-02-12',
             'importe' => '120.00',
             'bancoOrigen' => '0102',
-        ];
+            'reqCed' => false,
+        ]);
     }
 
     private function devUrl(string $path): string

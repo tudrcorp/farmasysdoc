@@ -94,38 +94,46 @@ class InventoryInfolist
                     ->columns(1)
                     ->columnSpanFull(),
 
-                Section::make('Precios (catálogo del producto)')
-                    ->description('Misma política comercial en todas las sucursales; proviene del registro del producto.')
+                Section::make('Precios (snapshot en inventario)')
+                    ->description('Costos y precios calculados al registrar/actualizar inventario desde compras, usando IVA del sistema y % de categoría.')
                     ->icon(Heroicon::CurrencyDollar)
                     ->schema([
                         Grid::make([
                             'default' => 1,
                             'sm' => 2,
-                            'lg' => 4,
+                            'lg' => 3,
                         ])
                             ->schema([
-                                TextEntry::make('product.sale_price')
-                                    ->label('Precio lista')
+                                TextEntry::make('cost_price')
+                                    ->label('Costo')
                                     ->money('USD')
                                     ->placeholder('—')
-                                    ->icon(Heroicon::Banknotes),
-                                TextEntry::make('product_effective_sale')
-                                    ->label('Precio efectivo (tras desc.)')
-                                    ->getStateUsing(fn (Inventory $record): string => $record->product !== null
-                                        ? '$'.number_format($record->product->effectiveSaleUnitPrice(), 2, '.', ',')
-                                        : '—')
-                                    ->icon(Heroicon::ShoppingCart),
-                                TextEntry::make('product.cost_price')
-                                    ->label('Costo unitario')
-                                    ->placeholder('—')
-                                    ->money('USD')
                                     ->icon(Heroicon::ReceiptPercent),
-                                TextEntry::make('product.discount_percent')
-                                    ->label('Descuento %')
-                                    ->suffix(' %')
-                                    ->numeric(2)
+                                TextEntry::make('vat_cost_amount')
+                                    ->label('Valor del IVA (costo)')
                                     ->placeholder('—')
-                                    ->icon(Heroicon::Tag),
+                                    ->money('USD')
+                                    ->icon(Heroicon::Calculator),
+                                TextEntry::make('cost_plus_vat')
+                                    ->label('Costo + IVA')
+                                    ->placeholder('—')
+                                    ->money('USD')
+                                    ->icon(Heroicon::PlusCircle),
+                                TextEntry::make('final_price_without_vat')
+                                    ->label('Precio final sin IVA')
+                                    ->placeholder('—')
+                                    ->money('USD')
+                                    ->icon(Heroicon::Banknotes),
+                                TextEntry::make('vat_final_price_amount')
+                                    ->label('Valor IVA precio final')
+                                    ->placeholder('—')
+                                    ->money('USD')
+                                    ->icon(Heroicon::Calculator),
+                                TextEntry::make('final_price_with_vat')
+                                    ->label('Precio final con IVA')
+                                    ->placeholder('—')
+                                    ->money('USD')
+                                    ->icon(Heroicon::CurrencyDollar),
                             ]),
                     ])
                     ->columns(1)

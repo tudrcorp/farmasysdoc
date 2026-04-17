@@ -229,6 +229,7 @@ final class CashRegisterAction
 
                 $livewire = $action->getLivewire();
                 if ($livewire instanceof LivewireComponent) {
+                    $livewire->js(self::mountPosBarcodeAutoAdvanceJs());
                     $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: true));
                 }
             })
@@ -577,7 +578,7 @@ final class CashRegisterAction
                                                 'pago_movil' => 'Pago Movil',
                                                 'mixed' => 'Pago Multiple',
                                             ])
-                                            ->default('efectivo_usd')
+                                            ->default('pago_movil')
                                             ->required()
                                             ->live()
                                             ->native(false)
@@ -1150,7 +1151,7 @@ final class CashRegisterAction
      */
     private static function computePaymentBreakdownForForm(Get $get): array
     {
-        $paymentMethod = (string) ($get('payment_method') ?? 'efectivo_usd');
+        $paymentMethod = (string) ($get('payment_method') ?? 'pago_movil');
         $total = self::computeSaleTotal($get);
         $mixedUsdPaid = (float) ($get('mixed_usd_paid') ?? 0);
         $rate = self::effectiveVesUsdRate($get);
@@ -1192,7 +1193,7 @@ final class CashRegisterAction
             return null;
         }
 
-        $paymentMethod = (string) ($get('payment_method') ?? 'efectivo_usd');
+        $paymentMethod = (string) ($get('payment_method') ?? 'pago_movil');
         $discountRequested = (float) ($get('discount_total') ?? 0);
 
         return self::finalizePosPricingFromValidLines($valid, $paymentMethod, $discountRequested);
@@ -1597,7 +1598,7 @@ final class CashRegisterAction
     {
         return array_merge([
             'client_id' => null,
-            'payment_method' => 'efectivo_usd',
+            'payment_method' => 'pago_movil',
             'mixed_usd_paid' => null,
             'reference' => null,
             'discount_total' => 0.0,
@@ -1653,6 +1654,74 @@ final class CashRegisterAction
                 }, {$innerMs});
             }, {$outerMs});
             JS;
+    }
+
+    /**
+     * POS: cuando un lector llena el código y hay resultado exacto, confirma automáticamente la opción
+     * (equivalente a Enter) para que el flujo pase a la siguiente línea del repeater sin intervención manual.
+     */
+    private static function mountPosBarcodeAutoAdvanceJs(): string
+    {
+        return <<<'JS'
+            (() => {
+                if (window.__farmadocPosBarcodeAutoAdvanceMounted) {
+                    return;
+                }
+                window.__farmadocPosBarcodeAutoAdvanceMounted = true;
+
+                const BARCODE_RE = /^[0-9A-Za-z\-]{4,}$/;
+                let debounceId = null;
+
+                const triggerAutoConfirm = (input) => {
+                    const value = String(input?.value ?? '').trim();
+                    if (!BARCODE_RE.test(value)) {
+                        return;
+                    }
+
+                    const modal = document.querySelector('.fi-modal-window');
+                    if (!modal || !modal.querySelector('.farmadoc-pos-line-items-repeater')) {
+                        return;
+                    }
+
+                    const hasOpenSelect = modal.querySelector(
+                        '.farmadoc-pos-line-items-repeater .fi-select-input-btn[aria-expanded="true"]',
+                    );
+                    if (!hasOpenSelect) {
+                        return;
+                    }
+
+                    input.dispatchEvent(
+                        new KeyboardEvent('keydown', {
+                            key: 'Enter',
+                            code: 'Enter',
+                            bubbles: true,
+                            cancelable: true,
+                        }),
+                    );
+                };
+
+                document.addEventListener(
+                    'input',
+                    (ev) => {
+                        const target = ev.target;
+                        if (!(target instanceof HTMLInputElement)) {
+                            return;
+                        }
+
+                        const panel = target.closest('.fi-dropdown-panel');
+                        if (!panel) {
+                            return;
+                        }
+
+                        if (debounceId) {
+                            clearTimeout(debounceId);
+                        }
+                        debounceId = setTimeout(() => triggerAutoConfirm(target), 90);
+                    },
+                    true,
+                );
+            })();
+        JS;
     }
 
     /**

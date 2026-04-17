@@ -152,13 +152,56 @@ class InventoryForm
                     ->columnSpanFull(),
 
                 Section::make('Precios del producto')
-                    ->description('Precio de venta, costo, IVA y descuento % están en el catálogo del producto y son iguales en todas las sucursales.')
+                    ->description('Snapshot financiero en inventario: se recalcula con costo de compra, IVA del sistema y % de ganancia de categoría.')
                     ->icon(Heroicon::CurrencyDollar)
                     ->visible(fn (Get $get): bool => filled($get('product_id')))
                     ->schema([
                         Placeholder::make('pricing_from_product_hint')
                             ->label('')
-                            ->content('Edite el producto en Catálogo → Productos para cambiar lista, costo, impuesto o descuento %. La caja y las integraciones leen esos valores automáticamente.'),
+                            ->content('Estos campos se actualizan al recibir compras para esta sucursal.'),
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                            'lg' => 3,
+                        ])
+                            ->schema([
+                                TextInput::make('cost_price')
+                                    ->label('Costo')
+                                    ->numeric()
+                                    ->disabled()
+                                    ->dehydrated(true)
+                                    ->prefix('$'),
+                                TextInput::make('vat_cost_amount')
+                                    ->label('Valor del IVA (costo)')
+                                    ->numeric()
+                                    ->disabled()
+                                    ->dehydrated(true)
+                                    ->prefix('$'),
+                                TextInput::make('cost_plus_vat')
+                                    ->label('Costo + IVA')
+                                    ->numeric()
+                                    ->disabled()
+                                    ->dehydrated(true)
+                                    ->prefix('$'),
+                                TextInput::make('final_price_without_vat')
+                                    ->label('Precio final sin IVA')
+                                    ->numeric()
+                                    ->disabled()
+                                    ->dehydrated(true)
+                                    ->prefix('$'),
+                                TextInput::make('vat_final_price_amount')
+                                    ->label('Valor IVA precio final')
+                                    ->numeric()
+                                    ->disabled()
+                                    ->dehydrated(true)
+                                    ->prefix('$'),
+                                TextInput::make('final_price_with_vat')
+                                    ->label('Precio final con IVA')
+                                    ->numeric()
+                                    ->disabled()
+                                    ->dehydrated(true)
+                                    ->prefix('$'),
+                            ]),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

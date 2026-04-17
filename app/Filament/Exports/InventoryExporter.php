@@ -21,12 +21,18 @@ class InventoryExporter extends Exporter
                 ->label('Sucursal'),
             ExportColumn::make('product.name')
                 ->label('Producto'),
-            ExportColumn::make('product.sale_price')
-                ->label('Precio venta lista (producto)'),
-            ExportColumn::make('product.cost_price')
-                ->label('Costo unitario (producto)'),
-            ExportColumn::make('product.discount_percent')
-                ->label('Descuento % (producto)'),
+            ExportColumn::make('cost_price')
+                ->label('Costo'),
+            ExportColumn::make('vat_cost_amount')
+                ->label('Valor IVA (costo)'),
+            ExportColumn::make('cost_plus_vat')
+                ->label('Costo + IVA'),
+            ExportColumn::make('final_price_without_vat')
+                ->label('Precio final sin IVA'),
+            ExportColumn::make('vat_final_price_amount')
+                ->label('Valor IVA precio final'),
+            ExportColumn::make('final_price_with_vat')
+                ->label('Precio final con IVA'),
             ExportColumn::make('quantity')
                 ->label('Cantidad'),
             ExportColumn::make('reserved_quantity')

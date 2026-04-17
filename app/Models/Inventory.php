@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Finance\DefaultVatRate;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -34,6 +35,12 @@ class Inventory extends Model
         'active_ingredient',
         'concentration',
         'presentation_type',
+        'cost_price',
+        'vat_cost_amount',
+        'cost_plus_vat',
+        'final_price_without_vat',
+        'vat_final_price_amount',
+        'final_price_with_vat',
     ];
 
     /**
@@ -51,6 +58,12 @@ class Inventory extends Model
             'last_movement_at' => 'datetime',
             'last_stock_take_at' => 'datetime',
             'active_ingredient' => 'array',
+            'cost_price' => 'decimal:8',
+            'vat_cost_amount' => 'decimal:8',
+            'cost_plus_vat' => 'decimal:8',
+            'final_price_without_vat' => 'decimal:8',
+            'vat_final_price_amount' => 'decimal:8',
+            'final_price_with_vat' => 'decimal:8',
         ];
     }
 
@@ -58,11 +71,13 @@ class Inventory extends Model
     {
         static::creating(function (Inventory $inventory): void {
             $inventory->syncPharmacySnapshotFromRelatedProduct();
+            $inventory->syncFinancialSnapshotFromRelatedProductAndCost();
         });
 
         static::updating(function (Inventory $inventory): void {
-            if ($inventory->isDirty('product_id')) {
+            if ($inventory->isDirty('product_id') || $inventory->isDirty('cost_price')) {
                 $inventory->syncPharmacySnapshotFromRelatedProduct();
+                $inventory->syncFinancialSnapshotFromRelatedProductAndCost();
             }
         });
     }
@@ -88,6 +103,48 @@ class Inventory extends Model
         ];
     }
 
+    /**
+     * Snapshot financiero persistido en inventario usando el costo y la categoría del producto.
+     *
+     * @return array{
+     *     cost_price: float,
+     *     vat_cost_amount: float,
+     *     cost_plus_vat: float,
+     *     final_price_without_vat: float,
+     *     vat_final_price_amount: float,
+     *     final_price_with_vat: float
+     * }
+     */
+    public static function financialSnapshotFromCostAndProduct(float $cost, ?Product $product): array
+    {
+        $safeCost = round(max(0.0, $cost), 8);
+        $vatRate = 0.0;
+        if ($product !== null && $product->applies_vat) {
+            $vatRate = max(0.0, DefaultVatRate::percent());
+        }
+
+        $profitPercent = 0.0;
+        if ($product !== null) {
+            $product->loadMissing('productCategory');
+            $profitPercent = max(0.0, (float) ($product->productCategory?->profit_percentage ?? 0));
+        }
+
+        $vatCostAmount = round($safeCost * ($vatRate / 100), 8);
+        $costPlusVat = round($safeCost + $vatCostAmount, 8);
+        $finalPriceWithoutVat = round($safeCost + ($safeCost * $profitPercent / 100), 8);
+        $vatFinalPriceAmount = round($finalPriceWithoutVat * ($vatRate / 100), 8);
+        $finalPriceWithVat = round($finalPriceWithoutVat + $vatFinalPriceAmount, 8);
+
+        return [
+            'cost_price' => $safeCost,
+            'vat_cost_amount' => $vatCostAmount,
+            'cost_plus_vat' => $costPlusVat,
+            'final_price_without_vat' => $finalPriceWithoutVat,
+            'vat_final_price_amount' => $vatFinalPriceAmount,
+            'final_price_with_vat' => $finalPriceWithVat,
+        ];
+    }
+
     public function syncPharmacySnapshotFromRelatedProduct(): void
     {
         if ($this->product_id === null) {
@@ -101,6 +158,20 @@ class Inventory extends Model
         }
 
         foreach (self::pharmacySnapshotFromProduct($product) as $key => $value) {
+            $this->setAttribute($key, $value);
+        }
+    }
+
+    public function syncFinancialSnapshotFromRelatedProductAndCost(): void
+    {
+        if ($this->product_id === null) {
+            return;
+        }
+
+        $product = Product::query()->find($this->product_id);
+        $cost = (float) ($this->cost_price ?? ($product?->cost_price ?? 0));
+
+        foreach (self::financialSnapshotFromCostAndProduct($cost, $product) as $key => $value) {
             $this->setAttribute($key, $value);
         }
     }

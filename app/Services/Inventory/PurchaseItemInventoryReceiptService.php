@@ -100,12 +100,15 @@ final class PurchaseItemInventoryReceiptService
                 ]);
             }
 
+            $unitCost = max(0.0, (float) ($item->unit_cost ?? 0));
+
             $inventory->quantity = $nextQuantity;
+            $inventory->cost_price = $unitCost;
+            $inventory->syncFinancialSnapshotFromRelatedProductAndCost();
             $inventory->last_movement_at = now();
             $inventory->updated_by = $actorLabel;
             $inventory->save();
 
-            $unitCost = (float) ($item->unit_cost ?? 0);
             $lineNo = (int) ($item->line_number ?? 0);
             $lineSuffix = $lineNo > 0 ? " · Línea #{$lineNo}" : '';
 

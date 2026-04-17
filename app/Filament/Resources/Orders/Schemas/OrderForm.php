@@ -9,15 +9,18 @@ use App\Enums\OrderStatus;
 use App\Models\PartnerCompany;
 use App\Models\Product;
 use App\Models\User;
+use App\Support\Filament\BranchAuthScope;
 use App\Support\Orders\OrderTotalsCalculator;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\ViewField;
 use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -27,6 +30,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema as SchemaFacade;
 use Illuminate\Support\HtmlString;
 
 class OrderForm
@@ -93,8 +97,13 @@ class OrderForm
                                     ->relationship(
                                         name: 'branch',
                                         titleAttribute: 'name',
-                                        modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name'),
+                                        modifyQueryUsing: function (Builder $query): Builder {
+                                            $query->where('is_active', true)->orderBy('name');
+
+                                            return BranchAuthScope::applyToBranchFormSelect($query);
+                                        },
                                     )
+                                    ->default(fn (): ?int => BranchAuthScope::suggestedBranchIdForOperationalForm())
                                     ->searchable()
                                     ->preload()
                                     ->native(false)
@@ -335,12 +344,12 @@ class OrderForm
                                         titleAttribute: 'name',
                                         modifyQueryUsing: fn (Builder $query): Builder => $query->where('is_active', true)->orderBy('name'),
                                     )
-                                    ->searchable(['name', 'active_ingredient'])
+                                    ->searchable(self::productSearchableColumnsForOrderForm())
                                     ->getOptionLabelFromRecordUsing(fn (Product $record): string => self::formatProductOptionLabelForOrderSelect($record))
                                     ->native(false)
                                     ->live()
                                     ->required()
-                                    ->helperText('Busque por nombre comercial o por principio activo.')
+                                    ->helperText('Busque por nombre, código de barras, SKU, slug o principio activo.')
                                     ->prefixIcon(Heroicon::Cube),
                                 TextInput::make('quantity')
                                     ->label(fn (Get $get): string => self::orderItemQuantityLabel($get))
@@ -452,6 +461,20 @@ class OrderForm
                             ->maxLength(255)
                             ->prefixIcon(Heroicon::Home)
                             ->columnSpanFull(),
+                        ViewField::make('delivery_map_picker')
+                            ->view('filament.forms.delivery-map-picker')
+                            ->label('Punto exacto en mapa')
+                            ->helperText('Solo Google Maps: barra de búsqueda con sugerencias, lupa, tu ubicación y categorías (farmacia, etc.). Clic en el mapa o arrastra el pin. Requiere GOOGLE_MAPS_BROWSER_API_KEY. Al elegir el punto se actualizan dirección y coordenadas.')
+                            ->dehydrated(false)
+                            ->columnSpanFull(),
+                        Hidden::make('delivery_latitude')
+                            ->default(null)
+                            ->dehydrateStateUsing(fn (mixed $state): mixed => $state === '' ? null : $state)
+                            ->rules(['nullable', 'numeric', 'between:-90,90']),
+                        Hidden::make('delivery_longitude')
+                            ->default(null)
+                            ->dehydrateStateUsing(fn (mixed $state): mixed => $state === '' ? null : $state)
+                            ->rules(['nullable', 'numeric', 'between:-180,180']),
                         Grid::make([
                             'default' => 1,
                             'sm' => 2,
@@ -511,11 +534,37 @@ class OrderForm
     }
 
     /**
+     * Columnas en las que Filament aplica la búsqueda del Select (incl. barras/SKU como en compras y caja).
+     *
+     * @return list<string>
+     */
+    private static function productSearchableColumnsForOrderForm(): array
+    {
+        $columns = ['name', 'barcode'];
+
+        if (SchemaFacade::hasColumn('products', 'sku')) {
+            $columns[] = 'sku';
+        }
+
+        if (SchemaFacade::hasColumn('products', 'slug')) {
+            $columns[] = 'slug';
+        }
+
+        $columns[] = 'active_ingredient';
+
+        return $columns;
+    }
+
+    /**
      * Etiqueta en el selector de línea de pedido: nombre + principios activos (texto del JSON / array).
      */
     private static function formatProductOptionLabelForOrderSelect(Product $record): string
     {
         $name = (string) $record->name;
+        if (filled($record->barcode)) {
+            $name .= ' · '.(string) $record->barcode;
+        }
+
         $ingredients = $record->active_ingredient;
         if (! is_array($ingredients) || $ingredients === []) {
             return $name;

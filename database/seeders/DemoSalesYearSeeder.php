@@ -139,6 +139,7 @@ class DemoSalesYearSeeder extends Seeder
                     'status' => SaleStatus::Completed,
                     'subtotal' => $lineSubtotal,
                     'tax_total' => $taxAmount,
+                    'igtf_total' => 0.0,
                     'discount_total' => 0,
                     'total' => $lineTotal,
                     'payment_method' => fake()->randomElement(['efectivo_usd', 'efectivo_ves', 'mixto_pago', 'pago_movil']),

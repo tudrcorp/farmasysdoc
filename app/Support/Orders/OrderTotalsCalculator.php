@@ -3,6 +3,7 @@
 namespace App\Support\Orders;
 
 use App\Models\Product;
+use App\Support\Finance\DefaultVatRate;
 
 /**
  * Montos de línea y agregados de pedido a partir del catálogo (precio lista, descuento %, IVA opcional).
@@ -86,7 +87,7 @@ final class OrderTotalsCalculator
             return 0.0;
         }
 
-        $rate = (float) config('orders.default_vat_rate_percent', 19);
+        $rate = DefaultVatRate::percent();
 
         return max(0.0, min(100.0, $rate));
     }

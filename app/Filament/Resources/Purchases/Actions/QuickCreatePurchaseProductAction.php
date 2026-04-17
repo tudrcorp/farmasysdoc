@@ -21,7 +21,7 @@ final class QuickCreatePurchaseProductAction
     /**
      * Tras crear el producto, se invoca con el modelo para añadir la línea en el formulario de compra.
      *
-     * @param  callable(Product $product): void  $onCreated
+     * @param  callable(Product $product, ?float $unitCostFromModal): void  $onCreated
      */
     public static function make(callable $onCreated): Action
     {
@@ -46,10 +46,12 @@ final class QuickCreatePurchaseProductAction
                 return [
                     'name' => $looksLikeBarcode ? '' : $search,
                     'barcode' => $looksLikeBarcode ? $search : '',
+                    'brand' => '',
                     'supplier_id' => filled($supplierId) ? (int) $supplierId : null,
                     'cost_price' => 0,
                     'applies_vat' => false,
                     'product_category_id' => null,
+                    'requires_expiry_on_purchase' => true,
                 ];
             })
             ->schema([
@@ -67,6 +69,11 @@ final class QuickCreatePurchaseProductAction
                             ->helperText('Opcional si no aplica. Debe ser único si lo indica.')
                             ->prefixIcon(Heroicon::QrCode)
                             ->dehydrateStateUsing(fn (?string $state): ?string => $state === '' || $state === null ? null : $state),
+                        TextInput::make('brand')
+                            ->label('Marca / laboratorio')
+                            ->required()
+                            ->maxLength(255)
+                            ->prefixIcon(Heroicon::BuildingStorefront),
                         Select::make('supplier_id')
                             ->label('Proveedor principal')
                             ->options(fn (): array => Supplier::query()
@@ -99,15 +106,19 @@ final class QuickCreatePurchaseProductAction
                             ->label('Costo de compra')
                             ->numeric()
                             ->minValue(0)
-                            ->step(0.01)
+                            ->step(0.00000001)
                             ->default(0)
                             ->prefix('$')
                             ->required()
+                            ->rule('decimal:0,8')
                             ->prefixIcon(Heroicon::ReceiptPercent),
                         Toggle::make('applies_vat')
                             ->label('Grava IVA')
                             ->helperText('Si aplica, en la línea se sugerirá el IVA por defecto del sistema.')
                             ->default(false),
+                        Toggle::make('requires_expiry_on_purchase')
+                            ->label('Maneja lotes en compras')
+                            ->default(true),
                     ]),
             ])
             ->action(function (array $data) use ($onCreated): void {
@@ -144,11 +155,13 @@ final class QuickCreatePurchaseProductAction
                     'supplier_id' => filled($data['supplier_id'] ?? null) ? (int) $data['supplier_id'] : null,
                     'barcode' => $barcode,
                     'name' => $name,
+                    'brand' => trim((string) ($data['brand'] ?? '')),
                     'slug' => $slug,
                     'product_category_id' => (int) $data['product_category_id'],
                     'cost_price' => (float) ($data['cost_price'] ?? 0),
                     'discount_percent' => 0,
                     'applies_vat' => (bool) ($data['applies_vat'] ?? false),
+                    'requires_expiry_on_purchase' => (bool) ($data['requires_expiry_on_purchase'] ?? true),
                     'sku' => $sku,
                     'is_active' => true,
                     'created_by' => $actor,
@@ -161,7 +174,7 @@ final class QuickCreatePurchaseProductAction
                     ]);
                 }
 
-                $onCreated($product->fresh());
+                $onCreated($product->fresh(), (float) ($data['cost_price'] ?? 0));
 
                 Notification::make()
                     ->title('Producto creado')

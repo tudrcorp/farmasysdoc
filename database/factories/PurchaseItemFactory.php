@@ -42,6 +42,7 @@ class PurchaseItemFactory extends Factory
             'product_name_snapshot' => fake()->words(4, true),
             'sku_snapshot' => fake()->bothify('SKU-####-???'),
             'notes' => null,
+            'lot_expiration_month_year' => null,
         ];
     }
 }

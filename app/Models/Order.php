@@ -57,7 +57,7 @@ class Order extends Model
         });
 
         static::deleting(function (Order $order): void {
-            PartnerOrderDeliverySync::removePartnerDelivery($order);
+            PartnerOrderDeliverySync::removeAllSyncedAppDeliveries($order);
         });
     }
 
@@ -89,6 +89,8 @@ class Order extends Model
         'delivery_address',
         'delivery_city',
         'delivery_state',
+        'delivery_latitude',
+        'delivery_longitude',
         'delivery_notes',
         'scheduled_delivery_at',
         'dispatched_at',
@@ -126,6 +128,8 @@ class Order extends Model
             'delivered_at' => 'datetime',
             'delivery_fulfillment_duration_minutes' => 'integer',
             'partner_delivery_rating' => 'integer',
+            'delivery_latitude' => 'decimal:7',
+            'delivery_longitude' => 'decimal:7',
         ];
     }
 
@@ -164,6 +168,16 @@ class Order extends Model
     }
 
     /**
+     * Filas de entrega en `deliveries` vinculadas al pedido (cualquier `delivery_type`).
+     *
+     * @return HasMany<Delivery, $this>
+     */
+    public function deliveries(): HasMany
+    {
+        return $this->hasMany(Delivery::class);
+    }
+
+    /**
      * Entregas generadas automáticamente para pedidos aliado con envío a domicilio (`delivery_type` = partner_delivery).
      *
      * @return HasMany<Delivery, $this>
@@ -174,20 +188,22 @@ class Order extends Model
     }
 
     /**
-     * Usuario de reparto vinculado a la entrega aliada (p. ej. tras «Iniciar entrega»), para mostrar foto al aliado.
+     * Entregas gestionadas por la app de reparto (aliado o cliente/sucursal).
+     *
+     * @return HasMany<Delivery, $this>
+     */
+    public function appRoutableDeliveries(): HasMany
+    {
+        return $this->hasMany(Delivery::class)
+            ->whereIn('delivery_type', PartnerOrderDeliverySync::appRoutableDeliveryTypes());
+    }
+
+    /**
+     * Usuario de reparto vinculado a la entrega (app), p. ej. tras tomar el pedido.
      */
     public function deliveryAssigneeUser(): ?User
     {
-        if ($this->relationLoaded('partnerDeliveries')) {
-            $delivery = $this->partnerDeliveries
-                ->filter(fn (Delivery $d): bool => $d->user_id !== null)
-                ->sortByDesc(static fn (Delivery $d): int => (int) $d->getKey())
-                ->first();
-
-            return $delivery?->user;
-        }
-
-        $delivery = $this->partnerDeliveries()
+        $delivery = $this->appRoutableDeliveries()
             ->whereNotNull('user_id')
             ->with('user')
             ->orderByDesc('id')
@@ -216,20 +232,11 @@ class Order extends Model
     }
 
     /**
-     * Ruta en disco público de la foto de evidencia cargada al cerrar la entrega (tabla `deliveries`, tipo aliado).
+     * Ruta en disco público de la foto de evidencia cargada al cerrar la entrega (tabla `deliveries`).
      */
     public function partnerDeliveryEvidencePath(): ?string
     {
-        if ($this->relationLoaded('partnerDeliveries')) {
-            $row = $this->partnerDeliveries
-                ->filter(fn (Delivery $d): bool => filled($d->delivery_evidence_path))
-                ->sortByDesc(static fn (Delivery $d): int => (int) $d->getKey())
-                ->first();
-
-            return filled($row?->delivery_evidence_path) ? (string) $row->delivery_evidence_path : null;
-        }
-
-        $path = $this->partnerDeliveries()
+        $path = $this->appRoutableDeliveries()
             ->whereNotNull('delivery_evidence_path')
             ->orderByDesc('id')
             ->value('delivery_evidence_path');

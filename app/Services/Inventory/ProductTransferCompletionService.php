@@ -207,6 +207,7 @@ final class ProductTransferCompletionService
                 'status' => SaleStatus::Completed,
                 'subtotal' => $subtotal,
                 'tax_total' => 0.0,
+                'igtf_total' => 0.0,
                 'discount_total' => 0.0,
                 'total' => $subtotal,
                 'payment_method' => self::PAYMENT_METHOD_TRANSFER_SALE,

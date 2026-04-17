@@ -177,6 +177,14 @@ class PurchasesTable
                     ->toggleable()
                     ->icon(Heroicon::CalendarDays)
                     ->iconColor('gray'),
+                TextColumn::make('registered_in_system_date')
+                    ->label('Fecha carga sistema')
+                    ->date('d/m/Y')
+                    ->sortable()
+                    ->placeholder('—')
+                    ->toggleable()
+                    ->icon(Heroicon::Clock)
+                    ->iconColor('gray'),
                 TextColumn::make('payment_status')
                     ->label('Pago al proveedor')
                     ->formatStateUsing(fn (?string $state): string => self::formatPaymentStatusLabel($state))
@@ -236,7 +244,11 @@ class PurchasesTable
                     ->relationship(
                         name: 'branch',
                         titleAttribute: 'name',
-                        modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name'),
+                        modifyQueryUsing: function (Builder $query): Builder {
+                            $query->where('is_active', true)->orderBy('name');
+
+                            return BranchAuthScope::applyToBranchFormSelect($query);
+                        },
                     )
                     ->searchable()
                     ->preload()

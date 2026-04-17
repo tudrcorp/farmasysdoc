@@ -55,6 +55,18 @@ class Supplier extends Model
     }
 
     /**
+     * Nombre preferente para listados y UI (comercial si existe; si no, razón social).
+     */
+    public function displayName(): string
+    {
+        if (filled($this->trade_name)) {
+            return (string) $this->trade_name;
+        }
+
+        return filled($this->legal_name) ? (string) $this->legal_name : '—';
+    }
+
+    /**
      * @return HasMany<Product, $this>
      */
     public function products(): HasMany

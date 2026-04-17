@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "Farmadoc Reparto",
+    "slug": "farmadoc-reparto",
+    "scheme": "farmadoc-reparto",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0E949A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.farmadoc.delivery",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
+    },
+    "android": {
+      "package": "com.farmadoc.delivery",
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0E949A"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Farmadoc Reparto usa tu ubicación para confirmar que el GPS está activo al tomar un pedido de entrega.",
+          "isAndroidForegroundServiceEnabled": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Farmadoc Reparto necesita acceso a tus fotos para adjuntar evidencia de entrega.",
+          "cameraPermission": "Farmadoc Reparto usa la cámara para fotografiar la entrega en destino."
+        }
+      ]
+    ]
+  }
+}

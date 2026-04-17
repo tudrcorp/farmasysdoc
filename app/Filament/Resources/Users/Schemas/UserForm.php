@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Users\Schemas;
 
 use App\Models\Rol;
+use App\Support\Filament\BranchAuthScope;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
@@ -13,6 +14,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Database\Eloquent\Builder;
 
 class UserForm
 {
@@ -66,7 +68,11 @@ class UserForm
                             ->relationship(
                                 name: 'branch',
                                 titleAttribute: 'name',
-                                modifyQueryUsing: fn ($query) => $query->where('is_active', true)->orderBy('name'),
+                                modifyQueryUsing: function (Builder $query): Builder {
+                                    $query->where('is_active', true)->orderBy('name');
+
+                                    return BranchAuthScope::applyToBranchFormSelect($query);
+                                },
                             )
                             ->required(fn (Get $get): bool => ! self::formRolesIncludeDelivery($get('roles')))
                             ->searchable()

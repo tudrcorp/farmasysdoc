@@ -54,7 +54,11 @@ class DeliveryInfolist
                                     ->label('Tipo')
                                     ->badge()
                                     ->formatStateUsing(fn (?string $state): string => DeliveryTypeLabels::label($state))
-                                    ->color(fn (?string $state): string => $state === PartnerOrderDeliverySync::DELIVERY_TYPE_PARTNER ? 'info' : 'gray')
+                                    ->color(fn (?string $state): string => match ($state) {
+                                        PartnerOrderDeliverySync::DELIVERY_TYPE_PARTNER => 'info',
+                                        PartnerOrderDeliverySync::DELIVERY_TYPE_CLIENT_ORDER => 'success',
+                                        default => 'gray',
+                                    })
                                     ->icon(Heroicon::Tag),
                             ]),
                     ])

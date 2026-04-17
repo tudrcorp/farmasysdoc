@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Sales\Schemas;
 
 use App\Enums\SaleStatus;
+use App\Support\Filament\BranchAuthScope;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -43,8 +44,13 @@ class SaleForm
                                     ->relationship(
                                         name: 'branch',
                                         titleAttribute: 'name',
-                                        modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name'),
+                                        modifyQueryUsing: function (Builder $query): Builder {
+                                            $query->where('is_active', true)->orderBy('name');
+
+                                            return BranchAuthScope::applyToBranchFormSelect($query);
+                                        },
                                     )
+                                    ->default(fn (): ?int => BranchAuthScope::suggestedBranchIdForOperationalForm())
                                     ->searchable()
                                     ->preload()
                                     ->native(false)
@@ -83,7 +89,7 @@ class SaleForm
                         Grid::make([
                             'default' => 1,
                             'sm' => 2,
-                            'lg' => 4,
+                            'lg' => 5,
                         ])
                             ->schema([
                                 TextInput::make('subtotal')
@@ -95,12 +101,21 @@ class SaleForm
                                     ->default(0.0)
                                     ->prefix('$'),
                                 TextInput::make('tax_total')
-                                    ->label('Impuestos')
+                                    ->label('IVA')
                                     ->required()
                                     ->numeric()
                                     ->minValue(0)
                                     ->step(0.01)
                                     ->default(0.0)
+                                    ->prefix('$'),
+                                TextInput::make('igtf_total')
+                                    ->label('IGTF')
+                                    ->required()
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->step(0.01)
+                                    ->default(0.0)
+                                    ->helperText('Solo ventas en efectivo USD; el POS lo calcula según Administración financiera.')
                                     ->prefix('$'),
                                 TextInput::make('discount_total')
                                     ->label('Descuentos')

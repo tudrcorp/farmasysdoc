@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Support\Deliveries\DeliveryTypeLabels;
 use App\Support\Deliveries\MarkDeliveryCompletedWithEvidence;
 use App\Support\Deliveries\MarkDeliveryInProgress;
+use App\Support\Filament\BranchAuthScope;
 use App\Support\Orders\PartnerOrderDeliverySync;
 use App\Support\Partners\InsufficientPartnerCreditException;
 use Carbon\Carbon;
@@ -76,6 +77,7 @@ class DeliveriesTable
                     ->formatStateUsing(fn (?string $state): string => DeliveryTypeLabels::label($state))
                     ->color(fn (?string $state): string => match ($state) {
                         PartnerOrderDeliverySync::DELIVERY_TYPE_PARTNER => 'info',
+                        PartnerOrderDeliverySync::DELIVERY_TYPE_CLIENT_ORDER => 'success',
                         DeliveryTypeLabels::TYPE_MANUAL => 'warning',
                         default => 'gray',
                     })
@@ -159,7 +161,11 @@ class DeliveriesTable
                     ->relationship(
                         'branch',
                         'name',
-                        modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name'),
+                        modifyQueryUsing: function (Builder $query): Builder {
+                            $query->where('is_active', true)->orderBy('name');
+
+                            return BranchAuthScope::applyToBranchFormSelect($query);
+                        },
                     )
                     ->searchable()
                     ->preload()

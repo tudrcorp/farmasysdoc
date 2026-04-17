@@ -6,6 +6,7 @@ use App\Enums\PurchaseStatus;
 use App\Models\Branch;
 use App\Models\Purchase;
 use App\Models\Supplier;
+use App\Support\Finance\DefaultVatRate;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -23,9 +24,11 @@ class PurchaseFactory extends Factory
     public function definition(): array
     {
         $subtotal = fake()->randomFloat(2, 100, 5000);
-        $taxTotal = round($subtotal * 0.19, 2);
+        $vatRate = DefaultVatRate::percent() / 100;
+        $taxTotal = round($subtotal * $vatRate, 2);
         $discount = 0.0;
-        $total = $subtotal + $taxTotal - $discount;
+        $total = round($subtotal + $taxTotal, 2);
+        $today = now()->toDateString();
 
         return [
             'purchase_number' => fake()->unique()->bothify('OC-2026-#####'),
@@ -36,12 +39,19 @@ class PurchaseFactory extends Factory
             'expected_delivery_at' => fake()->optional()->dateTimeBetween('+3 days', '+30 days'),
             'received_at' => null,
             'subtotal' => $subtotal,
+            'subtotal_exempt_amount' => 0.0,
+            'subtotal_taxable_amount' => $subtotal,
             'tax_total' => $taxTotal,
             'discount_total' => $discount,
+            'document_discount_percent' => 0.0,
+            'document_discount_amount' => 0.0,
+            'net_exempt_after_document_discount' => 0.0,
+            'net_taxable_after_document_discount' => $subtotal,
             'total' => $total,
             'supplier_invoice_number' => null,
             'supplier_control_number' => null,
-            'supplier_invoice_date' => null,
+            'supplier_invoice_date' => $today,
+            'registered_in_system_date' => $today,
             'payment_status' => 'pending',
             'notes' => null,
             'created_by' => null,

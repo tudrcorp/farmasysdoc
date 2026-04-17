@@ -5,10 +5,14 @@ namespace App\Filament\Resources\Products\Pages;
 use App\Enums\InventoryMovementType;
 use App\Filament\Resources\Products\Concerns\HasFarmaadminIosProductPage;
 use App\Filament\Resources\Products\ProductResource;
+use App\Filament\Resources\Purchases\PurchaseResource;
+use App\Filament\Resources\Sales\SaleResource;
 use App\Models\Branch;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\Product;
+use App\Models\User;
+use App\Support\Filament\FarmaadminDeliveryUserAccess;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Hidden;
@@ -29,6 +33,30 @@ class ViewProduct extends ViewRecord
     protected static string $resource = ProductResource::class;
 
     protected static ?string $title = 'Detalle del Producto';
+
+    public static function authorizeResourceAccess(): void
+    {
+        if (ProductResource::canAccess()) {
+            parent::authorizeResourceAccess();
+
+            return;
+        }
+
+        $user = auth()->user();
+        if (
+            $user instanceof User
+            && ! FarmaadminDeliveryUserAccess::denies(ProductResource::class)
+            && (SaleResource::canAccess() || PurchaseResource::canAccess())
+        ) {
+            if ($parentResource = static::getParentResource()) {
+                abort_unless($parentResource::canAccess(), 403);
+            }
+
+            return;
+        }
+
+        abort(403);
+    }
 
     protected function getHeaderActions(): array
     {

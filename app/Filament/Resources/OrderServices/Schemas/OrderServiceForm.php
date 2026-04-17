@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\OrderServices\Schemas;
 
+use App\Support\Filament\BranchAuthScope;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -11,6 +12,7 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Database\Eloquent\Builder;
 
 class OrderServiceForm
 {
@@ -87,7 +89,16 @@ class OrderServiceForm
                                     ->prefixIcon(Heroicon::User),
                                 Select::make('branch_id')
                                     ->label('Sucursal')
-                                    ->relationship('branch', 'name')
+                                    ->relationship(
+                                        'branch',
+                                        'name',
+                                        modifyQueryUsing: function (Builder $query): Builder {
+                                            $query->where('is_active', true)->orderBy('name');
+
+                                            return BranchAuthScope::applyToBranchFormSelect($query);
+                                        },
+                                    )
+                                    ->default(fn (): ?int => BranchAuthScope::suggestedBranchIdForOperationalForm())
                                     ->searchable()
                                     ->preload()
                                     ->native(false)

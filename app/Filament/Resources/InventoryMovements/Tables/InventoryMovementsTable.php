@@ -6,6 +6,7 @@ use App\Enums\InventoryMovementType;
 use App\Filament\Resources\InventoryMovements\InventoryMovementResource;
 use App\Models\Branch;
 use App\Models\InventoryMovement;
+use App\Support\Filament\BranchAuthScope;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -134,7 +135,11 @@ class InventoryMovementsTable
                     ->relationship(
                         name: 'inventory.branch',
                         titleAttribute: 'name',
-                        modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name'),
+                        modifyQueryUsing: function (Builder $query): Builder {
+                            $query->where('is_active', true)->orderBy('name');
+
+                            return BranchAuthScope::applyToBranchFormSelect($query);
+                        },
                     )
                     ->getOptionLabelFromRecordUsing(fn (Branch $record): string => $record->name)
                     ->searchable()

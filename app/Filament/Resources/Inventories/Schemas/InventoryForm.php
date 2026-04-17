@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Inventories\Schemas;
 use App\Models\ActiveIngredient;
 use App\Models\Inventory;
 use App\Models\Product;
+use App\Support\Filament\BranchAuthScope;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
@@ -39,8 +40,13 @@ class InventoryForm
                                     ->relationship(
                                         name: 'branch',
                                         titleAttribute: 'name',
-                                        modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name'),
+                                        modifyQueryUsing: function (Builder $query): Builder {
+                                            $query->where('is_active', true)->orderBy('name');
+
+                                            return BranchAuthScope::applyToBranchFormSelect($query);
+                                        },
                                     )
+                                    ->default(fn (): ?int => BranchAuthScope::suggestedBranchIdForOperationalForm())
                                     ->searchable()
                                     ->preload()
                                     ->native(false)

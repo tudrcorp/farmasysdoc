@@ -6,6 +6,8 @@ use App\Enums\SaleStatus;
 use App\Filament\Resources\Clients\ClientResource;
 use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Filament\Resources\Products\ProductResource;
+use App\Filament\Resources\Purchases\PurchaseResource;
+use App\Filament\Resources\Sales\SaleResource;
 use App\Models\Client;
 use App\Models\Inventory;
 use App\Models\PartnerCompany;
@@ -33,6 +35,10 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
     private static ?bool $productsTableHasSku = null;
 
     private static ?bool $productsTableHasSlug = null;
+
+    private static ?bool $productsTableHasModel = null;
+
+    private static ?bool $productsTableHasHealthRegistrationNumber = null;
 
     public function getResults(string $query): ?GlobalSearchResults
     {
@@ -81,7 +87,7 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
      */
     private function productGlobalSearchResults(string $term): Collection
     {
-        if (! ProductResource::canAccess()) {
+        if (! $this->userCanSearchProductsInGlobalBar()) {
             return collect();
         }
 
@@ -89,6 +95,8 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
 
         $hasSku = $this->productsTableHasSkuColumn();
         $hasSlug = $this->productsTableHasSlugColumn();
+        $hasModel = $this->productsTableHasModelColumn();
+        $hasHealthReg = $this->productsTableHasHealthRegistrationNumberColumn();
 
         $select = [
             'id',
@@ -110,32 +118,100 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
             $select[] = 'slug';
         }
 
-        $products = Product::query()
-            ->select($select)
-            ->where(function ($q) use ($like, $term, $hasSku, $hasSlug): void {
-                $q->where('name', 'like', $like)
-                    ->orWhere('barcode', 'like', $like)
-                    ->orWhere('brand', 'like', $like)
-                    ->orWhere('manufacturer', 'like', $like)
-                    ->orWhere('description', 'like', $like);
+        if ($hasModel) {
+            $select[] = 'model';
+        }
+
+        if ($hasHealthReg) {
+            $select[] = 'health_registration_number';
+        }
+
+        /** @var Collection<int, int> $exactIdCollection */
+        $exactIdCollection = Product::query()
+            ->where(function ($q) use ($term, $hasSku, $hasSlug): void {
+                $q->whereRaw('TRIM(COALESCE(barcode, ?)) = ?', ['', $term]);
 
                 if ($hasSku) {
-                    $q->orWhere('sku', 'like', $like);
+                    $q->orWhereRaw('TRIM(COALESCE(sku, ?)) = ?', ['', $term]);
                 }
 
                 if ($hasSlug) {
-                    $q->orWhere('slug', 'like', $like);
-                }
-
-                if ($term !== '') {
-                    $q->orWhere(function ($q2) use ($term): void {
-                        $q2->whereActiveIngredientContains($term);
-                    });
+                    $q->orWhereRaw('TRIM(COALESCE(slug, ?)) = ?', ['', $term]);
                 }
             })
-            ->orderBy('name')
-            ->limit(self::PRODUCT_LIMIT)
-            ->get();
+            ->pluck('id');
+
+        if (ctype_digit($term)) {
+            $numericId = (int) $term;
+            if ($numericId > 0) {
+                $exactIdCollection = $exactIdCollection
+                    ->merge(Product::query()->whereKey($numericId)->pluck('id'))
+                    ->unique()
+                    ->values();
+            }
+        }
+
+        /** @var list<int> $exactIds */
+        $exactIds = $exactIdCollection->map(fn (mixed $id): int => (int) $id)->unique()->values()->all();
+
+        $exactProducts = collect();
+        if ($exactIds !== []) {
+            $exactProducts = Product::query()
+                ->select($select)
+                ->whereIn('id', $exactIds)
+                ->orderBy('name')
+                ->limit(self::PRODUCT_LIMIT)
+                ->get();
+        }
+
+        $remaining = self::PRODUCT_LIMIT - $exactProducts->count();
+
+        $likeProducts = collect();
+        if ($remaining > 0) {
+            $likeQuery = Product::query()
+                ->select($select)
+                ->where(function ($q) use ($like, $term, $hasSku, $hasSlug, $hasModel, $hasHealthReg): void {
+                    $q->where('name', 'like', $like)
+                        ->orWhere('barcode', 'like', $like)
+                        ->orWhere('brand', 'like', $like)
+                        ->orWhere('manufacturer', 'like', $like)
+                        ->orWhere('description', 'like', $like);
+
+                    if ($hasSku) {
+                        $q->orWhere('sku', 'like', $like);
+                    }
+
+                    if ($hasSlug) {
+                        $q->orWhere('slug', 'like', $like);
+                    }
+
+                    if ($hasModel) {
+                        $q->orWhere('model', 'like', $like);
+                    }
+
+                    if ($hasHealthReg) {
+                        $q->orWhere('health_registration_number', 'like', $like);
+                    }
+
+                    if ($term !== '') {
+                        $q->orWhere(function ($q2) use ($term): void {
+                            $q2->whereActiveIngredientContains($term);
+                        });
+                    }
+                });
+
+            if ($exactIds !== []) {
+                $likeQuery->whereNotIn('id', $exactIds);
+            }
+
+            $likeProducts = $likeQuery
+                ->orderBy('name')
+                ->limit($remaining)
+                ->get();
+        }
+
+        /** @var \Illuminate\Database\Eloquent\Collection<int, Product> $products */
+        $products = $exactProducts->concat($likeProducts);
 
         $productIds = $products->pluck('id')->all();
 
@@ -182,7 +258,7 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
 
         return $products->filter(function (Product $product): bool {
             return ProductResource::canView($product);
-        })->map(function (Product $product) use ($stockByProduct, $stockByBranchPerProduct, $hasSku, $hasSlug): GlobalSearchResult {
+        })->map(function (Product $product) use ($stockByProduct, $stockByBranchPerProduct, $hasSku, $hasSlug, $hasModel, $hasHealthReg): GlobalSearchResult {
             $url = ProductResource::getUrl('view', ['record' => $product], isAbsolute: false);
             $stock = $stockByProduct[$product->id] ?? 0.0;
 
@@ -196,6 +272,16 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
 
             if ($hasSlug) {
                 $details['Slug'] = filled($product->slug) ? (string) $product->slug : '—';
+            }
+
+            if ($hasModel) {
+                $details['Modelo / ref.'] = filled($product->model) ? (string) $product->model : '—';
+            }
+
+            if ($hasHealthReg) {
+                $details['Reg. sanitario'] = filled($product->health_registration_number)
+                    ? (string) $product->health_registration_number
+                    : '—';
             }
 
             $details = array_merge($details, [
@@ -465,5 +551,33 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
     private function productsTableHasSlugColumn(): bool
     {
         return self::$productsTableHasSlug ??= Schema::hasColumn('products', 'slug');
+    }
+
+    private function productsTableHasModelColumn(): bool
+    {
+        return self::$productsTableHasModel ??= Schema::hasColumn('products', 'model');
+    }
+
+    private function productsTableHasHealthRegistrationNumberColumn(): bool
+    {
+        return self::$productsTableHasHealthRegistrationNumber ??= Schema::hasColumn('products', 'health_registration_number');
+    }
+
+    /**
+     * Misma línea operativa que caja y compras: no exigir rol administrador solo para encontrar un SKU/barras en la barra global.
+     */
+    private function userCanSearchProductsInGlobalBar(): bool
+    {
+        if (! auth()->user() instanceof User) {
+            return false;
+        }
+
+        if (FarmaadminDeliveryUserAccess::denies(ProductResource::class)) {
+            return false;
+        }
+
+        return ProductResource::canAccess()
+            || SaleResource::canAccess()
+            || PurchaseResource::canAccess();
     }
 }

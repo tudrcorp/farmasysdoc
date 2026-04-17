@@ -5,6 +5,7 @@ namespace App\Services\Fiscal;
 use App\Models\Client;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Support\Finance\DefaultVatRate;
 use Illuminate\Support\Str;
 
 /**
@@ -52,17 +53,39 @@ final class ThermalFiscalReceiptFormatter
             $lines[] = str_repeat('-', $width);
         }
 
-        $subtotalBs = $this->toBs((float) $sale->subtotal, $rate);
-        $taxBs = $this->toBs((float) $sale->tax_total, $rate);
+        $subtotalUsd = (float) $sale->subtotal;
+        $discountUsd = (float) $sale->discount_total;
+        $taxUsd = (float) $sale->tax_total;
+        $igtfUsd = (float) ($sale->igtf_total ?? 0);
+
+        $subtotalBs = $this->toBs($subtotalUsd, $rate);
+        $discountBs = $this->toBs($discountUsd, $rate);
+        $taxBs = $this->toBs($taxUsd, $rate);
+        $igtfBs = $this->toBs($igtfUsd, $rate);
         $totalBs = $this->toBs((float) $sale->total, $rate);
 
         $taxPercent = $this->dominantTaxPercent($sale);
         $taxTag = $this->taxTagLabel($taxPercent);
 
         $lines[] = $this->row('SUBTTL', $this->bs($subtotalBs), $width);
+        if ($discountUsd > 0.00001) {
+            $lines[] = $this->row('DESCUENTO', $this->bs($discountBs), $width);
+        }
         $lines[] = str_repeat('-', $width);
-        $lines[] = $this->row('BI '.$taxTag, $this->bs($subtotalBs), $width);
-        $lines[] = $this->row('IVA '.$taxTag, $this->bs($taxBs), $width);
+        $netMerchUsd = max(0.0, round($subtotalUsd - $discountUsd, 2));
+        $netMerchBs = $this->toBs($netMerchUsd, $rate);
+        $lines[] = $this->row('BASE NETA', $this->bs($netMerchBs), $width);
+        if ($taxUsd > 0.00001) {
+            $lines[] = $this->row('IVA '.$taxTag, $this->bs($taxBs), $width);
+        }
+        if ($igtfUsd > 0.00001) {
+            $invoiceBeforeIgtf = max(0.0, $netMerchUsd + $taxUsd);
+            $igtfPct = $invoiceBeforeIgtf > 0.00001
+                ? round($igtfUsd / $invoiceBeforeIgtf * 100, 2)
+                : 0.0;
+            $igtfTag = 'G '.rtrim(rtrim(number_format($igtfPct, 2, ',', '.'), '0'), ',').'%';
+            $lines[] = $this->row('IGTF '.$igtfTag, $this->bs($igtfBs), $width);
+        }
         $lines[] = str_repeat('-', $width);
         $lines[] = $this->row('TOTAL', $this->bs($totalBs), $width);
         $lines[] = $this->row($this->paymentLabel($sale->payment_method), $this->bs($totalBs), $width);
@@ -165,14 +188,19 @@ final class ThermalFiscalReceiptFormatter
 
     private function dominantTaxPercent(Sale $sale): float
     {
-        $sub = (float) $sale->subtotal;
         $tax = (float) $sale->tax_total;
 
-        if ($sub <= 0.00001 || $tax <= 0.00001) {
+        if ($tax <= 0.00001) {
             return 0.0;
         }
 
-        return round($tax / $sub * 100, 2);
+        $netMerch = max(0.0, round((float) $sale->subtotal - (float) $sale->discount_total, 2));
+
+        if ($netMerch <= 0.00001) {
+            return DefaultVatRate::percent();
+        }
+
+        return round($tax / $netMerch * 100, 2);
     }
 
     private function taxTagLabel(float $percent): string

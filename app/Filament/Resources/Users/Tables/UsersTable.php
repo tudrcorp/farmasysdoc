@@ -7,6 +7,7 @@ use App\Filament\Resources\Users\UserResource;
 use App\Models\Branch;
 use App\Models\Rol;
 use App\Models\User;
+use App\Support\Filament\BranchAuthScope;
 use App\Support\Users\UserRoleLabels;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -188,7 +189,11 @@ class UsersTable
                     ->relationship(
                         name: 'branch',
                         titleAttribute: 'name',
-                        modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name'),
+                        modifyQueryUsing: function (Builder $query): Builder {
+                            $query->where('is_active', true)->orderBy('name');
+
+                            return BranchAuthScope::applyToBranchFormSelect($query);
+                        },
                     )
                     ->getOptionLabelFromRecordUsing(
                         fn (Branch $record): string => filled($record->code)

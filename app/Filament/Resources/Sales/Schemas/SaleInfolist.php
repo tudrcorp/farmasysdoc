@@ -88,7 +88,7 @@ class SaleInfolist
                         Grid::make([
                             'default' => 1,
                             'sm' => 2,
-                            'lg' => 4,
+                            'lg' => 5,
                         ])
                             ->schema([
                                 TextEntry::make('subtotal')
@@ -96,9 +96,14 @@ class SaleInfolist
                                     ->money()
                                     ->icon(Heroicon::Banknotes),
                                 TextEntry::make('tax_total')
-                                    ->label('Impuestos')
+                                    ->label('IVA')
                                     ->money()
                                     ->icon(Heroicon::ReceiptPercent),
+                                TextEntry::make('igtf_total')
+                                    ->label('IGTF')
+                                    ->money()
+                                    ->placeholder('—')
+                                    ->icon(Heroicon::Banknotes),
                                 TextEntry::make('discount_total')
                                     ->label('Descuentos')
                                     ->money()

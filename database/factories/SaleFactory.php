@@ -23,8 +23,9 @@ class SaleFactory extends Factory
     {
         $subtotal = fake()->randomFloat(2, 20, 500);
         $taxTotal = 0.0;
+        $igtfTotal = 0.0;
         $discount = 0;
-        $total = $subtotal + $taxTotal - $discount;
+        $total = $subtotal + $taxTotal + $igtfTotal - $discount;
 
         return [
             'sale_number' => fake()->unique()->bothify('VTA-2026-#####'),
@@ -33,6 +34,7 @@ class SaleFactory extends Factory
             'status' => SaleStatus::Completed,
             'subtotal' => $subtotal,
             'tax_total' => $taxTotal,
+            'igtf_total' => $igtfTotal,
             'discount_total' => $discount,
             'total' => $total,
             'payment_method' => 'efectivo_usd',

@@ -7,6 +7,7 @@ use App\Enums\OrderStatus;
 use App\Models\Branch;
 use App\Models\Client;
 use App\Models\Order;
+use App\Support\Finance\DefaultVatRate;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -24,7 +25,8 @@ class OrderFactory extends Factory
     public function definition(): array
     {
         $subtotal = fake()->randomFloat(2, 30, 800);
-        $taxTotal = round($subtotal * 0.19, 2);
+        $vatRate = DefaultVatRate::percent() / 100;
+        $taxTotal = round($subtotal * $vatRate, 2);
         $discount = 0.0;
         $total = $subtotal + $taxTotal - $discount;
 

@@ -5,6 +5,7 @@ namespace App\Filament\Resources\ProductTransfers\Schemas;
 use App\Enums\ProductTransferStatus;
 use App\Models\Product;
 use App\Models\User;
+use App\Support\Filament\BranchAuthScope;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
@@ -185,7 +186,9 @@ class ProductTransferForm
                                         name: 'toBranch',
                                         titleAttribute: 'name',
                                         modifyQueryUsing: function (Builder $query): Builder {
-                                            return $query->where('is_active', true)->orderBy('name');
+                                            $query->where('is_active', true)->orderBy('name');
+
+                                            return BranchAuthScope::applyToBranchFormSelect($query);
                                         },
                                     )
                                     ->searchable()

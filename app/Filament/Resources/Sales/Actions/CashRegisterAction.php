@@ -12,6 +12,8 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Services\Dolar\DolarApiDolaresService;
 use App\Services\Dolar\DolarApiEstadoService;
+use App\Support\Finance\DefaultIgtfRate;
+use App\Support\Finance\DefaultVatRate;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
@@ -499,7 +501,7 @@ final class CashRegisterAction
                             ])
                             ->schema([
                                 Section::make('Total a cobrar')
-                                    // ->description('IVA del producto solo sobre la parte cobrada en bolívares (pago en Bs. o mixto). Pagos solo en USD sin IVA. Los descuentos no aplican si el pago es solo en dólares.')
+                                    ->description('IVA solo en productos con «Grava IVA». IGTF (configurable) solo si el cobro es Efectivo USD. Descuentos globales no aplican en pagos solo en dólares (transferencia/Zelle).')
                                     ->icon(Heroicon::Banknotes)
                                     ->iconColor('primary')
                                     ->schema([
@@ -517,6 +519,15 @@ final class CashRegisterAction
                                                     ->dehydrated(false)
                                                     ->extraEntryWrapperAttributes([
                                                         'class' => 'farmadoc-pos-total-ios__amount',
+                                                    ]),
+                                                TextEntry::make('pos_totals_breakdown')
+                                                    ->hiddenLabel()
+                                                    ->alignment(Alignment::Center)
+                                                    ->html()
+                                                    ->state(fn (Get $get): HtmlString => self::buildPosTotalsBreakdownHtml($get))
+                                                    ->dehydrated(false)
+                                                    ->extraEntryWrapperAttributes([
+                                                        'class' => 'farmadoc-pos-total-ios__breakdown text-xs text-gray-600 dark:text-gray-400',
                                                     ]),
                                                 TextEntry::make('pos_total_banner_ves')
                                                     ->hiddenLabel()
@@ -644,12 +655,17 @@ final class CashRegisterAction
                         'sku',
                         'sale_price',
                         'cost_price',
+                        'applies_vat',
                     ])
                     ->whereIn('id', $productIds)
                     ->get()
                     ->keyBy('id');
 
                 $branchId = (int) $branchId;
+
+                foreach ($productIds as $pid) {
+                    self::ensurePosBranchInventoryRecord($branchId, (int) $pid);
+                }
 
                 $inventoryByProductId = Inventory::query()
                     ->where('branch_id', $branchId)
@@ -667,11 +683,12 @@ final class CashRegisterAction
                         continue;
                     }
 
-                    $inventory = $inventoryByProductId->get($productId);
+                    $inventory = $inventoryByProductId->get($productId)
+                        ?? self::ensurePosBranchInventoryRecord($branchId, $productId);
                     if (! $inventory) {
                         Notification::make()
-                            ->title('Producto no disponible en la sucursal seleccionada')
-                            ->body('Revise el carrito: '.$product->name.' no tiene inventario en esta sucursal.')
+                            ->title('No se pudo preparar el inventario')
+                            ->body('Revise el carrito: '.$product->name.'.')
                             ->danger()
                             ->send();
 
@@ -704,6 +721,7 @@ final class CashRegisterAction
 
                 $subtotal = $pricing['subtotal'];
                 $taxTotal = $pricing['tax_total'];
+                $igtfTotal = $pricing['igtf_total'];
                 $discountTotal = $pricing['discount_total'];
                 $documentTotal = $pricing['document_total'];
 
@@ -783,7 +801,7 @@ final class CashRegisterAction
                     ?? 'sistema';
 
                 try {
-                    $sale = DB::transaction(function () use ($branchId, $data, $payloadItems, $lines, $products, $subtotal, $taxTotal, $discountTotal, $documentTotal, $actor, $paymentMethod, $paymentUsd, $paymentVes, $paymentReference, $bcvVesPerUsd): Sale {
+                    $sale = DB::transaction(function () use ($branchId, $data, $payloadItems, $lines, $products, $subtotal, $taxTotal, $igtfTotal, $discountTotal, $documentTotal, $actor, $paymentMethod, $paymentUsd, $paymentVes, $paymentReference, $bcvVesPerUsd): Sale {
                         $qtyByProduct = [];
                         foreach ($lines as $row) {
                             $pid = (int) $row['product_id'];
@@ -792,6 +810,8 @@ final class CashRegisterAction
                         ksort($qtyByProduct);
 
                         foreach ($qtyByProduct as $productId => $totalQty) {
+                            CashRegisterAction::ensurePosBranchInventoryRecord($branchId, (int) $productId);
+
                             $inventory = Inventory::query()
                                 ->where('branch_id', $branchId)
                                 ->where('product_id', $productId)
@@ -820,6 +840,7 @@ final class CashRegisterAction
                             'status' => SaleStatus::Completed,
                             'subtotal' => round($subtotal, 2),
                             'tax_total' => round($taxTotal, 2),
+                            'igtf_total' => round($igtfTotal, 2),
                             'discount_total' => round($discountTotal, 2),
                             'total' => $documentTotal,
                             'payment_method' => $paymentMethod,
@@ -845,6 +866,8 @@ final class CashRegisterAction
                             if (! $product) {
                                 continue;
                             }
+
+                            CashRegisterAction::ensurePosBranchInventoryRecord($branchId, $productId);
 
                             $inventory = Inventory::query()
                                 ->where('branch_id', $branchId)
@@ -961,6 +984,7 @@ final class CashRegisterAction
      * @return array{
      *     subtotal: float,
      *     tax_total: float,
+     *     igtf_total: float,
      *     discount_total: float,
      *     document_total: float,
      *     ves_tax_fraction: float,
@@ -976,6 +1000,7 @@ final class CashRegisterAction
             return [
                 'subtotal' => 0.0,
                 'tax_total' => 0.0,
+                'igtf_total' => 0.0,
                 'discount_total' => 0.0,
                 'document_total' => 0.0,
                 'ves_tax_fraction' => 0.0,
@@ -983,38 +1008,77 @@ final class CashRegisterAction
             ];
         }
 
-        $lineSubtotals = [];
+        $lineGross = [];
 
         foreach ($lines as $line) {
             $product = $line['product'];
             $qty = $line['quantity'];
             $unit = (float) ($product->sale_price ?? 0);
-            $lineSubtotals[] = round($qty * $unit, 2);
+            $lineGross[] = round($qty * $unit, 2);
         }
 
-        $subtotal = round(array_sum($lineSubtotals), 2);
+        $subtotal = round(array_sum($lineGross), 2);
 
         $discountTotal = self::isUsdOnlyPaymentMethod($paymentMethod)
             ? 0.0
             : max(0.0, round($discountRequested, 2));
 
-        $taxTotal = 0.0;
-        $documentTotal = round($subtotal - $discountTotal, 2);
+        $discountTotal = min($discountTotal, $subtotal);
 
+        $netMerchandise = round($subtotal - $discountTotal, 2);
+
+        $ratio = $subtotal > 0.00001 ? $netMerchandise / $subtotal : 0.0;
+
+        $lineNets = [];
+        foreach ($lineGross as $g) {
+            $lineNets[] = round($g * $ratio, 2);
+        }
+
+        $netsSum = round(array_sum($lineNets), 2);
+        $drift = round($netMerchandise - $netsSum, 2);
+        if ($lineNets !== [] && abs($drift) >= 0.001) {
+            $last = count($lineNets) - 1;
+            $lineNets[$last] = round($lineNets[$last] + $drift, 2);
+        }
+
+        $vatRate = DefaultVatRate::percent();
         $perLine = [];
+        $taxTotal = 0.0;
 
         foreach ($lines as $i => $line) {
-            $ls = $lineSubtotals[$i];
+            /** @var Product $product */
+            $product = $line['product'];
+            $lineNet = $lineNets[$i] ?? 0.0;
+            $appliesVat = (bool) ($product->applies_vat ?? false);
+            $tax = $appliesVat && $vatRate > 0
+                ? round($lineNet * $vatRate / 100, 2)
+                : 0.0;
+            $taxTotal += $tax;
             $perLine[] = [
-                'line_subtotal' => $ls,
-                'tax_amount' => 0.0,
-                'line_total' => $ls,
+                'line_subtotal' => $lineNet,
+                'tax_amount' => $tax,
+                'line_total' => round($lineNet + $tax, 2),
             ];
         }
+
+        $taxTotal = round($taxTotal, 2);
+
+        $invoiceBeforeIgtf = round($netMerchandise + $taxTotal, 2);
+
+        $igtfTotal = 0.0;
+        if ($paymentMethod === 'efectivo_usd') {
+            $igtfRate = DefaultIgtfRate::percent();
+            if ($igtfRate > 0.00001 && $invoiceBeforeIgtf > 0.00001) {
+                $igtfTotal = round($invoiceBeforeIgtf * $igtfRate / 100, 2);
+            }
+        }
+
+        $documentTotal = round($invoiceBeforeIgtf + $igtfTotal, 2);
 
         return [
             'subtotal' => $subtotal,
             'tax_total' => $taxTotal,
+            'igtf_total' => $igtfTotal,
             'discount_total' => $discountTotal,
             'document_total' => $documentTotal,
             'ves_tax_fraction' => 0.0,
@@ -1065,6 +1129,9 @@ final class CashRegisterAction
 
             $inventory = self::posBranchInventory($branchId, $productId);
             if (! $inventory instanceof Inventory) {
+                $inventory = self::ensurePosBranchInventoryRecord($branchId, $productId);
+            }
+            if (! $inventory instanceof Inventory) {
                 continue;
             }
 
@@ -1095,34 +1162,47 @@ final class CashRegisterAction
         ];
     }
 
-    private static function computeSaleTotal(Get $get): float
+    /**
+     * @return (
+     *     array{
+     *         subtotal: float,
+     *         tax_total: float,
+     *         igtf_total: float,
+     *         discount_total: float,
+     *         document_total: float,
+     *         ves_tax_fraction: float,
+     *         per_line: list<array{line_subtotal: float, tax_amount: float, line_total: float}>,
+     *     }
+     * )|null
+     */
+    private static function posPricingFromGet(Get $get): ?array
     {
         $branchId = Auth::user()?->branch_id;
         if (blank($branchId)) {
-            return 0.0;
+            return null;
         }
 
         $rows = $get('line_items') ?? [];
         if (! is_array($rows)) {
-            return 0.0;
-        }
-
-        $productIds = collect($rows)->pluck('product_id')->filter()->unique()->map(fn (mixed $id): int => (int) $id)->values()->all();
-        if ($productIds === []) {
-            return 0.0;
+            return null;
         }
 
         $valid = self::buildValidPosLinesFromRaw($rows, (int) $branchId);
         if ($valid === []) {
-            return 0.0;
+            return null;
         }
 
         $paymentMethod = (string) ($get('payment_method') ?? 'efectivo_usd');
         $discountRequested = (float) ($get('discount_total') ?? 0);
 
-        $pricing = self::finalizePosPricingFromValidLines($valid, $paymentMethod, $discountRequested);
+        return self::finalizePosPricingFromValidLines($valid, $paymentMethod, $discountRequested);
+    }
 
-        return $pricing['document_total'];
+    private static function computeSaleTotal(Get $get): float
+    {
+        $pricing = self::posPricingFromGet($get);
+
+        return $pricing !== null ? $pricing['document_total'] : 0.0;
     }
 
     /**
@@ -1186,6 +1266,7 @@ final class CashRegisterAction
                 'barcode',
                 'sale_price',
                 'cost_price',
+                'applies_vat',
             ];
             if (SchemaFacade::hasColumn('products', 'sku')) {
                 $select[] = 'sku';
@@ -1283,6 +1364,95 @@ final class CashRegisterAction
     }
 
     /**
+     * Coincidencia exacta en catálogo (misma prioridad que compras: barras, SKU, slug).
+     */
+    private static function resolvePosProductIdByExactCatalogCode(string $term): ?int
+    {
+        $term = trim($term);
+        if ($term === '') {
+            return null;
+        }
+
+        $base = Product::query()->where('is_active', true);
+
+        $id = (clone $base)->where('barcode', $term)->value('id');
+        if (filled($id)) {
+            return (int) $id;
+        }
+
+        if (SchemaFacade::hasColumn('products', 'sku')) {
+            $id = (clone $base)->where('sku', $term)->value('id');
+            if (filled($id)) {
+                return (int) $id;
+            }
+        }
+
+        if (SchemaFacade::hasColumn('products', 'slug')) {
+            $id = (clone $base)->where('slug', $term)->value('id');
+            if (filled($id)) {
+                return (int) $id;
+            }
+        }
+
+        return null;
+    }
+
+    private static function mergePosInventoryCache(int $branchId, int $productId, Inventory $inventory): void
+    {
+        $invKey = 'cash_register.pos_inventory.'.$branchId;
+        /** @var array<int, Inventory> $map */
+        $map = request()->attributes->get($invKey, []);
+        if (! is_array($map)) {
+            $map = [];
+        }
+        $map[$productId] = $inventory;
+        request()->attributes->set($invKey, $map);
+    }
+
+    /**
+     * Garantiza fila de inventario en la sucursal (p. ej. producto recién dado de alta o solo comprado en otra sede).
+     */
+    private static function ensurePosBranchInventoryRecord(int $branchId, int $productId): ?Inventory
+    {
+        if ($branchId <= 0 || $productId <= 0) {
+            return null;
+        }
+
+        $existing = Inventory::query()
+            ->where('branch_id', $branchId)
+            ->where('product_id', $productId)
+            ->first();
+
+        if ($existing instanceof Inventory) {
+            self::mergePosInventoryCache($branchId, $productId, $existing);
+
+            return $existing;
+        }
+
+        $actor = Auth::user()?->email
+            ?? Auth::user()?->name
+            ?? 'sistema';
+
+        $inventory = Inventory::query()->firstOrCreate(
+            [
+                'branch_id' => $branchId,
+                'product_id' => $productId,
+            ],
+            [
+                'quantity' => 0,
+                'reserved_quantity' => 0,
+                'allow_negative_stock' => false,
+                'created_by' => $actor,
+                'updated_by' => $actor,
+            ],
+        );
+
+        self::mergePosInventoryCache($branchId, $productId, $inventory);
+
+        return $inventory;
+    }
+
+    /**
      * Búsqueda POS: JOIN directo (sin whereHas anidado), coincidencia exacta por código de barras primero.
      *
      * @return array<int, string>
@@ -1320,6 +1490,14 @@ final class CashRegisterAction
                     ->value('products.id');
             }
 
+            // Misma lógica que la compra: producto activo en catálogo aunque aún no tenga fila en inventarios de esta sucursal.
+            if (blank($exactProductId)) {
+                $catalogId = self::resolvePosProductIdByExactCatalogCode($term);
+                if ($catalogId !== null) {
+                    $exactProductId = $catalogId;
+                }
+            }
+
             if (filled($exactProductId)) {
                 $id = (int) $exactProductId;
                 $selectCols = ['id', 'name', 'barcode'];
@@ -1333,14 +1511,18 @@ final class CashRegisterAction
                     ->first();
 
                 if ($row !== null) {
+                    self::ensurePosBranchInventoryRecord($branchId, $id);
                     self::warmPosDataForBranch($branchId, [$id]);
                     $label = filled($row->barcode)
                         ? $row->barcode.' · '.$row->name
                         : $row->name;
-                    $inv = self::posBranchInventory($branchId, $id);
                     $prod = self::posProduct($id);
-                    if ($inv instanceof Inventory && $prod instanceof Product) {
+                    if ($prod instanceof Product) {
                         $label .= ' · '.self::formatMoney((float) ($prod->sale_price ?? 0));
+                    }
+                    $inv = self::posBranchInventory($branchId, $id);
+                    if (! $inv instanceof Inventory || (float) $inv->quantity <= 0) {
+                        $label .= ' · Sin existencias en sucursal (stock 0 hasta recepción)';
                     }
 
                     return [$id => $label];
@@ -1418,6 +1600,7 @@ final class CashRegisterAction
             'payment_method' => 'efectivo_usd',
             'mixed_usd_paid' => null,
             'reference' => null,
+            'discount_total' => 0.0,
             'line_items' => [
                 [
                     'product_id' => null,
@@ -1645,6 +1828,37 @@ final class CashRegisterAction
             'mixed' => max(0.0, $documentTotalUsd - min($documentTotalUsd, max(0.0, $mixedUsdPaid))) > 0.00001,
             default => false,
         };
+    }
+
+    private static function buildPosTotalsBreakdownHtml(Get $get): HtmlString
+    {
+        $p = self::posPricingFromGet($get);
+        if ($p === null) {
+            return new HtmlString('');
+        }
+
+        $lines = [];
+        $lines[] = 'Subtotal '.self::formatMoney($p['subtotal']);
+
+        if ($p['discount_total'] > 0.00001) {
+            $lines[] = 'Descuento −'.self::formatMoney($p['discount_total']);
+        }
+
+        if ($p['tax_total'] > 0.00001) {
+            $lines[] = 'IVA ('.rtrim(rtrim(number_format(DefaultVatRate::percent(), 2, '.', ''), '0'), '.').'%) '.self::formatMoney($p['tax_total']);
+        }
+
+        if ($p['igtf_total'] > 0.00001) {
+            $lines[] = 'IGTF ('.rtrim(rtrim(number_format(DefaultIgtfRate::percent(), 2, '.', ''), '0'), '.').'%) '.self::formatMoney($p['igtf_total']);
+        }
+
+        $html = '<div class="farmadoc-pos-breakdown space-y-0.5">';
+        foreach ($lines as $line) {
+            $html .= '<div>'.e($line).'</div>';
+        }
+        $html .= '</div>';
+
+        return new HtmlString($html);
     }
 
     private static function buildTotalVesBannerHtml(Get $get): HtmlString

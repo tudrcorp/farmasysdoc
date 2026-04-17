@@ -4,6 +4,9 @@ namespace App\Filament\Resources\Purchases\Schemas;
 
 use App\Models\Product;
 use App\Models\Supplier;
+use App\Support\Filament\BranchAuthScope;
+use App\Support\Finance\DefaultVatRate;
+use App\Support\Purchases\LotExpirationMonthYear;
 use App\Support\Purchases\PurchaseDocumentTotals;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
@@ -32,19 +35,16 @@ class PurchaseForm
                     ->description('Datos del documento del proveedor, referencia interna, proveedor y sucursal de recepción.')
                     ->icon(Heroicon::ClipboardDocumentCheck)
                     ->schema([
-                        TextInput::make('purchase_number')
+                        Placeholder::make('purchase_number_notice')
                             ->label('Número de orden de compra')
-                            ->placeholder('Ej. OC-2026-0001')
-                            ->helperText('Referencia única para trazabilidad con el proveedor y contabilidad.')
-                            ->required()
-                            ->maxLength(255)
-                            ->unique(ignoreRecord: true)
-                            ->prefixIcon(Heroicon::Hashtag)
-                            ->autocomplete('off')
+                            ->helperText(
+                                'Se asigna solo al guardar: OC-, año de registro, guion e ID interno con cuatro dígitos (ej. OC-'.date('Y').'-0042).',
+                            )
+                            ->content('Se generará al guardar la compra.')
                             ->columnSpanFull(),
                         Grid::make([
                             'default' => 1,
-                            'sm' => 3,
+                            'sm' => 2,
                         ])
                             ->schema([
                                 TextInput::make('supplier_invoice_number')
@@ -56,10 +56,26 @@ class PurchaseForm
                                     ->label('N° de control')
                                     ->maxLength(255)
                                     ->prefixIcon(Heroicon::FingerPrint),
+                            ]),
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                        ])
+                            ->schema([
                                 DatePicker::make('supplier_invoice_date')
                                     ->label('Fecha de la factura')
+                                    ->helperText('Fecha impresa en la factura del proveedor.')
+                                    ->required()
+                                    ->default(now())
                                     ->native(false)
                                     ->prefixIcon(Heroicon::CalendarDays),
+                                DatePicker::make('registered_in_system_date')
+                                    ->label('Fecha de carga en el sistema')
+                                    ->helperText('Fecha en que registras esta compra en el sistema.')
+                                    ->required()
+                                    ->default(now())
+                                    ->native(false)
+                                    ->prefixIcon(Heroicon::Clock),
                             ]),
                         Grid::make([
                             'default' => 1,
@@ -67,7 +83,7 @@ class PurchaseForm
                         ])
                             ->schema([
                                 Select::make('supplier_id')
-                                    ->label('Proveedor')
+                                    ->label('RIF del proveedor')
                                     ->searchable()
                                     ->searchDebounce(300)
                                     ->getSearchResultsUsing(
@@ -78,28 +94,44 @@ class PurchaseForm
                                     )
                                     ->native(false)
                                     ->required()
-                                    ->helperText('Busque por nombre comercial, razón social, código interno (PROV-…) o RIF / NIT.')
+                                    ->live()
+                                    ->afterStateUpdated(function (?string $state, Set $set): void {
+                                        $set('supplier_display_name', self::supplierDisplayNameForSupplierId($state));
+                                    })
+                                    ->helperText('Busque por RIF, nombre comercial, razón social o código PROV-… El nombre se completa solo al elegir.')
+                                    ->prefixIcon(Heroicon::FingerPrint),
+                                TextInput::make('supplier_display_name')
+                                    ->label('Nombre del proveedor')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->placeholder('—')
                                     ->prefixIcon(Heroicon::Truck),
                                 Select::make('branch_id')
                                     ->label('Sucursal de recepción')
                                     ->relationship(
                                         name: 'branch',
                                         titleAttribute: 'name',
-                                        modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name'),
+                                        modifyQueryUsing: function (Builder $query): Builder {
+                                            $query->where('is_active', true)->orderBy('name');
+
+                                            return BranchAuthScope::applyToBranchFormSelect($query);
+                                        },
                                     )
+                                    ->default(fn (): ?int => BranchAuthScope::suggestedBranchIdForOperationalForm())
                                     ->searchable()
                                     ->preload()
                                     ->native(false)
                                     ->required()
                                     ->helperText('Donde ingresa o registra la mercancía.')
-                                    ->prefixIcon(Heroicon::BuildingStorefront),
+                                    ->prefixIcon(Heroicon::BuildingStorefront)
+                                    ->columnSpanFull(),
                             ]),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
 
                 Section::make('Líneas de compra')
-                    ->description('Busque por nombre o código de barras y pulse Enter para añadir una fila. Si el producto no existe, se abrirá el alta rápida. Los totales inferiores se recalculan desde las líneas.')
+                    ->description('Busque por nombre o código de barras y pulse Enter para añadir una fila. El descuento % se toma del producto (ajustable en la línea). El IVA lo define el catálogo (Grava IVA) y la tasa global: primero se aplica el descuento al subtotal bruto y el IVA corre sobre la base resultante. Los productos marcados como “requieren vencimiento en compras” muestran la columna de lote (mm/AAAA) y al guardar se registran en la tabla de lotes con el N° de factura.')
                     ->icon(Heroicon::Cube)
                     ->schema([
                         TextInput::make('purchase_line_product_search')
@@ -124,11 +156,12 @@ class PurchaseForm
                                 self::applyPurchaseDocumentTotalsFromItems($set, $get);
                             })
                             ->table([
-                                TableColumn::make('Nombre · código')->width('24%'),
+                                TableColumn::make('Nombre · código')->width('20%'),
                                 TableColumn::make('Costo'),
                                 TableColumn::make('Desc. %'),
-                                TableColumn::make('IVA %'),
+                                TableColumn::make('IVA'),
                                 TableColumn::make('Cant.'),
+                                TableColumn::make('Venc. (mm/AAAA)')->width('7rem'),
                                 TableColumn::make('Total'),
                             ])
                             ->schema([
@@ -141,7 +174,10 @@ class PurchaseForm
                                 Hidden::make('line_subtotal')
                                     ->default(0)
                                     ->dehydrated(true),
-                                Hidden::make('tax_amount')
+                                Hidden::make('line_vat_percent')
+                                    ->default(0)
+                                    ->dehydrated(true),
+                                Hidden::make('line_total')
                                     ->default(0)
                                     ->dehydrated(true),
                                 Placeholder::make('product_line_label')
@@ -151,7 +187,8 @@ class PurchaseForm
                                     ->label('Costo')
                                     ->numeric()
                                     ->minValue(0)
-                                    ->step(0.01)
+                                    ->step(0.00000001)
+                                    ->rule('decimal:0,8')
                                     ->prefix('$')
                                     ->default(0)
                                     ->required()
@@ -167,22 +204,19 @@ class PurchaseForm
                                     ->step(0.01)
                                     ->default(0)
                                     ->suffix('%')
+                                    // ->helperText('Viene del % de descuento del producto; puede corregirse según la factura del proveedor.')
                                     ->live(onBlur: true)
                                     ->afterStateUpdated(function (Set $set, Get $get): void {
                                         self::syncPurchaseLineItemComputedAmounts($set, $get);
                                     }),
-                                TextInput::make('line_vat_percent')
-                                    ->label('IVA %')
+                                TextInput::make('tax_amount')
+                                    ->label('IVA')
                                     ->numeric()
-                                    ->minValue(0)
-                                    ->maxValue(100)
-                                    ->step(0.01)
-                                    ->default(0)
-                                    ->suffix('%')
-                                    ->live(onBlur: true)
-                                    ->afterStateUpdated(function (Set $set, Get $get): void {
-                                        self::syncPurchaseLineItemComputedAmounts($set, $get);
-                                    }),
+                                    ->prefix('$')
+                                    ->disabled()
+                                    ->dehydrated(true)
+                                    ->default(0),
+                                // ->helperText('Importe de IVA sobre la base neta (tras descuento), según el producto y la tasa global.'),
                                 TextInput::make('quantity_ordered')
                                     ->label('Cant.')
                                     ->numeric()
@@ -194,13 +228,39 @@ class PurchaseForm
                                     ->afterStateUpdated(function (Set $set, Get $get): void {
                                         self::syncPurchaseLineItemComputedAmounts($set, $get);
                                     }),
-                                TextInput::make('line_total')
-                                    ->label('Total')
-                                    ->numeric()
-                                    ->prefix('$')
-                                    ->disabled()
+                                TextInput::make('lot_expiration_month_year')
+                                    ->label('Venc.')
+                                    ->placeholder(fn (Get $get): string => self::purchaseLineProductRequiresExpiry($get('product_id'))
+                                        ? '08/2026'
+                                        : '—')
+                                    ->maxLength(7)
+                                    ->autocomplete(false)
+                                    // En modo tabla, visible(false) deja la celda con clase fi-hidden y suele “desaparecer”.
+                                    // Siempre mostramos la celda; solo editables los productos marcados con lote en catálogo.
+                                    ->disabled(fn (Get $get): bool => ! self::purchaseLineProductRequiresExpiry($get('product_id')))
                                     ->dehydrated(true)
-                                    ->default(0),
+                                    ->required(fn (Get $get): bool => self::purchaseLineProductRequiresExpiry($get('product_id')))
+                                    // ->helperText('Solo aplica si el producto tiene “Requiere vencimiento de lote en compras”.')
+                                    ->live(onBlur: true)
+                                    ->rules([
+                                        function (Get $get): \Closure {
+                                            return function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+                                                $needs = self::purchaseLineProductRequiresExpiry($get('product_id'));
+                                                $normalized = LotExpirationMonthYear::normalize($value);
+                                                if ($needs && $normalized === null) {
+                                                    $fail('Indique el vencimiento del lote (mm/AAAA).');
+
+                                                    return;
+                                                }
+                                                if ($normalized !== null && ! LotExpirationMonthYear::isValidFormat($normalized)) {
+                                                    $fail('Use el formato mm/AAAA (ej. 08/2026).');
+                                                }
+                                            };
+                                        },
+                                    ]),
+                                Placeholder::make('line_total_display')
+                                    ->label('Total')
+                                    ->content(fn (Get $get): string => self::formatPurchaseLineVisualTotal($get)),
                             ])
                             ->mutateRelationshipDataBeforeCreateUsing(fn (array $data): array => self::finalizePurchaseItemRow($data))
                             ->mutateRelationshipDataBeforeSaveUsing(fn (array $data, Model $record): array => self::finalizePurchaseItemRow($data))
@@ -210,13 +270,13 @@ class PurchaseForm
                     ->columnSpanFull(),
 
                 Section::make('Totales')
-                    ->description('Montos calculados automáticamente a partir de las líneas de compra (solo lectura).')
+                    ->description('El descuento de subtotal es un % sobre el subtotal de líneas (use 0 si no aplica). El IVA se calcula al '.DefaultVatRate::percent().'% sobre la base imponible.')
                     ->icon(Heroicon::Calculator)
+                    ->compact()
                     ->schema([
                         Grid::make([
                             'default' => 1,
                             'sm' => 2,
-                            'lg' => 4,
                         ])
                             ->schema([
                                 TextInput::make('subtotal')
@@ -227,25 +287,48 @@ class PurchaseForm
                                     ->default(0.0)
                                     ->prefix('$')
                                     ->disabled()
-                                    ->dehydrated(true),
+                                    ->dehydrated(true)
+                                    ->extraInputAttributes(['class' => 'text-end tabular-nums']),
+                                TextInput::make('document_discount_percent')
+                                    ->label('Descuento de subtotal')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->maxValue(100)
+                                    ->step(0.01)
+                                    ->default(0)
+                                    ->suffix('%')
+                                    ->helperText('Ingrese 0 si no aplica.')
+                                    ->live(onBlur: true)
+                                    ->afterStateUpdated(function (Set $set, Get $get): void {
+                                        self::applyPurchaseDocumentTotalsFromItems($set, $get);
+                                    })
+                                    ->extraInputAttributes(['class' => 'text-end tabular-nums']),
+                                TextInput::make('net_exempt_after_document_discount')
+                                    ->label('Base (productos sin IVA)')
+                                    ->numeric()
+                                    ->prefix('$')
+                                    ->disabled()
+                                    ->dehydrated(true)
+                                    ->default(0)
+                                    ->extraInputAttributes(['class' => 'text-end tabular-nums']),
+                                TextInput::make('net_taxable_after_document_discount')
+                                    ->label('Base imponible')
+                                    ->numeric()
+                                    ->prefix('$')
+                                    ->disabled()
+                                    ->dehydrated(true)
+                                    ->default(0)
+                                    ->extraInputAttributes(['class' => 'text-end tabular-nums']),
                                 TextInput::make('tax_total')
-                                    ->label('Impuestos')
+                                    ->label('Cálculo del IVA')
                                     ->numeric()
                                     ->minValue(0)
                                     ->step(0.01)
                                     ->default(0.0)
                                     ->prefix('$')
                                     ->disabled()
-                                    ->dehydrated(true),
-                                TextInput::make('discount_total')
-                                    ->label('Descuentos')
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->step(0.01)
-                                    ->default(0.0)
-                                    ->prefix('$')
-                                    ->disabled()
-                                    ->dehydrated(true),
+                                    ->dehydrated(true)
+                                    ->extraInputAttributes(['class' => 'text-end tabular-nums']),
                                 TextInput::make('total')
                                     ->label('Total')
                                     ->numeric()
@@ -254,8 +337,14 @@ class PurchaseForm
                                     ->default(0.0)
                                     ->prefix('$')
                                     ->disabled()
-                                    ->dehydrated(true),
+                                    ->dehydrated(true)
+                                    ->columnSpan(['default' => 1, 'sm' => 2])
+                                    ->extraInputAttributes(['class' => 'text-end text-base font-semibold tabular-nums sm:text-lg']),
                             ]),
+                        Hidden::make('subtotal_exempt_amount')->default(0)->dehydrated(true),
+                        Hidden::make('subtotal_taxable_amount')->default(0)->dehydrated(true),
+                        Hidden::make('discount_total')->default(0)->dehydrated(true),
+                        Hidden::make('document_discount_amount')->default(0)->dehydrated(true),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
@@ -267,6 +356,7 @@ class PurchaseForm
                         TextInput::make('payment_status')
                             ->label('Estado del pago')
                             ->placeholder('Ej. pendiente, parcial, pagado')
+                            ->default('Pagado')
                             ->maxLength(100)
                             ->helperText('Texto libre o código interno de tesorería.')
                             ->prefixIcon(Heroicon::CreditCard)
@@ -338,30 +428,62 @@ class PurchaseForm
 
     public static function syncPurchaseLineItemComputedAmounts(Set $set, Get $get): void
     {
+        $vatPercent = self::purchaseLineVatPercentForProductId($get('product_id'));
+        $set('line_vat_percent', round($vatPercent, 2));
+
         $amounts = PurchaseDocumentTotals::lineAmounts([
             'quantity_ordered' => $get('quantity_ordered'),
             'unit_cost' => $get('unit_cost'),
             'line_discount_percent' => $get('line_discount_percent'),
-            'line_vat_percent' => $get('line_vat_percent'),
+            'line_vat_percent' => $vatPercent,
         ]);
 
         $set('line_subtotal', $amounts['line_subtotal']);
         $set('tax_amount', $amounts['tax_amount']);
         $set('line_total', $amounts['line_total']);
+
+        self::applyPurchaseDocumentTotalsFromItems($set, $get);
+    }
+
+    public static function formatPurchaseLineVisualTotal(Get $get): string
+    {
+        $qty = (float) ($get('quantity_ordered') ?? 0);
+        $cost = (float) ($get('unit_cost') ?? 0);
+        $total = round($qty * $cost, 2);
+
+        return '$'.number_format($total, 2, '.', ',');
+    }
+
+    /**
+     * Tasa de IVA de la línea según el producto (catálogo); 0 si no grava IVA.
+     */
+    public static function purchaseLineVatPercentForProductId(mixed $productId): float
+    {
+        if (blank($productId)) {
+            return 0.0;
+        }
+
+        $product = Product::query()->find((int) $productId);
+        if (! $product instanceof Product || ! $product->applies_vat) {
+            return 0.0;
+        }
+
+        return DefaultVatRate::percent();
     }
 
     public static function applyPurchaseDocumentTotalsFromItems(Set $set, Get $get): void
     {
-        $items = $get('items');
+        $items = $get('/data.items');
         if (! is_array($items)) {
             $items = [];
         }
 
-        $totals = PurchaseDocumentTotals::documentTotals($items);
-        $set('subtotal', $totals['subtotal']);
-        $set('tax_total', $totals['tax_total']);
-        $set('discount_total', $totals['discount_total']);
-        $set('total', $totals['total']);
+        $docDisc = (float) ($get('/data.document_discount_percent') ?? 0);
+        $header = PurchaseDocumentTotals::documentHeaderWithDocumentDiscount($items, $docDisc);
+
+        foreach ($header as $key => $value) {
+            $set('data.'.$key, $value, true);
+        }
     }
 
     /**
@@ -371,6 +493,7 @@ class PurchaseForm
     public static function finalizePurchaseItemRow(array $data): array
     {
         $productId = (int) ($data['product_id'] ?? 0);
+        $product = null;
         if ($productId > 0) {
             $product = Product::query()->find($productId);
             if ($product instanceof Product) {
@@ -382,7 +505,15 @@ class PurchaseForm
                         ? (string) $product->barcode
                         : (string) $product->sku;
                 }
+                $data['line_vat_percent'] = $product->applies_vat ? DefaultVatRate::percent() : 0.0;
             }
+        } else {
+            $data['line_vat_percent'] = 0.0;
+        }
+
+        $data['lot_expiration_month_year'] = LotExpirationMonthYear::normalize($data['lot_expiration_month_year'] ?? null);
+        if (! $product instanceof Product || ! $product->requires_expiry_on_purchase) {
+            $data['lot_expiration_month_year'] = null;
         }
 
         $computed = PurchaseDocumentTotals::lineAmounts($data);
@@ -404,11 +535,13 @@ class PurchaseForm
 
         if ($term === '') {
             return $query
+                ->orderByRaw('CASE WHEN tax_id IS NULL OR tax_id = "" THEN 1 ELSE 0 END')
+                ->orderBy('tax_id')
                 ->orderBy('legal_name')
                 ->limit(25)
                 ->get()
                 ->mapWithKeys(fn (Supplier $supplier): array => [
-                    $supplier->getKey() => self::formatSupplierSelectLabel($supplier),
+                    $supplier->getKey() => self::formatSupplierRifSelectLabel($supplier),
                 ])
                 ->all();
         }
@@ -428,11 +561,13 @@ class PurchaseForm
         });
 
         return $query
+            ->orderByRaw('CASE WHEN tax_id IS NULL OR tax_id = "" THEN 1 ELSE 0 END')
+            ->orderBy('tax_id')
             ->orderBy('legal_name')
             ->limit(50)
             ->get()
             ->mapWithKeys(fn (Supplier $supplier): array => [
-                $supplier->getKey() => self::formatSupplierSelectLabel($supplier),
+                $supplier->getKey() => self::formatSupplierRifSelectLabel($supplier),
             ])
             ->all();
     }
@@ -445,27 +580,46 @@ class PurchaseForm
 
         $supplier = Supplier::query()->find((int) $value);
 
-        return $supplier instanceof Supplier ? self::formatSupplierSelectLabel($supplier) : null;
+        return $supplier instanceof Supplier ? self::formatSupplierRifSelectLabel($supplier) : null;
     }
 
-    private static function formatSupplierSelectLabel(Supplier $supplier): string
+    /**
+     * Etiqueta del select: RIF primero; sin RIF se muestra código interno y nombre.
+     */
+    private static function formatSupplierRifSelectLabel(Supplier $supplier): string
     {
-        $name = filled($supplier->trade_name)
-            ? (string) $supplier->trade_name
-            : (string) $supplier->legal_name;
+        $name = $supplier->displayName();
 
-        $suffix = [];
         if (filled($supplier->tax_id)) {
-            $suffix[] = (string) $supplier->tax_id;
-        }
-        if (filled($supplier->code)) {
-            $suffix[] = (string) $supplier->code;
+            return trim((string) $supplier->tax_id).' — '.$name;
         }
 
-        if ($suffix === []) {
-            return $name;
+        $code = filled($supplier->code)
+            ? (string) $supplier->code
+            : Supplier::formatCode($supplier->getKey());
+
+        return 'Sin RIF · '.$code.' — '.$name;
+    }
+
+    public static function supplierDisplayNameForSupplierId(mixed $supplierId): string
+    {
+        if (blank($supplierId)) {
+            return '';
         }
 
-        return $name.' · '.implode(' · ', $suffix);
+        $supplier = Supplier::query()->find((int) $supplierId);
+
+        return $supplier instanceof Supplier ? $supplier->displayName() : '';
+    }
+
+    private static function purchaseLineProductRequiresExpiry(mixed $productId): bool
+    {
+        if (blank($productId)) {
+            return false;
+        }
+
+        $product = Product::query()->find((int) $productId);
+
+        return $product instanceof Product && $product->requires_expiry_on_purchase;
     }
 }

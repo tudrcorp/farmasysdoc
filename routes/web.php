@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Dev\BdvConciliationTestController;
 use App\Http\Controllers\FiscalReceiptController;
+use App\Http\Controllers\NominatimProxyController;
 use App\Http\Controllers\ProductTransfers\ProductTransferReportPdfController;
 use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
 use App\Http\Controllers\Sales\CashRegisterClosePdfController;
@@ -10,6 +11,11 @@ use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
 Route::view('/docs/api', 'public.api-docs')->name('public.api-docs');
+
+Route::middleware(['auth'])->prefix('geo')->name('geo.')->group(function (): void {
+    Route::get('nominatim/search', [NominatimProxyController::class, 'search'])->name('nominatim.search');
+    Route::get('nominatim/reverse', [NominatimProxyController::class, 'reverse'])->name('nominatim.reverse');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');

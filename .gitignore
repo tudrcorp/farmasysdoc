@@ -1,5 +1,7 @@
 /.phpunit.cache
 /node_modules
+/mobile/farmadelivery/node_modules
+/mobile/farmadelivery/.expo
 /public/build
 /public/hot
 /public/storage

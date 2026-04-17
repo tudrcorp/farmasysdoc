@@ -18,6 +18,7 @@ final class DeliveryTypeLabels
     {
         return [
             PartnerOrderDeliverySync::DELIVERY_TYPE_PARTNER => 'Aliado · envío a domicilio',
+            PartnerOrderDeliverySync::DELIVERY_TYPE_CLIENT_ORDER => 'Cliente / sucursal · envío',
         ];
     }
 
@@ -42,6 +43,7 @@ final class DeliveryTypeLabels
 
         return match ($type) {
             PartnerOrderDeliverySync::DELIVERY_TYPE_PARTNER => 'Aliado · envío a domicilio',
+            PartnerOrderDeliverySync::DELIVERY_TYPE_CLIENT_ORDER => 'Cliente / sucursal · envío',
             self::TYPE_MANUAL => 'Registro manual',
             default => $type,
         };

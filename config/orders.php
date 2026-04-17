@@ -8,9 +8,22 @@ return [
     |--------------------------------------------------------------------------
     |
     | Se aplica solo a productos con «Grava IVA» activo en el catálogo.
+    | El valor efectivo lo define la tabla financial_settings (pantalla Administración financiera);
+    | esta clave solo sirve de respaldo si no hay registro o en entornos sin migración.
     |
     */
-    'default_vat_rate_percent' => (float) env('ORDERS_DEFAULT_VAT_RATE_PERCENT', 19),
+    'default_vat_rate_percent' => (float) env('ORDERS_DEFAULT_VAT_RATE_PERCENT', 16),
+
+    /*
+    |--------------------------------------------------------------------------
+    | IGTF por defecto (%)
+    |--------------------------------------------------------------------------
+    |
+    | Sobre el total de la factura (neto + IVA) cuando el cobro es efectivo en USD.
+    | El valor efectivo lo define financial_settings (Administración financiera).
+    |
+    */
+    'default_igtf_rate_percent' => (float) env('ORDERS_DEFAULT_IGTF_RATE_PERCENT', 3),
 
     /*
     |--------------------------------------------------------------------------

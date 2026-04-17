@@ -6,6 +6,8 @@ use App\Models\ActiveIngredient;
 use App\Models\PresentationType;
 use App\Models\Product;
 use App\Models\Supplier;
+use App\Support\Finance\DefaultVatRate;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -180,7 +182,7 @@ class ProductForm
                             ]),
                         Toggle::make('applies_vat')
                             ->label('Grava IVA en pedidos')
-                            ->helperText(fn (): string => 'Si está activo, en pedidos se calcula el IVA sobre la base de cada línea (precio neto tras el descuento %). Tasa global: '.config('orders.default_vat_rate_percent').'%.')
+                            ->helperText(fn (): string => 'Si está activo, en pedidos se calcula el IVA sobre la base de cada línea (precio neto tras el descuento %). Tasa global: '.DefaultVatRate::percent().'%.')
                             ->default(false)
                             ->columnSpanFull(),
                     ])
@@ -211,6 +213,7 @@ class ProductForm
                             ->schema([
                                 TextInput::make('brand')
                                     ->label('Marca / laboratorio')
+                                    ->required()
                                     ->maxLength(255)
                                     ->prefixIcon(Heroicon::BuildingStorefront),
                                 TextInput::make('concentration')
@@ -246,6 +249,12 @@ class ProductForm
                                     ->inline(false)
                                     ->default(false),
                             ]),
+                        Toggle::make('requires_expiry_on_purchase')
+                            ->label('Requiere vencimiento de lote en compras')
+                            ->helperText('En cada línea de compra se pedirá el vencimiento en formato mm/AAAA (ej. 08/2026) y se registrará en la tabla de lotes junto al N° de factura.')
+                            ->inline(false)
+                            ->default(true)
+                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
@@ -326,6 +335,14 @@ class ProductForm
                             ->label('Condiciones de almacenamiento')
                             ->placeholder('Temperatura, luz, humedad, cadena de frío…')
                             ->rows(3)
+                            ->columnSpanFull(),
+                        DatePicker::make('expiration_date')
+                            ->label('Fecha de vencimiento')
+                            ->helperText('Opcional. Úsala cuando el artículo en catálogo tenga una caducidad o vencimiento de referencia; muchos productos no la tienen.')
+                            ->displayFormat('d/m/Y')
+                            ->native(false)
+                            ->placeholder('Sin fecha')
+                            ->prefixIcon(Heroicon::CalendarDays)
                             ->columnSpanFull(),
                         Toggle::make('is_active')
                             ->label('Producto activo')

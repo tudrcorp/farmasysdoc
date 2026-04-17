@@ -273,6 +273,11 @@ class ProductInfolist
                             ->placeholder('—')
                             ->columnSpanFull()
                             ->prose(),
+                        TextEntry::make('expiration_date')
+                            ->label('Fecha de vencimiento')
+                            ->placeholder('—')
+                            ->date('d/m/Y')
+                            ->icon(Heroicon::CalendarDays),
                         IconEntry::make('is_active')
                             ->label('Producto activo')
                             ->boolean(),

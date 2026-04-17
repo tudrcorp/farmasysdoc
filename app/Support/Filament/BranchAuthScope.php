@@ -3,6 +3,7 @@
 namespace App\Support\Filament;
 
 use App\Filament\Resources\Orders\OrderResource;
+use App\Models\Branch;
 use App\Models\Order;
 use App\Models\Sale;
 use App\Models\User;
@@ -88,5 +89,43 @@ final class BranchAuthScope
                         ->where('product_transfers.to_branch_id', $branchId);
                 });
         });
+    }
+
+    /**
+     * Selects y filtros de sucursal en Filament: solo administradores listan todas las sucursales;
+     * el resto solo ve la sucursal asignada en el usuario (`branch_id`).
+     *
+     * @param  Builder<Branch>  $query  Consulta sobre `branches` (p. ej. ya filtrada por `is_active` y orden).
+     * @return Builder<Branch>
+     */
+    public static function applyToBranchFormSelect(Builder $query): Builder
+    {
+        $user = auth()->user();
+        if (! $user instanceof User) {
+            return $query;
+        }
+
+        if ($user->isAdministrator()) {
+            return $query;
+        }
+
+        if (filled($user->branch_id)) {
+            return $query->whereKey((int) $user->branch_id);
+        }
+
+        return $query->whereRaw('1 = 0');
+    }
+
+    /**
+     * Valor por defecto de sucursal en formularios operativos (compras, ventas, etc.).
+     */
+    public static function suggestedBranchIdForOperationalForm(): ?int
+    {
+        $user = auth()->user();
+        if (! $user instanceof User || $user->isAdministrator()) {
+            return null;
+        }
+
+        return filled($user->branch_id) ? (int) $user->branch_id : null;
     }
 }

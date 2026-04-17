@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Purchases;
 use App\Http\Controllers\Controller;
 use App\Models\Purchase;
 use App\Models\User;
+use App\Support\Finance\DefaultVatRate;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -46,6 +47,7 @@ final class PurchaseDocumentPdfController extends Controller
             'pdf_document_ref' => $pdfDocumentRef,
             'generated_at' => $generatedAt,
             'generated_by' => $generatedBy,
+            'default_vat_rate_percent' => DefaultVatRate::percent(),
         ])
             ->setPaper('a4', 'portrait')
             ->download($filename);

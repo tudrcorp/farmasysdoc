@@ -4,6 +4,9 @@
         ? ($purchase->supplier->trade_name ?: $purchase->supplier->legal_name)
         : '—';
     $pdfUrl = route('purchases.document-pdf', $purchase);
+    $defaultVatRatePercent = \App\Support\Finance\DefaultVatRate::percent();
+    /** Totales coherentes con las líneas cargadas (el encabezado en BD puede estar en 0 en compras antiguas). */
+    $documentTotals = $purchase->expectedHeaderTotalsFromItems();
 @endphp
 
 <div class="space-y-6">
@@ -39,6 +42,12 @@
                     {{ $purchase->supplier_invoice_date?->format('d/m/Y') ?? '—' }}
                 </dd>
             </div>
+            <div>
+                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400">Fecha de carga en el sistema</dt>
+                <dd class="mt-1 text-lg font-bold text-gray-950 dark:text-white">
+                    {{ $purchase->registered_in_system_date?->format('d/m/Y') ?? '—' }}
+                </dd>
+            </div>
         </dl>
     </div>
 
@@ -66,18 +75,18 @@
     <div>
         <h3 class="mb-2 text-sm font-semibold text-gray-950 dark:text-white">Productos</h3>
         <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-white/10">
-            <table class="w-full min-w-[720px] divide-y divide-gray-200 text-sm dark:divide-white/10">
+            <table class="w-full min-w-[880px] divide-y divide-gray-200 text-sm dark:divide-white/10">
                 <thead class="bg-gray-50 dark:bg-white/5">
                     <tr>
                         <th class="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">#</th>
                         <th class="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Producto</th>
-                        <th class="px-3 py-2 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Costo</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Costo unit.</th>
                         <th class="px-3 py-2 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Cant.</th>
                         <th class="px-3 py-2 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Desc. %</th>
-                        <th class="px-3 py-2 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">IVA %</th>
-                        <th class="px-3 py-2 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Subtotal</th>
-                        <th class="px-3 py-2 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Impuesto</th>
-                        <th class="px-3 py-2 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Total</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Tasa IVA %</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">IVA (monto)</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Subtotal línea</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Total línea</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-white/5">
@@ -94,8 +103,8 @@
                             <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums">{{ number_format((float) $line->quantity_ordered, 3, ',', '.') }}</td>
                             <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums">{{ number_format((float) $line->line_discount_percent, 2, ',', '.') }}</td>
                             <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums">{{ number_format((float) $line->line_vat_percent, 2, ',', '.') }}</td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums">{{ number_format((float) $line->line_subtotal, 2, ',', '.') }}</td>
                             <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums">{{ number_format((float) $line->tax_amount, 2, ',', '.') }}</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums">{{ number_format((float) $line->line_subtotal, 2, ',', '.') }}</td>
                             <td class="whitespace-nowrap px-3 py-2 text-right font-medium tabular-nums text-gray-950 dark:text-white">{{ number_format((float) $line->line_total, 2, ',', '.') }}</td>
                         </tr>
                     @empty
@@ -108,25 +117,27 @@
         </div>
     </div>
 
-    <div class="rounded-lg bg-gray-50 p-4 dark:bg-white/5">
-        <dl class="grid gap-2 text-sm sm:grid-cols-2">
-            <div class="flex justify-between gap-4 sm:col-span-2">
-                <dt class="text-gray-600 dark:text-gray-300">Subtotal</dt>
-                <dd class="font-semibold tabular-nums text-gray-900 dark:text-white">${{ number_format((float) $purchase->subtotal, 2, ',', '.') }}</dd>
-            </div>
-            <div class="flex justify-between gap-4">
-                <dt class="text-gray-600 dark:text-gray-300">Descuentos</dt>
-                <dd class="font-semibold tabular-nums text-gray-900 dark:text-white">${{ number_format((float) $purchase->discount_total, 2, ',', '.') }}</dd>
-            </div>
-            <div class="flex justify-between gap-4">
-                <dt class="text-gray-600 dark:text-gray-300">Impuestos</dt>
-                <dd class="font-semibold tabular-nums text-gray-900 dark:text-white">${{ number_format((float) $purchase->tax_total, 2, ',', '.') }}</dd>
-            </div>
-            <div class="flex justify-between gap-4 border-t border-gray-200 pt-2 dark:border-white/10 sm:col-span-2">
-                <dt class="font-semibold text-gray-900 dark:text-white">Total</dt>
-                <dd class="text-lg font-bold tabular-nums text-primary-600 dark:text-primary-400">${{ number_format((float) $purchase->total, 2, ',', '.') }}</dd>
-            </div>
+    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
+        <p class="mb-3 text-sm font-semibold text-gray-950 dark:text-white">
+            Totales del documento
+        </p>
+        <dl class="grid gap-2 text-sm sm:max-w-xl sm:grid-cols-[1fr_auto] sm:gap-x-8 sm:gap-y-2">
+            <dt class="text-gray-600 dark:text-gray-400">Subtotal</dt>
+            <dd class="text-end font-semibold tabular-nums text-gray-900 dark:text-white">${{ number_format((float) ($documentTotals['subtotal'] ?? 0), 2, ',', '.') }}</dd>
+            <dt class="text-gray-600 dark:text-gray-400">Descuento de subtotal</dt>
+            <dd class="text-end font-semibold tabular-nums text-gray-900 dark:text-white">{{ number_format((float) ($purchase->document_discount_percent ?? 0), 2, ',', '.') }}%</dd>
+            <dt class="text-gray-600 dark:text-gray-400">Base (productos sin IVA)</dt>
+            <dd class="text-end font-semibold tabular-nums text-gray-900 dark:text-white">${{ number_format((float) ($documentTotals['net_exempt_after_document_discount'] ?? 0), 2, ',', '.') }}</dd>
+            <dt class="text-gray-600 dark:text-gray-400">Base imponible</dt>
+            <dd class="text-end font-semibold tabular-nums text-gray-900 dark:text-white">${{ number_format((float) ($documentTotals['net_taxable_after_document_discount'] ?? 0), 2, ',', '.') }}</dd>
+            <dt class="text-gray-600 dark:text-gray-400">Cálculo del IVA</dt>
+            <dd class="text-end font-semibold tabular-nums text-gray-900 dark:text-white">${{ number_format((float) ($documentTotals['tax_total'] ?? 0), 2, ',', '.') }}</dd>
+            <dt class="border-t border-gray-200 pt-2 font-semibold text-gray-900 dark:border-white/10 dark:text-white sm:col-span-1">Total</dt>
+            <dd class="border-t border-gray-200 pt-2 text-end text-lg font-bold tabular-nums text-amber-600 dark:text-amber-400 sm:col-span-1">${{ number_format((float) ($documentTotals['total'] ?? 0), 2, ',', '.') }}</dd>
         </dl>
+        <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+            IVA al {{ number_format((float) $defaultVatRatePercent, 2, ',', '.') }}% sobre la base imponible. Los importes de IVA por línea son solo referencia por ítem.
+        </p>
     </div>
 
     @if (filled($purchase->notes))

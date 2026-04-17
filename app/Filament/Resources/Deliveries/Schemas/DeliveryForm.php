@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Deliveries\Schemas;
 use App\Enums\DeliveryStatus;
 use App\Models\Order;
 use App\Support\Deliveries\DeliveryTypeLabels;
+use App\Support\Filament\BranchAuthScope;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Grid;
@@ -56,8 +57,13 @@ class DeliveryForm
                                     ->relationship(
                                         name: 'branch',
                                         titleAttribute: 'name',
-                                        modifyQueryUsing: fn (Builder $query): Builder => $query->where('is_active', true)->orderBy('name'),
+                                        modifyQueryUsing: function (Builder $query): Builder {
+                                            $query->where('is_active', true)->orderBy('name');
+
+                                            return BranchAuthScope::applyToBranchFormSelect($query);
+                                        },
                                     )
+                                    ->default(fn (): ?int => BranchAuthScope::suggestedBranchIdForOperationalForm())
                                     ->searchable()
                                     ->preload()
                                     ->native(false)

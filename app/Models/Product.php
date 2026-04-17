@@ -37,6 +37,7 @@ class Product extends Model
         'medical_device_class',
         'requires_calibration',
         'storage_conditions',
+        'expiration_date',
         'is_active',
         'created_by',
         'updated_by',
@@ -46,6 +47,7 @@ class Product extends Model
         'cost_price',
         'discount_percent',
         'applies_vat',
+        'requires_expiry_on_purchase',
     ];
 
     /**
@@ -63,13 +65,21 @@ class Product extends Model
             'requires_calibration' => 'boolean',
             'is_active' => 'boolean',
             'applies_vat' => 'boolean',
+            'requires_expiry_on_purchase' => 'boolean',
             'warranty_months' => 'integer',
             'active_ingredient' => 'array',
+            'expiration_date' => 'date',
         ];
     }
 
     protected static function booted(): void
     {
+        static::creating(function (Product $product): void {
+            if ($product->requires_expiry_on_purchase === null) {
+                $product->requires_expiry_on_purchase = true;
+            }
+        });
+
         static::saving(function (Product $product): void {
             if ($product->product_category_id === null) {
                 return;
@@ -207,6 +217,16 @@ class Product extends Model
     public function purchaseItems(): HasMany
     {
         return $this->hasMany(PurchaseItem::class);
+    }
+
+    /**
+     * Lotes de compra asociados a este producto.
+     *
+     * @return HasMany<ProductLot, $this>
+     */
+    public function productLots(): HasMany
+    {
+        return $this->hasMany(ProductLot::class);
     }
 
     /**

@@ -68,6 +68,12 @@ class ProductsTable
                     ->tooltip(fn (Product $record): string => $record->name)
                     ->icon(Heroicon::ShoppingBag)
                     ->iconColor('gray'),
+                TextColumn::make('brand')
+                    ->label('Marca producto')
+                    ->searchable()
+                    ->sortable()
+                    ->placeholder('—')
+                    ->toggleable(),
                 IconColumn::make('is_active')
                     ->label('Catálogo')
                     ->boolean()
@@ -130,11 +136,6 @@ class ProductsTable
                     ->label('Principio activo')
                     ->limit(40)
                     ->tooltip(fn (Product $record): ?string => filled($record->active_ingredient) ? $record->active_ingredient : null)
-                    ->searchable()
-                    ->placeholder('—')
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('brand')
-                    ->label('Marca / laboratorio')
                     ->searchable()
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),

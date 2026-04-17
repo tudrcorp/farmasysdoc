@@ -213,7 +213,11 @@ class InventoriesTable
                     ->relationship(
                         name: 'branch',
                         titleAttribute: 'name',
-                        modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name'),
+                        modifyQueryUsing: function (Builder $query): Builder {
+                            $query->where('is_active', true)->orderBy('name');
+
+                            return BranchAuthScope::applyToBranchFormSelect($query);
+                        },
                     )
                     ->getOptionLabelFromRecordUsing(fn (Branch $record): string => $record->name)
                     ->searchable()

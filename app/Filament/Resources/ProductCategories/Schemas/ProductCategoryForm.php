@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ProductCategories\Schemas;
 
+use App\Models\User;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -74,7 +75,16 @@ class ProductCategoryForm
                     ->schema([
                         Toggle::make('is_active')
                             ->label('Categoría activa')
-                            ->helperText('Si está desactivada, puede ocultarse de selecciones en caja y catálogo.')
+                            ->visible(function (): bool {
+                                $authUser = request()->user();
+
+                                if (! $authUser instanceof User) {
+                                    return false;
+                                }
+
+                                return ! $authUser->isManager();
+                            })
+                            ->helperText('Si está desactivada, no se muestra en listas de selección y no afecta cálculos de precios.')
                             ->default(true)
                             ->inline(false),
                         Toggle::make('is_medication')

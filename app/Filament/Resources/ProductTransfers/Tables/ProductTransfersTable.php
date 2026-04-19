@@ -6,6 +6,7 @@ use App\Enums\ProductTransferStatus;
 use App\Filament\Resources\ProductTransfers\ProductTransferResource;
 use App\Models\ProductTransfer;
 use App\Models\User;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -14,6 +15,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 
 class ProductTransfersTable
 {
@@ -179,22 +181,25 @@ class ProductTransfersTable
             ->recordUrl(fn (ProductTransfer $record): string => ProductTransferResource::getUrl('view', ['record' => $record], isAbsolute: false))
             ->recordAction('view')
             ->recordActions([
-                ViewAction::make()
-                    ->label('Ver traslado')
-                    ->icon(Heroicon::Eye),
-                ProductTransferResource::takeTransferAction(),
-                ProductTransferResource::markCompletedAction(),
-                EditAction::make()
-                    ->label('Editar')
-                    ->icon(Heroicon::PencilSquare)
-                    ->visible(fn (): bool => auth()->user() instanceof User && auth()->user()->isAdministrator()),
+                ActionGroup::make([
+                    ViewAction::make()
+                        ->label('Ver traslado')
+                        ->icon(Heroicon::Eye),
+                    ProductTransferResource::takeTransferAction(),
+                    ProductTransferResource::markCompletedAction(),
+                    ProductTransferResource::adminChangeStatusAction(),
+                    EditAction::make()
+                        ->label('Editar')
+                        ->icon(Heroicon::PencilSquare)
+                        ->visible(fn (): bool => Auth::user() instanceof User && Auth::user()->isAdministrator()),
+                ]),
             ])
             ->recordActionsColumnLabel('Acciones')
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make()
                         ->label('Eliminar seleccionados')
-                        ->visible(fn (): bool => auth()->user() instanceof User && auth()->user()->isAdministrator()),
+                        ->visible(fn (): bool => Auth::user() instanceof User && Auth::user()->isAdministrator()),
                 ]),
             ]);
     }

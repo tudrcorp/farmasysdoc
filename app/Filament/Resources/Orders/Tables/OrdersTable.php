@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Support\Filament\BranchAuthScope;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -382,15 +383,17 @@ class OrdersTable
                 ])),
             ])
             ->recordActions([
-                ...($partnerOrderNumberDeliveryModal ? [self::partnerRateDeliveryServiceAction()] : []),
-                self::viewPartnerCashPaymentProofTableAction(),
-                ViewAction::make()
-                    ->label('Ver pedido')
-                    ->icon(Heroicon::Eye),
-                EditAction::make()
-                    ->label('Editar')
-                    ->icon(Heroicon::PencilSquare)
-                    ->visible(fn (Order $record) => $urlResource::canEdit($record)),
+                ActionGroup::make([
+                    ...($partnerOrderNumberDeliveryModal ? [self::partnerRateDeliveryServiceAction()] : []),
+                    self::viewPartnerCashPaymentProofTableAction(),
+                    ViewAction::make()
+                        ->label('Ver pedido')
+                        ->icon(Heroicon::Eye),
+                    EditAction::make()
+                        ->label('Editar')
+                        ->icon(Heroicon::PencilSquare)
+                        ->visible(fn (Order $record) => $urlResource::canEdit($record)),
+                ]),
             ])
             ->recordActionsColumnLabel('Acciones')
             ->toolbarActions([

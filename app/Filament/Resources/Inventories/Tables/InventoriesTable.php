@@ -248,7 +248,9 @@ class InventoriesTable
                     ->relationship(
                         name: 'productCategory',
                         titleAttribute: 'name',
-                        modifyQueryUsing: fn (Builder $query): Builder => $query->orderBy('name'),
+                        modifyQueryUsing: fn (Builder $query): Builder => $query
+                            ->where('is_active', true)
+                            ->orderBy('name'),
                     )
                     ->multiple()
                     ->searchable()

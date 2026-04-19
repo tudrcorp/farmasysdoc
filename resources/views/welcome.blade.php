@@ -3,9 +3,32 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ config('app.name') }} - Bienvenida</title>
-    <meta name="description" content="Portal de bienvenida de FarmaSysDoc para aliados y equipo interno.">
-    @vite(['resources/css/app.css'])
+        <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+        <meta name="author" content="Farmadoc" />
+        <meta name="theme-color" content="#18ACB2" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="{{ config('app.name') }}" />
+        <title>{{ config('app.name') }} - Bienvenida</title>
+        <meta name="description" content="Portal de bienvenida de FarmaSysDoc para aliados y equipo interno.">
+        <link rel="canonical" href="{{ route('home') }}" />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="{{ config('app.name') }}" />
+        <meta property="og:title" content="{{ config('app.name') }} - Bienvenida" />
+        <meta property="og:description" content="Portal de bienvenida de FarmaSysDoc para aliados y equipo interno." />
+        <meta property="og:url" content="{{ route('home') }}" />
+        <meta property="og:image" content="{{ asset('images/logos/favicon.png') }}" />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:width" content="1024" />
+        <meta property="og:image:height" content="1024" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="{{ config('app.name') }} - Bienvenida" />
+        <meta name="twitter:description" content="Portal de bienvenida de FarmaSysDoc para aliados y equipo interno." />
+        <meta name="twitter:image" content="{{ asset('images/logos/favicon.png') }}" />
+        <link rel="icon" type="image/png" sizes="1024x1024" href="{{ asset('images/logos/favicon.png') }}">
+        <link rel="apple-touch-icon" sizes="1024x1024" href="{{ asset('images/logos/favicon.png') }}">
+        <link rel="manifest" href="{{ asset('site.webmanifest') }}">
+        @vite(['resources/css/app.css'])
     </head>
 <body class="relative min-h-screen overflow-x-hidden bg-zinc-100 text-zinc-900 antialiased transition-colors duration-300 dark:bg-zinc-950 dark:text-zinc-100">
     <div class="pointer-events-none fixed inset-0 -z-10">

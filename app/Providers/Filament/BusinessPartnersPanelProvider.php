@@ -44,6 +44,7 @@ class BusinessPartnersPanelProvider extends PanelProvider
             ->emailVerification()
             ->emailChangeVerification()
             ->emailVerification()
+            ->favicon(asset('images/logos/favicon.png'))
             ->brandLogo(asset('images/logos/farmadoc-ligth.png'))
             ->darkModeBrandLogo(asset('images/logos/farmadoc-dark.png'))
             ->brandLogoHeight('4.6rem')

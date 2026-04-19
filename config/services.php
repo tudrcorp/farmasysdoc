@@ -70,4 +70,12 @@ return [
         'url' => env('PHOTON_GEOCODER_URL', 'https://photon.komoot.io'),
     ],
 
+    'ultramsg' => [
+        'enabled' => env('ULTRAMSG_ENABLED', false),
+        'base_url' => env('ULTRAMSG_BASE_URL'),
+        'token' => env('ULTRAMSG_TOKEN'),
+        'timeout' => (int) env('ULTRAMSG_TIMEOUT', 15),
+        'admin_fallback_phones' => env('ULTRAMSG_ADMIN_FALLBACK_PHONES', ''),
+    ],
+
 ];

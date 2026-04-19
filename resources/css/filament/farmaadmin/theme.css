@@ -2028,6 +2028,27 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
 }
 
 /*
+ * Safari: evita que los dropdowns de Select dentro de modales queden
+ * por debajo del footer de acciones.
+ */
+@supports (-webkit-touch-callout: none) {
+    .fi-modal .fi-modal-content {
+        position: relative;
+        z-index: 2;
+        overflow: visible;
+    }
+
+    .fi-modal .fi-modal-footer {
+        position: relative;
+        z-index: 1;
+    }
+
+    .fi-modal .fi-dropdown-panel {
+        z-index: 60 !important;
+    }
+}
+
+/*
  * Páginas simples de autenticación (login, registro, recuperar contraseña): misma línea visual que welcome.
  */
 .fi-simple-layout {
@@ -7504,6 +7525,31 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
 
 .dark .fi-modal:has(.fi-ios-payment-proof-modal-window) .fi-modal-close-btn:hover {
     background-color: rgb(255 255 255 / 0.12);
+}
+
+/*
+ * Safari - Modal "Cambiar estatus de traslado":
+ * mantiene el dropdown del Select por encima del footer.
+ */
+@supports (-webkit-touch-callout: none) {
+    .fi-modal:has(.fi-ios-transfer-status-modal-window) .fi-modal-content {
+        position: relative;
+        z-index: 3;
+        overflow: visible;
+    }
+
+    .fi-modal:has(.fi-ios-transfer-status-modal-window) .fi-modal-footer {
+        position: relative;
+        z-index: 1;
+    }
+
+    .fi-modal:has(.fi-ios-transfer-status-modal-window) .fi-input-wrp {
+        overflow: visible;
+    }
+
+    .fi-modal:has(.fi-ios-transfer-status-modal-window) .fi-dropdown-panel {
+        z-index: 80 !important;
+    }
 }
 
 /* Sección resaltada: productos de la orden (vista detalle pedido). */

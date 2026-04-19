@@ -91,6 +91,6 @@ class MarketingTopProductsChartWidget extends ChartWidget
     {
         $user = Filament::auth()->user();
 
-        return $user instanceof User && $user->canAccessMarketingModule();
+        return $user instanceof User && $user->canAccessFarmaadminMenuKey('marketing_hub');
     }
 }

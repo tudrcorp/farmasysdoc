@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Support\Filament\FarmaadminMenuAccessCatalog;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
@@ -14,12 +15,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'branch_id', 'partner_company_id', 'partner_company_code', 'partner_user_is_active', 'roles', 'delivery_photo_path', 'delivery_identity_document', 'delivery_mobile_phone'])]
+#[Fillable(['name', 'email', 'password', 'branch_id', 'partner_company_id', 'partner_company_code', 'partner_user_is_active', 'roles', 'delivery_photo_path', 'delivery_identity_document', 'delivery_mobile_phone', 'whatsapp_phone'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -67,16 +69,15 @@ class User extends Authenticatable implements FilamentUser
      */
     public function isAdministrator(): bool
     {
-        $roles = $this->roles;
-        if (! is_array($roles)) {
-            return false;
-        }
+        return $this->hasRole('ADMINISTRADOR');
+    }
 
-        if (in_array('ADMINISTRADOR', $roles, true)) {
-            return true;
-        }
-
-        return false;
+    /**
+     * Rol gerencial para gestión comercial de aliados (sin privilegios de administrador).
+     */
+    public function isManager(): bool
+    {
+        return $this->hasRole('GERENCIA') || $this->hasRole('GERENTE');
     }
 
     /**
@@ -175,6 +176,62 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * Acceso por ítem de menú del panel Farmaadmin según los roles activos del usuario.
+     */
+    public function canAccessFarmaadminMenuKey(string $menuKey): bool
+    {
+        return in_array($menuKey, $this->resolvedAllowedFarmaadminMenuItems(), true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function resolvedAllowedFarmaadminMenuItems(): array
+    {
+        if ($this->isAdministrator()) {
+            return FarmaadminMenuAccessCatalog::allKeys();
+        }
+
+        $roles = $this->roles;
+
+        if (! is_array($roles) || $roles === []) {
+            return [];
+        }
+
+        $resolved = [];
+        $allKeys = FarmaadminMenuAccessCatalog::allKeys();
+
+        $records = Rol::query()
+            ->whereIn('name', $roles)
+            ->where('is_active', true)
+            ->get(['allowed_menu_items']);
+
+        foreach ($records as $record) {
+            if ($record->allowed_menu_items === null) {
+                return $allKeys;
+            }
+
+            if (! is_array($record->allowed_menu_items)) {
+                continue;
+            }
+
+            $resolved = [...$resolved, ...$record->allowed_menu_items];
+        }
+
+        return array_values(array_unique($resolved));
+    }
+
+    /**
+     * Opciones por defecto para alta/edición de roles.
+     *
+     * @return list<string>
+     */
+    public static function defaultAllowedMenuItems(): array
+    {
+        return FarmaadminMenuAccessCatalog::allKeys();
+    }
+
+    /**
      * @return BelongsTo<Branch, $this>
      */
     public function branch(): BelongsTo
@@ -203,5 +260,31 @@ class User extends Authenticatable implements FilamentUser
     public function roles(): HasMany
     {
         return $this->hasMany(Rol::class);
+    }
+
+    private function hasRole(string $role): bool
+    {
+        $roles = $this->getAttributeValue('roles');
+
+        if (is_string($roles)) {
+            $decoded = json_decode($roles, true);
+            $roles = is_array($decoded) ? $decoded : [$roles];
+        }
+
+        if ($roles instanceof Collection) {
+            $roles = $roles->all();
+        }
+
+        if (! is_array($roles)) {
+            return false;
+        }
+
+        $normalizedRole = strtoupper(trim($role));
+        $normalizedRoles = array_map(
+            fn (mixed $item): string => is_string($item) ? strtoupper(trim($item)) : '',
+            $roles
+        );
+
+        return in_array($normalizedRole, $normalizedRoles, true);
     }
 }

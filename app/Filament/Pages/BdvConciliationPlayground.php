@@ -163,14 +163,12 @@ class BdvConciliationPlayground extends Page
     {
         $user = Filament::auth()->user();
 
-        return $user instanceof User && $user->isAdministrator();
+        return $user instanceof User && $user->canAccessFarmaadminMenuKey('bdv_playground');
     }
 
     public static function shouldRegisterNavigation(): bool
     {
-        $user = auth()->user();
-
-        return $user instanceof User && $user->isAdministrator();
+        return static::canAccess();
     }
 
     public function mount(): void

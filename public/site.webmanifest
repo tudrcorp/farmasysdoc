@@ -1,0 +1,18 @@
+{
+    "name": "Farmadoc",
+    "short_name": "Farmadoc",
+    "description": "Sistema integral de gestion farmaceutica, ventas, inventario y panel administrativo.",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#18ACB2",
+    "theme_color": "#18ACB2",
+    "icons": [
+        {
+            "src": "/images/logos/favicon.png",
+            "sizes": "1024x1024",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}

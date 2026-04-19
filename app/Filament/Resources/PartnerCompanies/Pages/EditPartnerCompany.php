@@ -5,10 +5,12 @@ namespace App\Filament\Resources\PartnerCompanies\Pages;
 use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Models\PartnerCompany;
 use App\Models\PartnerCompanyUser;
+use App\Models\User;
 use App\Support\PartnerCompanyAlliedUsersFormSync;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Support\Facades\Auth;
 
 class EditPartnerCompany extends EditRecord
 {
@@ -71,6 +73,27 @@ class EditPartnerCompany extends EditRecord
         );
 
         PartnerCompanyAlliedUsersFormSync::syncUsers($record->fresh(), $rows);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        $authUser = Auth::user();
+        $record = $this->getRecord();
+
+        if (
+            $authUser instanceof User
+            && $authUser->isManager()
+            && ! $authUser->isAdministrator()
+            && $record instanceof PartnerCompany
+        ) {
+            $data['is_active'] = (bool) $record->is_active;
+        }
+
+        return $data;
     }
 
     protected function getHeaderActions(): array

@@ -6,9 +6,14 @@ use App\Enums\ProductTransferStatus;
 use App\Filament\Resources\ProductTransfers\ProductTransferResource;
 use App\Filament\Resources\ProductTransfers\Schemas\ProductTransferForm;
 use App\Models\ProductTransfer;
+use App\Models\User;
+use App\Support\ProductTransfers\NotifyAdministratorsOnManagerTransferRequested;
 use App\Support\ProductTransferStockValidator;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Throwable;
 
 class CreateProductTransfer extends CreateRecord
 {
@@ -20,7 +25,7 @@ class CreateProductTransfer extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $actor = auth()->user();
+        $actor = Auth::user();
         $label = $actor !== null
             ? (filled($actor->email) ? (string) $actor->email : (string) ($actor->name ?? 'usuario'))
             : 'sistema';
@@ -48,5 +53,18 @@ class CreateProductTransfer extends CreateRecord
         $record->forceFill([
             'code' => ProductTransfer::automaticCodeForId((int) $record->getKey()),
         ])->save();
+
+        try {
+            $actor = Auth::user();
+            app(NotifyAdministratorsOnManagerTransferRequested::class)->notify(
+                $record->fresh(['items.product', 'fromBranch', 'toBranch']),
+                $actor instanceof User ? $actor : null,
+            );
+        } catch (Throwable $exception) {
+            Log::warning('No se pudo enviar WhatsApp de traslado registrado', [
+                'transfer_id' => $record->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 }

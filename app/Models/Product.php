@@ -105,7 +105,11 @@ class Product extends Model
         $profitPercent = 0.0;
 
         if ($productCategoryId !== null && $productCategoryId > 0) {
-            $category = ProductCategory::query()->find($productCategoryId);
+            $category = ProductCategory::query()
+                ->whereKey($productCategoryId)
+                ->where('is_active', true)
+                ->first();
+
             if ($category !== null) {
                 $profitPercent = max(0.0, (float) $category->profit_percentage);
             }

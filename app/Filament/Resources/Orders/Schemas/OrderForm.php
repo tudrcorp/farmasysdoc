@@ -30,6 +30,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema as SchemaFacade;
 use Illuminate\Support\HtmlString;
 
@@ -55,7 +56,7 @@ class OrderForm
                                     self::resetPartnerDeliveryFields($set);
                                 }
                             })
-                            ->visible(fn (): bool => auth()->user() instanceof User && auth()->user()->isAdministrator())
+                            ->visible(fn (): bool => Auth::user() instanceof User && Auth::user()->isAdministrator())
                             ->dehydrated(false)
                             ->columnSpanFull(),
                         TextInput::make('order_number')
@@ -127,18 +128,18 @@ class OrderForm
                                     ->preload()
                                     ->native(false)
                                     ->placeholder('Elija la compañía aliada')
-                                    ->helperText(fn (): string => auth()->user() instanceof User && auth()->user()->isPartnerCompanyUser()
+                                    ->helperText(fn (): string => Auth::user() instanceof User && Auth::user()->isPartnerCompanyUser()
                                         ? 'El pedido queda asociado a su compañía aliada.'
                                         : 'Visible cuando el pedido es para un aliado.')
                                     ->hidden(fn (Get $get): bool => self::partnerSelectHidden($get))
                                     ->required(fn (Get $get): bool => self::partnerSelectRequired($get))
                                     ->dehydrated(fn (Get $get): bool => self::partnerSelectDehydrated($get))
-                                    ->default(fn (): ?int => auth()->user() instanceof User && auth()->user()->isPartnerCompanyUser()
-                                        ? (int) auth()->user()->partner_company_id
+                                    ->default(fn (): ?int => Auth::user() instanceof User && Auth::user()->isPartnerCompanyUser()
+                                        ? (int) Auth::user()->partner_company_id
                                         : null)
                                     ->live()
                                     ->afterStateUpdated(function (Set $set, mixed $state): void {
-                                        $user = auth()->user();
+                                        $user = Auth::user();
                                         if ($user instanceof User && $user->isAdministrator() && blank($state)) {
                                             self::resetPartnerDeliveryFields($set);
                                         }
@@ -152,6 +153,126 @@ class OrderForm
                                     ->required()
                                     ->default(OrderStatus::Pending->value)
                                     ->prefixIcon(Heroicon::Signal),
+                            ]),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
+                Section::make('Productos del pedido')
+                    ->description('Líneas del pedido y resumen monetario. Los importes se calculan desde el catálogo (precio lista, descuento % e IVA si el producto grava IVA).')
+                    ->icon(Heroicon::Cube)
+                    ->schema([
+                        Checkbox::make('is_wholesale')
+                            ->label('Pedido al mayor (cantidades por cajas)')
+                            ->helperText(fn (Get $get): string => filter_var($get('is_wholesale'), FILTER_VALIDATE_BOOLEAN)
+                                ? 'Modo mayorista: en cada línea indique cuántas cajas solicita de ese producto.'
+                                : 'Modo al detalle: en cada línea indique la cantidad en unidades.')
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, Get $get): void {
+                                self::applyComputedOrderTotals($set, $get);
+                            })
+                            ->default(false)
+                            ->columnSpanFull(),
+                        Repeater::make('items')
+                            ->relationship()
+                            ->label('')
+                            ->saveRelationshipsWhenHidden(false)
+                            ->minItems(1)
+                            ->defaultItems(1)
+                            ->reorderable(false)
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, Get $get): void {
+                                self::applyComputedOrderTotals($set, $get);
+                            })
+                            ->addActionLabel('Añadir producto')
+                            ->table([
+                                TableColumn::make('Producto')->width('65%'),
+                                TableColumn::make('Cantidad'),
+                            ])
+                            ->schema([
+                                Select::make('product_id')
+                                    ->label('Producto')
+                                    ->relationship(
+                                        name: 'product',
+                                        titleAttribute: 'name',
+                                        modifyQueryUsing: fn (Builder $query): Builder => $query->where('is_active', true)->orderBy('name'),
+                                    )
+                                    ->searchable(self::productSearchableColumnsForOrderForm())
+                                    ->getOptionLabelFromRecordUsing(fn (Product $record): string => self::formatProductOptionLabelForOrderSelect($record))
+                                    ->native(false)
+                                    ->live()
+                                    ->required()
+                                    ->helperText('Busque por nombre, código de barras, SKU, slug o principio activo.')
+                                    ->prefixIcon(Heroicon::Cube),
+                                TextInput::make('quantity')
+                                    ->label(fn (Get $get): string => self::orderItemQuantityLabel($get))
+                                    ->helperText(fn (Get $get): string => self::orderItemQuantityHelper($get))
+                                    ->numeric()
+                                    ->minValue(0.001)
+                                    ->step(0.001)
+                                    ->live(onBlur: true)
+                                    ->required()
+                                    ->default(1)
+                                    ->prefixIcon(Heroicon::Calculator),
+                            ])
+                            ->mutateRelationshipDataBeforeCreateUsing(fn (array $data): array => self::enrichOrderItemData($data))
+                            ->mutateRelationshipDataBeforeSaveUsing(fn (array $data, Model $record): array => self::enrichOrderItemData($data))
+                            ->columnSpanFull(),
+                        Fieldset::make('Totales del pedido')
+                            ->columnSpanFull()
+                            ->columns(1)
+                            ->extraAttributes([
+                                'class' => 'fi-order-form-line-totals',
+                            ])
+                            ->schema([
+                                Grid::make([
+                                    'default' => 1,
+                                    'sm' => 2,
+                                    'xl' => 4,
+                                ])
+                                    ->extraAttributes([
+                                        'class' => 'fi-order-form-line-totals-grid',
+                                    ])
+                                    ->schema([
+                                        TextInput::make('subtotal')
+                                            ->label('Subtotal')
+                                            ->disabled()
+                                            ->dehydrated(true)
+                                            ->numeric()
+                                            ->default(0.0)
+                                            ->prefix('$')
+                                            ->helperText('Base imponible (tras descuento % del catálogo).'),
+                                        TextInput::make('discount_total')
+                                            ->label('Descuentos')
+                                            ->disabled()
+                                            ->dehydrated(true)
+                                            ->numeric()
+                                            ->default(0.0)
+                                            ->prefix('$')
+                                            ->helperText('Descuento comercial por línea.'),
+                                        TextInput::make('tax_total')
+                                            ->label('IVA')
+                                            ->disabled()
+                                            ->dehydrated(true)
+                                            ->numeric()
+                                            ->default(0.0)
+                                            ->prefix('$')
+                                            ->helperText('Solo productos con «Grava IVA».'),
+                                        TextInput::make('total')
+                                            ->label('Total')
+                                            ->disabled()
+                                            ->dehydrated(true)
+                                            ->numeric()
+                                            ->default(0.0)
+                                            ->prefix('$')
+                                            ->helperText('Suma de líneas (base + IVA).')
+                                            ->extraFieldWrapperAttributes([
+                                                'class' => 'fi-order-form-total-field',
+                                            ])
+                                            ->extraInputAttributes([
+                                                'class' => 'tabular-nums',
+                                            ]),
+                                    ]),
                             ]),
                     ])
                     ->columns(1)
@@ -301,126 +422,6 @@ class OrderForm
                                 && (string) $get('partner_payment_terms') === OrderPartnerPaymentTerms::Cash->value)
                             ->dehydrated(fn (Get $get): bool => self::partnerDeliverySectionVisible($get)
                                 && (string) $get('partner_payment_terms') === OrderPartnerPaymentTerms::Cash->value),
-                    ])
-                    ->columns(1)
-                    ->columnSpanFull(),
-
-                Section::make('Productos del pedido')
-                    ->description('Líneas del pedido y resumen monetario. Los importes se calculan desde el catálogo (precio lista, descuento % e IVA si el producto grava IVA).')
-                    ->icon(Heroicon::Cube)
-                    ->schema([
-                        Checkbox::make('is_wholesale')
-                            ->label('Pedido al mayor (cantidades por cajas)')
-                            ->helperText(fn (Get $get): string => filter_var($get('is_wholesale'), FILTER_VALIDATE_BOOLEAN)
-                                ? 'Modo mayorista: en cada línea indique cuántas cajas solicita de ese producto.'
-                                : 'Modo al detalle: en cada línea indique la cantidad en unidades.')
-                            ->live()
-                            ->afterStateUpdated(function (Set $set, Get $get): void {
-                                self::applyComputedOrderTotals($set, $get);
-                            })
-                            ->default(false)
-                            ->columnSpanFull(),
-                        Repeater::make('items')
-                            ->relationship()
-                            ->label('')
-                            ->saveRelationshipsWhenHidden(false)
-                            ->minItems(1)
-                            ->defaultItems(1)
-                            ->reorderable(false)
-                            ->live()
-                            ->afterStateUpdated(function (Set $set, Get $get): void {
-                                self::applyComputedOrderTotals($set, $get);
-                            })
-                            ->addActionLabel('Añadir producto')
-                            ->table([
-                                TableColumn::make('Producto')->width('65%'),
-                                TableColumn::make('Cantidad'),
-                            ])
-                            ->schema([
-                                Select::make('product_id')
-                                    ->label('Producto')
-                                    ->relationship(
-                                        name: 'product',
-                                        titleAttribute: 'name',
-                                        modifyQueryUsing: fn (Builder $query): Builder => $query->where('is_active', true)->orderBy('name'),
-                                    )
-                                    ->searchable(self::productSearchableColumnsForOrderForm())
-                                    ->getOptionLabelFromRecordUsing(fn (Product $record): string => self::formatProductOptionLabelForOrderSelect($record))
-                                    ->native(false)
-                                    ->live()
-                                    ->required()
-                                    ->helperText('Busque por nombre, código de barras, SKU, slug o principio activo.')
-                                    ->prefixIcon(Heroicon::Cube),
-                                TextInput::make('quantity')
-                                    ->label(fn (Get $get): string => self::orderItemQuantityLabel($get))
-                                    ->helperText(fn (Get $get): string => self::orderItemQuantityHelper($get))
-                                    ->numeric()
-                                    ->minValue(0.001)
-                                    ->step(0.001)
-                                    ->live(onBlur: true)
-                                    ->required()
-                                    ->default(1)
-                                    ->prefixIcon(Heroicon::Calculator),
-                            ])
-                            ->mutateRelationshipDataBeforeCreateUsing(fn (array $data): array => self::enrichOrderItemData($data))
-                            ->mutateRelationshipDataBeforeSaveUsing(fn (array $data, Model $record): array => self::enrichOrderItemData($data))
-                            ->columnSpanFull(),
-                        Fieldset::make('Totales del pedido')
-                            ->columnSpanFull()
-                            ->columns(1)
-                            ->extraAttributes([
-                                'class' => 'fi-order-form-line-totals',
-                            ])
-                            ->schema([
-                                Grid::make([
-                                    'default' => 1,
-                                    'sm' => 2,
-                                    'xl' => 4,
-                                ])
-                                    ->extraAttributes([
-                                        'class' => 'fi-order-form-line-totals-grid',
-                                    ])
-                                    ->schema([
-                                        TextInput::make('subtotal')
-                                            ->label('Subtotal')
-                                            ->disabled()
-                                            ->dehydrated(true)
-                                            ->numeric()
-                                            ->default(0.0)
-                                            ->prefix('$')
-                                            ->helperText('Base imponible (tras descuento % del catálogo).'),
-                                        TextInput::make('discount_total')
-                                            ->label('Descuentos')
-                                            ->disabled()
-                                            ->dehydrated(true)
-                                            ->numeric()
-                                            ->default(0.0)
-                                            ->prefix('$')
-                                            ->helperText('Descuento comercial por línea.'),
-                                        TextInput::make('tax_total')
-                                            ->label('IVA')
-                                            ->disabled()
-                                            ->dehydrated(true)
-                                            ->numeric()
-                                            ->default(0.0)
-                                            ->prefix('$')
-                                            ->helperText('Solo productos con «Grava IVA».'),
-                                        TextInput::make('total')
-                                            ->label('Total')
-                                            ->disabled()
-                                            ->dehydrated(true)
-                                            ->numeric()
-                                            ->default(0.0)
-                                            ->prefix('$')
-                                            ->helperText('Suma de líneas (base + IVA).')
-                                            ->extraFieldWrapperAttributes([
-                                                'class' => 'fi-order-form-total-field',
-                                            ])
-                                            ->extraInputAttributes([
-                                                'class' => 'tabular-nums',
-                                            ]),
-                                    ]),
-                            ]),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
@@ -620,7 +621,7 @@ class OrderForm
 
     private static function clientSelectHidden(Get $get): bool
     {
-        $user = auth()->user();
+        $user = Auth::user();
         if (! $user instanceof User) {
             return true;
         }
@@ -646,7 +647,7 @@ class OrderForm
 
     private static function partnerSelectHidden(Get $get): bool
     {
-        $user = auth()->user();
+        $user = Auth::user();
         if (! $user instanceof User) {
             return true;
         }
@@ -662,7 +663,7 @@ class OrderForm
 
     private static function partnerSelectRequired(Get $get): bool
     {
-        $user = auth()->user();
+        $user = Auth::user();
         if (! $user instanceof User) {
             return false;
         }
@@ -678,7 +679,7 @@ class OrderForm
 
     private static function partnerSelectDehydrated(Get $get): bool
     {
-        $user = auth()->user();
+        $user = Auth::user();
         if (! $user instanceof User) {
             return false;
         }
@@ -694,7 +695,7 @@ class OrderForm
 
     private static function partnerDeliverySectionVisible(Get $get): bool
     {
-        $user = auth()->user();
+        $user = Auth::user();
         if (! $user instanceof User) {
             return false;
         }

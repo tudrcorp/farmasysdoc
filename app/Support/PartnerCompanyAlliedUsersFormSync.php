@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\PartnerCompany;
 use App\Models\PartnerCompanyUser;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 
 final class PartnerCompanyAlliedUsersFormSync
@@ -110,7 +111,13 @@ final class PartnerCompanyAlliedUsersFormSync
 
         $code = (string) $company->code;
 
-        foreach ($rows as $row) {
+        foreach ($rows as $index => $row) {
+            $requestedActive = (bool) ($row['is_active'] ?? true);
+            $effectiveActive = self::resolvePartnerUserActivationForActor(
+                $requestedActive,
+                $index,
+            );
+
             $user = User::query()->create([
                 'name' => (string) $row['name'],
                 'email' => strtolower(trim((string) $row['email'])),
@@ -118,7 +125,7 @@ final class PartnerCompanyAlliedUsersFormSync
                 'branch_id' => null,
                 'partner_company_id' => $company->getKey(),
                 'partner_company_code' => $code,
-                'partner_user_is_active' => (bool) ($row['is_active'] ?? true),
+                'partner_user_is_active' => $effectiveActive,
                 'roles' => null,
             ]);
 
@@ -155,7 +162,7 @@ final class PartnerCompanyAlliedUsersFormSync
 
         $keepUserIds = collect();
 
-        foreach ($rows as $row) {
+        foreach ($rows as $index => $row) {
             $userId = (int) ($row['user_id'] ?? 0);
 
             if ($userId > 0) {
@@ -169,12 +176,19 @@ final class PartnerCompanyAlliedUsersFormSync
                     continue;
                 }
 
+                $requestedActive = (bool) ($row['is_active'] ?? true);
+                $effectiveActive = self::resolvePartnerUserActivationForActor(
+                    $requestedActive,
+                    $index,
+                    $user
+                );
+
                 $payload = [
                     'name' => (string) $row['name'],
                     'email' => strtolower(trim((string) $row['email'])),
                     'partner_company_id' => $company->getKey(),
                     'partner_company_code' => $code,
-                    'partner_user_is_active' => (bool) ($row['is_active'] ?? true),
+                    'partner_user_is_active' => $effectiveActive,
                 ];
 
                 if (filled($row['password'] ?? null)) {
@@ -184,6 +198,12 @@ final class PartnerCompanyAlliedUsersFormSync
                 $user->update($payload);
                 $keepUserIds->push($userId);
             } else {
+                $requestedActive = (bool) ($row['is_active'] ?? true);
+                $effectiveActive = self::resolvePartnerUserActivationForActor(
+                    $requestedActive,
+                    $index,
+                );
+
                 $user = User::query()->create([
                     'name' => (string) $row['name'],
                     'email' => strtolower(trim((string) $row['email'])),
@@ -191,7 +211,7 @@ final class PartnerCompanyAlliedUsersFormSync
                     'branch_id' => null,
                     'partner_company_id' => $company->getKey(),
                     'partner_company_code' => $code,
-                    'partner_user_is_active' => (bool) ($row['is_active'] ?? true),
+                    'partner_user_is_active' => $effectiveActive,
                     'roles' => null,
                 ]);
 
@@ -253,5 +273,38 @@ final class PartnerCompanyAlliedUsersFormSync
                 ]);
             }
         }
+    }
+
+    private static function shouldApplyManagerActivationRestriction(): bool
+    {
+        $authUser = Auth::user();
+
+        return $authUser instanceof User
+            && $authUser->isManager()
+            && ! $authUser->isAdministrator();
+    }
+
+    private static function resolvePartnerUserActivationForActor(
+        bool $requestedActive,
+        int $position,
+        ?User $existingUser = null
+    ): bool {
+        if (! self::shouldApplyManagerActivationRestriction()) {
+            return $requestedActive;
+        }
+
+        if ($position < 2) {
+            return $requestedActive;
+        }
+
+        if ($existingUser instanceof User) {
+            if (! $requestedActive) {
+                return false;
+            }
+
+            return (bool) ($existingUser->partner_user_is_active ?? false);
+        }
+
+        return false;
     }
 }

@@ -3,7 +3,9 @@
 namespace App\Filament\Resources\ProductCategories\Pages;
 
 use App\Filament\Resources\ProductCategories\ProductCategoryResource;
+use App\Models\User;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Support\Facades\Auth;
 
 class CreateProductCategory extends CreateRecord
 {
@@ -16,9 +18,14 @@ class CreateProductCategory extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['profit_percentage'] = $this->normalizeProfitPercentage($data['profit_percentage'] ?? null);
-        $actorId = auth()->id();
+        $actorId = Auth::id();
         $data['created_by'] = $actorId !== null ? (string) $actorId : null;
         $data['updated_by'] = $actorId !== null ? (string) $actorId : null;
+        $authUser = Auth::user();
+
+        if ($authUser instanceof User && $authUser->isManager() && ! $authUser->isAdministrator()) {
+            $data['is_active'] = false;
+        }
 
         return $data;
     }

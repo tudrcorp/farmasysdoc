@@ -53,14 +53,12 @@ class MarketingHubPage extends Dashboard
     {
         $user = Filament::auth()->user();
 
-        return $user instanceof User && $user->canAccessMarketingModule();
+        return $user instanceof User && $user->canAccessFarmaadminMenuKey('marketing_hub');
     }
 
     public static function shouldRegisterNavigation(): bool
     {
-        $user = auth()->user();
-
-        return $user instanceof User && $user->canAccessMarketingModule();
+        return static::canAccess();
     }
 
     /**

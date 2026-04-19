@@ -8,7 +8,6 @@ use App\Models\Branch;
 use App\Models\Rol;
 use App\Models\User;
 use App\Support\Filament\BranchAuthScope;
-use App\Support\Users\UserRoleLabels;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -81,7 +80,8 @@ class UsersTable
                         }
 
                         return collect($roles)
-                            ->map(fn (mixed $role): string => UserRoleLabels::label($role))
+                            ->map(fn (mixed $role): string => mb_strtoupper(trim((string) $role)))
+                            ->filter(fn (string $role): bool => filled($role))
                             ->unique()
                             ->sort()
                             ->values()
@@ -105,14 +105,25 @@ class UsersTable
                         : null)
                     ->toggleable(isToggledHiddenByDefault: false),
                 TextColumn::make('delivery_mobile_phone')
-                    ->label('Móvil (entrega)')
+                    ->label('Teléfono móvil')
                     ->icon(Heroicon::Phone)
                     ->iconColor('gray')
                     ->placeholder('—')
                     ->searchable()
                     ->sortable()
-                    ->getStateUsing(fn (User $record): ?string => $record->isDeliveryUser()
-                        ? (filled($record->delivery_mobile_phone) ? (string) $record->delivery_mobile_phone : null)
+                    ->getStateUsing(fn (User $record): ?string => filled($record->delivery_mobile_phone)
+                        ? (string) $record->delivery_mobile_phone
+                        : null)
+                    ->toggleable(isToggledHiddenByDefault: false),
+                TextColumn::make('whatsapp_phone')
+                    ->label('WhatsApp')
+                    ->icon(Heroicon::ChatBubbleLeftRight)
+                    ->iconColor('gray')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->sortable()
+                    ->getStateUsing(fn (User $record): ?string => filled($record->whatsapp_phone)
+                        ? (string) $record->whatsapp_phone
                         : null)
                     ->toggleable(isToggledHiddenByDefault: false),
                 ImageColumn::make('delivery_photo_path')
@@ -228,7 +239,7 @@ class UsersTable
                         ->orderBy('name')
                         ->get()
                         ->mapWithKeys(fn (Rol $rol): array => [
-                            $rol->name => UserRoleLabels::label($rol->name),
+                            $rol->name => mb_strtoupper((string) $rol->name),
                         ])
                         ->all())
                     ->query(function (Builder $query, array $data): void {

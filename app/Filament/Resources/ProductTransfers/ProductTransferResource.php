@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Services\Inventory\ProductTransferCompletionService;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Radio;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -23,6 +24,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 
 class ProductTransferResource extends Resource
@@ -37,7 +39,7 @@ class ProductTransferResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        $user = auth()->user();
+        $user = Auth::user();
 
         return $user instanceof User ? $user->navigationOperationsGroupLabel() : 'Farmadoc®';
     }
@@ -83,7 +85,7 @@ class ProductTransferResource extends Resource
     {
         $query = parent::getEloquentQuery();
 
-        $user = auth()->user();
+        $user = Auth::user();
         if (! $user instanceof User) {
             return $query->whereRaw('1 = 0');
         }
@@ -110,7 +112,7 @@ class ProductTransferResource extends Resource
             return false;
         }
 
-        $user = auth()->user();
+        $user = Auth::user();
         if (! $user instanceof User) {
             return false;
         }
@@ -131,7 +133,7 @@ class ProductTransferResource extends Resource
 
     public static function canCreate(): bool
     {
-        $user = auth()->user();
+        $user = Auth::user();
         if (! $user instanceof User) {
             return false;
         }
@@ -153,7 +155,7 @@ class ProductTransferResource extends Resource
             return false;
         }
 
-        $user = auth()->user();
+        $user = Auth::user();
 
         return $user instanceof User && $user->isAdministrator();
     }
@@ -177,7 +179,7 @@ class ProductTransferResource extends Resource
             ->successNotificationTitle('Traslado en proceso')
             ->visible(fn (ProductTransfer $record): bool => self::shouldShowTakeTransferAction($record))
             ->action(function (ProductTransfer $record, Action $action): void {
-                $user = auth()->user();
+                $user = Auth::user();
                 if (! $user instanceof User || ! $user->isDeliveryUser()) {
                     return;
                 }
@@ -206,7 +208,7 @@ class ProductTransferResource extends Resource
 
     public static function shouldShowTakeTransferAction(ProductTransfer $record): bool
     {
-        $user = auth()->user();
+        $user = Auth::user();
         if (! $user instanceof User || ! $user->isDeliveryUser()) {
             return false;
         }
@@ -215,7 +217,7 @@ class ProductTransferResource extends Resource
     }
 
     /**
-     * Sucursal receptora (solicitante) o administrador: completar inventario y venta solo si está En proceso.
+     * Gerencia o administrador: completar inventario y venta solo si está En proceso.
      */
     public static function markCompletedAction(): Action
     {
@@ -232,7 +234,7 @@ class ProductTransferResource extends Resource
             ->successNotificationTitle('Traslado completado')
             ->visible(fn (ProductTransfer $record): bool => self::shouldShowMarkCompletedAction($record))
             ->action(function (ProductTransfer $record, Action $action): void {
-                $user = auth()->user();
+                $user = Auth::user();
                 if (! $user instanceof User) {
                     return;
                 }
@@ -261,6 +263,140 @@ class ProductTransferResource extends Resource
             });
     }
 
+    /**
+     * Gerencia y Administrador: cambio manual de estado con selector.
+     */
+    public static function adminChangeStatusAction(): Action
+    {
+        return Action::make('adminChangeStatus')
+            ->label('Cambiar estatus')
+            ->icon(Heroicon::ArrowsRightLeft)
+            ->color('gray')
+            ->visible(fn (): bool => Auth::user() instanceof User && (Auth::user()->isAdministrator() || Auth::user()->isManager()))
+            ->form([
+                Radio::make('status')
+                    ->label('Nuevo estatus')
+                    ->options(fn (ProductTransfer $record): array => self::adminStatusOptionsForRecord($record))
+                    ->inline(false)
+                    ->required(),
+            ])
+            ->fillForm(function (ProductTransfer $record): array {
+                $current = $record->status;
+
+                return [
+                    'status' => $current instanceof ProductTransferStatus
+                        ? $current->value
+                        : (string) $current,
+                ];
+            })
+            ->requiresConfirmation()
+            ->modalHeading(fn (ProductTransfer $record): string => 'Cambiar estatus de '.$record->code)
+            ->modalDescription('Seleccione el nuevo estado del traslado. Si marca «Completado», el sistema aplicará movimientos de inventario y venta interna.')
+            ->modalSubmitActionLabel('Guardar estatus')
+            ->extraModalWindowAttributes([
+                'class' => 'fi-ios-transfer-status-modal-window',
+            ])
+            ->action(function (array $data, ProductTransfer $record, Action $action): void {
+                $user = Auth::user();
+                if (! $user instanceof User || (! $user->isAdministrator() && ! $user->isManager())) {
+                    return;
+                }
+
+                $newStatus = ProductTransferStatus::tryFrom((string) ($data['status'] ?? ''));
+                if (! $newStatus instanceof ProductTransferStatus) {
+                    Notification::make()
+                        ->warning()
+                        ->title('Estado no válido')
+                        ->send();
+                    $action->halt();
+
+                    return;
+                }
+
+                $record = $record->fresh();
+                if (! $record instanceof ProductTransfer) {
+                    $action->halt();
+
+                    return;
+                }
+
+                $currentStatus = $record->status instanceof ProductTransferStatus
+                    ? $record->status
+                    : ProductTransferStatus::tryFrom((string) $record->status);
+
+                if ($currentStatus instanceof ProductTransferStatus && $currentStatus === $newStatus) {
+                    Notification::make()
+                        ->title('El traslado ya tiene ese estatus.')
+                        ->info()
+                        ->send();
+
+                    return;
+                }
+
+                if ($currentStatus === ProductTransferStatus::Completed || $record->sale_id !== null) {
+                    Notification::make()
+                        ->warning()
+                        ->title('No se puede cambiar')
+                        ->body('El traslado ya fue completado y tiene movimientos aplicados.')
+                        ->send();
+                    $action->halt();
+
+                    return;
+                }
+
+                if ($newStatus === ProductTransferStatus::Completed) {
+                    try {
+                        app(ProductTransferCompletionService::class)->complete(
+                            $record->fresh([
+                                'items' => fn ($query) => $query->orderBy('id'),
+                                'items.product',
+                            ]),
+                            $user,
+                        );
+                    } catch (ValidationException $exception) {
+                        $message = collect($exception->errors())->flatten()->first()
+                            ?? 'No se pudo completar el traslado.';
+
+                        Notification::make()
+                            ->danger()
+                            ->title('No se pudo cambiar el estatus')
+                            ->body($message)
+                            ->persistent()
+                            ->send();
+                        $action->halt();
+                    }
+
+                    return;
+                }
+
+                $actor = filled($user->email)
+                    ? (string) $user->email
+                    : (string) ($user->name ?? 'usuario');
+
+                $payload = [
+                    'status' => $newStatus,
+                    'updated_by' => $actor,
+                ];
+
+                if ($newStatus === ProductTransferStatus::Pending) {
+                    $payload['in_progress_at'] = null;
+                    $payload['delivery_user_id'] = null;
+                }
+
+                if ($newStatus === ProductTransferStatus::InProgress && ! filled($record->in_progress_at)) {
+                    $payload['in_progress_at'] = now();
+                }
+
+                $record->forceFill($payload)->save();
+
+                Notification::make()
+                    ->success()
+                    ->title('Estatus actualizado')
+                    ->body('Nuevo estado: '.$newStatus->label())
+                    ->send();
+            });
+    }
+
     public static function shouldShowMarkCompletedAction(ProductTransfer $record): bool
     {
         if ($record->sale_id !== null) {
@@ -275,7 +411,7 @@ class ProductTransferResource extends Resource
             return false;
         }
 
-        $user = auth()->user();
+        $user = Auth::user();
         if (! $user instanceof User) {
             return false;
         }
@@ -293,8 +429,27 @@ class ProductTransferResource extends Resource
             return false;
         }
 
-        $user = auth()->user();
+        $user = Auth::user();
 
         return $user instanceof User && $user->isAdministrator();
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function adminStatusOptionsForRecord(ProductTransfer $record): array
+    {
+        if ($record->sale_id !== null || $record->status === ProductTransferStatus::Completed) {
+            return [
+                ProductTransferStatus::Completed->value => ProductTransferStatus::Completed->label(),
+            ];
+        }
+
+        return [
+            ProductTransferStatus::Pending->value => ProductTransferStatus::Pending->label(),
+            ProductTransferStatus::InProgress->value => ProductTransferStatus::InProgress->label(),
+            ProductTransferStatus::Completed->value => ProductTransferStatus::Completed->label(),
+            ProductTransferStatus::Cancelled->value => ProductTransferStatus::Cancelled->label(),
+        ];
     }
 }

@@ -4,6 +4,7 @@ namespace App\Filament\Resources\PartnerCompanies\Pages;
 
 use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Models\PartnerCompany;
+use App\Models\User;
 use App\Support\PartnerCompanyAlliedUsersFormSync;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
@@ -29,12 +30,19 @@ class CreatePartnerCompany extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $actor = Auth::user()?->email
-            ?? Auth::user()?->name
+        $authUser = Auth::user();
+
+        $actor = $authUser?->email
+            ?? $authUser?->name
             ?? 'sistema';
 
         $data['created_by'] = $actor;
         $data['updated_by'] = $actor;
+
+        if ($authUser instanceof User && $authUser->isManager() && ! $authUser->isAdministrator()) {
+            $data['is_active'] = false;
+        }
+
         unset($data['code']);
 
         return $data;

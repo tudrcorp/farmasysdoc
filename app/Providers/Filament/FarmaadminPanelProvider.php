@@ -9,6 +9,7 @@ use App\Filament\Pages\FarmaadminDashboard;
 use App\Filament\Pages\Marketing\MarketingHubPage;
 use App\Filament\Resources\Deliveries\DeliveryResource;
 use App\Filament\Widgets\FarmaadminAccountWidget;
+use App\Http\Middleware\EnsureFarmaadminMenuAccess;
 use App\Models\User;
 use App\Support\Filament\FarmaadminDeliveryUserAccess;
 use Filament\Http\Middleware\Authenticate;
@@ -45,6 +46,7 @@ class FarmaadminPanelProvider extends PanelProvider
             ->emailVerification()
             ->emailChangeVerification()
             ->emailVerification()
+            ->favicon(asset('images/logos/favicon.png'))
             ->brandLogo(asset('images/logos/farmadoc-ligth.png'))
             ->darkModeBrandLogo(asset('images/logos/farmadoc-dark.png'))
             ->brandLogoHeight('4.6rem')
@@ -55,9 +57,13 @@ class FarmaadminPanelProvider extends PanelProvider
             ])
             ->navigationGroups([
                 'configuration' => NavigationGroup::make('Configuración'),
-                'operations' => NavigationGroup::make(fn (): string => auth()->user() instanceof User
-                    ? auth()->user()->navigationOperationsGroupLabel()
-                    : 'Farmadoc®'),
+                'operations' => NavigationGroup::make(function (): string {
+                    $user = request()->user();
+
+                    return $user instanceof User
+                        ? $user->navigationOperationsGroupLabel()
+                        : 'Farmadoc®';
+                }),
                 'marketing' => NavigationGroup::make('Marketing'),
                 'inventory' => NavigationGroup::make('Inventario'),
                 'commercial_allies' => NavigationGroup::make('Aliados Comerciales'),
@@ -99,6 +105,7 @@ class FarmaadminPanelProvider extends PanelProvider
             ->globalSearchFieldKeyBindingSuffix()
             ->authMiddleware([
                 Authenticate::class,
+                EnsureFarmaadminMenuAccess::class,
             ]);
     }
 }

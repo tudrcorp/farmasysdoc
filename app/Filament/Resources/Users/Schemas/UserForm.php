@@ -53,7 +53,11 @@ class UserForm
                                     ->columnSpan(['default' => 1, 'lg' => 1]),
                                 Select::make('roles')
                                     ->label('Roles')
-                                    ->options(Rol::all()->pluck('name', 'name'))
+                                    ->options(fn (): array => Rol::query()
+                                        ->where('is_active', true)
+                                        ->orderBy('name')
+                                        ->pluck('name', 'name')
+                                        ->toArray())
                                     ->required()
                                     ->multiple()
                                     ->live()
@@ -90,13 +94,20 @@ class UserForm
                             ->visible(fn (Get $get): bool => self::formRolesIncludeDelivery($get('roles'))),
                         TextInput::make('delivery_mobile_phone')
                             ->label('Teléfono móvil')
-                            ->helperText('Contacto del repartidor; puede mostrarse al aliado junto con los demás datos.')
+                            ->helperText('Teléfono de contacto del usuario.')
                             ->tel()
                             ->maxLength(32)
                             ->prefixIcon(Heroicon::Phone)
                             ->columnSpanFull()
-                            ->required(fn (Get $get): bool => self::formRolesIncludeDelivery($get('roles')))
-                            ->visible(fn (Get $get): bool => self::formRolesIncludeDelivery($get('roles'))),
+                            ->visible(),
+                        TextInput::make('whatsapp_phone')
+                            ->label('WhatsApp (administrador)')
+                            ->helperText('Número usado para alertas operativas por WhatsApp. Recomendado para roles Administrador.')
+                            ->tel()
+                            ->maxLength(32)
+                            ->prefixIcon(Heroicon::ChatBubbleLeftRight)
+                            ->columnSpanFull()
+                            ->visible(),
                         FileUpload::make('delivery_photo_path')
                             ->label('Foto del repartidor')
                             ->helperText('Visible para la compañía aliada en el pedido cuando este usuario toma la entrega. Solo aplica con rol Entregas.')
@@ -116,6 +127,7 @@ class UserForm
                 Section::make('Contraseña')
                     ->description('Al crear es obligatoria. Al editar, deje en blanco para no cambiarla.')
                     ->icon(Heroicon::Key)
+                    ->visible(fn ($livewire): bool => $livewire instanceof CreateRecord)
                     ->schema([
                         Grid::make([
                             'default' => 1,

@@ -11,6 +11,21 @@ use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
 Route::view('/docs/api', 'public.api-docs')->name('public.api-docs');
+Route::get('/sitemap.xml', function () {
+    $urls = [
+        route('home'),
+        route('public.api-docs'),
+    ];
+
+    $lastModified = now()->toAtomString();
+
+    $xml = view('public.sitemap', [
+        'urls' => $urls,
+        'lastModified' => $lastModified,
+    ])->render();
+
+    return response($xml, 200, ['Content-Type' => 'application/xml; charset=UTF-8']);
+})->name('sitemap');
 
 Route::middleware(['auth'])->prefix('geo')->name('geo.')->group(function (): void {
     Route::get('nominatim/search', [NominatimProxyController::class, 'search'])->name('nominatim.search');

@@ -126,7 +126,10 @@ class Inventory extends Model
         $profitPercent = 0.0;
         if ($product !== null) {
             $product->loadMissing('productCategory');
-            $profitPercent = max(0.0, (float) ($product->productCategory?->profit_percentage ?? 0));
+            $category = $product->productCategory;
+            if ($category !== null && (bool) $category->is_active) {
+                $profitPercent = max(0.0, (float) $category->profit_percentage);
+            }
         }
 
         $vatCostAmount = round($safeCost * ($vatRate / 100), 8);

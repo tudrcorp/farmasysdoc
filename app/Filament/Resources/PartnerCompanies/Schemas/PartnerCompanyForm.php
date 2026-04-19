@@ -73,7 +73,31 @@ class PartnerCompanyForm
                                     ->label('Compañía activa')
                                     ->default(true)
                                     ->required()
-                                    ->helperText('Desactiva este estado para ocultar la compañía de nuevas operaciones.')
+                                    ->visible(function (): bool {
+                                        $authUser = request()->user();
+
+                                        if (! $authUser instanceof User) {
+                                            return false;
+                                        }
+
+                                        return ! $authUser->isManager();
+                                    })
+                                    ->disabled(function (): bool {
+                                        $authUser = request()->user();
+
+                                        return $authUser instanceof User
+                                            && $authUser->isManager()
+                                            && ! $authUser->isAdministrator();
+                                    })
+                                    ->helperText(function (): string {
+                                        $authUser = request()->user();
+
+                                        return $authUser instanceof User
+                                            && $authUser->isManager()
+                                            && ! $authUser->isAdministrator()
+                                            ? 'Creada por Gerente: la activación la realiza un Administrador.'
+                                            : 'Desactiva este estado para ocultar la compañía de nuevas operaciones.';
+                                    })
                                     ->inline(false),
                             ]),
                     ])
@@ -307,9 +331,14 @@ class PartnerCompanyForm
                     ->columnSpanFull(),
 
                 Section::make('Usuarios del panel (aliado)')
-                    ->description('Solo administradores: cree o gestione las cuentas que podrán operar en nombre de esta compañía aliada. Cada usuario recibe acceso al panel con el correo y la contraseña indicados.')
+                    ->description('Administradores y Gerentes pueden gestionar usuarios del aliado. En rol Gerente: desde el 3er usuario quedan pendientes de activación por Administrador.')
                     ->icon(Heroicon::UserGroup)
-                    ->visible(fn (): bool => auth()->user() instanceof User && auth()->user()->isAdministrator())
+                    ->visible(function (): bool {
+                        $authUser = request()->user();
+
+                        return $authUser instanceof User
+                            && ($authUser->isAdministrator() || $authUser->isManager());
+                    })
                     ->schema([
                         Repeater::make('partner_users')
                             ->label('')

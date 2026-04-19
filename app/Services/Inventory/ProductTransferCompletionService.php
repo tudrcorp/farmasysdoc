@@ -27,15 +27,11 @@ final class ProductTransferCompletionService
             return false;
         }
 
-        if ($user->isAdministrator()) {
+        if ($user->isAdministrator() || $user->isManager()) {
             return true;
         }
 
-        if (! filled($user->branch_id)) {
-            return false;
-        }
-
-        return (int) $user->branch_id === (int) $transfer->to_branch_id;
+        return false;
     }
 
     /**

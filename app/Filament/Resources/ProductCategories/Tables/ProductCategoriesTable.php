@@ -4,10 +4,13 @@ namespace App\Filament\Resources\ProductCategories\Tables;
 
 use App\Filament\Resources\ProductCategories\ProductCategoryResource;
 use App\Models\ProductCategory;
+use App\Models\User;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
@@ -74,10 +77,39 @@ class ProductCategoriesTable
                     ->falseIcon(Heroicon::XCircle)
                     ->trueColor('success')
                     ->falseColor('danger')
+                    ->action(
+                        Action::make('activateCategoryStatus')
+                            ->modalHeading('Activar categoría')
+                            ->modalDescription('¿Deseas activar esta categoría para que pueda usarse en el sistema y en cálculos de precio?')
+                            ->modalSubmitActionLabel('Sí, activar categoría')
+                            ->requiresConfirmation()
+                            ->visible(function (ProductCategory $record): bool {
+                                $authUser = request()->user();
+
+                                return $authUser instanceof User
+                                    && $authUser->isAdministrator()
+                                    && ! $record->is_active;
+                            })
+                            ->action(function (ProductCategory $record): void {
+                                $record->update([
+                                    'is_active' => true,
+                                ]);
+
+                                Notification::make()
+                                    ->title('Categoría activada correctamente.')
+                                    ->success()
+                                    ->send();
+                            })
+                    )
                     ->alignCenter()
                     ->tooltip(fn (ProductCategory $record): string => $record->is_active
                         ? 'Categoría activa en catálogo'
-                        : 'Categoría inactiva'),
+                        : (
+                            request()->user() instanceof User
+                            && request()->user()->isAdministrator()
+                            ? 'Haz clic para activar (requiere confirmación)'
+                            : 'Categoría pendiente de aprobación administrativa'
+                        )),
                 TextColumn::make('profit_percentage')
                     ->label('Margen %')
                     ->numeric(decimalPlaces: 2)

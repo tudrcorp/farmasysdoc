@@ -18,7 +18,9 @@ class ExternalInventoryController extends Controller
         $products = Product::query()
             ->where('is_active', true)
             ->whereHas('productCategory', function ($query): void {
-                $query->where('is_medication', true);
+                $query
+                    ->where('is_active', true)
+                    ->where('is_medication', true);
             })
             ->whereNotNull('active_ingredient')
             ->where('active_ingredient', '!=', '')

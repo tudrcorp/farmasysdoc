@@ -75,7 +75,7 @@ class ManageFinancialSettings extends Page
     {
         $user = Filament::auth()->user();
 
-        return $user instanceof User && $user->isAdministrator();
+        return $user instanceof User && $user->canAccessFarmaadminMenuKey('financial_settings');
     }
 
     public static function shouldRegisterNavigation(): bool

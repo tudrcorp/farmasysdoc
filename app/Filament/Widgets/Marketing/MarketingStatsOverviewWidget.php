@@ -75,6 +75,6 @@ class MarketingStatsOverviewWidget extends BaseWidget
     {
         $user = Filament::auth()->user();
 
-        return $user instanceof User && $user->canAccessMarketingModule();
+        return $user instanceof User && $user->canAccessFarmaadminMenuKey('marketing_hub');
     }
 }

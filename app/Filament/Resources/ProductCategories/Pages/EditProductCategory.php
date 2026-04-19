@@ -3,10 +3,13 @@
 namespace App\Filament\Resources\ProductCategories\Pages;
 
 use App\Filament\Resources\ProductCategories\ProductCategoryResource;
+use App\Models\ProductCategory;
+use App\Models\User;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\Auth;
 
 class EditProductCategory extends EditRecord
 {
@@ -31,8 +34,19 @@ class EditProductCategory extends EditRecord
     protected function mutateFormDataBeforeSave(array $data): array
     {
         $data['profit_percentage'] = $this->normalizeProfitPercentage($data['profit_percentage'] ?? null);
-        $actorId = auth()->id();
+        $actorId = Auth::id();
         $data['updated_by'] = $actorId !== null ? (string) $actorId : null;
+        $authUser = Auth::user();
+        $record = $this->getRecord();
+
+        if (
+            $authUser instanceof User
+            && $authUser->isManager()
+            && ! $authUser->isAdministrator()
+            && $record instanceof ProductCategory
+        ) {
+            $data['is_active'] = (bool) $record->is_active;
+        }
 
         return $data;
     }

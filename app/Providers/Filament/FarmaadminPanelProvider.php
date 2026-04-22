@@ -9,6 +9,7 @@ use App\Filament\Pages\FarmaadminDashboard;
 use App\Filament\Pages\Marketing\MarketingHubPage;
 use App\Filament\Resources\Deliveries\DeliveryResource;
 use App\Filament\Widgets\FarmaadminAccountWidget;
+use App\Http\Middleware\AuditFarmaadminHttpActivity;
 use App\Http\Middleware\EnsureFarmaadminMenuAccess;
 use App\Models\User;
 use App\Support\Filament\FarmaadminDeliveryUserAccess;
@@ -106,6 +107,7 @@ class FarmaadminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
                 EnsureFarmaadminMenuAccess::class,
+                AuditFarmaadminHttpActivity::class,
             ]);
     }
 }

@@ -29,6 +29,7 @@ class FarmaadminMenuAccessCatalog
             'branches' => ['label' => 'Sucursales', 'route_name_fragment' => 'resources.branches.', 'group' => 'Configuración'],
             'roles' => ['label' => 'Roles', 'route_name_fragment' => 'resources.roles.', 'group' => 'Configuración'],
             'users' => ['label' => 'Usuarios', 'route_name_fragment' => 'resources.users.', 'group' => 'Configuración'],
+            'audit_logs' => ['label' => 'Auditoría y trazas', 'route_name_fragment' => 'resources.audit-logs.', 'group' => 'Configuración'],
             'api_clients' => ['label' => 'Clientes API', 'route_name_fragment' => 'resources.api-clients.', 'group' => 'Configuración'],
             'financial_settings' => ['label' => 'Administración financiera', 'route_name_fragment' => 'pages.manage-financial-settings', 'group' => 'Configuración'],
             'bdv_playground' => ['label' => 'BDV — APIs (pruebas)', 'route_name_fragment' => 'pages.bdv-conciliation-playground', 'group' => 'Configuración'],

@@ -10,16 +10,15 @@ use App\Models\Client;
 use App\Models\Sale;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Filament\SaleEffectiveDateScope;
+use App\Support\Filament\SaleIosBreakdownHtml;
+use App\Support\Filament\SlideoverModalScrollFix;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
-use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Schemas\Components\Section;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
@@ -34,74 +33,41 @@ class SalesTable
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => BranchAuthScope::applyToSalesQuery($query)
-                ->with(['branch', 'client'])
+                ->with(['branch', 'client', 'items'])
                 ->withCount('items'))
             ->columns([
                 TextColumn::make('sale_number')
                     ->label('Nº venta')
                     ->badge()
                     ->color('primary')
+                    ->tooltip('Clic para ver el desglose completo')
                     ->action(
-                        Action::make('viewSaleItems')
-                            ->label('Detalle de ítems')
-                            ->icon(Heroicon::QueueList)
-                            ->modalIcon(Heroicon::QueueList)
-                            ->modalWidth(Width::FiveExtraLarge)
-                            ->modalHeading(fn (Sale $record): string => 'Ítems de la venta '.$record->sale_number)
-                            ->modalDescription('Consulta rápida del detalle de productos vendidos.')
-                            ->modalSubmitActionLabel('Cerrar')
-                            ->modalCancelAction(fn (Action $action): Action => $action->color('danger'))
+                        Action::make('viewSaleIosBreakdown')
+                            ->label('Desglose de la venta')
+                            ->icon(Heroicon::RectangleStack)
+                            ->modalIcon(Heroicon::RectangleStack)
+                            ->slideOver()
+                            ->extraModalWindowAttributes(SlideoverModalScrollFix::extraModalWindowAttributes())
+                            ->modalWidth(Width::FourExtraLarge)
+                            ->modalHeading(fn (Sale $record): string => 'Venta '.$record->sale_number)
+                            ->modalDescription('Totales en USD, cobro, tasa BCV de referencia y cada producto. Cierra con «Listo» o la X.')
+                            ->modalFooterActionsAlignment(Alignment::End)
+                            ->modalSubmitActionLabel('Listo')
+                            ->modalCancelAction(false)
                             ->schema([
-                                Section::make('Detalle de ítems')
+                                TextEntry::make('sale_number')
+                                    ->hiddenLabel()
+                                    ->columnSpanFull()
+                                    ->html()
                                     ->extraAttributes([
-                                        'class' => 'farmadoc-sales-items-modal',
+                                        'class' => 'farmadoc-sale-slideover-entry',
                                     ])
-                                    ->schema([
-                                        RepeatableEntry::make('items')
-                                            ->label('Ítems')
-                                            ->placeholder('Esta venta no tiene ítems registrados.')
-                                            ->table([
-                                                TableColumn::make('Producto'),
-                                                TableColumn::make('Cant.')
-                                                    ->width('6rem')
-                                                    ->alignment(Alignment::Center),
-                                                TableColumn::make('P. unitario')
-                                                    ->alignment(Alignment::End),
-                                                TableColumn::make('Total línea')
-                                                    ->alignment(Alignment::End),
-                                            ])
-                                            ->schema([
-                                                TextEntry::make('product_name_snapshot')
-                                                    ->label('')
-                                                    ->formatStateUsing(function ($state, $record): string {
-                                                        $name = filled($state) ? (string) $state : 'Producto';
-                                                        $sku = (string) ($record->sku_snapshot ?? '—');
-
-                                                        return $name.' · SKU: '.$sku;
-                                                    })
-                                                    ->weight('medium'),
-                                                TextEntry::make('quantity')
-                                                    ->label('')
-                                                    ->alignment(Alignment::Center)
-                                                    ->formatStateUsing(fn ($state): string => number_format((float) $state, 0, '.', ',')),
-                                                TextEntry::make('unit_price')
-                                                    ->label('')
-                                                    ->money('USD'),
-                                                TextEntry::make('line_total')
-                                                    ->label('')
-                                                    ->money('USD')
-                                                    ->weight('medium'),
-                                            ])
-                                            ->columnSpanFull(),
-                                    ])
-                                    ->columnSpanFull(),
+                                    ->formatStateUsing(fn (Sale $record): string => SaleIosBreakdownHtml::build($record)->toHtml()),
                             ])
                             ->action(static fn () => null),
                     )
                     ->searchable()
                     ->sortable()
-                    ->copyable()
-                    ->copyMessage('Número copiado')
                     ->placeholder('—')
                     ->weight('medium')
                     ->icon(Heroicon::Hashtag)

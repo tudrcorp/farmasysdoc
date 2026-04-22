@@ -6,21 +6,19 @@ use App\Enums\SaleStatus;
 use App\Filament\Resources\Clients\ClientResource;
 use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Filament\Resources\Products\ProductResource;
-use App\Filament\Resources\Purchases\PurchaseResource;
-use App\Filament\Resources\Sales\SaleResource;
 use App\Models\Client;
 use App\Models\Inventory;
 use App\Models\PartnerCompany;
 use App\Models\Product;
 use App\Models\Sale;
-use App\Models\User;
-use App\Support\Filament\FarmaadminDeliveryUserAccess;
+use App\Services\Dolar\DolarApiDolaresService;
 use Carbon\Carbon;
 use Filament\GlobalSearch\GlobalSearchResult;
 use Filament\GlobalSearch\GlobalSearchResults;
 use Filament\GlobalSearch\Providers\Contracts\GlobalSearchProvider;
 use Filament\GlobalSearch\Providers\DefaultGlobalSearchProvider;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\HtmlString;
 
@@ -40,6 +38,10 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
 
     private static ?bool $productsTableHasHealthRegistrationNumber = null;
 
+    private static ?float $cachedBcvUsdRate = null;
+
+    private static bool $bcvUsdRateWasResolved = false;
+
     public function getResults(string $query): ?GlobalSearchResults
     {
         $term = trim($query);
@@ -50,10 +52,6 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
 
         if (mb_strlen($term) > 500) {
             $term = mb_substr($term, 0, 500);
-        }
-
-        if (auth()->user() instanceof User && FarmaadminDeliveryUserAccess::isRestrictedDeliveryUser()) {
-            return GlobalSearchResults::make();
         }
 
         $builder = GlobalSearchResults::make();
@@ -87,10 +85,6 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
      */
     private function productGlobalSearchResults(string $term): Collection
     {
-        if (! $this->userCanSearchProductsInGlobalBar()) {
-            return collect();
-        }
-
         $like = '%'.addcslashes($term, '%_\\').'%';
 
         $hasSku = $this->productsTableHasSkuColumn();
@@ -256,9 +250,7 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
             }
         }
 
-        return $products->filter(function (Product $product): bool {
-            return ProductResource::canView($product);
-        })->map(function (Product $product) use ($stockByProduct, $stockByBranchPerProduct, $hasSku, $hasSlug, $hasModel, $hasHealthReg): GlobalSearchResult {
+        return $products->map(function (Product $product) use ($stockByProduct, $stockByBranchPerProduct, $hasSku, $hasSlug, $hasModel, $hasHealthReg): GlobalSearchResult {
             $url = ProductResource::getUrl('view', ['record' => $product], isAbsolute: false);
             $stock = $stockByProduct[$product->id] ?? 0.0;
 
@@ -287,7 +279,7 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
             $details = array_merge($details, [
                 'Marca' => filled($product->brand) ? (string) $product->brand : '—',
                 'Principio activo' => $this->formatActiveIngredient($product->active_ingredient),
-                'Precio venta' => '$'.number_format((float) ($product->sale_price ?? 0), 2, '.', ','),
+                'Precio venta' => $this->formatSalePriceWithCurrentBcv((float) ($product->sale_price ?? 0)),
             ]);
 
             $branches = $stockByBranchPerProduct[$product->id] ?? [];
@@ -330,10 +322,6 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
      */
     private function clientGlobalSearchResults(string $term): Collection
     {
-        if (! ClientResource::canAccess()) {
-            return collect();
-        }
-
         $like = '%'.addcslashes($term, '%_\\').'%';
 
         $clients = Client::query()
@@ -355,8 +343,7 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
             })
             ->orderBy('name')
             ->limit(self::CLIENT_LIMIT)
-            ->get()
-            ->filter(fn (Client $client): bool => ClientResource::canView($client));
+            ->get();
 
         if ($clients->isEmpty()) {
             return collect();
@@ -416,10 +403,6 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
      */
     private function partnerCompanyGlobalSearchResults(string $term): Collection
     {
-        if (! PartnerCompanyResource::canAccess()) {
-            return collect();
-        }
-
         $like = '%'.addcslashes($term, '%_\\').'%';
 
         $partners = PartnerCompany::query()
@@ -450,8 +433,7 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
             })
             ->orderBy('legal_name')
             ->limit(self::PARTNER_COMPANY_LIMIT)
-            ->get()
-            ->filter(fn (PartnerCompany $company): bool => PartnerCompanyResource::canView($company));
+            ->get();
 
         return $partners->map(function (PartnerCompany $company): GlobalSearchResult {
             $url = PartnerCompanyResource::getUrl('view', ['record' => $company], isAbsolute: false);
@@ -543,6 +525,48 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
         return '—';
     }
 
+    private function formatSalePriceWithCurrentBcv(float $salePriceUsd): string
+    {
+        $normalizedUsd = max(0.0, $salePriceUsd);
+        $usd = '$'.number_format($normalizedUsd, 2, '.', ',');
+        $rate = $this->resolveCurrentBcvUsdRate();
+
+        if ($rate === null || $rate <= 0) {
+            return $usd.' | Bs. —';
+        }
+
+        $salePriceVes = $normalizedUsd * $rate;
+
+        return $usd.' | Bs. '.number_format($salePriceVes, 2, ',', '.');
+    }
+
+    private function resolveCurrentBcvUsdRate(): ?float
+    {
+        if (self::$bcvUsdRateWasResolved) {
+            return self::$cachedBcvUsdRate;
+        }
+
+        self::$bcvUsdRateWasResolved = true;
+
+        $cacheKey = 'global_search.bcv_usd_rate.'.now()->toDateString();
+        $rate = Cache::remember(
+            $cacheKey,
+            now()->addMinutes(15),
+            fn (): ?float => app(DolarApiDolaresService::class)->getOfficialUsdToVesRate(),
+        );
+
+        if (! is_numeric($rate)) {
+            self::$cachedBcvUsdRate = null;
+
+            return null;
+        }
+
+        $numericRate = (float) $rate;
+        self::$cachedBcvUsdRate = $numericRate > 0 ? $numericRate : null;
+
+        return self::$cachedBcvUsdRate;
+    }
+
     private function productsTableHasSkuColumn(): bool
     {
         return self::$productsTableHasSku ??= Schema::hasColumn('products', 'sku');
@@ -561,23 +585,5 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
     private function productsTableHasHealthRegistrationNumberColumn(): bool
     {
         return self::$productsTableHasHealthRegistrationNumber ??= Schema::hasColumn('products', 'health_registration_number');
-    }
-
-    /**
-     * Misma línea operativa que caja y compras: no exigir rol administrador solo para encontrar un SKU/barras en la barra global.
-     */
-    private function userCanSearchProductsInGlobalBar(): bool
-    {
-        if (! auth()->user() instanceof User) {
-            return false;
-        }
-
-        if (FarmaadminDeliveryUserAccess::denies(ProductResource::class)) {
-            return false;
-        }
-
-        return ProductResource::canAccess()
-            || SaleResource::canAccess()
-            || PurchaseResource::canAccess();
     }
 }

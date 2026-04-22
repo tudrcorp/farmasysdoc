@@ -9,9 +9,11 @@ use App\Models\Sale;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Alcance por sucursal en paneles Filament: ADMINISTRADOR y rol DELIVERY ven todo; el resto solo su `branch_id`.
+ * En ventas ({@see self::applyToSalesQuery()}), usuarios con rol CAJERO solo ven ventas cuyo `created_by` coincide con su usuario.
  */
 final class BranchAuthScope
 {
@@ -23,7 +25,7 @@ final class BranchAuthScope
      */
     public static function apply(Builder $query): Builder
     {
-        $user = auth()->user();
+        $user = Auth::user();
         if (! $user instanceof User) {
             return $query;
         }
@@ -48,7 +50,7 @@ final class BranchAuthScope
      */
     public static function applyToOrdersTableQuery(Builder $query): Builder
     {
-        $user = auth()->user();
+        $user = Auth::user();
         if ($user instanceof User && ! $user->isAdministrator() && $user->isPartnerCompanyUser()) {
             return $query;
         }
@@ -65,7 +67,7 @@ final class BranchAuthScope
      */
     public static function applyToSalesQuery(Builder $query): Builder
     {
-        $user = auth()->user();
+        $user = Auth::user();
         if (! $user instanceof User) {
             return $query;
         }
@@ -81,7 +83,7 @@ final class BranchAuthScope
         $branchId = (int) $user->branch_id;
         $salesTable = $query->getModel()->getTable();
 
-        return $query->where(function (Builder $inner) use ($branchId, $salesTable): void {
+        $query->where(function (Builder $inner) use ($branchId, $salesTable): void {
             $inner->where($salesTable.'.branch_id', $branchId)
                 ->orWhereExists(function (QueryBuilder $sub) use ($branchId, $salesTable): void {
                     $sub->from('product_transfers')
@@ -89,6 +91,37 @@ final class BranchAuthScope
                         ->where('product_transfers.to_branch_id', $branchId);
                 });
         });
+
+        if ($user->isCashier()) {
+            $identifiers = self::saleCreatorMatchValuesForUser($user);
+            if ($identifiers === []) {
+                return $query->whereRaw('1 = 0');
+            }
+
+            return $query->whereIn($salesTable.'.created_by', $identifiers);
+        }
+
+        return $query;
+    }
+
+    /**
+     * Valores posibles de {@see Sale::$created_by} para el usuario actual (email, nombre o id como string),
+     * según cómo se guarda al registrar desde caja o formulario.
+     *
+     * @return list<string>
+     */
+    public static function saleCreatorMatchValuesForUser(User $user): array
+    {
+        $candidates = [
+            (string) $user->getKey(),
+            filled($user->email) ? (string) $user->email : null,
+            filled($user->name) ? (string) $user->name : null,
+        ];
+
+        return array_values(array_unique(array_filter(
+            $candidates,
+            static fn (mixed $value): bool => is_string($value) && $value !== '',
+        )));
     }
 
     /**
@@ -100,7 +133,7 @@ final class BranchAuthScope
      */
     public static function applyToBranchFormSelect(Builder $query): Builder
     {
-        $user = auth()->user();
+        $user = Auth::user();
         if (! $user instanceof User) {
             return $query;
         }
@@ -121,7 +154,7 @@ final class BranchAuthScope
      */
     public static function suggestedBranchIdForOperationalForm(): ?int
     {
-        $user = auth()->user();
+        $user = Auth::user();
         if (! $user instanceof User || $user->isAdministrator()) {
             return null;
         }

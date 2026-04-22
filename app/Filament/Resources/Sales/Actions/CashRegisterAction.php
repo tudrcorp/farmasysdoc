@@ -39,6 +39,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema as SchemaFacade;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Livewire\Component as LivewireComponent;
 use RuntimeException;
 
@@ -502,7 +503,7 @@ final class CashRegisterAction
                             ])
                             ->schema([
                                 Section::make('Total a cobrar')
-                                    ->description('IVA solo en productos con «Grava IVA». IGTF (configurable) solo si el cobro es Efectivo USD. Descuentos globales no aplican en pagos solo en dólares (transferencia/Zelle).')
+                                    // ->description('IVA solo en productos con «Grava IVA». IGTF (configurable) solo si el cobro es Efectivo USD. Descuentos globales no aplican en pagos solo en dólares (transferencia/Zelle).')
                                     ->icon(Heroicon::Banknotes)
                                     ->iconColor('primary')
                                     ->schema([
@@ -573,16 +574,30 @@ final class CashRegisterAction
                                             ->options([
                                                 'efectivo_usd' => 'Efectivo USD',
                                                 'efectivo_ves' => 'Efectivo VES',
+                                                'punto_venta_ves' => 'Punto de Venta',
                                                 'transfer_ves' => 'Transferencia VES',
                                                 'zelle' => 'Zelle',
                                                 'pago_movil' => 'Pago Movil',
                                                 'mixed' => 'Pago Multiple',
                                             ])
-                                            ->default('pago_movil')
+                                            ->default('punto_venta_ves')
                                             ->required()
                                             ->live()
                                             ->native(false)
                                             ->prefixIcon(Heroicon::CreditCard),
+                                        TextInput::make('card_last4')
+                                            ->label('Últimos 4 dígitos de la tarjeta')
+                                            ->helperText('Obligatorio para Punto de Venta: exactamente 4 dígitos. Los errores se muestran debajo del campo.')
+                                            ->inputMode('numeric')
+                                            // Sin ->required(): evita el atributo HTML `required` y el tooltip nativo del navegador (poco contraste).
+                                            ->markAsRequired(fn (Get $get): bool => $get('payment_method') === 'punto_venta_ves')
+                                            ->requiredIf('payment_method', 'punto_venta_ves')
+                                            ->regex('/^\d{4}$/')
+                                            ->validationMessages([
+                                                'required_if' => 'Debe indicar los últimos 4 dígitos de la tarjeta para Punto de Venta.',
+                                                'regex' => 'Ingrese exactamente 4 dígitos numéricos.',
+                                            ])
+                                            ->visible(fn (Get $get): bool => $get('payment_method') === 'punto_venta_ves'),
                                         TextInput::make('mixed_usd_paid')
                                             ->label('Pago en USD (usuario)')
                                             ->numeric()
@@ -603,6 +618,37 @@ final class CashRegisterAction
                                             ->label('Referencia de pago')
                                             ->helperText('Obligatoria para pagos en bolivares y para Zelle.')
                                             ->maxLength(255)
+                                            ->markAsRequired(function (Get $get): bool {
+                                                $method = (string) ($get('payment_method') ?? '');
+
+                                                if (in_array($method, ['transfer_ves', 'pago_movil', 'zelle'], true)) {
+                                                    return true;
+                                                }
+
+                                                if ($method === 'mixed') {
+                                                    return self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
+                                                }
+
+                                                return false;
+                                            })
+                                            ->rules(fn (Get $get): array => [
+                                                Rule::requiredIf(function () use ($get): bool {
+                                                    $method = (string) ($get('payment_method') ?? '');
+
+                                                    if (in_array($method, ['transfer_ves', 'pago_movil', 'zelle'], true)) {
+                                                        return true;
+                                                    }
+
+                                                    if ($method === 'mixed') {
+                                                        return self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
+                                                    }
+
+                                                    return false;
+                                                }),
+                                            ])
+                                            ->validationMessages([
+                                                'required' => 'Debe indicar una referencia de pago para pagos en bolivares y para Zelle.',
+                                            ])
                                             ->visible(fn (Get $get): bool => in_array($get('payment_method'), ['transfer_ves', 'pago_movil', 'zelle', 'mixed'], true)),
                                     ]),
                             ])
@@ -624,6 +670,7 @@ final class CashRegisterAction
 
                 $paymentMethod = (string) ($data['payment_method'] ?? '');
                 $paymentReference = trim((string) ($data['reference'] ?? ''));
+                $cardLast4 = trim((string) ($data['card_last4'] ?? ''));
 
                 $lines = collect($data['line_items'] ?? [])
                     ->filter(function (mixed $row): bool {
@@ -779,6 +826,21 @@ final class CashRegisterAction
                     mixedUsdPaid: (float) ($data['mixed_usd_paid'] ?? 0),
                     vesUsdRate: $vesUsdRate
                 );
+
+                if ($paymentMethod === 'punto_venta_ves' && ! preg_match('/^\d{4}$/', $cardLast4)) {
+                    Notification::make()
+                        ->title('Faltan los últimos 4 dígitos')
+                        ->body('Para pagos por Punto de Venta debe indicar exactamente los últimos 4 dígitos de la tarjeta.')
+                        ->danger()
+                        ->send();
+                    $action->halt();
+
+                    return;
+                }
+
+                if ($paymentMethod === 'punto_venta_ves') {
+                    $paymentReference = 'POS ****'.$cardLast4;
+                }
 
                 $shouldRequireReference = in_array($paymentMethod, ['transfer_ves', 'pago_movil', 'zelle'], true)
                     || ($paymentMethod === 'mixed' && $paymentVes > 0);
@@ -963,7 +1025,7 @@ final class CashRegisterAction
 
         return match ($paymentMethod) {
             'efectivo_usd', 'transfer_usd', 'zelle' => [$documentTotalUsd, 0.0],
-            'transfer_ves', 'pago_movil', 'efectivo_ves' => [0.0, round($documentTotalUsd * $rate, 2)],
+            'transfer_ves', 'pago_movil', 'efectivo_ves', 'punto_venta_ves' => [0.0, round($documentTotalUsd * $rate, 2)],
             'mixed' => [
                 round(max(0.0, min($documentTotalUsd, $mixedUsdPaid)), 2),
                 round(max(0.0, $documentTotalUsd - max(0.0, min($documentTotalUsd, $mixedUsdPaid))) * $rate, 2),
@@ -975,7 +1037,7 @@ final class CashRegisterAction
     private static function isUsdOnlyPaymentMethod(string $paymentMethod): bool
     {
         return match ($paymentMethod) {
-            'transfer_ves', 'pago_movil', 'efectivo_ves', 'mixed' => false,
+            'transfer_ves', 'pago_movil', 'efectivo_ves', 'punto_venta_ves', 'mixed' => false,
             default => true,
         };
     }
@@ -1151,7 +1213,7 @@ final class CashRegisterAction
      */
     private static function computePaymentBreakdownForForm(Get $get): array
     {
-        $paymentMethod = (string) ($get('payment_method') ?? 'pago_movil');
+        $paymentMethod = (string) ($get('payment_method') ?? 'punto_venta_ves');
         $total = self::computeSaleTotal($get);
         $mixedUsdPaid = (float) ($get('mixed_usd_paid') ?? 0);
         $rate = self::effectiveVesUsdRate($get);
@@ -1193,7 +1255,7 @@ final class CashRegisterAction
             return null;
         }
 
-        $paymentMethod = (string) ($get('payment_method') ?? 'pago_movil');
+        $paymentMethod = (string) ($get('payment_method') ?? 'punto_venta_ves');
         $discountRequested = (float) ($get('discount_total') ?? 0);
 
         return self::finalizePosPricingFromValidLines($valid, $paymentMethod, $discountRequested);
@@ -1598,7 +1660,8 @@ final class CashRegisterAction
     {
         return array_merge([
             'client_id' => null,
-            'payment_method' => 'pago_movil',
+            'payment_method' => 'punto_venta_ves',
+            'card_last4' => null,
             'mixed_usd_paid' => null,
             'reference' => null,
             'discount_total' => 0.0,
@@ -1893,7 +1956,7 @@ final class CashRegisterAction
     private static function requiresVesConversion(string $paymentMethod, float $documentTotalUsd, float $mixedUsdPaid): bool
     {
         return match ($paymentMethod) {
-            'transfer_ves', 'pago_movil', 'efectivo_ves' => true,
+            'transfer_ves', 'pago_movil', 'efectivo_ves', 'punto_venta_ves' => true,
             'mixed' => max(0.0, $documentTotalUsd - min($documentTotalUsd, max(0.0, $mixedUsdPaid))) > 0.00001,
             default => false,
         };

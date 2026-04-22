@@ -53,7 +53,7 @@ trait InteractsWithSalesListStatsQuery
     protected function scopedSaleQuery(): Builder
     {
         $query = Sale::query();
-        BranchAuthScope::apply($query);
+        BranchAuthScope::applyToSalesQuery($query);
 
         $filters = $this->tableFilters ?? [];
         $range = $filters['sold_date_range'] ?? [];

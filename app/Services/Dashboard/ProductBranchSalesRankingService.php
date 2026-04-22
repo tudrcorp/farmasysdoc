@@ -40,7 +40,7 @@ final class ProductBranchSalesRankingService
         $base = SaleItem::query()
             ->whereHas('sale', function (Builder $sale): void {
                 $sale->where('status', SaleStatus::Completed);
-                BranchAuthScope::apply($sale);
+                BranchAuthScope::applyToSalesQuery($sale);
             });
 
         $countExpr = 'COUNT(DISTINCT sale_items.sale_id)';

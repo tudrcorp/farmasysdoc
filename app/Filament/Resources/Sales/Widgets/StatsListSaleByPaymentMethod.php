@@ -30,7 +30,7 @@ class StatsListSaleByPaymentMethod extends StatsOverviewWidget
 
     protected ?string $heading = 'Totales por forma de pago';
 
-    protected ?string $description = 'Cobro registrado en cada venta del período (USD y/o bolívares), según el método elegido en caja.';
+    protected ?string $description = 'Cobro registrado en cada venta del período (USD y/o bolívares), según el método elegido en caja. Rol cajero: solo ventas propias.';
 
     /**
      * @return array<Stat>

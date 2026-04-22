@@ -4,15 +4,13 @@ namespace App\Services\Dashboard;
 
 use App\Enums\SaleStatus;
 use App\Models\Sale;
-use App\Models\User;
 use App\Support\Filament\BranchAuthScope;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Agregados de ventas completadas para gráficos (alcance {@see BranchAuthScope}).
+ * Agregados de ventas completadas para gráficos (alcance {@see BranchAuthScope::applyToSalesQuery()}).
  */
 final class SalesChartDataService
 {
@@ -103,23 +101,7 @@ final class SalesChartDataService
             ->where('status', SaleStatus::Completed)
             ->whereNotNull('sold_at');
 
-        $user = Auth::user();
-
-        if ($user instanceof User && ! $user->isAdministrator()) {
-            $query->where(function (Builder $builder) use ($user): void {
-                $builder->where('created_by', (string) $user->id);
-
-                if (filled($user->email)) {
-                    $builder->orWhere('created_by', (string) $user->email);
-                }
-
-                if (filled($user->name)) {
-                    $builder->orWhere('created_by', (string) $user->name);
-                }
-            });
-        }
-
-        BranchAuthScope::apply($query);
+        BranchAuthScope::applyToSalesQuery($query);
 
         return $query;
     }

@@ -69,7 +69,7 @@ final class CashRegisterCloseReportBuilder
             ->orderByRaw('COALESCE(sold_at, created_at) ASC')
             ->orderBy('id');
 
-        BranchAuthScope::apply($query);
+        BranchAuthScope::applyToSalesQuery($query);
         SaleEffectiveDateScope::apply($query, $from->toDateString(), $until->toDateString());
 
         /** @var Collection<int, Sale> $sales */
@@ -147,16 +147,23 @@ final class CashRegisterCloseReportBuilder
         }
 
         $branchName = $user?->branch?->name;
+        $note = '';
         if (filled($branchName)) {
-            return 'Sucursal: '.$branchName;
+            $note = 'Sucursal: '.$branchName;
+        } else {
+            $first = $sales->first();
+            if ($first instanceof Sale && $first->branch !== null) {
+                $note = 'Sucursal: '.(string) $first->branch->name;
+            } else {
+                $note = 'Sucursal según usuario actual.';
+            }
         }
 
-        $first = $sales->first();
-        if ($first instanceof Sale && $first->branch !== null) {
-            return 'Sucursal: '.(string) $first->branch->name;
+        if ($user instanceof User && $user->isCashier()) {
+            $note .= ' Solo ventas registradas por usted (rol cajero).';
         }
 
-        return 'Sucursal según usuario actual.';
+        return $note;
     }
 
     private static function paymentMethodLabel(string $value): string

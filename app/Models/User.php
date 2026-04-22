@@ -94,6 +94,14 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * Rol de caja: en listados de ventas solo debe ver las que él mismo registró ({@see Sale::created_by}).
+     */
+    public function isCashier(): bool
+    {
+        return $this->hasRole('CAJERO');
+    }
+
+    /**
      * URL pública de la foto de repartidor (aliados / ficha de pedido), o null si no hay archivo.
      */
     public function deliveryPhotoPublicUrl(): ?string

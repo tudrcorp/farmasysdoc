@@ -26,7 +26,7 @@ class StatsGeneralOverview extends StatsOverviewWidget
 
     protected ?string $heading = 'Cobros por moneda';
 
-    protected ?string $description = 'Ventas completadas · alcance por sucursal';
+    protected ?string $description = 'Ventas completadas · alcance por sucursal (rol cajero: solo ventas propias)';
 
     /**
      * @return array<Stat>
@@ -36,7 +36,7 @@ class StatsGeneralOverview extends StatsOverviewWidget
         $query = Sale::query()
             ->where('status', SaleStatus::Completed);
 
-        BranchAuthScope::apply($query);
+        BranchAuthScope::applyToSalesQuery($query);
 
         $totalUsd = (float) (clone $query)->sum('payment_usd');
         $totalVes = (float) (clone $query)->sum('payment_ves');

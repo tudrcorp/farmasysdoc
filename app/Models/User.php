@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -163,7 +164,138 @@ class User extends Authenticatable implements FilamentUser
             return 'Farmadoc®';
         }
 
+        if ($this->hasGerenciaRole()) {
+            $this->loadMissing('managedBranches');
+            $count = $this->managedBranches->count();
+            if ($count > 1) {
+                return 'Gerencia · '.$count.' sucursales';
+            }
+            if ($count === 1) {
+                return $this->managedBranches->first()?->name ?? 'Farmadoc®';
+            }
+        }
+
         return $this->branch?->name ?? 'Farmadoc®';
+    }
+
+    /**
+     * Rol GERENCIA: alcance operativo en varias sucursales asignadas por un administrador ({@see self::managedBranches()}).
+     */
+    public function hasGerenciaRole(): bool
+    {
+        return $this->hasRole('GERENCIA');
+    }
+
+    /**
+     * Sucursales donde un usuario GERENCIA puede operar (pivote `branch_user`).
+     *
+     * @return BelongsToMany<Branch, $this>
+     */
+    public function managedBranches(): BelongsToMany
+    {
+        return $this->belongsToMany(Branch::class, 'branch_user')->withTimestamps();
+    }
+
+    /**
+     * IDs de sucursales asignadas vía pivote (solo aplica con rol GERENCIA).
+     *
+     * @return list<int>
+     */
+    public function managedBranchIds(): array
+    {
+        if (! $this->hasGerenciaRole()) {
+            return [];
+        }
+
+        $branches = $this->relationLoaded('managedBranches')
+            ? $this->managedBranches
+            : $this->managedBranches()->get();
+
+        return $branches->pluck('id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * IDs de sucursal para filtros de listados (no usar si {@see self::isAdministrator()} o {@see self::isDeliveryUser()}).
+     *
+     * @return list<int>
+     */
+    public function restrictedBranchIdsForQueries(): array
+    {
+        if ($this->isAdministrator() || $this->isDeliveryUser()) {
+            return [];
+        }
+
+        if ($this->hasGerenciaRole()) {
+            $ids = $this->managedBranchIds();
+            if ($ids !== []) {
+                return $ids;
+            }
+
+            return filled($this->branch_id) ? [(int) $this->branch_id] : [];
+        }
+
+        return filled($this->branch_id) ? [(int) $this->branch_id] : [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return list<int>
+     */
+    public static function extractGerenciaManagedBranchIdsFromData(array $data): array
+    {
+        $roles = $data['roles'] ?? null;
+        if (! is_array($roles)) {
+            return [];
+        }
+
+        $normalized = array_map(
+            static fn (mixed $r): string => is_string($r) ? strtoupper(trim($r)) : '',
+            $roles,
+        );
+
+        if (! in_array('GERENCIA', $normalized, true)) {
+            return [];
+        }
+
+        $raw = $data['managed_branch_ids'] ?? null;
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): int => (int) $id,
+            $raw,
+        ))));
+    }
+
+    /**
+     * Quita del payload campos que no son columnas y fija `branch_id` principal para usuarios GERENCIA.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public static function normalizeGerenciaBranchFields(array $data): array
+    {
+        $ids = self::extractGerenciaManagedBranchIdsFromData($data);
+        unset($data['managed_branch_ids']);
+
+        $roles = $data['roles'] ?? null;
+        if (is_array($roles)) {
+            $normalized = array_map(
+                static fn (mixed $r): string => is_string($r) ? strtoupper(trim($r)) : '',
+                $roles,
+            );
+            if (in_array('GERENCIA', $normalized, true) && $ids !== []) {
+                sort($ids);
+                $data['branch_id'] = $ids[0];
+            }
+        }
+
+        return $data;
     }
 
     /**
@@ -270,7 +402,7 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(Rol::class);
     }
 
-    private function hasRole(string $role): bool
+    protected function hasRole(string $role): bool
     {
         $roles = $this->getAttributeValue('roles');
 

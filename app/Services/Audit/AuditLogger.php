@@ -36,7 +36,15 @@ final class AuditLogger
             }
 
             if ($properties !== []) {
-                $encoded = json_encode($properties, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+                try {
+                    $encoded = json_encode($properties, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+                } catch (\JsonException) {
+                    $properties = [
+                        '_json_encode_failed' => true,
+                        '_keys' => array_keys(is_array($properties) ? $properties : []),
+                    ];
+                    $encoded = json_encode($properties, JSON_UNESCAPED_UNICODE);
+                }
                 if (strlen($encoded) > 62_000) {
                     $properties = [
                         '_truncated' => true,
@@ -116,7 +124,7 @@ final class AuditLogger
 
     private static function resolveModelLabel(Model $model): ?string
     {
-        foreach (['sale_number', 'name', 'email', 'title', 'sku', 'barcode'] as $attr) {
+        foreach (['sale_number', 'name', 'email', 'title', 'sku', 'barcode', 'supplier_invoice_number'] as $attr) {
             if (isset($model->{$attr}) && filled($model->{$attr})) {
                 return (string) $model->{$attr};
             }
@@ -173,6 +181,46 @@ final class AuditLogger
             }
         }
 
+        foreach ($attributes as $key => $value) {
+            $attributes[$key] = self::normalizeValueForAuditJson($value);
+        }
+
         return $attributes;
+    }
+
+    /**
+     * Convierte valores de Eloquent a tipos seguros para {@see json_encode} en auditoría (evita fallos silenciosos).
+     */
+    public static function normalizeValueForAuditJson(mixed $value): mixed
+    {
+        if ($value === null || is_bool($value) || is_int($value) || is_float($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            return $value;
+        }
+
+        if ($value instanceof \BackedEnum) {
+            return $value->value;
+        }
+
+        if ($value instanceof \UnitEnum) {
+            return $value->name;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format(\DateTimeInterface::ATOM);
+        }
+
+        if ($value instanceof \Stringable) {
+            return (string) $value;
+        }
+
+        if (is_array($value)) {
+            return array_map(fn (mixed $item): mixed => self::normalizeValueForAuditJson($item), $value);
+        }
+
+        return is_object($value) ? '['.class_basename($value).']' : $value;
     }
 }

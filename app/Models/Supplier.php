@@ -75,6 +75,11 @@ class Supplier extends Model
     }
 
     /**
+     * Compras registradas con este proveedor (relación 1:N).
+     *
+     * El correlativo de factura del proveedor es propio de cada uno: el mismo N° de factura puede existir
+     * en otro proveedor, pero no se duplica para el mismo {@see Purchase::$supplier_id}.
+     *
      * @return HasMany<Purchase, $this>
      */
     public function purchases(): HasMany

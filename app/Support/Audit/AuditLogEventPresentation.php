@@ -18,6 +18,10 @@ final class AuditLogEventPresentation
             'created' => 'Creación (datos)',
             'updated' => 'Actualización (datos)',
             'deleted' => 'Eliminación (datos)',
+            'purchase_history_compra_contado_registered' => 'Histórico compras: compra al contado',
+            'purchase_compra_contado_historic_written' => 'Compra: asiento en histórico (contado)',
+            'purchase_history_cpp_payment_registered' => 'Histórico compras: pago a cuenta por pagar',
+            'purchase_history_viewed' => 'Histórico compras: consulta de detalle',
         ];
     }
 
@@ -39,6 +43,10 @@ final class AuditLogEventPresentation
             'created' => 'success',
             'updated' => 'warning',
             'deleted' => 'danger',
+            'purchase_history_compra_contado_registered' => 'success',
+            'purchase_compra_contado_historic_written' => 'success',
+            'purchase_history_cpp_payment_registered' => 'info',
+            'purchase_history_viewed' => 'gray',
             default => 'gray',
         };
     }

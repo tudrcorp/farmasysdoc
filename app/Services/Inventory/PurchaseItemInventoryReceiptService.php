@@ -3,6 +3,7 @@
 namespace App\Services\Inventory;
 
 use App\Enums\InventoryMovementType;
+use App\Enums\PurchaseEntryCurrency;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\Product;
@@ -100,7 +101,13 @@ final class PurchaseItemInventoryReceiptService
                 ]);
             }
 
-            $unitCost = max(0.0, (float) ($item->unit_cost ?? 0));
+            $unitCost = round(max(0.0, (float) ($item->unit_cost ?? 0)), 2);
+            if ($purchase->entryCurrency() === PurchaseEntryCurrency::VES) {
+                $rate = (float) ($purchase->official_usd_ves_rate ?? 0);
+                if ($rate > 0) {
+                    $unitCost = round(max(0.0, $unitCost / $rate), 2);
+                }
+            }
 
             $inventory->quantity = $nextQuantity;
             $inventory->cost_price = $unitCost;

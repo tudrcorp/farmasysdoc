@@ -45,6 +45,14 @@ class UserInfolist
                                     ->label('Sucursal')
                                     ->icon(Heroicon::BuildingOffice2)
                                     ->getStateUsing(function (User $record): ?string {
+                                        if ($record->hasGerenciaRole()) {
+                                            $record->loadMissing('managedBranches');
+                                            $names = $record->managedBranches->pluck('name')->filter()->values()->all();
+                                            if ($names !== []) {
+                                                return implode(', ', $names);
+                                            }
+                                        }
+
                                         $branch = $record->branch;
                                         if (! $branch) {
                                             return null;

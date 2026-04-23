@@ -12,7 +12,11 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * Alcance por sucursal en paneles Filament: ADMINISTRADOR y rol DELIVERY ven todo; el resto solo su `branch_id`.
+ * Alcance por sucursal en paneles Filament:
+ * - ADMINISTRADOR y rol DELIVERY: sin filtro por sucursal.
+ * - GERENCIA: filas cuyo `branch_id` está en las sucursales asignadas (pivote `branch_user`).
+ * - Resto: solo la sucursal del usuario (`branch_id`).
+ *
  * En ventas ({@see self::applyToSalesQuery()}), usuarios con rol CAJERO solo ven ventas cuyo `created_by` coincide con su usuario.
  */
 final class BranchAuthScope
@@ -34,11 +38,16 @@ final class BranchAuthScope
             return $query;
         }
 
-        if ($user->branch_id === null) {
+        $branchIds = $user->restrictedBranchIdsForQueries();
+        if ($branchIds === []) {
             return $query->whereRaw('1 = 0');
         }
 
-        return $query->where('branch_id', $user->branch_id);
+        $column = $query->qualifyColumn('branch_id');
+
+        return count($branchIds) === 1
+            ? $query->where($column, $branchIds[0])
+            : $query->whereIn($column, $branchIds);
     }
 
     /**
@@ -59,8 +68,8 @@ final class BranchAuthScope
     }
 
     /**
-     * Alcance de ventas: sucursal del usuario, más ventas creadas al completar un traslado donde el usuario
-     * pertenece a la sucursal receptora (esas ventas guardan `branch_id` de la sucursal emisora).
+     * Alcance de ventas: sucursales del usuario, más ventas creadas al completar un traslado donde el usuario
+     * pertenece a una sucursal receptora (esas ventas guardan `branch_id` de la sucursal emisora).
      *
      * @param  Builder<Sale>  $query
      * @return Builder<Sale>
@@ -76,19 +85,19 @@ final class BranchAuthScope
             return $query;
         }
 
-        if ($user->branch_id === null) {
+        $branchIds = $user->restrictedBranchIdsForQueries();
+        if ($branchIds === []) {
             return $query->whereRaw('1 = 0');
         }
 
-        $branchId = (int) $user->branch_id;
         $salesTable = $query->getModel()->getTable();
 
-        $query->where(function (Builder $inner) use ($branchId, $salesTable): void {
-            $inner->where($salesTable.'.branch_id', $branchId)
-                ->orWhereExists(function (QueryBuilder $sub) use ($branchId, $salesTable): void {
+        $query->where(function (Builder $inner) use ($branchIds, $salesTable): void {
+            $inner->whereIn($salesTable.'.branch_id', $branchIds)
+                ->orWhereExists(function (QueryBuilder $sub) use ($branchIds, $salesTable): void {
                     $sub->from('product_transfers')
                         ->whereColumn('product_transfers.sale_id', $salesTable.'.id')
-                        ->where('product_transfers.to_branch_id', $branchId);
+                        ->whereIn('product_transfers.to_branch_id', $branchIds);
                 });
         });
 
@@ -105,9 +114,6 @@ final class BranchAuthScope
     }
 
     /**
-     * Valores posibles de {@see Sale::$created_by} para el usuario actual (email, nombre o id como string),
-     * según cómo se guarda al registrar desde caja o formulario.
-     *
      * @return list<string>
      */
     public static function saleCreatorMatchValuesForUser(User $user): array
@@ -125,8 +131,8 @@ final class BranchAuthScope
     }
 
     /**
-     * Selects y filtros de sucursal en Filament: solo administradores listan todas las sucursales;
-     * el resto solo ve la sucursal asignada en el usuario (`branch_id`).
+     * Selects y filtros de sucursal en Filament: administradores listan todas las sucursales activas;
+     * GERENCIA solo las asignadas en pivote; el resto solo su `branch_id`.
      *
      * @param  Builder<Branch>  $query  Consulta sobre `branches` (p. ej. ya filtrada por `is_active` y orden).
      * @return Builder<Branch>
@@ -140,6 +146,13 @@ final class BranchAuthScope
 
         if ($user->isAdministrator()) {
             return $query;
+        }
+
+        if ($user->hasGerenciaRole()) {
+            $ids = $user->managedBranchIds();
+            if ($ids !== []) {
+                return $query->whereIn($query->qualifyColumn('id'), $ids);
+            }
         }
 
         if (filled($user->branch_id)) {
@@ -157,6 +170,13 @@ final class BranchAuthScope
         $user = Auth::user();
         if (! $user instanceof User || $user->isAdministrator()) {
             return null;
+        }
+
+        if ($user->hasGerenciaRole()) {
+            $ids = $user->managedBranchIds();
+            if ($ids !== []) {
+                return (int) min($ids);
+            }
         }
 
         return filled($user->branch_id) ? (int) $user->branch_id : null;

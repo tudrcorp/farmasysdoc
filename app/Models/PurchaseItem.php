@@ -47,7 +47,7 @@ class PurchaseItem extends Model
             'line_number' => 'integer',
             'quantity_ordered' => 'decimal:3',
             'quantity_received' => 'decimal:3',
-            'unit_cost' => 'decimal:4',
+            'unit_cost' => 'decimal:2',
             'line_discount_percent' => 'decimal:2',
             'line_vat_percent' => 'decimal:2',
             'line_subtotal' => 'decimal:2',

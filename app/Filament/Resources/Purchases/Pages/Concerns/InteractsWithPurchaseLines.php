@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources\Purchases\Pages\Concerns;
 
+use App\Enums\PurchaseEntryCurrency;
 use App\Filament\Resources\Purchases\Schemas\PurchaseForm;
 use App\Models\Product;
+use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use App\Support\Finance\DefaultVatRate;
 use App\Support\Purchases\PurchaseDocumentTotals;
 
@@ -47,6 +49,17 @@ trait InteractsWithPurchaseLines
         $unitCost = $unitCostOverride !== null
             ? max(0.0, $unitCostOverride)
             : (float) ($product->cost_price ?? 0);
+
+        if (($this->data['entry_currency'] ?? PurchaseEntryCurrency::USD->value) === PurchaseEntryCurrency::VES->value) {
+            $rate = app(VenezuelaOfficialUsdVesRateClient::class)
+                ->rateForDate($this->data['supplier_invoice_date'] ?? null);
+            if ($rate !== null && $rate > 0) {
+                $unitCost = round($unitCost * $rate, 2);
+            }
+        }
+
+        $unitCost = round(max(0.0, $unitCost), 2);
+
         $lineState = [
             'quantity_ordered' => 1,
             'unit_cost' => $unitCost,

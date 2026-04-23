@@ -37,7 +37,7 @@ class InventoryMovement extends Model
         return [
             'movement_type' => InventoryMovementType::class,
             'quantity' => 'decimal:3',
-            'unit_cost' => 'decimal:4',
+            'unit_cost' => 'decimal:2',
             'expiry_date' => 'date',
         ];
     }

@@ -2,11 +2,13 @@
 
 namespace Database\Factories;
 
+use App\Enums\PurchaseEntryCurrency;
 use App\Enums\PurchaseStatus;
 use App\Models\Branch;
 use App\Models\Purchase;
 use App\Models\Supplier;
 use App\Support\Finance\DefaultVatRate;
+use App\Support\Purchases\PurchasePaymentStatus;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -34,6 +36,8 @@ class PurchaseFactory extends Factory
             'purchase_number' => fake()->unique()->bothify('OC-2026-#####'),
             'supplier_id' => Supplier::factory(),
             'branch_id' => Branch::factory(),
+            'entry_currency' => PurchaseEntryCurrency::USD,
+            'official_usd_ves_rate' => null,
             'status' => PurchaseStatus::Draft,
             'ordered_at' => null,
             'expected_delivery_at' => fake()->optional()->dateTimeBetween('+3 days', '+30 days'),
@@ -48,11 +52,12 @@ class PurchaseFactory extends Factory
             'net_exempt_after_document_discount' => 0.0,
             'net_taxable_after_document_discount' => $subtotal,
             'total' => $total,
+            'declared_invoice_total' => $total,
             'supplier_invoice_number' => null,
             'supplier_control_number' => null,
             'supplier_invoice_date' => $today,
             'registered_in_system_date' => $today,
-            'payment_status' => 'pending',
+            'payment_status' => PurchasePaymentStatus::PAGADO_CONTADO,
             'notes' => null,
             'created_by' => null,
             'updated_by' => null,

@@ -2,12 +2,18 @@
 
 namespace App\Filament\Resources\Purchases\Schemas;
 
+use App\Enums\PurchaseEntryCurrency;
 use App\Models\Product;
+use App\Models\Purchase;
 use App\Models\Supplier;
+use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Finance\DefaultVatRate;
 use App\Support\Purchases\LotExpirationMonthYear;
 use App\Support\Purchases\PurchaseDocumentTotals;
+use App\Support\Purchases\PurchaseEntryCurrencySwitcher;
+use App\Support\Purchases\PurchasePaymentStatus;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
@@ -20,10 +26,12 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Livewire\Component;
 
 class PurchaseForm
 {
@@ -32,51 +40,9 @@ class PurchaseForm
         return $schema
             ->components([
                 Section::make('Identificación de la compra')
-                    ->description('Datos del documento del proveedor, referencia interna, proveedor y sucursal de recepción.')
+                    ->description('Primero elija el proveedor; el N° de factura y el N° de control deben ser únicos para ese proveedor (otro proveedor puede usar el mismo número). La orden interna OC-… se genera al guardar.')
                     ->icon(Heroicon::ClipboardDocumentCheck)
                     ->schema([
-                        Placeholder::make('purchase_number_notice')
-                            ->label('Número de orden de compra')
-                            ->helperText(
-                                'Se asigna solo al guardar: OC-, año de registro, guion e ID interno con cuatro dígitos (ej. OC-'.date('Y').'-0042).',
-                            )
-                            ->content('Se generará al guardar la compra.')
-                            ->columnSpanFull(),
-                        Grid::make([
-                            'default' => 1,
-                            'sm' => 2,
-                        ])
-                            ->schema([
-                                TextInput::make('supplier_invoice_number')
-                                    ->label('N° de factura')
-                                    ->placeholder('Según factura del proveedor')
-                                    ->maxLength(255)
-                                    ->prefixIcon(Heroicon::DocumentText),
-                                TextInput::make('supplier_control_number')
-                                    ->label('N° de control')
-                                    ->maxLength(255)
-                                    ->prefixIcon(Heroicon::FingerPrint),
-                            ]),
-                        Grid::make([
-                            'default' => 1,
-                            'sm' => 2,
-                        ])
-                            ->schema([
-                                DatePicker::make('supplier_invoice_date')
-                                    ->label('Fecha de la factura')
-                                    ->helperText('Fecha impresa en la factura del proveedor.')
-                                    ->required()
-                                    ->default(now())
-                                    ->native(false)
-                                    ->prefixIcon(Heroicon::CalendarDays),
-                                DatePicker::make('registered_in_system_date')
-                                    ->label('Fecha de carga en el sistema')
-                                    ->helperText('Fecha en que registras esta compra en el sistema.')
-                                    ->required()
-                                    ->default(now())
-                                    ->native(false)
-                                    ->prefixIcon(Heroicon::Clock),
-                            ]),
                         Grid::make([
                             'default' => 1,
                             'sm' => 2,
@@ -98,7 +64,7 @@ class PurchaseForm
                                     ->afterStateUpdated(function (?string $state, Set $set): void {
                                         $set('supplier_display_name', self::supplierDisplayNameForSupplierId($state));
                                     })
-                                    ->helperText('Busque por RIF, nombre comercial, razón social o código PROV-… El nombre se completa solo al elegir.')
+                                    ->helperText('Paso 1: identifique al proveedor. Así se valida que la factura no esté duplicada para él.')
                                     ->prefixIcon(Heroicon::FingerPrint),
                                 TextInput::make('supplier_display_name')
                                     ->label('Nombre del proveedor')
@@ -106,26 +72,187 @@ class PurchaseForm
                                     ->dehydrated(false)
                                     ->placeholder('—')
                                     ->prefixIcon(Heroicon::Truck),
-                                Select::make('branch_id')
-                                    ->label('Sucursal de recepción')
-                                    ->relationship(
-                                        name: 'branch',
-                                        titleAttribute: 'name',
-                                        modifyQueryUsing: function (Builder $query): Builder {
-                                            $query->where('is_active', true)->orderBy('name');
-
-                                            return BranchAuthScope::applyToBranchFormSelect($query);
-                                        },
-                                    )
-                                    ->default(fn (): ?int => BranchAuthScope::suggestedBranchIdForOperationalForm())
-                                    ->searchable()
-                                    ->preload()
-                                    ->native(false)
-                                    ->required()
-                                    ->helperText('Donde ingresa o registra la mercancía.')
-                                    ->prefixIcon(Heroicon::BuildingStorefront)
-                                    ->columnSpanFull(),
                             ]),
+                        Placeholder::make('purchase_number_notice')
+                            ->label('Número de orden de compra')
+                            ->helperText(
+                                'Se asigna solo al guardar: OC-, año de registro, guion e ID interno con cuatro dígitos (ej. OC-'.date('Y').'-0042).',
+                            )
+                            ->content('Se generará al guardar la compra.')
+                            ->columnSpanFull(),
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                        ])
+                            ->schema([
+                                TextInput::make('supplier_invoice_number')
+                                    ->label('N° de factura')
+                                    ->placeholder(fn (Get $get): string => filled($get('supplier_id'))
+                                        ? 'Según factura del proveedor'
+                                        : 'Primero seleccione el proveedor')
+                                    ->maxLength(255)
+                                    ->prefixIcon(Heroicon::DocumentText)
+                                    ->required()
+                                    ->disabled(fn (Get $get): bool => blank($get('supplier_id')))
+                                    ->helperText('Único por proveedor: no puede repetirse para el mismo RIF/proveedor.')
+                                    ->rules([
+                                        fn (Get $get): \Closure => function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+                                            $supplierId = $get('supplier_id');
+                                            if (blank($supplierId)) {
+                                                return;
+                                            }
+                                            $normalized = trim((string) $value);
+                                            if ($normalized === '') {
+                                                return;
+                                            }
+                                            if (Purchase::query()
+                                                ->where('supplier_id', (int) $supplierId)
+                                                ->where('supplier_invoice_number', $normalized)
+                                                ->exists()) {
+                                                $fail('Ya existe una compra con este número de factura para el proveedor seleccionado.');
+                                            }
+                                        },
+                                    ]),
+                                TextInput::make('supplier_control_number')
+                                    ->label('N° de control')
+                                    ->placeholder(fn (Get $get): string => filled($get('supplier_id'))
+                                        ? 'Según factura'
+                                        : 'Primero seleccione el proveedor')
+                                    ->maxLength(255)
+                                    ->prefixIcon(Heroicon::FingerPrint)
+                                    ->disabled(fn (Get $get): bool => blank($get('supplier_id')))
+                                    ->helperText('Si lo indica, debe ser único para el mismo proveedor (no puede coincidir con otra compra de ese proveedor).')
+                                    ->rules([
+                                        fn (Get $get): \Closure => function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+                                            $supplierId = $get('supplier_id');
+                                            if (blank($supplierId)) {
+                                                return;
+                                            }
+                                            $normalized = trim((string) $value);
+                                            if ($normalized === '') {
+                                                return;
+                                            }
+                                            if (Purchase::query()
+                                                ->where('supplier_id', (int) $supplierId)
+                                                ->where('supplier_control_number', $normalized)
+                                                ->exists()) {
+                                                $fail('Ya existe una compra con este número de control para el proveedor seleccionado.');
+                                            }
+                                        },
+                                    ]),
+                            ]),
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                        ])
+                            ->schema([
+                                DatePicker::make('supplier_invoice_date')
+                                    ->label('Fecha de la factura')
+                                    ->helperText('Fecha impresa en la factura del proveedor.')
+                                    ->required()
+                                    ->default(now())
+                                    ->native(false)
+                                    ->prefixIcon(Heroicon::CalendarDays),
+                                DatePicker::make('registered_in_system_date')
+                                    ->label('Fecha de carga en el sistema')
+                                    ->helperText('Fecha en que registras esta compra en el sistema.')
+                                    ->required()
+                                    ->default(now())
+                                    ->native(false)
+                                    ->prefixIcon(Heroicon::Clock),
+                            ]),
+                        CheckboxList::make('entry_currency_selection')
+                            ->label('Moneda de la factura')
+                            ->helperText('Marque solo una opción. En VES los importes se guardan en bolívares según la factura; el inventario usa USD con la tasa oficial (promedio) de la fecha de la factura.')
+                            ->options(PurchaseEntryCurrency::checkboxOptions())
+                            ->default([PurchaseEntryCurrency::USD->value])
+                            ->columns(2)
+                            ->live()
+                            ->minItems(1)
+                            ->maxItems(1)
+                            ->required()
+                            ->dehydrated(false)
+                            ->afterStateHydrated(function (?array $state, Set $set): void {
+                                $code = (is_array($state) && $state !== [])
+                                    ? (string) reset($state)
+                                    : PurchaseEntryCurrency::USD->value;
+                                if (! in_array($code, [PurchaseEntryCurrency::USD->value, PurchaseEntryCurrency::VES->value], true)) {
+                                    $code = PurchaseEntryCurrency::USD->value;
+                                }
+                                $set('/data.entry_currency', $code, isAbsolute: true);
+                            })
+                            ->afterStateUpdated(function (?array $state, Set $set, Component $livewire): void {
+                                if (! property_exists($livewire, 'data') || ! is_array($livewire->data)) {
+                                    return;
+                                }
+
+                                $raw = is_array($state) ? array_values(array_filter($state)) : [];
+                                if (count($raw) > 1) {
+                                    $last = (string) $raw[count($raw) - 1];
+                                    $set('/data.entry_currency_selection', [$last], isAbsolute: true);
+                                    $raw = [$last];
+                                }
+                                $code = $raw !== [] ? (string) $raw[0] : PurchaseEntryCurrency::USD->value;
+                                if (! in_array($code, [PurchaseEntryCurrency::USD->value, PurchaseEntryCurrency::VES->value], true)) {
+                                    $code = PurchaseEntryCurrency::USD->value;
+                                }
+
+                                $previous = (string) ($livewire->data['entry_currency'] ?? PurchaseEntryCurrency::USD->value);
+
+                                $needsRate = ($code === PurchaseEntryCurrency::VES->value && $previous === PurchaseEntryCurrency::USD->value)
+                                    || ($code === PurchaseEntryCurrency::USD->value && $previous === PurchaseEntryCurrency::VES->value);
+                                if ($needsRate && $previous !== $code) {
+                                    $rate = app(VenezuelaOfficialUsdVesRateClient::class)
+                                        ->rateForDate($livewire->data['supplier_invoice_date'] ?? null);
+                                    if ($rate === null || $rate <= 0) {
+                                        Notification::make()
+                                            ->title('Sin tasa oficial Bs/USD')
+                                            ->body('No hay promedio oficial para la fecha de la factura; no se puede cambiar la moneda. Corrija la fecha o intente más tarde.')
+                                            ->danger()
+                                            ->send();
+                                        $set('/data.entry_currency_selection', [$previous], isAbsolute: true);
+                                        $set('/data.entry_currency', $previous, isAbsolute: true);
+
+                                        return;
+                                    }
+                                }
+
+                                if ($previous !== $code) {
+                                    $adjusted = PurchaseEntryCurrencySwitcher::computeAdjustedItemsAndHeader($livewire->data, $previous, $code);
+                                    if ($adjusted !== null) {
+                                        [$items, $header] = $adjusted;
+                                        $set('/data.items', array_values($items), isAbsolute: true);
+                                        foreach ($header as $headerKey => $headerValue) {
+                                            $set('/data.'.$headerKey, $headerValue, isAbsolute: true);
+                                        }
+                                    }
+                                }
+
+                                $set('/data.entry_currency', $code, isAbsolute: true);
+                            })
+                            ->columnSpanFull(),
+                        Hidden::make('entry_currency')
+                            ->default(PurchaseEntryCurrency::USD->value)
+                            ->dehydrated(true),
+                        Select::make('branch_id')
+                            ->label('Sucursal de recepción')
+                            ->relationship(
+                                name: 'branch',
+                                titleAttribute: 'name',
+                                modifyQueryUsing: function (Builder $query): Builder {
+                                    $query->where('is_active', true)->orderBy('name');
+
+                                    return BranchAuthScope::applyToBranchFormSelect($query);
+                                },
+                            )
+                            ->default(fn (): ?int => BranchAuthScope::suggestedBranchIdForOperationalForm())
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->required()
+                            ->helperText('Donde ingresa o registra la mercancía.')
+                            ->prefixIcon(Heroicon::BuildingStorefront)
+                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
@@ -187,9 +314,9 @@ class PurchaseForm
                                     ->label('Costo')
                                     ->numeric()
                                     ->minValue(0)
-                                    ->step(0.00000001)
-                                    ->rule('decimal:0,8')
-                                    ->prefix('$')
+                                    ->step(0.01)
+                                    ->rule('decimal:0,2')
+                                    ->prefix(fn (Get $get): string => self::currencyPrefixForFormGet($get))
                                     ->default(0)
                                     ->required()
                                     ->live(onBlur: true)
@@ -212,7 +339,7 @@ class PurchaseForm
                                 TextInput::make('tax_amount')
                                     ->label('IVA')
                                     ->numeric()
-                                    ->prefix('$')
+                                    ->prefix(fn (Get $get): string => self::currencyPrefixForFormGet($get))
                                     ->disabled()
                                     ->dehydrated(true)
                                     ->default(0),
@@ -265,6 +392,15 @@ class PurchaseForm
                             ->mutateRelationshipDataBeforeCreateUsing(fn (array $data): array => self::finalizePurchaseItemRow($data))
                             ->mutateRelationshipDataBeforeSaveUsing(fn (array $data, Model $record): array => self::finalizePurchaseItemRow($data))
                             ->columnSpanFull(),
+                        TextInput::make('declared_invoice_total')
+                            ->label('Total de la factura (según proveedor)')
+                            ->numeric()
+                            ->minValue(0)
+                            ->step(0.01)
+                            ->required()
+                            ->prefix(fn (Get $get): string => self::currencyPrefixForFormGet($get))
+                            ->helperText('Debe alinearse con el total calculado por líneas: solo se admiten diferencias inferiores a 1,00 en la parte decimal (p. ej. ,56 vs ,80 sí; ,56 vs ,56 de un entero distinto no).')
+                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
@@ -277,6 +413,8 @@ class PurchaseForm
                         Grid::make([
                             'default' => 1,
                             'sm' => 2,
+                            'md' => 3,
+                            'lg' => 6,
                         ])
                             ->schema([
                                 TextInput::make('subtotal')
@@ -285,7 +423,7 @@ class PurchaseForm
                                     ->minValue(0)
                                     ->step(0.01)
                                     ->default(0.0)
-                                    ->prefix('$')
+                                    ->prefix(fn (Get $get): string => self::currencyPrefixForFormGet($get))
                                     ->disabled()
                                     ->dehydrated(true)
                                     ->extraInputAttributes(['class' => 'text-end tabular-nums']),
@@ -306,7 +444,7 @@ class PurchaseForm
                                 TextInput::make('net_exempt_after_document_discount')
                                     ->label('Base (productos sin IVA)')
                                     ->numeric()
-                                    ->prefix('$')
+                                    ->prefix(fn (Get $get): string => self::currencyPrefixForFormGet($get))
                                     ->disabled()
                                     ->dehydrated(true)
                                     ->default(0)
@@ -314,7 +452,7 @@ class PurchaseForm
                                 TextInput::make('net_taxable_after_document_discount')
                                     ->label('Base imponible')
                                     ->numeric()
-                                    ->prefix('$')
+                                    ->prefix(fn (Get $get): string => self::currencyPrefixForFormGet($get))
                                     ->disabled()
                                     ->dehydrated(true)
                                     ->default(0)
@@ -325,7 +463,7 @@ class PurchaseForm
                                     ->minValue(0)
                                     ->step(0.01)
                                     ->default(0.0)
-                                    ->prefix('$')
+                                    ->prefix(fn (Get $get): string => self::currencyPrefixForFormGet($get))
                                     ->disabled()
                                     ->dehydrated(true)
                                     ->extraInputAttributes(['class' => 'text-end tabular-nums']),
@@ -335,11 +473,10 @@ class PurchaseForm
                                     ->minValue(0)
                                     ->step(0.01)
                                     ->default(0.0)
-                                    ->prefix('$')
+                                    ->prefix(fn (Get $get): string => self::currencyPrefixForFormGet($get))
                                     ->disabled()
                                     ->dehydrated(true)
-                                    ->columnSpan(['default' => 1, 'sm' => 2])
-                                    ->extraInputAttributes(['class' => 'text-end text-base font-semibold tabular-nums sm:text-lg']),
+                                    ->extraInputAttributes(['class' => 'text-end text-base font-semibold tabular-nums lg:text-lg']),
                             ]),
                         Hidden::make('subtotal_exempt_amount')->default(0)->dehydrated(true),
                         Hidden::make('subtotal_taxable_amount')->default(0)->dehydrated(true),
@@ -353,12 +490,13 @@ class PurchaseForm
                     ->description('Estado del pago al proveedor.')
                     ->icon(Heroicon::DocumentCurrencyDollar)
                     ->schema([
-                        TextInput::make('payment_status')
+                        Select::make('payment_status')
                             ->label('Estado del pago')
-                            ->placeholder('Ej. pendiente, parcial, pagado')
-                            ->default('Pagado')
-                            ->maxLength(100)
-                            ->helperText('Texto libre o código interno de tesorería.')
+                            ->options(PurchasePaymentStatus::options())
+                            ->default(PurchasePaymentStatus::PAGADO_CONTADO)
+                            ->required()
+                            ->native(false)
+                            ->helperText('Solo se admiten los estados definidos para auditoría y reportes.')
                             ->prefixIcon(Heroicon::CreditCard)
                             ->columnSpanFull(),
                     ])
@@ -431,9 +569,12 @@ class PurchaseForm
         $vatPercent = self::purchaseLineVatPercentForProductId($get('product_id'));
         $set('line_vat_percent', round($vatPercent, 2));
 
+        $unitCost = round(max(0.0, (float) ($get('unit_cost') ?? 0)), 2);
+        $set('unit_cost', $unitCost);
+
         $amounts = PurchaseDocumentTotals::lineAmounts([
             'quantity_ordered' => $get('quantity_ordered'),
-            'unit_cost' => $get('unit_cost'),
+            'unit_cost' => $unitCost,
             'line_discount_percent' => $get('line_discount_percent'),
             'line_vat_percent' => $vatPercent,
         ]);
@@ -451,7 +592,14 @@ class PurchaseForm
         $cost = (float) ($get('unit_cost') ?? 0);
         $total = round($qty * $cost, 2);
 
-        return '$'.number_format($total, 2, '.', ',');
+        return self::currencyPrefixForFormGet($get).number_format($total, 2, '.', ',');
+    }
+
+    public static function currencyPrefixForFormGet(Get $get): string
+    {
+        $v = (string) ($get('/data.entry_currency', true) ?? PurchaseEntryCurrency::USD->value);
+
+        return PurchaseEntryCurrency::tryFrom($v)?->moneyPrefix() ?? '$';
     }
 
     /**
@@ -515,6 +663,8 @@ class PurchaseForm
         if (! $product instanceof Product || ! $product->requires_expiry_on_purchase) {
             $data['lot_expiration_month_year'] = null;
         }
+
+        $data['unit_cost'] = round(max(0.0, (float) ($data['unit_cost'] ?? 0)), 2);
 
         $computed = PurchaseDocumentTotals::lineAmounts($data);
         $data['line_subtotal'] = $computed['line_subtotal'];

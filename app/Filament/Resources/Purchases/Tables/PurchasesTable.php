@@ -2,12 +2,14 @@
 
 namespace App\Filament\Resources\Purchases\Tables;
 
+use App\Enums\PurchaseEntryCurrency;
 use App\Enums\PurchaseStatus;
 use App\Filament\Resources\Branches\BranchResource;
 use App\Filament\Resources\Suppliers\SupplierResource;
 use App\Models\Purchase;
 use App\Models\Supplier;
 use App\Support\Filament\BranchAuthScope;
+use App\Support\Purchases\PurchasePaymentStatus;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -27,7 +29,11 @@ class PurchasesTable
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => BranchAuthScope::apply($query)
-                ->with(['supplier', 'branch'])
+                ->with([
+                    'supplier',
+                    'branch',
+                    'items' => fn ($q) => $q->orderBy('line_number')->orderBy('id'),
+                ])
                 ->withCount('items'))
             ->columns([
                 TextColumn::make('purchase_number')
@@ -102,6 +108,22 @@ class PurchasesTable
                     ->icon(Heroicon::QueueList)
                     ->iconColor('gray')
                     ->tooltip('Cantidad de ítems en el detalle de la orden'),
+                TextColumn::make('entry_currency')
+                    ->label('Moneda')
+                    ->formatStateUsing(function (mixed $state): string {
+                        if ($state instanceof PurchaseEntryCurrency) {
+                            return $state->value;
+                        }
+
+                        return (string) ($state ?? 'USD');
+                    })
+                    ->badge()
+                    ->color(function (mixed $state): string {
+                        $v = $state instanceof PurchaseEntryCurrency ? $state->value : (string) ($state ?? '');
+
+                        return $v === PurchaseEntryCurrency::VES->value ? 'warning' : 'gray';
+                    })
+                    ->toggleable(),
                 TextColumn::make('ordered_at')
                     ->label('Pedido')
                     ->dateTime('d/m/Y H:i')
@@ -127,7 +149,8 @@ class PurchasesTable
                     ->iconColor('gray'),
                 TextColumn::make('total')
                     ->label('Total')
-                    ->money('USD')
+                    ->getStateUsing(fn (Purchase $record): float => self::purchaseListNumericHeader($record, 'total'))
+                    ->formatStateUsing(fn (mixed $state, Purchase $record): string => self::formatPurchaseMoneyColumn($record, (float) $state))
                     ->sortable()
                     ->alignEnd()
                     ->weight('bold')
@@ -135,19 +158,22 @@ class PurchasesTable
                     ->iconColor('gray'),
                 TextColumn::make('subtotal')
                     ->label('Subtotal')
-                    ->money('USD')
+                    ->getStateUsing(fn (Purchase $record): float => self::purchaseListNumericHeader($record, 'subtotal'))
+                    ->formatStateUsing(fn (mixed $state, Purchase $record): string => self::formatPurchaseMoneyColumn($record, (float) $state))
                     ->sortable()
                     ->alignEnd()
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('tax_total')
                     ->label('Impuestos')
-                    ->money('USD')
+                    ->getStateUsing(fn (Purchase $record): float => self::purchaseListNumericHeader($record, 'tax_total'))
+                    ->formatStateUsing(fn (mixed $state, Purchase $record): string => self::formatPurchaseMoneyColumn($record, (float) $state))
                     ->sortable()
                     ->alignEnd()
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('discount_total')
                     ->label('Descuentos')
-                    ->money('USD')
+                    ->getStateUsing(fn (Purchase $record): float => self::purchaseListNumericHeader($record, 'discount_total'))
+                    ->formatStateUsing(fn (mixed $state, Purchase $record): string => self::formatPurchaseMoneyColumn($record, (float) $state))
                     ->sortable()
                     ->alignEnd()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -387,18 +413,7 @@ class PurchasesTable
 
     private static function formatPaymentStatusLabel(?string $value): string
     {
-        if (blank($value)) {
-            return '—';
-        }
-
-        $key = strtolower(trim($value));
-
-        return match ($key) {
-            'paid', 'pagado', 'pagada' => 'Pagado',
-            'pending', 'pendiente' => 'Pendiente',
-            'partial', 'parcial' => 'Parcial',
-            default => $value,
-        };
+        return PurchasePaymentStatus::label($value);
     }
 
     private static function paymentStatusColor(?string $value): string
@@ -407,11 +422,42 @@ class PurchasesTable
             return 'gray';
         }
 
-        return match (strtolower(trim($value))) {
-            'paid', 'pagado', 'pagada' => 'success',
-            'pending', 'pendiente' => 'warning',
-            'partial', 'parcial' => 'info',
-            default => 'gray',
+        return match ($value) {
+            PurchasePaymentStatus::PAGADO_CONTADO => 'success',
+            PurchasePaymentStatus::A_CREDITO => 'warning',
+            default => match (strtolower(trim($value))) {
+                'paid', 'pagado', 'pagada' => 'success',
+                'pending', 'pendiente' => 'warning',
+                'partial', 'parcial' => 'info',
+                default => 'gray',
+            },
         };
+    }
+
+    private static function formatPurchaseMoneyColumn(Purchase $record, float $amount): string
+    {
+        $pfx = $record->entryCurrency() === PurchaseEntryCurrency::VES ? 'Bs.' : '$';
+
+        return $pfx.number_format($amount, 2, ',', '.');
+    }
+
+    /**
+     * Monto de encabezado para el listado: usa el valor persistido si es distinto de cero;
+     * si no, recalcula desde las líneas (compras creadas con encabezado en 0 hasta sincronizar).
+     */
+    private static function purchaseListNumericHeader(Purchase $record, string $key): float
+    {
+        $stored = (float) ($record->getAttributes()[$key] ?? 0);
+        if (abs($stored) >= 0.005) {
+            return round($stored, 2);
+        }
+
+        if (! $record->relationLoaded('items')) {
+            $record->load(['items' => fn ($q) => $q->orderBy('line_number')->orderBy('id')]);
+        }
+
+        $computed = $record->expectedHeaderTotalsFromItems();
+
+        return round((float) ($computed[$key] ?? 0.0), 2);
     }
 }

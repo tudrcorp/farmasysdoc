@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
+use App\Models\Branch;
 use App\Models\Rol;
 use App\Support\Filament\BranchAuthScope;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
@@ -23,7 +25,7 @@ class UserForm
         return $schema
             ->components([
                 Section::make('Datos del usuario')
-                    ->description('Identificación en el panel. La sucursal aplica salvo rol Entregas (logística a nivel empresa).')
+                    ->description('Identificación en el panel. La sucursal aplica salvo rol Entregas (logística a nivel empresa). Con rol Gerencia puede asignarse una o varias sucursales de alcance.')
                     ->icon(Heroicon::UserCircle)
                     ->schema([
                         Grid::make([
@@ -63,12 +65,27 @@ class UserForm
                                     ->live()
                                     ->native(false),
                             ]),
+                        CheckboxList::make('managed_branch_ids')
+                            ->label('Sucursales de alcance (Gerencia)')
+                            ->helperText('Seleccione todas las sucursales en las que este usuario podrá operar con rol Gerencia. Puede asignar la misma sucursal a varios gerentes.')
+                            ->options(fn (): array => Branch::query()
+                                ->where('is_active', true)
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->all())
+                            ->searchable()
+                            ->bulkToggleable()
+                            ->visible(fn (Get $get): bool => self::formRolesIncludeGerencia($get('roles')))
+                            ->required(fn (Get $get): bool => self::formRolesIncludeGerencia($get('roles')))
+                            ->columnSpanFull(),
                         Select::make('branch_id')
                             ->label('Sucursal')
                             ->placeholder('Seleccione la sucursal')
                             ->helperText(fn (Get $get): string => self::formRolesIncludeDelivery($get('roles'))
                                 ? 'Los usuarios con rol Entregas operan para toda la empresa; deje vacío o no aplica sucursal.'
-                                : 'El usuario queda asociado a una sola sucursal activa.')
+                                : (self::formRolesIncludeGerencia($get('roles'))
+                                    ? 'Con Gerencia la sucursal principal se toma de la primera sucursal marcada arriba al guardar (solo referencia interna).'
+                                    : 'El usuario queda asociado a una sola sucursal activa.'))
                             ->relationship(
                                 name: 'branch',
                                 titleAttribute: 'name',
@@ -78,7 +95,8 @@ class UserForm
                                     return BranchAuthScope::applyToBranchFormSelect($query);
                                 },
                             )
-                            ->required(fn (Get $get): bool => ! self::formRolesIncludeDelivery($get('roles')))
+                            ->required(fn (Get $get): bool => ! self::formRolesIncludeDelivery($get('roles')) && ! self::formRolesIncludeGerencia($get('roles')))
+                            ->visible(fn (Get $get): bool => ! self::formRolesIncludeDelivery($get('roles')) && ! self::formRolesIncludeGerencia($get('roles')))
                             ->searchable()
                             ->preload()
                             ->native(false)
@@ -182,5 +200,19 @@ class UserForm
     private static function formRolesIncludeDelivery(mixed $roles): bool
     {
         return is_array($roles) && in_array('DELIVERY', $roles, true);
+    }
+
+    private static function formRolesIncludeGerencia(mixed $roles): bool
+    {
+        if (! is_array($roles)) {
+            return false;
+        }
+
+        $normalized = array_map(
+            static fn (mixed $r): string => is_string($r) ? strtoupper(trim($r)) : '',
+            $roles,
+        );
+
+        return in_array('GERENCIA', $normalized, true);
     }
 }

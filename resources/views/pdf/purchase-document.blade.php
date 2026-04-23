@@ -128,6 +128,9 @@
     </style>
 </head>
 <body>
+    @php
+        $pdfSym = $purchase->documentMoneyPrefix();
+    @endphp
     <div class="header">
         @if (! empty($pdf_logo_data_uri))
             <img src="{{ $pdf_logo_data_uri }}" alt="Logo" />
@@ -167,9 +170,21 @@
         </tr>
         <tr>
             <th>Pago al proveedor</th>
-            <td>{{ filled($purchase->payment_status) ? $purchase->payment_status : '—' }}</td>
+            <td>{{ \App\Support\Purchases\PurchasePaymentStatus::label($purchase->payment_status) }}</td>
             <th>Registró</th>
             <td>{{ filled($purchase->created_by) ? $purchase->created_by : '—' }}</td>
+        </tr>
+        <tr>
+            <th>Moneda del documento</th>
+            <td>{{ $purchase->entryCurrency()->value }}</td>
+            <th>Tasa oficial (Bs/USD)</th>
+            <td>
+                @if ($purchase->entryCurrency() === \App\Enums\PurchaseEntryCurrency::VES && filled($purchase->official_usd_ves_rate))
+                    {{ number_format((float) $purchase->official_usd_ves_rate, 8, ',', '.') }}
+                @else
+                    —
+                @endif
+            </td>
         </tr>
     </table>
 
@@ -198,13 +213,13 @@
                             <br><span style="font-size:6.5pt;color:#555;">{{ $line->sku_snapshot }}</span>
                         @endif
                     </td>
-                    <td class="num">{{ number_format((float) $line->unit_cost, 4, ',', '.') }}</td>
+                    <td class="num">{{ $pdfSym }}{{ number_format((float) $line->unit_cost, 2, ',', '.') }}</td>
                     <td class="num">{{ number_format((float) $line->quantity_ordered, 3, ',', '.') }}</td>
                     <td class="num">{{ number_format((float) $line->line_discount_percent, 2, ',', '.') }}</td>
                     <td class="num">{{ number_format((float) $line->line_vat_percent, 2, ',', '.') }}</td>
-                    <td class="num">{{ number_format((float) $line->tax_amount, 2, ',', '.') }}</td>
-                    <td class="num">{{ number_format((float) $line->line_subtotal, 2, ',', '.') }}</td>
-                    <td class="num">{{ number_format((float) $line->line_total, 2, ',', '.') }}</td>
+                    <td class="num">{{ $pdfSym }}{{ number_format((float) $line->tax_amount, 2, ',', '.') }}</td>
+                    <td class="num">{{ $pdfSym }}{{ number_format((float) $line->line_subtotal, 2, ',', '.') }}</td>
+                    <td class="num">{{ $pdfSym }}{{ number_format((float) $line->line_total, 2, ',', '.') }}</td>
                 </tr>
             @empty
                 <tr>
@@ -224,21 +239,27 @@
                 </tr>
             </thead>
             <tbody>
+                @if (filled($purchase->declared_invoice_total))
+                    <tr>
+                        <td>Total declarado (proveedor)</td>
+                        <td>{{ $pdfSym }}{{ number_format((float) $purchase->declared_invoice_total, 2, ',', '.') }}</td>
+                    </tr>
+                @endif
                 <tr>
                     <td>Subtotal (sumatoria de líneas)</td>
-                    <td>USD {{ number_format((float) ($purchase->subtotal ?? 0), 2, ',', '.') }}</td>
+                    <td>{{ $pdfSym }}{{ number_format((float) ($purchase->subtotal ?? 0), 2, ',', '.') }}</td>
                 </tr>
                 <tr>
                     <td>Subtotal sin IVA (exento)</td>
-                    <td>USD {{ number_format((float) ($purchase->subtotal_exempt_amount ?? 0), 2, ',', '.') }}</td>
+                    <td>{{ $pdfSym }}{{ number_format((float) ($purchase->subtotal_exempt_amount ?? 0), 2, ',', '.') }}</td>
                 </tr>
                 <tr>
                     <td>Subtotal gravado (base antes desc. documento)</td>
-                    <td>USD {{ number_format((float) ($purchase->subtotal_taxable_amount ?? 0), 2, ',', '.') }}</td>
+                    <td>{{ $pdfSym }}{{ number_format((float) ($purchase->subtotal_taxable_amount ?? 0), 2, ',', '.') }}</td>
                 </tr>
                 <tr>
                     <td>Descuentos en líneas (monto)</td>
-                    <td>USD {{ number_format((float) ($purchase->discount_total ?? 0), 2, ',', '.') }}</td>
+                    <td>{{ $pdfSym }}{{ number_format((float) ($purchase->discount_total ?? 0), 2, ',', '.') }}</td>
                 </tr>
                 <tr>
                     <td>Descuento documento (%)</td>
@@ -246,23 +267,23 @@
                 </tr>
                 <tr>
                     <td>Monto descuento documento</td>
-                    <td>USD {{ number_format((float) ($purchase->document_discount_amount ?? 0), 2, ',', '.') }}</td>
+                    <td>{{ $pdfSym }}{{ number_format((float) ($purchase->document_discount_amount ?? 0), 2, ',', '.') }}</td>
                 </tr>
                 <tr>
                     <td>Base neta sin IVA (tras desc. documento)</td>
-                    <td>USD {{ number_format((float) ($purchase->net_exempt_after_document_discount ?? 0), 2, ',', '.') }}</td>
+                    <td>{{ $pdfSym }}{{ number_format((float) ($purchase->net_exempt_after_document_discount ?? 0), 2, ',', '.') }}</td>
                 </tr>
                 <tr>
                     <td>Base imponible (tras desc. documento)</td>
-                    <td>USD {{ number_format((float) ($purchase->net_taxable_after_document_discount ?? 0), 2, ',', '.') }}</td>
+                    <td>{{ $pdfSym }}{{ number_format((float) ($purchase->net_taxable_after_document_discount ?? 0), 2, ',', '.') }}</td>
                 </tr>
                 <tr>
                     <td>IVA ({{ number_format((float) ($default_vat_rate_percent ?? 0), 2, ',', '.') }}% sobre base imponible)</td>
-                    <td>USD {{ number_format((float) ($purchase->tax_total ?? 0), 2, ',', '.') }}</td>
+                    <td>{{ $pdfSym }}{{ number_format((float) ($purchase->tax_total ?? 0), 2, ',', '.') }}</td>
                 </tr>
                 <tr class="total-row">
                     <td>Total factura</td>
-                    <td>USD {{ number_format((float) ($purchase->total ?? 0), 2, ',', '.') }}</td>
+                    <td>{{ $pdfSym }}{{ number_format((float) ($purchase->total ?? 0), 2, ',', '.') }}</td>
                 </tr>
             </tbody>
         </table>

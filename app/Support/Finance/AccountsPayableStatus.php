@@ -11,6 +11,8 @@ final class AccountsPayableStatus
 
     public const PAGADO = 'pagado';
 
+    public const ANULADA = 'anulada';
+
     /**
      * @return array<string, string>
      */
@@ -19,6 +21,7 @@ final class AccountsPayableStatus
         return [
             self::POR_PAGAR => 'Por pagar',
             self::PAGADO => 'Pagado',
+            self::ANULADA => 'Anulada',
         ];
     }
 

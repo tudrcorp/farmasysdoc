@@ -1698,7 +1698,7 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
     border-style: solid;
     padding: 0.625rem 1.25rem;
     font-weight: 600;
-    color: white !important;
+    /* No forzar color: white aquí: en outlined/neutros de Filament el fondo es claro y el texto desaparece. */
     box-shadow:
         0 14px 28px -12px rgb(0 0 0 / 0.28),
         0 0 0 1px rgb(255 255 255 / 0.14),
@@ -1724,30 +1724,35 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
 .fi-modal-footer .fi-btn.fi-color-primary {
     border-color: color-mix(in srgb, var(--color-primary-300) 45%, transparent);
     background: linear-gradient(to right, var(--color-primary-500), var(--color-primary-600));
+    color: white !important;
 }
 
 .fi-fo-actions .fi-btn.fi-color-info,
 .fi-modal-footer .fi-btn.fi-color-info {
     border-color: color-mix(in srgb, var(--color-info-300) 45%, transparent);
     background: linear-gradient(to right, var(--color-info-500), var(--color-info-600));
+    color: white !important;
 }
 
 .fi-fo-actions .fi-btn.fi-color-success,
 .fi-modal-footer .fi-btn.fi-color-success {
     border-color: color-mix(in srgb, var(--color-success-300) 45%, transparent);
     background: linear-gradient(to right, var(--color-success-500), var(--color-success-600));
+    color: white !important;
 }
 
 .fi-fo-actions .fi-btn.fi-color-warning,
 .fi-modal-footer .fi-btn.fi-color-warning {
     border-color: color-mix(in srgb, var(--color-warning-300) 45%, transparent);
     background: linear-gradient(to right, var(--color-warning-500), var(--color-warning-600));
+    color: white !important;
 }
 
 .fi-fo-actions .fi-btn.fi-color-danger,
 .fi-modal-footer .fi-btn.fi-color-danger {
     border-color: color-mix(in srgb, var(--color-danger-300) 45%, transparent);
     background: linear-gradient(to right, var(--color-danger-500), var(--color-danger-600));
+    color: white !important;
 }
 
 /*
@@ -1758,6 +1763,7 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
 .fi-modal-footer .fi-btn.fi-outlined:not(.fi-color) {
     border-color: color-mix(in srgb, var(--color-danger-300) 45%, transparent);
     background: linear-gradient(to right, var(--color-danger-500), var(--color-danger-600));
+    color: white !important;
 }
 
 .fi-fo-actions .fi-btn:focus-visible,
@@ -1951,7 +1957,7 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
     border-style: solid !important;
     padding: 0.625rem 1.25rem !important;
     font-weight: 600 !important;
-    color: white !important;
+    /* Mismo criterio: no blanco global (cerrar / secundarios con fondo claro). */
     box-shadow:
         0 14px 28px -12px rgb(0 0 0 / 0.28),
         0 0 0 1px rgb(255 255 255 / 0.14),
@@ -1979,6 +1985,7 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
 .fi-modal-footer .fi-btn[class*='fi-color-primary'] {
     border-color: color-mix(in srgb, var(--color-primary-300) 45%, transparent) !important;
     background: linear-gradient(to right, var(--color-primary-500), var(--color-primary-600)) !important;
+    color: white !important;
 }
 
 /* info */
@@ -1987,6 +1994,7 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
 .fi-modal-footer .fi-btn[class*='fi-color-info'] {
     border-color: color-mix(in srgb, var(--color-info-300) 45%, transparent) !important;
     background: linear-gradient(to right, var(--color-info-500), var(--color-info-600)) !important;
+    color: white !important;
 }
 
 /* success */
@@ -1995,6 +2003,7 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
 .fi-modal-footer .fi-btn[class*='fi-color-success'] {
     border-color: color-mix(in srgb, var(--color-success-300) 45%, transparent) !important;
     background: linear-gradient(to right, var(--color-success-500), var(--color-success-600)) !important;
+    color: white !important;
 }
 
 /* warning */
@@ -2003,6 +2012,7 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
 .fi-modal-footer .fi-btn[class*='fi-color-warning'] {
     border-color: color-mix(in srgb, var(--color-warning-300) 45%, transparent) !important;
     background: linear-gradient(to right, var(--color-warning-500), var(--color-warning-600)) !important;
+    color: white !important;
 }
 
 /* danger */
@@ -2011,6 +2021,7 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
 .fi-modal-footer .fi-btn[class*='fi-color-danger'] {
     border-color: color-mix(in srgb, var(--color-danger-300) 45%, transparent) !important;
     background: linear-gradient(to right, var(--color-danger-500), var(--color-danger-600)) !important;
+    color: white !important;
 }
 
 /*

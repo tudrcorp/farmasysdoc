@@ -23,37 +23,44 @@ final class PurchaseItemInventoryReceiptService
      *
      * @throws ValidationException
      */
-    public function applyQuantityDelta(PurchaseItem $item, float $delta, ?Authenticatable $actor = null): void
-    {
+    public function applyQuantityDelta(
+        PurchaseItem $item,
+        float $delta,
+        ?Authenticatable $actor = null,
+        ?InventoryMovementType $movementType = null,
+        ?string $movementNotesOverride = null,
+    ): ?InventoryMovement {
         if (abs($delta) < 0.0001) {
-            return;
+            return null;
         }
+
+        $movementType ??= InventoryMovementType::Purchase;
 
         $productId = (int) $item->product_id;
         if ($productId <= 0) {
-            return;
+            return null;
         }
 
         $purchaseId = (int) $item->purchase_id;
         if ($purchaseId <= 0) {
-            return;
+            return null;
         }
 
         $actorLabel = self::actorLabel($actor);
 
-        DB::transaction(function () use ($item, $delta, $productId, $purchaseId, $actorLabel): void {
+        return DB::transaction(function () use ($item, $delta, $productId, $purchaseId, $actorLabel, $movementType, $movementNotesOverride): ?InventoryMovement {
             $purchase = Purchase::query()
                 ->whereKey($purchaseId)
                 ->lockForUpdate()
                 ->first();
 
             if (! $purchase instanceof Purchase) {
-                return;
+                return null;
             }
 
             $branchId = (int) $purchase->branch_id;
             if ($branchId <= 0) {
-                return;
+                return null;
             }
 
             $product = Product::query()->find($productId);
@@ -93,6 +100,8 @@ final class PurchaseItemInventoryReceiptService
                 ]);
             }
 
+            $createdMovement = null;
+
             $nextQuantity = round((float) $inventory->quantity + $delta, 3);
 
             if ($delta < 0 && ! $inventory->allow_negative_stock && $nextQuantity < -0.0001) {
@@ -119,21 +128,25 @@ final class PurchaseItemInventoryReceiptService
             $lineNo = (int) ($item->line_number ?? 0);
             $lineSuffix = $lineNo > 0 ? " · Línea #{$lineNo}" : '';
 
-            InventoryMovement::query()->create([
+            $notes = $movementNotesOverride ?? ('Compra '.$purchase->purchase_number.$lineSuffix);
+
+            $createdMovement = InventoryMovement::query()->create([
                 'product_id' => $productId,
                 'inventory_id' => $inventory->getKey(),
-                'movement_type' => InventoryMovementType::Purchase,
+                'movement_type' => $movementType,
                 'quantity' => $delta > 0 ? abs($delta) : -1 * abs($delta),
                 'unit_cost' => $unitCost > 0 ? $unitCost : null,
                 'reference_type' => PurchaseItem::class,
                 'reference_id' => $item->getKey(),
-                'notes' => 'Compra '.$purchase->purchase_number.$lineSuffix,
+                'notes' => $notes,
                 'created_by' => $actorLabel,
             ]);
 
             if ($item->exists && $item->inventory_id === null) {
                 $item->forceFill(['inventory_id' => $inventory->getKey()])->saveQuietly();
             }
+
+            return $createdMovement;
         });
     }
 

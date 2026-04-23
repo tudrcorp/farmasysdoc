@@ -4,6 +4,7 @@ use App\Http\Controllers\Dev\BdvConciliationTestController;
 use App\Http\Controllers\FiscalReceiptController;
 use App\Http\Controllers\NominatimProxyController;
 use App\Http\Controllers\ProductTransfers\ProductTransferReportPdfController;
+use App\Http\Controllers\Purchases\PurchaseAnnulmentApprovalController;
 use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
 use App\Http\Controllers\Sales\CashRegisterClosePdfController;
 use Illuminate\Support\Facades\Http;
@@ -51,6 +52,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('purchases/{purchase}/document-pdf', PurchaseDocumentPdfController::class)
         ->name('purchases.document-pdf');
+
+    Route::get('purchases/{purchase}/annulment-approve', [PurchaseAnnulmentApprovalController::class, 'show'])
+        ->middleware('signed')
+        ->name('purchases.annulment.show');
+
+    Route::post('purchases/{purchase}/annulment-confirm', [PurchaseAnnulmentApprovalController::class, 'confirm'])
+        ->middleware('signed')
+        ->name('purchases.annulment.confirm');
+
+    Route::get('purchases/{purchase}/annulment-complete', [PurchaseAnnulmentApprovalController::class, 'complete'])
+        ->name('purchases.annulment.complete');
 });
 
 Route::get('/pp', function () {

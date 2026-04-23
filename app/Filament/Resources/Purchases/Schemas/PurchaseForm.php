@@ -52,6 +52,8 @@ class PurchaseForm
                                     ->label('RIF del proveedor')
                                     ->searchable()
                                     ->searchDebounce(300)
+                                    ->searchingMessage('Buscando proveedores…')
+                                    ->noSearchResultsMessage('Sin coincidencias. Pulse Intro (Enter) para abrir el registro rápido con el RIF o NIT que escribió.')
                                     ->getSearchResultsUsing(
                                         fn (string $search): array => self::searchSuppliersForPurchaseForm($search),
                                     )
@@ -64,8 +66,9 @@ class PurchaseForm
                                     ->afterStateUpdated(function (?string $state, Set $set): void {
                                         $set('supplier_display_name', self::supplierDisplayNameForSupplierId($state));
                                     })
-                                    ->helperText('Paso 1: identifique al proveedor. Así se valida que la factura no esté duplicada para él.')
-                                    ->prefixIcon(Heroicon::FingerPrint),
+                                    ->helperText('Paso 1: busque por RIF, razón social o código. Si no hay resultados, pulse Intro para registrar el proveedor con el texto que escribió.')
+                                    ->prefixIcon(Heroicon::FingerPrint)
+                                    ->extraAlpineAttributes(self::supplierSelectQuickCreateOnEnterAlpine()),
                                 TextInput::make('supplier_display_name')
                                     ->label('Nombre del proveedor')
                                     ->disabled()
@@ -673,6 +676,33 @@ class PurchaseForm
         $data['quantity_received'] = isset($data['quantity_received']) ? (float) $data['quantity_received'] : 0.0;
 
         return $data;
+    }
+
+    /**
+     * Si el usuario escribe un RIF o nombre sin coincidencias y pulsa Intro en el buscador del select,
+     * se abre la acción Livewire {@see \App\Filament\Resources\Purchases\Pages\CreatePurchase::openQuickCreateSupplierModalFromSelectSearch()}
+     * con el RIF precargado (solo cuando el panel está abierto, hay texto de búsqueda y no hay opciones).
+     *
+     * @return array<string, string>
+     */
+    private static function supplierSelectQuickCreateOnEnterAlpine(): array
+    {
+        // Una sola línea: saltos de línea en el valor del atributo rompen el HTML junto al x-data largo
+        // y el navegador muestra el JavaScript como texto dentro del select.
+        $handler = 'const el=$event.target;if(!el?.matches?.(\'.fi-select-input-search-ctn input.fi-input\'))return;'
+            .'const host=el.closest(\'[data-supplier-quick-create]\');if(!host)return;'
+            .'const panel=host.querySelector(\'.fi-dropdown-panel\');if(!panel||panel.style.display===\'none\')return;'
+            .'const search=(el.value||\'\').trim();if(!search)return;'
+            .'if(panel.querySelectorAll(\'li[role=option]\').length>0)return;'
+            .'const msg=panel.querySelector(\':scope > .fi-select-input-message\');'
+            .'if(msg&&/buscando|searching/i.test(msg.textContent||\'\'))return;'
+            .'$wire.openQuickCreateSupplierModalFromSelectSearch(search);'
+            .'$event.preventDefault();$event.stopPropagation();el.blur();';
+
+        return [
+            'data-supplier-quick-create' => '1',
+            'x-on:keydown.enter.capture' => $handler,
+        ];
     }
 
     /**

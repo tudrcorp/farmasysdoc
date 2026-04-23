@@ -36,6 +36,24 @@ class CreatePurchase extends CreateRecord
 
     protected bool $pendingCreateAnother = false;
 
+    /**
+     * RIF/NIT normalizado para precargar la modal «Nuevo proveedor» al pulsar Intro sin coincidencias en el select.
+     */
+    public string $supplierRifPrefillForQuickCreate = '';
+
+    /**
+     * true: la modal se abrió desde Intro en el buscador del proveedor (no limpiar el prefill en before()).
+     */
+    public bool $supplierQuickCreateOpenedFromSelectSearch = false;
+
+    public function openQuickCreateSupplierModalFromSelectSearch(string $search = ''): void
+    {
+        $normalized = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', trim($search)));
+        $this->supplierRifPrefillForQuickCreate = $normalized;
+        $this->supplierQuickCreateOpenedFromSelectSearch = true;
+        $this->mountAction('quickCreateSupplier');
+    }
+
     public function create(bool $another = false): void
     {
         $this->pendingCreateAnother = $another;
@@ -252,7 +270,20 @@ class CreatePurchase extends CreateRecord
             QuickCreateSupplierAction::make(function (int $supplierId): void {
                 $this->data['supplier_id'] = (string) $supplierId;
                 $this->data['supplier_display_name'] = PurchaseForm::supplierDisplayNameForSupplierId($supplierId);
-            }),
+                $this->supplierRifPrefillForQuickCreate = '';
+            })
+                ->before(function (): void {
+                    if (! $this->supplierQuickCreateOpenedFromSelectSearch) {
+                        $this->supplierRifPrefillForQuickCreate = '';
+                    }
+                    $this->supplierQuickCreateOpenedFromSelectSearch = false;
+                })
+                ->fillForm(fn (): array => [
+                    'tax_id' => $this->supplierRifPrefillForQuickCreate,
+                    'legal_name' => '',
+                    'trade_name' => '',
+                    'mobile_phone' => '',
+                ]),
             QuickCreatePurchaseProductAction::make(function (Product $product, ?float $unitCostFromModal = null): void {
                 $this->appendPurchaseLineForProduct($product, $unitCostFromModal);
                 $this->data['purchase_line_product_search'] = '';

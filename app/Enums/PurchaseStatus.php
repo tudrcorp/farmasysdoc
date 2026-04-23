@@ -13,6 +13,10 @@ enum PurchaseStatus: string
     case PartiallyReceived = 'recibido-parcialmente';
     case Received = 'recibido';
     case Cancelled = 'cancelado';
+    /** Gerencia solicitó anulación; espera confirmación del administrador. */
+    case CancellationRequested = 'solicita-anulacion';
+    /** Compra anulada con reversión de inventario y registros derivados. */
+    case Annulled = 'anulada';
 
     public function label(): string
     {
@@ -22,6 +26,8 @@ enum PurchaseStatus: string
             self::PartiallyReceived => 'Recibido parcialmente',
             self::Received => 'Recibido',
             self::Cancelled => 'Cancelado',
+            self::CancellationRequested => 'Solicita anulación',
+            self::Annulled => 'Anulada',
         };
     }
 }

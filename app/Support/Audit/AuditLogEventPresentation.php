@@ -22,6 +22,8 @@ final class AuditLogEventPresentation
             'purchase_compra_contado_historic_written' => 'Compra: asiento en histórico (contado)',
             'purchase_history_cpp_payment_registered' => 'Histórico compras: pago a cuenta por pagar',
             'purchase_history_viewed' => 'Histórico compras: consulta de detalle',
+            'purchase_cancellation_requested' => 'Compra: solicitud de anulación',
+            'purchase_annulled' => 'Compra: anulación confirmada',
         ];
     }
 
@@ -47,6 +49,8 @@ final class AuditLogEventPresentation
             'purchase_compra_contado_historic_written' => 'success',
             'purchase_history_cpp_payment_registered' => 'info',
             'purchase_history_viewed' => 'gray',
+            'purchase_cancellation_requested' => 'warning',
+            'purchase_annulled' => 'danger',
             default => 'gray',
         };
     }

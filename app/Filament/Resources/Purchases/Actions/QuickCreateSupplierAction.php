@@ -7,6 +7,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Validation\ValidationException;
@@ -27,40 +28,51 @@ final class QuickCreateSupplierAction
             ->extraAttributes([
                 'class' => 'farmadoc-ios-action farmadoc-ios-action--info farmadoc-ios-action--liquid-glass',
             ])
-            ->modalWidth(Width::Large)
+            ->modalWidth(Width::TwoExtraLarge)
             ->modalHeading('Registrar proveedor')
-            ->modalDescription('Datos mínimos para poder asociar la compra. Podrá completar el ficha del proveedor después en el catálogo.')
+            ->modalDescription('Solo datos esenciales para asociar esta compra. Podrá completar la ficha en Catálogo → Proveedores.')
             ->modalSubmitActionLabel('Crear y seleccionar')
             ->modalIcon(Heroicon::Truck)
             ->schema([
-                Grid::make(1)
+                Section::make()
+                    ->heading('Identificación')
+                    ->description('El RIF/NIT debe ser único en el sistema. La razón social puede ajustarse luego si hace falta.')
+                    ->icon(Heroicon::Identification)
                     ->schema([
-                        TextInput::make('legal_name')
-                            ->label('Razón social')
-                            ->placeholder('Según RIF o documento')
-                            ->required()
-                            ->maxLength(255)
-                            ->prefixIcon(Heroicon::BuildingOffice2),
-                        TextInput::make('trade_name')
-                            ->label('Nombre comercial')
-                            ->placeholder('Opcional — marca o nombre en factura')
-                            ->maxLength(255)
-                            ->prefixIcon(Heroicon::BuildingStorefront),
-                        TextInput::make('tax_id')
-                            ->label('RIF / NIT / identificación fiscal')
-                            ->placeholder('Ej. J123456789 o NIT sin símbolos extra')
-                            ->helperText('Se normaliza al guardar (mayúsculas, sin guiones ni espacios). Debe ser único.')
-                            ->required()
-                            ->maxLength(255)
-                            ->prefixIcon(Heroicon::Identification),
-                        TextInput::make('mobile_phone')
-                            ->label('Teléfono / celular')
-                            ->tel()
-                            ->placeholder('Opcional')
-                            ->helperText('Puede incluir espacios o guiones; solo se guardan dígitos.')
-                            ->maxLength(40)
-                            ->prefixIcon(Heroicon::DevicePhoneMobile),
-                    ]),
+                        Grid::make(['default' => 1, 'lg' => 2])
+                            ->schema([
+                                TextInput::make('tax_id')
+                                    ->label('RIF / NIT / identificación fiscal')
+                                    ->placeholder('Ej. J-12345678-9')
+                                    ->helperText('Se rellena con lo que buscó si pulsa Intro sin coincidencias. Al guardar se normaliza (mayúsculas, sin guiones).')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->prefixIcon(Heroicon::FingerPrint)
+                                    ->columnSpan(['default' => 1, 'lg' => 1]),
+                                TextInput::make('mobile_phone')
+                                    ->label('Celular / WhatsApp')
+                                    ->tel()
+                                    ->placeholder('Opcional — recomendado para contacto rápido')
+                                    ->helperText('Solo se guardan dígitos.')
+                                    ->maxLength(40)
+                                    ->prefixIcon(Heroicon::DevicePhoneMobile)
+                                    ->columnSpan(['default' => 1, 'lg' => 1]),
+                                TextInput::make('legal_name')
+                                    ->label('Razón social')
+                                    ->placeholder('Nombre legal según constancia o factura')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->prefixIcon(Heroicon::BuildingOffice2)
+                                    ->columnSpan(['default' => 1, 'lg' => 2]),
+                                TextInput::make('trade_name')
+                                    ->label('Nombre comercial')
+                                    ->placeholder('Opcional — marca o nombre en factura del proveedor')
+                                    ->maxLength(255)
+                                    ->prefixIcon(Heroicon::BuildingStorefront)
+                                    ->columnSpan(['default' => 1, 'lg' => 2]),
+                            ]),
+                    ])
+                    ->columns(1),
             ])
             ->action(function (array $data) use ($onCreated): void {
                 $taxId = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', (string) ($data['tax_id'] ?? '')));

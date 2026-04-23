@@ -8,6 +8,8 @@ use App\Filament\Resources\Branches\BranchResource;
 use App\Filament\Resources\Suppliers\SupplierResource;
 use App\Models\Purchase;
 use App\Models\Supplier;
+use App\Models\User;
+use App\Services\Purchases\PurchaseAnnulmentService;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Purchases\PurchasePaymentStatus;
 use Filament\Actions\Action;
@@ -20,8 +22,12 @@ use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
+use Filament\Notifications\Notification;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Validation\ValidationException;
 
 class PurchasesTable
 {
@@ -90,15 +96,6 @@ class PurchasesTable
                         ? BranchResource::getUrl('view', ['record' => $record->branch_id], isAbsolute: false)
                         : null)
                     ->openUrlInNewTab(false),
-                TextColumn::make('status')
-                    ->label('Estado')
-                    ->formatStateUsing(fn (PurchaseStatus|string|null $state): string => self::formatPurchaseStatusLabel($state))
-                    ->badge()
-                    ->color(fn (PurchaseStatus|string|null $state): string => self::purchaseStatusColor($state))
-                    ->searchable()
-                    ->sortable()
-                    ->icon(Heroicon::Signal)
-                    ->iconColor('gray'),
                 TextColumn::make('items_count')
                     ->label('Líneas')
                     ->numeric()
@@ -124,29 +121,6 @@ class PurchasesTable
                         return $v === PurchaseEntryCurrency::VES->value ? 'warning' : 'gray';
                     })
                     ->toggleable(),
-                TextColumn::make('ordered_at')
-                    ->label('Pedido')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable()
-                    ->placeholder('—')
-                    ->icon(Heroicon::PaperAirplane)
-                    ->iconColor('gray'),
-                TextColumn::make('expected_delivery_at')
-                    ->label('Entrega est.')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable()
-                    ->placeholder('—')
-                    ->toggleable()
-                    ->icon(Heroicon::Clock)
-                    ->iconColor('gray'),
-                TextColumn::make('received_at')
-                    ->label('Recepción')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable()
-                    ->placeholder('—')
-                    ->toggleable()
-                    ->icon(Heroicon::CheckCircle)
-                    ->iconColor('gray'),
                 TextColumn::make('total')
                     ->label('Total')
                     ->getStateUsing(fn (Purchase $record): float => self::purchaseListNumericHeader($record, 'total'))
@@ -221,6 +195,16 @@ class PurchasesTable
                     ->toggleable()
                     ->icon(Heroicon::CreditCard)
                     ->iconColor('gray'),
+                TextColumn::make('status')
+                    ->label('Estado OC')
+                    ->formatStateUsing(fn (mixed $state): string => self::formatPurchaseStatusLabel(
+                        $state instanceof PurchaseStatus ? $state : PurchaseStatus::tryFrom((string) $state),
+                    ))
+                    ->badge()
+                    ->color(fn (mixed $state): string => self::purchaseStatusColor(
+                        $state instanceof PurchaseStatus ? $state : PurchaseStatus::tryFrom((string) $state),
+                    ))
+                    ->toggleable(),
                 TextColumn::make('created_by')
                     ->label('Registró')
                     ->searchable()
@@ -315,6 +299,8 @@ class PurchasesTable
             ])
             ->recordActions([
                 self::viewPurchaseDetailAction(),
+                self::requestPurchaseAnnulmentAction(),
+                self::openPurchaseAnnulmentApprovalAction(),
             ])
             ->recordActionsColumnLabel('Acciones')
             ->toolbarActions([
@@ -350,6 +336,82 @@ class PurchasesTable
             ->modalCancelAction(fn (Action $action): Action => $action
                 ->label('Cerrar')
                 ->color('gray'));
+    }
+
+    private static function requestPurchaseAnnulmentAction(): Action
+    {
+        return Action::make('requestPurchaseAnnulment')
+            ->label('Anular compra')
+            ->icon(Heroicon::XCircle)
+            ->color('danger')
+            ->modalHeading('Anular compra')
+            ->modalDescription(
+                'La orden pasará a «Solicita anulación». Los administradores recibirán un WhatsApp con un enlace seguro para revisar el resumen, marcar la orden como «Anulada» y confirmar (se revierte inventario, histórico y cuenta por pagar si aplica).',
+            )
+            ->requiresConfirmation()
+            ->modalSubmitActionLabel('Enviar solicitud')
+            ->visible(fn (Purchase $record): bool => self::userMayRequestPurchaseAnnulment($record))
+            ->action(function (Purchase $record): void {
+                $user = Auth::user();
+                if (! $user instanceof User) {
+                    return;
+                }
+
+                try {
+                    app(PurchaseAnnulmentService::class)->requestCancellation($record, $user);
+                } catch (ValidationException $e) {
+                    $message = collect($e->errors())->flatten()->first();
+
+                    Notification::make()
+                        ->title('No se pudo solicitar la anulación')
+                        ->body(is_string($message) ? $message : 'Revise el estado de la compra e intente de nuevo.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                Notification::make()
+                    ->title('Solicitud registrada')
+                    ->body('El estado pasó a «Solicita anulación». Los administradores recibirán WhatsApp con el enlace para confirmar la anulación.')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    private static function openPurchaseAnnulmentApprovalAction(): Action
+    {
+        return Action::make('openPurchaseAnnulmentApproval')
+            ->label('Revisar y anular')
+            ->icon(Heroicon::ShieldCheck)
+            ->color('warning')
+            ->url(fn (Purchase $record): string => URL::temporarySignedRoute(
+                'purchases.annulment.show',
+                now()->addDays(7),
+                ['purchase' => $record->getKey()],
+                absolute: true,
+            ))
+            ->openUrlInNewTab()
+            ->visible(fn (Purchase $record): bool => self::userIsAdministratorWithPendingAnnulment($record));
+    }
+
+    private static function userMayRequestPurchaseAnnulment(Purchase $record): bool
+    {
+        $user = Auth::user();
+        if (! $user instanceof User || (! $user->hasGerenciaRole() && ! $user->isAdministrator())) {
+            return false;
+        }
+
+        return app(PurchaseAnnulmentService::class)->mayRequestCancellation($record);
+    }
+
+    private static function userIsAdministratorWithPendingAnnulment(Purchase $record): bool
+    {
+        $user = Auth::user();
+
+        return $user instanceof User
+            && $user->isAdministrator()
+            && $record->status === PurchaseStatus::CancellationRequested;
     }
 
     private static function formatSupplierPrimaryName(Purchase $record): string
@@ -407,6 +469,8 @@ class PurchasesTable
             PurchaseStatus::PartiallyReceived => 'warning',
             PurchaseStatus::Received => 'success',
             PurchaseStatus::Cancelled => 'danger',
+            PurchaseStatus::CancellationRequested => 'warning',
+            PurchaseStatus::Annulled => 'danger',
             default => 'gray',
         };
     }

@@ -64,6 +64,8 @@ html.fi.dark .fi-sidebar-close-overlay {
 }
 
 .fi-topbar {
+    min-width: 0;
+    max-width: 100%;
     /* Vidrio: blur + opacidad (sin textura de ruido) */
     background-color: rgb(255 255 255 / 0.965);
     backdrop-filter: saturate(220%) blur(88px);
@@ -9907,4 +9909,271 @@ html.fi.dark .farmadoc-ios-field__select {
 .farmadoc-ios-report-download__icon {
     display: flex;
     opacity: 0.95;
+}
+
+/* —— Barra de accesos directos (pill segmentada, inspiración iOS) —— */
+/* Inmediatamente a la izquierda de la búsqueda global (`GLOBAL_SEARCH_BEFORE`). */
+.fi-topbar-end {
+    min-width: 0;
+    flex-shrink: 1;
+}
+
+.fi-topbar-end .farmadoc-ios-shortcuts {
+    /* No competir con .fi-global-search (flex:1): solo encoger con scroll interno. */
+    flex: 0 1 auto;
+    min-width: 0;
+    /* Reserva espacio aproximado para búsqueda + iconos para no chocar con overflow-x: clip del topbar. */
+    max-width: min(56rem, max(9rem, calc(100vw - 11.5rem)));
+    align-self: center;
+    margin-inline-end: 0.5rem;
+}
+
+/* La búsqueda conserva prioridad de espacio; los accesos no la aplastan. */
+.fi-topbar-end .fi-global-search-ctn,
+.fi-topbar-end .fi-global-search {
+    min-width: 0;
+}
+
+.farmadoc-ios-shortcuts {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.farmadoc-ios-shortcuts__list {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 0;
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 0.35rem 0.45rem;
+    padding-inline-end: 0.65rem;
+    list-style: none;
+    border-radius: 9999px;
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.95) 0%, rgb(248 250 252 / 0.92) 100%);
+    border: 1px solid rgb(15 23 42 / 0.1);
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.85) inset,
+        0 10px 28px rgb(15 23 42 / 0.08),
+        0 0 0 1px rgb(15 23 42 / 0.04);
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.farmadoc-ios-shortcuts__list::-webkit-scrollbar {
+    display: none;
+}
+
+html.fi.dark .farmadoc-ios-shortcuts__list {
+    background: linear-gradient(180deg, rgb(30 41 59 / 0.75) 0%, rgb(15 23 42 / 0.88) 100%);
+    border-color: rgb(255 255 255 / 0.1);
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.06) inset,
+        0 12px 36px rgb(0 0 0 / 0.45),
+        0 0 0 1px rgb(255 255 255 / 0.05);
+}
+
+.farmadoc-ios-shortcuts__item {
+    display: flex;
+    flex: 0 0 auto;
+    margin-left: -0.65rem;
+}
+
+.farmadoc-ios-shortcuts__item:first-child {
+    margin-left: 0;
+}
+
+.farmadoc-ios-shortcuts__segment {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: row;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.45rem 0.85rem 0.45rem 0.65rem;
+    border-radius: 9999px;
+    text-decoration: none;
+    color: rgb(15 23 42);
+    border: 1px solid rgb(255 255 255 / 0.35);
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.35) inset,
+        0 6px 14px rgb(15 23 42 / 0.12);
+    transition:
+        transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 0.2s ease,
+        filter 0.2s ease,
+        z-index 0s linear 0.2s;
+}
+
+html.fi.dark .farmadoc-ios-shortcuts__segment {
+    border-color: color-mix(in srgb, var(--color-gray-100) 14%, transparent);
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.08) inset,
+        0 8px 18px rgb(0 0 0 / 0.35);
+}
+
+.farmadoc-ios-shortcuts__segment:hover {
+    z-index: 3;
+    transform: translateY(-2px) scale(1.02);
+    filter: saturate(1.08) brightness(1.03);
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.45) inset,
+        0 12px 26px rgb(15 23 42 / 0.18);
+}
+
+html.fi.dark .farmadoc-ios-shortcuts__segment:hover {
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.12) inset,
+        0 14px 32px rgb(0 0 0 / 0.5);
+}
+
+.farmadoc-ios-shortcuts__segment:focus-visible {
+    outline: 2px solid var(--color-info-500);
+    outline-offset: 2px;
+}
+
+/* Tonos = paleta Filament del panel (primary / info / success / warning / danger / gray). */
+.farmadoc-ios-shortcuts__segment--0 {
+    background: linear-gradient(135deg, var(--color-primary-400), var(--color-primary-600));
+    color: var(--color-gray-950);
+    border-color: color-mix(in srgb, var(--color-primary-200) 55%, transparent);
+}
+
+.farmadoc-ios-shortcuts__segment--1 {
+    background: linear-gradient(135deg, var(--color-info-400), var(--color-info-700));
+    color: rgb(255 255 255);
+    border-color: color-mix(in srgb, var(--color-info-200) 45%, transparent);
+}
+
+.farmadoc-ios-shortcuts__segment--2 {
+    background: linear-gradient(135deg, var(--color-success-400), var(--color-success-700));
+    color: rgb(255 255 255);
+    border-color: color-mix(in srgb, var(--color-success-200) 45%, transparent);
+}
+
+.farmadoc-ios-shortcuts__segment--3 {
+    background: linear-gradient(135deg, var(--color-warning-400), var(--color-warning-700));
+    color: var(--color-gray-950);
+    border-color: color-mix(in srgb, var(--color-warning-200) 55%, transparent);
+}
+
+.farmadoc-ios-shortcuts__segment--4 {
+    background: linear-gradient(135deg, var(--color-danger-500), var(--color-danger-700));
+    color: rgb(255 255 255);
+    border-color: color-mix(in srgb, var(--color-danger-200) 45%, transparent);
+}
+
+.farmadoc-ios-shortcuts__segment--5 {
+    background: linear-gradient(135deg, var(--color-gray-200), var(--color-gray-500));
+    color: var(--color-gray-950);
+    border-color: color-mix(in srgb, var(--color-gray-400) 40%, transparent);
+}
+
+html.fi.dark .farmadoc-ios-shortcuts__segment--0 {
+    background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-800));
+    color: var(--color-gray-950);
+}
+
+html.fi.dark .farmadoc-ios-shortcuts__segment--1 {
+    background: linear-gradient(135deg, var(--color-info-500), var(--color-info-900));
+    color: rgb(255 255 255);
+}
+
+html.fi.dark .farmadoc-ios-shortcuts__segment--2 {
+    background: linear-gradient(135deg, var(--color-success-500), var(--color-success-900));
+    color: rgb(255 255 255);
+}
+
+html.fi.dark .farmadoc-ios-shortcuts__segment--3 {
+    background: linear-gradient(135deg, var(--color-warning-500), var(--color-warning-800));
+    color: var(--color-gray-950);
+}
+
+html.fi.dark .farmadoc-ios-shortcuts__segment--4 {
+    background: linear-gradient(135deg, var(--color-danger-600), var(--color-danger-900));
+    color: rgb(255 255 255);
+}
+
+html.fi.dark .farmadoc-ios-shortcuts__segment--5 {
+    background: linear-gradient(135deg, var(--color-gray-600), var(--color-gray-900));
+    color: rgb(248 250 252);
+    border-color: color-mix(in srgb, var(--color-gray-300) 22%, transparent);
+}
+
+.farmadoc-ios-shortcuts__bubble {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: rgb(255 255 255 / 0.55);
+    color: var(--color-gray-950);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+}
+
+.farmadoc-ios-shortcuts__segment--1 .farmadoc-ios-shortcuts__bubble,
+.farmadoc-ios-shortcuts__segment--2 .farmadoc-ios-shortcuts__bubble,
+.farmadoc-ios-shortcuts__segment--4 .farmadoc-ios-shortcuts__bubble {
+    background: rgb(255 255 255 / 0.28);
+    color: rgb(255 255 255);
+}
+
+html.fi.dark .farmadoc-ios-shortcuts__segment--1 .farmadoc-ios-shortcuts__bubble,
+html.fi.dark .farmadoc-ios-shortcuts__segment--2 .farmadoc-ios-shortcuts__bubble,
+html.fi.dark .farmadoc-ios-shortcuts__segment--4 .farmadoc-ios-shortcuts__bubble {
+    background: rgb(255 255 255 / 0.2);
+    color: rgb(255 255 255);
+}
+
+html.fi.dark .farmadoc-ios-shortcuts__segment--5 .farmadoc-ios-shortcuts__bubble {
+    background: rgb(255 255 255 / 0.18);
+    color: rgb(248 250 252);
+}
+
+.farmadoc-ios-shortcuts__copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.05rem;
+    min-width: 0;
+}
+
+.farmadoc-ios-shortcuts__title {
+    font-size: 0.8125rem;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    white-space: nowrap;
+}
+
+.farmadoc-ios-shortcuts__hint {
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    opacity: 0.78;
+    white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .farmadoc-ios-shortcuts__segment {
+        transition: none;
+    }
+
+    .farmadoc-ios-shortcuts__segment:hover {
+        transform: none;
+    }
 }

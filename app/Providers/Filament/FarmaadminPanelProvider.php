@@ -13,6 +13,8 @@ use App\Http\Middleware\AuditFarmaadminHttpActivity;
 use App\Http\Middleware\EnsureFarmaadminMenuAccess;
 use App\Models\User;
 use App\Support\Filament\FarmaadminDeliveryUserAccess;
+use App\Support\Filament\FarmaadminQuickShortcuts;
+use Filament\Facades\Filament;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -22,11 +24,13 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\Width;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class FarmaadminPanelProvider extends PanelProvider
@@ -105,6 +109,25 @@ class FarmaadminPanelProvider extends PanelProvider
             ->globalSearch(FarmaadminGlobalSearchProvider::class)
             ->globalSearchDebounce('250ms')
             ->globalSearchFieldKeyBindingSuffix()
+            ->renderHook(
+                PanelsRenderHook::GLOBAL_SEARCH_BEFORE,
+                function (): string {
+                    if (Filament::getCurrentPanel()?->getId() !== FarmaadminQuickShortcuts::PANEL_ID) {
+                        return '';
+                    }
+
+                    $user = Auth::user();
+                    $items = FarmaadminQuickShortcuts::visibleItems($user);
+
+                    if ($items === []) {
+                        return '';
+                    }
+
+                    return view('filament.farmaadmin.components.quick-shortcuts-pill', [
+                        'items' => $items,
+                    ])->render();
+                },
+            )
             ->authMiddleware([
                 Authenticate::class,
                 EnsureFarmaadminMenuAccess::class,

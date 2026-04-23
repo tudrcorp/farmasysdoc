@@ -26,6 +26,21 @@ class ListSales extends ListRecords
 
     protected static ?string $title = 'Listado de Ventas';
 
+    public function mount(): void
+    {
+        parent::mount();
+
+        if (request()->query('abrir') === 'caja' && SaleResource::canViewAny()) {
+            /*
+             * Diferir al siguiente tick: las acciones de cabecera (incl. makeClientGate) deben estar
+             * registradas en caché antes de mountAction, igual que al pulsar el botón «Caja».
+             */
+            $this->js(
+                'setTimeout(() => $wire.mountAction('.Js::from(CashRegisterAction::CLIENT_GATE_ACTION_NAME).'), 80)'
+            );
+        }
+    }
+
     /**
      * @return array<class-string>
      */

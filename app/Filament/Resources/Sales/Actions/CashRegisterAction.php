@@ -45,12 +45,15 @@ use RuntimeException;
 
 final class CashRegisterAction
 {
+    /** Nombre Livewire/Filament de {@see self::makeClientGate()} (accesos directos, query `abrir=caja`, etc.). */
+    public const CLIENT_GATE_ACTION_NAME = 'posClientGate';
+
     /**
      * Primer paso: buscar cliente (nombre o documento). Al elegir uno se abre la caja; «Continuar» sin elegir = mostrador.
      */
     public static function makeClientGate(): Action
     {
-        return Action::make('posClientGate')
+        return Action::make(self::CLIENT_GATE_ACTION_NAME)
             ->label('Caja')
             ->icon(Heroicon::Cube)
             ->color('primary')

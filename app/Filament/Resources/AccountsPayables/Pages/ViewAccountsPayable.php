@@ -3,18 +3,15 @@
 namespace App\Filament\Resources\AccountsPayables\Pages;
 
 use App\Filament\Resources\AccountsPayables\AccountsPayableResource;
+use App\Filament\Resources\AccountsPayables\Support\AccountsPayablePaymentFormSchema;
 use App\Models\AccountsPayable;
+use App\Services\Audit\AuditLogger;
 use App\Services\Finance\AccountsPayablePaymentRegistrar;
 use App\Support\Finance\AccountsPayableStatus;
-use App\Support\Purchases\PurchaseHistoryPaymentForm;
-use App\Support\Purchases\PurchaseHistoryPaymentMethod;
 use Filament\Actions\Action;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Validation\ValidationException;
 
@@ -31,54 +28,27 @@ class ViewAccountsPayable extends ViewRecord
                 ->label('Registrar pago')
                 ->icon(Heroicon::Banknotes)
                 ->color('success')
+                ->modalWidth(Width::Large)
                 ->modalHeading('Registrar pago al proveedor')
-                ->modalDescription('El movimiento quedará en el histórico de compras (método, forma, fecha y monto) y se actualizará el principal pendiente y el saldo en bolívares según la tasa BCV del día.')
+                ->modalDescription('El movimiento quedará en el histórico de compras. Los montos en USD y Bs deben ser coherentes con la tasa BCV oficial del día actual.')
                 ->visible(fn (): bool => $this->getRecord() instanceof AccountsPayable
                     && $this->getRecord()->status === AccountsPayableStatus::POR_PAGAR)
-                ->schema([
-                    Select::make('payment_method')
-                        ->label('Método de pago')
-                        ->options(PurchaseHistoryPaymentMethod::options())
-                        ->required()
-                        ->native(false),
-                    Select::make('payment_form')
-                        ->label('Forma de pago')
-                        ->options(PurchaseHistoryPaymentForm::options())
-                        ->required()
-                        ->native(false),
-                    DateTimePicker::make('paid_at')
-                        ->label('Fecha y hora del pago')
-                        ->seconds(false)
-                        ->default(now())
-                        ->required(),
-                    TextInput::make('amount_paid_ves')
-                        ->label('Monto pagado (Bs)')
-                        ->numeric()
-                        ->minValue(0.01)
-                        ->step(0.01)
-                        ->required()
-                        ->helperText(function (): string {
-                            $r = $this->getRecord();
-                            if (! $r instanceof AccountsPayable) {
-                                return '';
-                            }
-
-                            $usd = (float) ($r->remaining_principal_usd ?? $r->purchase_total_usd);
-                            $bs = (float) $r->current_balance_ves;
-
-                            return 'Principal pendiente (USD): '.number_format($usd, 2, ',', '.')
-                                .' · Saldo vigente en Bs (último cálculo): '.number_format($bs, 2, ',', '.');
-                        }),
-                    Textarea::make('notes')
-                        ->label('Notas (opcional)')
-                        ->rows(2)
-                        ->maxLength(2000),
-                ])
+                ->fillForm(fn (): array => AccountsPayablePaymentFormSchema::defaultStateForRecord($this->requireAccountsPayableRecord()))
+                ->schema(AccountsPayablePaymentFormSchema::paymentFields(true))
                 ->action(function (array $data): void {
-                    $record = $this->getRecord();
-                    if (! $record instanceof AccountsPayable) {
-                        return;
-                    }
+                    $record = $this->requireAccountsPayableRecord();
+
+                    AuditLogger::record(
+                        event: 'filament_accounts_payable_single_payment_submit',
+                        description: 'CxP: el usuario envió el formulario de pago desde la vista de detalle.',
+                        auditableType: AccountsPayable::class,
+                        auditableId: (string) $record->getKey(),
+                        auditableLabel: $record->supplier_invoice_number,
+                        properties: [
+                            'payment_method' => $data['payment_method'] ?? null,
+                            'payment_form' => $data['payment_form'] ?? null,
+                        ],
+                    );
 
                     try {
                         app(AccountsPayablePaymentRegistrar::class)->register($record, $data);
@@ -90,7 +60,13 @@ class ViewAccountsPayable extends ViewRecord
                             ->send();
                     } catch (ValidationException $e) {
                         $first = collect($e->errors())->flatten()->first();
-
+                        AuditLogger::record(
+                            event: 'filament_accounts_payable_single_payment_validation_failed',
+                            description: 'CxP: validación rechazó el pago desde la vista de detalle.',
+                            auditableType: AccountsPayable::class,
+                            auditableId: (string) $record->getKey(),
+                            properties: ['errors' => $e->errors()],
+                        );
                         Notification::make()
                             ->title('No se pudo registrar el pago')
                             ->body(is_string($first) ? $first : 'Revise los datos e intente de nuevo.')
@@ -99,5 +75,15 @@ class ViewAccountsPayable extends ViewRecord
                     }
                 }),
         ];
+    }
+
+    private function requireAccountsPayableRecord(): AccountsPayable
+    {
+        $r = $this->getRecord();
+        if (! $r instanceof AccountsPayable) {
+            abort(404);
+        }
+
+        return $r;
     }
 }

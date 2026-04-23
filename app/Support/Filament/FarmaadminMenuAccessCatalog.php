@@ -43,6 +43,7 @@ class FarmaadminMenuAccessCatalog
             'marketing_coupons' => ['label' => 'Cupones de marketing', 'route_name_fragment' => 'resources.marketing.coupons.marketing-coupons.', 'group' => 'Marketing'],
             'marketing_segments' => ['label' => 'Segmentos de marketing', 'route_name_fragment' => 'resources.marketing.segments.marketing-segments.', 'group' => 'Marketing'],
             'marketing_utm_links' => ['label' => 'UTM links de marketing', 'route_name_fragment' => 'resources.marketing.utm-links.marketing-utm-links.', 'group' => 'Marketing'],
+            'system_reports' => ['label' => 'Reportes del sistema', 'route_name_fragment' => 'pages.reportes-del-sistema', 'group' => 'Reportes'],
         ];
     }
 

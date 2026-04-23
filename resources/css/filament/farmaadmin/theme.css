@@ -9605,3 +9605,306 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
 .dark .fi-bp-ios-doc__dl-row dd {
     color: rgb(203 213 225);
 }
+
+/* —— Hub «Reportes del sistema» (estética tipo iOS: grupos, tarjetas, vidrio suave) —— */
+.farmadoc-ios-reports-hub {
+    --farmadoc-ios-card-radius: 1.375rem;
+    --farmadoc-ios-card-shadow:
+        0 1px 0 rgb(255 255 255 / 0.65) inset,
+        0 10px 40px rgb(15 23 42 / 0.06),
+        0 0 0 1px rgb(15 23 42 / 0.05);
+    --farmadoc-ios-hero-bg: linear-gradient(
+        165deg,
+        rgb(255 255 255 / 0.92) 0%,
+        rgb(248 250 252 / 0.88) 48%,
+        rgb(241 245 249 / 0.9) 100%
+    );
+}
+
+html.fi.dark .farmadoc-ios-reports-hub {
+    --farmadoc-ios-card-shadow:
+        0 1px 0 rgb(255 255 255 / 0.06) inset,
+        0 14px 48px rgb(0 0 0 / 0.45),
+        0 0 0 1px rgb(255 255 255 / 0.06);
+    --farmadoc-ios-hero-bg: linear-gradient(
+        165deg,
+        rgb(30 41 59 / 0.55) 0%,
+        rgb(15 23 42 / 0.72) 55%,
+        rgb(2 6 23 / 0.85) 100%
+    );
+}
+
+.farmadoc-ios-reports-hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: calc(var(--farmadoc-ios-card-radius) + 0.125rem);
+    padding: 1.5rem 1.5rem 1.35rem;
+    background: var(--farmadoc-ios-hero-bg);
+    border: 1px solid rgb(15 23 42 / 0.07);
+    box-shadow: var(--farmadoc-ios-card-shadow);
+    backdrop-filter: saturate(1.35) blur(18px);
+    -webkit-backdrop-filter: saturate(1.35) blur(18px);
+}
+
+html.fi.dark .farmadoc-ios-reports-hero {
+    border-color: rgb(255 255 255 / 0.08);
+}
+
+.farmadoc-ios-reports-hero__eyebrow {
+    margin: 0 0 0.35rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgb(100 116 139);
+}
+
+html.fi.dark .farmadoc-ios-reports-hero__eyebrow {
+    color: rgb(148 163 184);
+}
+
+.farmadoc-ios-reports-hero__title {
+    margin: 0 0 0.5rem;
+    font-size: clamp(1.375rem, 2.6vw, 1.75rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+    color: rgb(15 23 42);
+}
+
+html.fi.dark .farmadoc-ios-reports-hero__title {
+    color: rgb(248 250 252);
+}
+
+.farmadoc-ios-reports-hero__text {
+    margin: 0;
+    max-width: 52rem;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: rgb(71 85 105);
+}
+
+html.fi.dark .farmadoc-ios-reports-hero__text {
+    color: rgb(203 213 225);
+}
+
+.farmadoc-ios-reports-section__head {
+    margin-bottom: 0.875rem;
+    padding: 0 0.125rem;
+}
+
+.farmadoc-ios-reports-section__title {
+    margin: 0 0 0.25rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    color: rgb(15 23 42);
+}
+
+html.fi.dark .farmadoc-ios-reports-section__title {
+    color: rgb(248 250 252);
+}
+
+.farmadoc-ios-reports-section__desc {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: rgb(100 116 139);
+}
+
+html.fi.dark .farmadoc-ios-reports-section__desc {
+    color: rgb(148 163 184);
+}
+
+.farmadoc-ios-reports-grid {
+    display: grid;
+    gap: 0.875rem;
+    grid-template-columns: 1fr;
+}
+
+@media (width >= 40rem) {
+    .farmadoc-ios-reports-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (width >= 64rem) {
+    .farmadoc-ios-reports-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+.farmadoc-ios-report-card {
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--farmadoc-ios-card-radius);
+    background: rgb(255 255 255 / 0.82);
+    border: 1px solid rgb(15 23 42 / 0.06);
+    box-shadow: var(--farmadoc-ios-card-shadow);
+    backdrop-filter: saturate(1.2) blur(14px);
+    -webkit-backdrop-filter: saturate(1.2) blur(14px);
+    transition:
+        transform 160ms ease,
+        box-shadow 160ms ease,
+        border-color 160ms ease;
+}
+
+html.fi.dark .farmadoc-ios-report-card {
+    background: rgb(30 41 59 / 0.42);
+    border-color: rgb(255 255 255 / 0.07);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .farmadoc-ios-report-card:hover {
+        transform: translateY(-2px);
+        box-shadow:
+            0 1px 0 rgb(255 255 255 / 0.55) inset,
+            0 16px 48px rgb(15 23 42 / 0.1),
+            0 0 0 1px rgb(24 172 178 / 0.22);
+    }
+
+    html.fi.dark .farmadoc-ios-report-card:hover {
+        box-shadow:
+            0 1px 0 rgb(255 255 255 / 0.08) inset,
+            0 18px 56px rgb(0 0 0 / 0.55),
+            0 0 0 1px rgb(94 234 212 / 0.18);
+    }
+}
+
+.farmadoc-ios-report-card__body {
+    padding: 1.125rem 1.125rem 0.75rem;
+}
+
+.farmadoc-ios-report-card__title {
+    margin: 0 0 0.35rem;
+    font-size: 1rem;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    color: rgb(15 23 42);
+}
+
+html.fi.dark .farmadoc-ios-report-card__title {
+    color: rgb(248 250 252);
+}
+
+.farmadoc-ios-report-card__hint {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: rgb(100 116 139);
+}
+
+html.fi.dark .farmadoc-ios-report-card__hint {
+    color: rgb(148 163 184);
+}
+
+.farmadoc-ios-report-card__form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    padding: 0 1.125rem 1.125rem;
+    gap: 0.75rem;
+}
+
+.farmadoc-ios-report-card__fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 0.625rem;
+}
+
+.farmadoc-ios-report-card__fields--stack {
+    grid-template-columns: 1fr;
+}
+
+.farmadoc-ios-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.farmadoc-ios-field--grow {
+    min-width: 0;
+}
+
+.farmadoc-ios-field__label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(100 116 139);
+}
+
+html.fi.dark .farmadoc-ios-field__label {
+    color: rgb(148 163 184);
+}
+
+.farmadoc-ios-field__input,
+.farmadoc-ios-field__select {
+    width: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(15 23 42 / 0.1);
+    background: rgb(255 255 255 / 0.95);
+    padding: 0.5rem 0.65rem;
+    font-size: 0.875rem;
+    color: rgb(15 23 42);
+    outline: none;
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.6) inset;
+    transition:
+        border-color 120ms ease,
+        box-shadow 120ms ease;
+}
+
+html.fi.dark .farmadoc-ios-field__input,
+html.fi.dark .farmadoc-ios-field__select {
+    border-color: rgb(255 255 255 / 0.1);
+    background: rgb(15 23 42 / 0.55);
+    color: rgb(248 250 252);
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.04) inset;
+}
+
+.farmadoc-ios-field__input:focus,
+.farmadoc-ios-field__select:focus {
+    border-color: rgb(24 172 178 / 0.65);
+    box-shadow: 0 0 0 3px rgb(24 172 178 / 0.2);
+}
+
+.farmadoc-ios-report-card__actions {
+    margin-top: auto;
+    padding-top: 0.125rem;
+}
+
+.farmadoc-ios-report-download {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    border: none;
+    border-radius: 0.875rem;
+    padding: 0.65rem 0.875rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    color: rgb(255 255 255);
+    background: linear-gradient(180deg, rgb(32 178 185) 0%, rgb(14 148 154) 100%);
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.22) inset,
+        0 6px 18px rgb(14 148 154 / 0.35);
+    transition:
+        filter 120ms ease,
+        transform 120ms ease;
+}
+
+.farmadoc-ios-report-download:hover {
+    filter: brightness(1.04);
+}
+
+.farmadoc-ios-report-download:active {
+    transform: scale(0.98);
+}
+
+.farmadoc-ios-report-download__icon {
+    display: flex;
+    opacity: 0.95;
+}

@@ -32,7 +32,7 @@
     </dl>
     @if (! $footer['match'])
         <p class="mt-2 text-xs opacity-90">
-            La diferencia absoluta debe ser menor a 1,00. Diferencia actual: {{ $fmt($footer['diff']) }}.
+            El total declarado debe coincidir con el calculado salvo la última cifra decimal (misma parte entera y misma décima; hasta ±9 centésimas). Diferencia actual: {{ $fmt($footer['diff']) }}.
             Cierre el resumen, corrija líneas o el total declarado y vuelva a intentar.
         </p>
     @endif

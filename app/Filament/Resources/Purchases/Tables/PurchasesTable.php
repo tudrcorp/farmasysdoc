@@ -15,6 +15,7 @@ use App\Support\Purchases\PurchasePaymentStatus;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
+use Filament\Notifications\Notification;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -22,7 +23,6 @@ use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
-use Filament\Notifications\Notification;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -176,6 +176,14 @@ class PurchasesTable
                     ->placeholder('—')
                     ->toggleable()
                     ->icon(Heroicon::CalendarDays)
+                    ->iconColor('gray'),
+                TextColumn::make('payment_due_date')
+                    ->label('Vencimiento')
+                    ->date('d/m/Y')
+                    ->sortable()
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->icon(Heroicon::CreditCard)
                     ->iconColor('gray'),
                 TextColumn::make('registered_in_system_date')
                     ->label('Fecha carga sistema')

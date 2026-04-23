@@ -23,6 +23,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 
@@ -205,6 +206,7 @@ class CreatePurchase extends CreateRecord
             'supplier_invoice_number' => $state['supplier_invoice_number'] ?? null,
             'supplier_control_number' => $state['supplier_control_number'] ?? null,
             'supplier_invoice_date' => $state['supplier_invoice_date'] ?? null,
+            'payment_due_date' => $state['payment_due_date'] ?? null,
             'registered_in_system_date' => $state['registered_in_system_date'] ?? null,
             'payment_status' => $state['payment_status'] ?? null,
             'payment_status_label' => PurchasePaymentStatus::label(isset($state['payment_status']) ? (string) $state['payment_status'] : null),
@@ -309,6 +311,10 @@ class CreatePurchase extends CreateRecord
         }
         if (blank($data['registered_in_system_date'] ?? null)) {
             $data['registered_in_system_date'] = now()->toDateString();
+        }
+        if (blank($data['payment_due_date'] ?? null)) {
+            $invoiceDate = (string) ($data['supplier_invoice_date'] ?? now()->toDateString());
+            $data['payment_due_date'] = Carbon::parse($invoiceDate)->addDays(30)->toDateString();
         }
 
         if (($data['entry_currency'] ?? PurchaseEntryCurrency::USD->value) === PurchaseEntryCurrency::VES->value) {

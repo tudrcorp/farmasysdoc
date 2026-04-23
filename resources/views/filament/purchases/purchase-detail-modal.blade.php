@@ -37,17 +37,25 @@
                     <p class="mt-0.5 text-sm text-gray-600 dark:text-gray-300">{{ $purchase->supplier->legal_name }}</p>
                 @endif
             </div>
-            <div>
-                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400">Fecha de la factura</dt>
-                <dd class="mt-1 text-lg font-bold text-gray-950 dark:text-white">
-                    {{ $purchase->supplier_invoice_date?->format('d/m/Y') ?? '—' }}
-                </dd>
-            </div>
-            <div>
-                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400">Fecha de carga en el sistema</dt>
-                <dd class="mt-1 text-lg font-bold text-gray-950 dark:text-white">
-                    {{ $purchase->registered_in_system_date?->format('d/m/Y') ?? '—' }}
-                </dd>
+            <div class="grid gap-4 sm:col-span-2 sm:grid-cols-3">
+                <div>
+                    <dt class="text-xs font-medium text-gray-500 dark:text-gray-400">Fecha de la factura</dt>
+                    <dd class="mt-1 text-lg font-bold text-gray-950 dark:text-white">
+                        {{ $purchase->supplier_invoice_date?->format('d/m/Y') ?? '—' }}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-xs font-medium text-gray-500 dark:text-gray-400">Vencimiento (pago)</dt>
+                    <dd class="mt-1 text-lg font-bold text-gray-950 dark:text-white">
+                        {{ $purchase->payment_due_date?->format('d/m/Y') ?? '—' }}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-xs font-medium text-gray-500 dark:text-gray-400">Fecha de carga en el sistema</dt>
+                    <dd class="mt-1 text-lg font-bold text-gray-950 dark:text-white">
+                        {{ $purchase->registered_in_system_date?->format('d/m/Y') ?? '—' }}
+                    </dd>
+                </div>
             </div>
         </dl>
     </div>

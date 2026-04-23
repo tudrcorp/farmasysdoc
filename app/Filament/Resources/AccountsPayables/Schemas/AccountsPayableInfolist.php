@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AccountsPayables\Schemas;
 
+use App\Models\AccountsPayable;
 use App\Support\Finance\AccountsPayableStatus;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
@@ -55,6 +56,17 @@ class AccountsPayableInfolist
                                     ->label('Fecha de vencimiento')
                                     ->date('d/m/Y')
                                     ->placeholder('—'),
+                                TextEntry::make('paid_at')
+                                    ->label('Fecha y hora de pago (saldada)')
+                                    ->dateTime('d/m/Y H:i')
+                                    ->placeholder('—')
+                                    ->visible(fn (mixed $record): bool => $record instanceof AccountsPayable
+                                        && filled($record->paid_at)),
+                                TextEntry::make('payment_reference')
+                                    ->label('Referencia del pago')
+                                    ->placeholder('—')
+                                    ->visible(fn (mixed $record): bool => $record instanceof AccountsPayable
+                                        && filled($record->payment_reference)),
                             ]),
                     ])
                     ->columnSpanFull(),

@@ -58,6 +58,7 @@ final class PurchaseCreateSummaryPresenter
             'supplier_invoice_number' => filled($state['supplier_invoice_number'] ?? null) ? (string) $state['supplier_invoice_number'] : '—',
             'supplier_control_number' => filled($state['supplier_control_number'] ?? null) ? (string) $state['supplier_control_number'] : '—',
             'supplier_invoice_date' => filled($state['supplier_invoice_date'] ?? null) ? (string) $state['supplier_invoice_date'] : '—',
+            'payment_due_date' => filled($state['payment_due_date'] ?? null) ? (string) $state['payment_due_date'] : '—',
             'registered_in_system_date' => filled($state['registered_in_system_date'] ?? null) ? (string) $state['registered_in_system_date'] : '—',
             'payment_status_label' => PurchasePaymentStatus::label(isset($state['payment_status']) ? (string) $state['payment_status'] : null),
             'entry_currency' => $currency->value,

@@ -43,7 +43,7 @@
             color: #0e5c5f;
             padding: 4px 8px 2px 0;
             vertical-align: bottom;
-            width: 22%;
+            width: 16%;
         }
         .highlight-grid td {
             font-size: 11pt;
@@ -149,6 +149,7 @@
                 <th>Nº de control</th>
                 <th>Proveedor</th>
                 <th>Fecha factura</th>
+                <th>Vencimiento</th>
                 <th>Fecha carga en sistema</th>
             </tr>
             <tr>
@@ -156,6 +157,7 @@
                 <td>{{ filled($purchase->supplier_control_number) ? $purchase->supplier_control_number : '—' }}</td>
                 <td>{{ $purchase->supplier ? ($purchase->supplier->trade_name ?: $purchase->supplier->legal_name) : '—' }}</td>
                 <td>{{ $purchase->supplier_invoice_date?->format('d/m/Y') ?? '—' }}</td>
+                <td>{{ $purchase->payment_due_date?->format('d/m/Y') ?? '—' }}</td>
                 <td>{{ $purchase->registered_in_system_date?->format('d/m/Y') ?? '—' }}</td>
             </tr>
         </table>

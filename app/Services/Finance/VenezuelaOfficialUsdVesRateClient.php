@@ -34,7 +34,7 @@ final class VenezuelaOfficialUsdVesRateClient
             ? $invoiceDate->copy()->startOfDay()
             : Carbon::parse((string) $invoiceDate)->startOfDay();
 
-        $rows = $this->fetchRows();
+        $rows = $this->getAllOfficialRateRows();
         if ($rows === []) {
             return null;
         }
@@ -74,9 +74,11 @@ final class VenezuelaOfficialUsdVesRateClient
     }
 
     /**
+     * Serie histórica en caché (promedio oficial Bs/USD por fecha), ordenada por fecha ascendente.
+     *
      * @return list<array{fecha?: string, promedio?: float|int|string|null}>
      */
-    private function fetchRows(): array
+    public function getAllOfficialRateRows(): array
     {
         return Cache::remember(self::CACHE_KEY, self::CACHE_TTL_SECONDS, function (): array {
             $response = Http::timeout(20)
@@ -101,6 +103,43 @@ final class VenezuelaOfficialUsdVesRateClient
 
             return $list;
         });
+    }
+
+    /**
+     * Filas de la serie oficial cuya fecha cae en el rango inclusive (YYYY-MM-DD).
+     *
+     * @return list<array{fecha: string, promedio: float}>
+     */
+    public function officialRatesBetween(CarbonInterface|string $from, CarbonInterface|string $to): array
+    {
+        $fromD = $from instanceof CarbonInterface ? $from->copy()->startOfDay() : Carbon::parse((string) $from)->startOfDay();
+        $toD = $to instanceof CarbonInterface ? $to->copy()->startOfDay() : Carbon::parse((string) $to)->startOfDay();
+        if ($fromD->greaterThan($toD)) {
+            [$fromD, $toD] = [$toD, $fromD];
+        }
+
+        $out = [];
+        foreach ($this->getAllOfficialRateRows() as $row) {
+            $fecha = (string) ($row['fecha'] ?? '');
+            if ($fecha === '') {
+                continue;
+            }
+            try {
+                $d = Carbon::parse($fecha)->startOfDay();
+            } catch (\Throwable) {
+                continue;
+            }
+            if ($d->lessThan($fromD) || $d->greaterThan($toD)) {
+                continue;
+            }
+            $p = self::normalizePromedio($row['promedio'] ?? null);
+            if ($p === null) {
+                continue;
+            }
+            $out[] = ['fecha' => $fecha, 'promedio' => $p];
+        }
+
+        return $out;
     }
 
     private static function normalizePromedio(mixed $value): ?float

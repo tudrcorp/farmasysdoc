@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Purchases\Schemas;
 
 use App\Enums\PurchaseEntryCurrency;
+use App\Filament\Resources\Purchases\Pages\CreatePurchase;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Supplier;
@@ -22,15 +23,16 @@ use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
-use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Livewire\Component;
 
 class PurchaseForm
@@ -146,7 +148,7 @@ class PurchaseForm
                             ]),
                         Grid::make([
                             'default' => 1,
-                            'sm' => 2,
+                            'sm' => 3,
                         ])
                             ->schema([
                                 DatePicker::make('supplier_invoice_date')
@@ -156,6 +158,14 @@ class PurchaseForm
                                     ->default(now())
                                     ->native(false)
                                     ->prefixIcon(Heroicon::CalendarDays),
+                                DatePicker::make('payment_due_date')
+                                    ->label('Vencimiento (pago al proveedor)')
+                                    ->helperText('Para compras a crédito define el vencimiento que se cargará en cuentas por pagar. Debe ser igual o posterior a la fecha de factura.')
+                                    ->required()
+                                    ->default(fn (Get $get): string => Carbon::parse($get('supplier_invoice_date') ?: now())->addDays(30)->toDateString())
+                                    ->native(false)
+                                    ->prefixIcon(Heroicon::CreditCard)
+                                    ->rules(['after_or_equal:supplier_invoice_date']),
                                 DatePicker::make('registered_in_system_date')
                                     ->label('Fecha de carga en el sistema')
                                     ->helperText('Fecha en que registras esta compra en el sistema.')
@@ -255,6 +265,15 @@ class PurchaseForm
                             ->required()
                             ->helperText('Donde ingresa o registra la mercancía.')
                             ->prefixIcon(Heroicon::BuildingStorefront)
+                            ->columnSpanFull(),
+                        TextInput::make('declared_invoice_total')
+                            ->label('Total de la factura (según proveedor)')
+                            ->numeric()
+                            ->minValue(0)
+                            ->step(0.01)
+                            ->required()
+                            ->prefix(fn (Get $get): string => self::currencyPrefixForFormGet($get))
+                            ->helperText('Debe alinearse con el total calculado por líneas: solo puede variar la última cifra decimal (centésimas del total). Ej. 1234,67 y 1234,68 sí; 1234,67 y 1234,77 no (máx. ±9 centésimas dentro de la misma décima).')
                             ->columnSpanFull(),
                     ])
                     ->columns(1)
@@ -394,15 +413,6 @@ class PurchaseForm
                             ])
                             ->mutateRelationshipDataBeforeCreateUsing(fn (array $data): array => self::finalizePurchaseItemRow($data))
                             ->mutateRelationshipDataBeforeSaveUsing(fn (array $data, Model $record): array => self::finalizePurchaseItemRow($data))
-                            ->columnSpanFull(),
-                        TextInput::make('declared_invoice_total')
-                            ->label('Total de la factura (según proveedor)')
-                            ->numeric()
-                            ->minValue(0)
-                            ->step(0.01)
-                            ->required()
-                            ->prefix(fn (Get $get): string => self::currencyPrefixForFormGet($get))
-                            ->helperText('Debe alinearse con el total calculado por líneas: solo se admiten diferencias inferiores a 1,00 en la parte decimal (p. ej. ,56 vs ,80 sí; ,56 vs ,56 de un entero distinto no).')
                             ->columnSpanFull(),
                     ])
                     ->columns(1)
@@ -680,7 +690,7 @@ class PurchaseForm
 
     /**
      * Si el usuario escribe un RIF o nombre sin coincidencias y pulsa Intro en el buscador del select,
-     * se abre la acción Livewire {@see \App\Filament\Resources\Purchases\Pages\CreatePurchase::openQuickCreateSupplierModalFromSelectSearch()}
+     * se abre la acción Livewire {@see CreatePurchase::openQuickCreateSupplierModalFromSelectSearch()}
      * con el RIF precargado (solo cuando el panel está abierto, hay texto de búsqueda y no hay opciones).
      *
      * @return array<string, string>

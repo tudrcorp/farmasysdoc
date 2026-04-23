@@ -23,6 +23,8 @@ class AccountsPayable extends Model
         'status',
         'issued_at',
         'due_at',
+        'paid_at',
+        'payment_reference',
         'supplier_invoice_number',
         'supplier_control_number',
         'supplier_tax_id',
@@ -44,6 +46,7 @@ class AccountsPayable extends Model
         return [
             'issued_at' => 'date',
             'due_at' => 'date',
+            'paid_at' => 'datetime',
             'purchase_total_usd' => 'decimal:2',
             'remaining_principal_usd' => 'decimal:2',
             'purchase_total_ves_at_issue' => 'decimal:2',

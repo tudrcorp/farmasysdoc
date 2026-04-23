@@ -81,7 +81,9 @@ final class AccountsPayableFromPurchaseSynchronizer
             ? round($usdTotal * $todayRate, 2)
             : $originalBalance;
 
-        $dueAt = $issuedAt->copy()->addDays(30);
+        $dueAt = filled($purchase->payment_due_date)
+            ? Carbon::parse($purchase->payment_due_date)->startOfDay()
+            : $issuedAt->copy()->addDays(30);
 
         $accountsPayable = AccountsPayable::query()->create([
             'purchase_id' => $purchase->id,
@@ -108,6 +110,8 @@ final class AccountsPayableFromPurchaseSynchronizer
             [
                 'purchase_id' => $purchase->id,
                 'purchase_number' => $purchase->purchase_number,
+                'payment_due_date' => $purchase->payment_due_date?->toDateString(),
+                'due_at_applied' => $dueAt->toDateString(),
                 'bcv_rate_at_issue' => $rateAtIssue,
                 'bcv_rate_at_load' => $rateAtLoad,
                 'bcv_rate_at_creation_for_current' => $todayRate,

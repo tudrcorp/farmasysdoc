@@ -113,11 +113,14 @@ class PurchaseHistoryInfolist
                             ->label('Monto pagado en bolívares')
                             ->formatStateUsing(fn ($state): string => self::formatBs((float) $state)),
                         TextEntry::make('amount_paid_usd')
-                            ->label('Equivalente del pago en USD (según tasa BCV de la fecha del pago)')
+                            ->label('Monto del pago en USD')
                             ->formatStateUsing(fn ($state): string => number_format((float) $state, 2, ',', '.').' USD'),
                         TextEntry::make('bcv_rate_at_payment')
                             ->label('Tasa BCV (Bs/USD) aplicada al pago')
                             ->formatStateUsing(fn ($state): string => $state !== null ? number_format((float) $state, 2, ',', '.').' Bs/USD' : '—'),
+                        TextEntry::make('payment_reference')
+                            ->label('Referencia del pago')
+                            ->placeholder('—'),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

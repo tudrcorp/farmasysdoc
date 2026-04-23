@@ -30,6 +30,7 @@ class PurchaseHistory extends Model
         'amount_paid_ves',
         'amount_paid_usd',
         'bcv_rate_at_payment',
+        'payment_reference',
         'notes',
         'created_by',
     ];

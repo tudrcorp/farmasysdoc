@@ -6,7 +6,9 @@ use App\Http\Controllers\NominatimProxyController;
 use App\Http\Controllers\ProductTransfers\ProductTransferReportPdfController;
 use App\Http\Controllers\Purchases\PurchaseAnnulmentApprovalController;
 use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
+use App\Http\Controllers\Reports\SystemReportsDownloadController;
 use App\Http\Controllers\Sales\CashRegisterClosePdfController;
+use App\Http\Middleware\EnsureSystemReportsAccess;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
@@ -63,6 +65,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('purchases/{purchase}/annulment-complete', [PurchaseAnnulmentApprovalController::class, 'complete'])
         ->name('purchases.annulment.complete');
+
+    Route::middleware([EnsureSystemReportsAccess::class])
+        ->prefix('system-reports')
+        ->name('system-reports.')
+        ->group(function (): void {
+            Route::get('download/{slug}', [SystemReportsDownloadController::class, 'download'])->name('download');
+        });
 });
 
 Route::get('/pp', function () {

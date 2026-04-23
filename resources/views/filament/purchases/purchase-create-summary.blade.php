@@ -26,7 +26,7 @@
         </div>
         <div>
             <span class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Fechas</span>
-            <p class="mt-0.5 font-semibold">Factura: {{ e($summary['supplier_invoice_date']) }} — Carga: {{ e($summary['registered_in_system_date']) }}</p>
+            <p class="mt-0.5 font-semibold">Factura: {{ e($summary['supplier_invoice_date']) }} — Venc.: {{ e($summary['payment_due_date']) }} — Carga: {{ e($summary['registered_in_system_date']) }}</p>
         </div>
     </div>
 

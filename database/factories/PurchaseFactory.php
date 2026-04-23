@@ -56,6 +56,7 @@ class PurchaseFactory extends Factory
             'supplier_invoice_number' => null,
             'supplier_control_number' => null,
             'supplier_invoice_date' => $today,
+            'payment_due_date' => $today,
             'registered_in_system_date' => $today,
             'payment_status' => PurchasePaymentStatus::PAGADO_CONTADO,
             'notes' => null,

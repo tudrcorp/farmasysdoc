@@ -19,9 +19,13 @@ final class LivewireRequestPayload
             return true;
         }
 
-        $livewirePathPrefix = ltrim(EndpointResolver::prefix(), '/');
         $path = $request->path();
-        if ($path !== '' && str_contains($path, $livewirePathPrefix.'/')) {
+        if (self::isLivewirePath($path)) {
+            return true;
+        }
+
+        $route = $request->route();
+        if ($route !== null && $route->named('*livewire.*')) {
             return true;
         }
 
@@ -38,5 +42,20 @@ final class LivewireRequestPayload
         }
 
         return false;
+    }
+
+    private static function isLivewirePath(string $path): bool
+    {
+        $normalized = ltrim($path, '/');
+        if ($normalized === '') {
+            return false;
+        }
+
+        $livewirePathPrefix = ltrim(EndpointResolver::prefix(), '/');
+        if ($livewirePathPrefix !== '' && str_contains($normalized, $livewirePathPrefix.'/')) {
+            return true;
+        }
+
+        return preg_match('/(^|\/)livewire(?:-[^\/]+)?\/(?:update|upload-file|preview-file)(?:\/|$)/', $normalized) === 1;
     }
 }

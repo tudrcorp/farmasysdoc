@@ -14,6 +14,13 @@ use Illuminate\Support\HtmlString;
 
 class Register extends BaseRegister
 {
+    protected function rateLimit($maxAttempts, $decaySeconds = 60, $method = null, $component = null): void {}
+
+    protected function isRegisterRateLimited(string $email): bool
+    {
+        return false;
+    }
+
     public function getSloganAfterLogo(): string|Htmlable|null
     {
         return new HtmlString(

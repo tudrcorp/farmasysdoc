@@ -49,7 +49,7 @@ final class QuickCreatePurchaseProductAction
                     'brand' => '',
                     'supplier_id' => filled($supplierId) ? (int) $supplierId : null,
                     'cost_price' => 0,
-                    'applies_vat' => false,
+                    'applies_vat' => true,
                     'product_category_id' => null,
                     'requires_expiry_on_purchase' => true,
                 ];
@@ -115,7 +115,7 @@ final class QuickCreatePurchaseProductAction
                         Toggle::make('applies_vat')
                             ->label('Grava IVA')
                             ->helperText('Si aplica, en la línea se sugerirá el IVA por defecto del sistema.')
-                            ->default(false),
+                            ->default(true),
                         Toggle::make('requires_expiry_on_purchase')
                             ->label('Maneja lotes en compras')
                             ->default(true),
@@ -160,7 +160,7 @@ final class QuickCreatePurchaseProductAction
                     'product_category_id' => (int) $data['product_category_id'],
                     'cost_price' => (float) ($data['cost_price'] ?? 0),
                     'discount_percent' => 0,
-                    'applies_vat' => (bool) ($data['applies_vat'] ?? false),
+                    'applies_vat' => (bool) ($data['applies_vat'] ?? true),
                     'requires_expiry_on_purchase' => (bool) ($data['requires_expiry_on_purchase'] ?? true),
                     'sku' => $sku,
                     'is_active' => true,

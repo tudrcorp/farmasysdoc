@@ -6,7 +6,11 @@ use App\Filament\BusinessPartners\Widgets\PartnerAssignedCreditWidget;
 use App\Filament\BusinessPartners\Widgets\StatsSatatusOrderOverview;
 use App\Filament\BusinessPartners\Widgets\TotalOrderForMonthChart;
 use App\Filament\GlobalSearch\FarmaadminGlobalSearchProvider;
+use App\Filament\Pages\Auth\EditProfile;
+use App\Filament\Pages\Auth\EmailVerificationPrompt;
 use App\Filament\Pages\Auth\Login;
+use App\Filament\Pages\Auth\PasswordReset\RequestPasswordReset;
+use App\Filament\Pages\Auth\PasswordReset\ResetPassword;
 use App\Filament\Pages\Auth\Register;
 use App\Filament\Widgets\FarmaadminAccountWidget;
 use Filament\Http\Middleware\Authenticate;
@@ -38,12 +42,11 @@ class BusinessPartnersPanelProvider extends PanelProvider
             ->font('League Spartan')
             ->login(Login::class)
             ->registration(Register::class)
-            ->passwordReset()
-            ->profile()
+            ->passwordReset(RequestPasswordReset::class, ResetPassword::class)
+            ->profile(EditProfile::class)
             ->spa()
-            ->emailVerification()
+            ->emailVerification(EmailVerificationPrompt::class)
             ->emailChangeVerification()
-            ->emailVerification()
             ->favicon(asset('images/logos/favicon.png'))
             ->brandLogo(asset('images/logos/farmadoc-ligth.png'))
             ->darkModeBrandLogo(asset('images/logos/farmadoc-dark.png'))

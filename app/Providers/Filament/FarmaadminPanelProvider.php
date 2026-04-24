@@ -3,7 +3,11 @@
 namespace App\Providers\Filament;
 
 use App\Filament\GlobalSearch\FarmaadminGlobalSearchProvider;
+use App\Filament\Pages\Auth\EditProfile;
+use App\Filament\Pages\Auth\EmailVerificationPrompt;
 use App\Filament\Pages\Auth\Login;
+use App\Filament\Pages\Auth\PasswordReset\RequestPasswordReset;
+use App\Filament\Pages\Auth\PasswordReset\ResetPassword;
 use App\Filament\Pages\Auth\Register;
 use App\Filament\Pages\FarmaadminDashboard;
 use App\Filament\Pages\Marketing\MarketingHubPage;
@@ -45,12 +49,11 @@ class FarmaadminPanelProvider extends PanelProvider
             ->font('League Spartan')
             ->login(Login::class)
             ->registration(Register::class)
-            ->passwordReset()
-            ->profile()
+            ->passwordReset(RequestPasswordReset::class, ResetPassword::class)
+            ->profile(EditProfile::class)
             ->spa()
-            ->emailVerification()
+            ->emailVerification(EmailVerificationPrompt::class)
             ->emailChangeVerification()
-            ->emailVerification()
             ->favicon(asset('images/logos/favicon.png'))
             ->brandLogo(asset('images/logos/farmadoc-ligth.png'))
             ->darkModeBrandLogo(asset('images/logos/farmadoc-dark.png'))

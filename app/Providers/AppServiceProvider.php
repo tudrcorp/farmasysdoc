@@ -14,6 +14,9 @@ use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
+use Illuminate\Foundation\Http\Middleware\TrimStrings;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +24,10 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Livewire\Mechanisms\HandleComponents\Checksum;
+use Livewire\Mechanisms\HandleRequests\EndpointResolver;
+use ReflectionClass;
+use ReflectionException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -60,6 +67,8 @@ class AppServiceProvider extends ServiceProvider
 
         $this->configureDefaults();
         $this->ensureLivewireTemporaryUploadDirectoriesExist();
+        $this->disableLivewireChecksumFailureThrottling();
+        $this->skipGlobalRequestMutatorsForLivewireEndpoints();
 
         FilamentView::registerRenderHook(
             PanelsRenderHook::SIMPLE_LAYOUT_START,
@@ -101,5 +110,44 @@ class AppServiceProvider extends ServiceProvider
         foreach ([storage_path('app/public'), storage_path('app/private')] as $root) {
             File::ensureDirectoryExists($root.'/'.$directory);
         }
+    }
+
+    /**
+     * Livewire bloquea la IP con HTTP 429 tras varios checksum inválidos; en despliegues
+     * con muchas pestañas o balanceo sin sesión compartida eso penaliza usuarios legítimos.
+     */
+    protected function disableLivewireChecksumFailureThrottling(): void
+    {
+        try {
+            $reflection = new ReflectionClass(Checksum::class);
+            $property = $reflection->getProperty('maxFailures');
+            $property->setAccessible(true);
+            $property->setValue(null, PHP_INT_MAX);
+        } catch (ReflectionException) {
+            // Si cambia el paquete Livewire, ignorar en lugar de tumbar el arranque.
+        }
+    }
+
+    /**
+     * Livewire registra skipWhen usando la cabecera X-Livewire; si un proxy la quita,
+     * ConvertEmptyStringsToNull / TrimStrings alteran el JSON del snapshot y el checksum falla
+     * (CorruptComponentPayloadException). También omitimos por prefijo de ruta oficial.
+     */
+    protected function skipGlobalRequestMutatorsForLivewireEndpoints(): void
+    {
+        $livewirePathPrefix = ltrim(EndpointResolver::prefix(), '/');
+
+        $skip = static function (Request $request) use ($livewirePathPrefix): bool {
+            if ($request->hasHeader('X-Livewire')) {
+                return true;
+            }
+
+            $path = $request->path();
+
+            return $path !== '' && str_starts_with($path, $livewirePathPrefix.'/');
+        };
+
+        ConvertEmptyStringsToNull::skipWhen($skip);
+        TrimStrings::skipWhen($skip);
     }
 }

@@ -94,7 +94,7 @@
                         <li><strong>401</strong> - Token ausente o invalido</li>
                         <li><strong>403</strong> - IP no autorizada para el cliente</li>
                         <li><strong>422</strong> - Error de validacion de campos</li>
-                        <li><strong>429</strong> - Demasiadas peticiones (p. ej. limite en <code class="rounded bg-zinc-200/70 px-1 dark:bg-zinc-700">GET /status</code>)</li>
+                        <li><strong>429</strong> - Limite impuesto fuera de la app (p. ej. CDN/WAF); la API de integracion no aplica throttle HTTP en Laravel.</li>
                     </ul>
                 </article>
             </div>
@@ -138,7 +138,7 @@
                 <ul class="mt-3 list-disc space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-300">
                     <li><strong>HTTP 200</strong> y <code class="rounded bg-zinc-100 px-1 font-mono text-xs dark:bg-zinc-800">"status": "active"</code> → servicio operativo.</li>
                     <li>Si no obtienes respuesta o hay error de red, evita spamear inventario/pedidos hasta recuperar conectividad.</li>
-                    <li>Límite: hasta <strong>120 peticiones por minuto</strong> por IP (HTTP 429 si te excedes).</li>
+                    <li>Sin limite de peticiones por minuto en la aplicacion; un proxy o firewall delante del servidor puede imponer el suyo.</li>
                 </ul>
                 <p class="mt-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Respuesta HTTP 200 — ejemplo</p>
                 <pre class="mt-2 overflow-auto rounded-xl bg-zinc-900 p-3 text-xs text-zinc-100"><code>{

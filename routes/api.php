@@ -19,20 +19,19 @@ use App\Http\Controllers\Api\ExternalServiceOrderController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1/delivery/auth')
-    ->middleware('throttle:12,1')
     ->group(function (): void {
         Route::post('/login', [DeliveryAuthController::class, 'login'])
             ->name('api.v1.delivery.auth.login');
     });
 
 Route::prefix('v1/delivery/auth')
-    ->middleware(['auth:sanctum', 'throttle:60,1'])
+    ->middleware(['auth:sanctum'])
     ->group(function (): void {
         Route::post('/logout', [DeliveryAuthController::class, 'logout'])
             ->name('api.v1.delivery.auth.logout');
     });
 
-Route::middleware(['auth:sanctum', 'throttle:120,1'])
+Route::middleware(['auth:sanctum'])
     ->prefix('v1/delivery')
     ->group(function (): void {
         Route::get('/orders/pending', DeliveryPendingOrdersController::class)
@@ -63,7 +62,6 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])
     });
 
 Route::get('external/status', ExternalApiStatusController::class)
-    ->middleware('throttle:120,1')
     ->name('api.external.status');
 
 Route::prefix('external')

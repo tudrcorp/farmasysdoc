@@ -10,9 +10,16 @@ use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
  */
 final class PurchaseEntryCurrencySwitcher
 {
+    private static function money(float $value): float
+    {
+        $rounded = round($value, 2);
+
+        return $rounded == 0.0 ? 0.0 : $rounded;
+    }
+
     /**
      * @param  array<string, mixed>  $formData  Copia del estado del formulario (p. ej. $livewire->data).
-     * @return array{0: list<array<string, mixed>>, 1: array<string, mixed>}|null  [items, header] o null si no aplica.
+     * @return array{0: list<array<string, mixed>>, 1: array<string, mixed>}|null [items, header] o null si no aplica.
      */
     public static function computeAdjustedItemsAndHeader(array $formData, string $previousCode, string $newCode): ?array
     {
@@ -31,19 +38,19 @@ final class PurchaseEntryCurrencySwitcher
             return null;
         }
 
-        $rate = round((float) $rate, 2);
+        $rate = self::money((float) $rate);
 
         foreach ($items as $i => $row) {
             if (! is_array($row)) {
                 continue;
             }
 
-            $uc = round(max(0.0, (float) ($row['unit_cost'] ?? 0)), 2);
+            $uc = self::money(max(0.0, (float) ($row['unit_cost'] ?? 0)));
 
             if ($previousCode === PurchaseEntryCurrency::VES->value && $newCode === PurchaseEntryCurrency::USD->value) {
-                $uc = round($uc / $rate, 2);
+                $uc = self::money($uc / $rate);
             } elseif ($previousCode === PurchaseEntryCurrency::USD->value && $newCode === PurchaseEntryCurrency::VES->value) {
-                $uc = round($uc * $rate, 2);
+                $uc = self::money($uc * $rate);
             } else {
                 continue;
             }

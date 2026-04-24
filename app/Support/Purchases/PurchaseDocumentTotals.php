@@ -12,6 +12,13 @@ use App\Support\Finance\DefaultVatRate;
  */
 final class PurchaseDocumentTotals
 {
+    private static function money(float $value): float
+    {
+        $rounded = round($value, 2);
+
+        return $rounded == 0.0 ? 0.0 : $rounded;
+    }
+
     /**
      * @param  array<string, mixed>  $data
      * @return array{line_subtotal: float, tax_amount: float, line_total: float}
@@ -24,9 +31,9 @@ final class PurchaseDocumentTotals
         $vat = min(100.0, max(0.0, (float) ($data['line_vat_percent'] ?? 0)));
         $base = $qty * $cost;
         $afterDisc = $base * (1 - $disc / 100);
-        $lineSub = round($afterDisc, 2);
-        $tax = $vat > 0 ? round($lineSub * ($vat / 100), 2) : 0.0;
-        $total = round($lineSub + $tax, 2);
+        $lineSub = self::money($afterDisc);
+        $tax = $vat > 0 ? self::money($lineSub * ($vat / 100)) : 0.0;
+        $total = self::money($lineSub + $tax);
 
         return [
             'line_subtotal' => $lineSub,
@@ -55,7 +62,7 @@ final class PurchaseDocumentTotals
             $cost = max(0.0, (float) ($item['unit_cost'] ?? 0));
             $disc = min(100.0, max(0.0, (float) ($item['line_discount_percent'] ?? 0)));
             $base = $qty * $cost;
-            $sumDisc += round($base * ($disc / 100), 2);
+            $sumDisc += self::money($base * ($disc / 100));
 
             $amounts = self::lineAmounts($item);
             $sumSub += $amounts['line_subtotal'];
@@ -64,10 +71,10 @@ final class PurchaseDocumentTotals
         }
 
         return [
-            'subtotal' => round($sumSub, 2),
-            'tax_total' => round($sumTax, 2),
-            'discount_total' => round($sumDisc, 2),
-            'total' => round($sumTotal, 2),
+            'subtotal' => self::money($sumSub),
+            'tax_total' => self::money($sumTax),
+            'discount_total' => self::money($sumDisc),
+            'total' => self::money($sumTotal),
         ];
     }
 
@@ -112,34 +119,34 @@ final class PurchaseDocumentTotals
             $cost = max(0.0, (float) ($item['unit_cost'] ?? 0));
             $disc = min(100.0, max(0.0, (float) ($item['line_discount_percent'] ?? 0)));
             $base = $qty * $cost;
-            $sumLineDisc += round($base * ($disc / 100), 2);
+            $sumLineDisc += self::money($base * ($disc / 100));
         }
 
-        $subExempt = round($subExempt, 2);
-        $subTaxable = round($subTaxable, 2);
-        $subtotal = round($subExempt + $subTaxable, 2);
-        $discountTotal = round($sumLineDisc, 2);
+        $subExempt = self::money($subExempt);
+        $subTaxable = self::money($subTaxable);
+        $subtotal = self::money($subExempt + $subTaxable);
+        $discountTotal = self::money($sumLineDisc);
 
         $dPct = min(100.0, max(0.0, $documentDiscountPercent));
         $factor = 1 - ($dPct / 100);
 
-        $netExempt = round($subExempt * $factor, 2);
-        $netTaxable = round($subTaxable * $factor, 2);
-        $docDiscAmount = round($subtotal - $netExempt - $netTaxable, 2);
+        $netExempt = self::money($subExempt * $factor);
+        $netTaxable = self::money($subTaxable * $factor);
+        $docDiscAmount = self::money($subtotal - $netExempt - $netTaxable);
 
         $rate = DefaultVatRate::percent();
         $taxTotal = $netTaxable > 0 && $rate > 0
-            ? round($netTaxable * ($rate / 100), 2)
+            ? self::money($netTaxable * ($rate / 100))
             : 0.0;
 
-        $total = round($netExempt + $netTaxable + $taxTotal, 2);
+        $total = self::money($netExempt + $netTaxable + $taxTotal);
 
         return [
             'subtotal_exempt_amount' => $subExempt,
             'subtotal_taxable_amount' => $subTaxable,
             'subtotal' => $subtotal,
             'discount_total' => $discountTotal,
-            'document_discount_percent' => round($dPct, 2),
+            'document_discount_percent' => self::money($dPct),
             'document_discount_amount' => $docDiscAmount,
             'net_exempt_after_document_discount' => $netExempt,
             'net_taxable_after_document_discount' => $netTaxable,

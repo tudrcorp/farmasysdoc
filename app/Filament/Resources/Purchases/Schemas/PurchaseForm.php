@@ -31,7 +31,6 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Livewire\Component;
 
@@ -294,10 +293,9 @@ class PurchaseForm
                                 'wire:keydown.enter.prevent' => 'addPurchaseLineFromSearch($event.target.value)',
                             ]),
                         Repeater::make('items')
-                            ->relationship()
                             ->label('')
-                            ->saveRelationshipsWhenHidden(false)
                             ->defaultItems(0)
+                            ->minItems(1)
                             ->addable(false)
                             ->reorderable(false)
                             ->live()
@@ -411,8 +409,6 @@ class PurchaseForm
                                     ->label('Total')
                                     ->content(fn (Get $get): string => self::formatPurchaseLineVisualTotal($get)),
                             ])
-                            ->mutateRelationshipDataBeforeCreateUsing(fn (array $data): array => self::finalizePurchaseItemRow($data))
-                            ->mutateRelationshipDataBeforeSaveUsing(fn (array $data, Model $record): array => self::finalizePurchaseItemRow($data))
                             ->columnSpanFull(),
                     ])
                     ->columns(1)

@@ -10,6 +10,7 @@ use App\Filament\Resources\Purchases\PurchaseResource;
 use App\Filament\Resources\Purchases\Schemas\PurchaseForm;
 use App\Models\Product;
 use App\Models\Purchase;
+use App\Models\PurchaseItem;
 use App\Services\Audit\AuditLogger;
 use App\Services\Finance\AccountsPayableFromPurchaseSynchronizer;
 use App\Services\Finance\PurchaseHistoryFromPurchaseSynchronizer;
@@ -21,7 +22,6 @@ use App\Support\Purchases\PurchasePaymentStatus;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
-use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\HtmlString;
@@ -87,10 +87,8 @@ class CreatePurchase extends CreateRecord
     /**
      * Estado para el resumen y auditoría leído del almacén Livewire del formulario (`$this->data`).
      *
-     * Las líneas se cargan en memoria ahí mismo (p. ej. {@see InteractsWithPurchaseLines::appendPurchaseLineForProduct}).
-     * Tanto {@see Schema::getState()} como {@see Schema::getStateSnapshot()}
-     * pasan por `dehydrateState()`, que con un Repeater `->relationship()` en **alta** suele dejar `items` vacío
-     * al no haber registros relacionados persistidos aún.
+     * Las líneas viven en el estado del formulario (Repeater sin relación en create) y se persisten
+     * en {@see CreatePurchase::afterCreate()} para evitar snapshots Livewire inestables.
      *
      * @return array<string, mixed>
      */
@@ -223,6 +221,19 @@ class CreatePurchase extends CreateRecord
 
     protected function afterCreate(): void
     {
+        $items = $this->data['items'] ?? [];
+        if (is_array($items) && $items !== []) {
+            foreach ($items as $row) {
+                if (! is_array($row) || blank($row['product_id'] ?? null)) {
+                    continue;
+                }
+                $payload = PurchaseForm::finalizePurchaseItemRow($row);
+                $this->record->items()->create(
+                    collect($payload)->only((new PurchaseItem)->getFillable())->except('purchase_id')->all()
+                );
+            }
+        }
+
         $this->record->refresh();
         $this->record->load('items');
         $this->record->syncDocumentHeaderTotalsFromItemsQuietly();

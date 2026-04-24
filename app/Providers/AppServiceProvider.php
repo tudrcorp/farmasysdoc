@@ -131,7 +131,11 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Livewire registra skipWhen usando la cabecera X-Livewire; si un proxy la quita,
      * ConvertEmptyStringsToNull / TrimStrings alteran el JSON del snapshot y el checksum falla
-     * (CorruptComponentPayloadException). También omitimos por prefijo de ruta oficial.
+     * (CorruptComponentPayloadException).
+     *
+     * Estos middlewares van en el stack global antes del router: no confiar solo en el nombre
+     * de ruta ni en str_starts_with(path) (falla con subdirectorio o reescrituras). El POST de
+     * /livewire-…/update siempre trae un array "components" en la raíz del JSON.
      */
     protected function skipGlobalRequestMutatorsForLivewireEndpoints(): void
     {
@@ -143,8 +147,18 @@ class AppServiceProvider extends ServiceProvider
             }
 
             $path = $request->path();
+            if ($path !== '' && str_contains($path, $livewirePathPrefix.'/')) {
+                return true;
+            }
 
-            return $path !== '' && str_starts_with($path, $livewirePathPrefix.'/');
+            if ($request->isMethod('POST') && $request->isJson()) {
+                $payload = $request->json()->all();
+                if (isset($payload['components']) && is_array($payload['components'])) {
+                    return true;
+                }
+            }
+
+            return false;
         };
 
         ConvertEmptyStringsToNull::skipWhen($skip);

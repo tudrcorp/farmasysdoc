@@ -25,6 +25,8 @@ use Livewire\Mechanisms\HandleComponents\Checksum;
 use ReflectionClass;
 use ReflectionException;
 
+use function Livewire\on;
+
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -64,6 +66,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->ensureLivewireTemporaryUploadDirectoriesExist();
         $this->disableLivewireChecksumFailureThrottling();
+        $this->observeLivewireChecksumFailures();
 
         FilamentView::registerRenderHook(
             PanelsRenderHook::SIMPLE_LAYOUT_START,
@@ -79,6 +82,11 @@ class AppServiceProvider extends ServiceProvider
         Date::use(CarbonImmutable::class);
 
         Carbon::setLocale(config('app.locale'));
+
+        // El checksum de Livewire usa json_encode() sobre snapshots con importes decimales.
+        // En despliegues con múltiples nodos, diferencias de serialize_precision causan
+        // checksums distintos para el mismo snapshot.
+        ini_set('serialize_precision', '-1');
 
         DB::prohibitDestructiveCommands(
             app()->isProduction(),
@@ -123,4 +131,25 @@ class AppServiceProvider extends ServiceProvider
         }
     }
 
+    protected function observeLivewireChecksumFailures(): void
+    {
+        on('checksum.fail', function (string $receivedChecksum, string $computedChecksum, array $snapshot): void {
+            $memo = $snapshot['memo'] ?? [];
+            $request = request();
+
+            logger()->error('Livewire checksum mismatch details.', [
+                'path' => $request->path(),
+                'route' => $request->route()?->getName(),
+                'host' => gethostname(),
+                'app_key_fingerprint' => hash('sha256', (string) config('app.key')),
+                'php_version' => PHP_VERSION,
+                'serialize_precision' => ini_get('serialize_precision'),
+                'precision' => ini_get('precision'),
+                'received_checksum_prefix' => substr($receivedChecksum, 0, 12),
+                'computed_checksum_prefix' => substr($computedChecksum, 0, 12),
+                'component_name' => $memo['name'] ?? null,
+                'component_id' => $memo['id'] ?? null,
+            ]);
+        });
+    }
 }

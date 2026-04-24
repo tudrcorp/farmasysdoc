@@ -172,7 +172,18 @@ class Inventory extends Model
         }
 
         $product = Product::query()->find($this->product_id);
-        $cost = (float) ($this->cost_price ?? ($product?->cost_price ?? 0));
+
+        /*
+         * Al crear una fila de inventario sin `cost_price` (p. ej. recepción de compra), no usar el
+         * costo del producto como respaldo: en catálogos en VES puede ser enorme y además las columnas
+         * snapshot son en USD; el costo lo asigna el servicio de compra justo después del primer save.
+         */
+        $explicitCost = $this->getAttribute('cost_price');
+        if ($explicitCost === null && ! $this->exists) {
+            $cost = 0.0;
+        } else {
+            $cost = (float) ($explicitCost ?? ($product?->cost_price ?? 0));
+        }
 
         foreach (self::financialSnapshotFromCostAndProduct($cost, $product) as $key => $value) {
             $this->setAttribute($key, $value);

@@ -14,9 +14,6 @@ use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
-use Illuminate\Foundation\Http\Middleware\TrimStrings;
-use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +22,6 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Livewire\Mechanisms\HandleComponents\Checksum;
-use Livewire\Mechanisms\HandleRequests\EndpointResolver;
 use ReflectionClass;
 use ReflectionException;
 
@@ -68,7 +64,6 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->ensureLivewireTemporaryUploadDirectoriesExist();
         $this->disableLivewireChecksumFailureThrottling();
-        $this->skipGlobalRequestMutatorsForLivewireEndpoints();
 
         FilamentView::registerRenderHook(
             PanelsRenderHook::SIMPLE_LAYOUT_START,
@@ -128,40 +123,4 @@ class AppServiceProvider extends ServiceProvider
         }
     }
 
-    /**
-     * Livewire registra skipWhen usando la cabecera X-Livewire; si un proxy la quita,
-     * ConvertEmptyStringsToNull / TrimStrings alteran el JSON del snapshot y el checksum falla
-     * (CorruptComponentPayloadException).
-     *
-     * Estos middlewares van en el stack global antes del router: no confiar solo en el nombre
-     * de ruta ni en str_starts_with(path) (falla con subdirectorio o reescrituras). El POST de
-     * /livewire-…/update siempre trae un array "components" en la raíz del JSON.
-     */
-    protected function skipGlobalRequestMutatorsForLivewireEndpoints(): void
-    {
-        $livewirePathPrefix = ltrim(EndpointResolver::prefix(), '/');
-
-        $skip = static function (Request $request) use ($livewirePathPrefix): bool {
-            if ($request->hasHeader('X-Livewire')) {
-                return true;
-            }
-
-            $path = $request->path();
-            if ($path !== '' && str_contains($path, $livewirePathPrefix.'/')) {
-                return true;
-            }
-
-            if ($request->isMethod('POST') && $request->isJson()) {
-                $payload = $request->json()->all();
-                if (isset($payload['components']) && is_array($payload['components'])) {
-                    return true;
-                }
-            }
-
-            return false;
-        };
-
-        ConvertEmptyStringsToNull::skipWhen($skip);
-        TrimStrings::skipWhen($skip);
-    }
 }

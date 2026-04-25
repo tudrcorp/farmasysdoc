@@ -295,6 +295,50 @@ final class CashRegisterAction
                                     ->icon(Heroicon::User)
                                     ->iconColor('gray')
                                     ->columnSpanFull(),
+                                Select::make('pos_product_search')
+                                    ->label('Buscar producto')
+                                    ->placeholder('Código, nombre o principio activo')
+                                    ->helperText('Busque en este mismo campo. Si escanea código exacto y pulsa ENTER, se agrega automáticamente; también puede buscar por nombre o principio activo y seleccionar.')
+                                    ->searchPrompt('Escriba nombre, principio activo o código')
+                                    ->live()
+                                    ->searchable()
+                                    ->searchDebounce(150)
+                                    ->disabled(fn (): bool => blank(Auth::user()?->branch_id))
+                                    ->native(false)
+                                    ->getSearchResultsUsing(function (string $search): array {
+                                        $branchId = Auth::user()?->branch_id;
+                                        if (blank($branchId)) {
+                                            return [];
+                                        }
+
+                                        return self::searchInventoryProductsForBranch((int) $branchId, $search);
+                                    })
+                                    ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
+                                        if (! filled($state)) {
+                                            return;
+                                        }
+
+                                        $branchId = Auth::user()?->branch_id;
+                                        if (blank($branchId)) {
+                                            return;
+                                        }
+
+                                        self::appendProductToPosLineItems(
+                                            branchId: (int) $branchId,
+                                            productId: (int) $state,
+                                            set: $set,
+                                            get: $get,
+                                        );
+                                        self::ensurePosTrailingEmptyLine($set, $get);
+
+                                        $set('pos_product_search', null);
+
+                                        $livewire = $component->getLivewire();
+                                        if ($livewire instanceof LivewireComponent) {
+                                            $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
+                                        }
+                                    })
+                                    ->columnSpanFull(),
                                 Repeater::make('line_items')
                                     ->label('')
                                     ->reorderable(false)
@@ -2030,6 +2074,110 @@ final class CashRegisterAction
         })->all();
     }
 
+    private static function appendProductToPosLineItems(int $branchId, int $productId, Set $set, Get $get): void
+    {
+        self::warmPosDataForBranch($branchId, [$productId]);
+
+        $product = self::posProduct($productId);
+        $productLabel = $product instanceof Product
+            ? $product->name
+            : 'Producto #'.$productId;
+
+        $available = self::posAvailableQuantity($branchId, $productId);
+        if ($available !== null && $available <= 0.0001) {
+            self::notifyPosStockZero($productLabel);
+
+            return;
+        }
+
+        $lineItems = $get('line_items');
+        if (! is_array($lineItems)) {
+            $lineItems = [];
+        }
+
+        foreach ($lineItems as $key => $row) {
+            if (! is_array($row) || ! filled($row['product_id'] ?? null)) {
+                continue;
+            }
+
+            if ((int) $row['product_id'] !== $productId) {
+                continue;
+            }
+
+            $currentQuantity = max(0.001, (float) ($row['quantity'] ?? 1));
+            $nextQuantity = round($currentQuantity + 1, 3);
+            if ($available !== null && $nextQuantity > ($available + 0.0001)) {
+                self::notifyPosQuantityExceedsStock($productLabel, $nextQuantity, $available);
+
+                return;
+            }
+
+            $set("line_items.{$key}.quantity", $nextQuantity);
+
+            return;
+        }
+
+        $targetKey = null;
+        foreach ($lineItems as $key => $row) {
+            if (is_array($row) && blank($row['product_id'] ?? null)) {
+                $targetKey = $key;
+                break;
+            }
+        }
+
+        if ($targetKey === null) {
+            $targetKey = (string) Str::uuid();
+            $set("line_items.{$targetKey}", [
+                'product_id' => null,
+                'quantity' => 1,
+            ]);
+            $lineItems[$targetKey] = [
+                'product_id' => null,
+                'quantity' => 1,
+            ];
+        }
+
+        $set("line_items.{$targetKey}.product_id", $productId);
+        $set("line_items.{$targetKey}.quantity", 1);
+
+        $keys = array_keys($lineItems);
+        $lastKey = $keys === [] ? null : $keys[array_key_last($keys)];
+        if ($lastKey !== null && (string) $targetKey === (string) $lastKey) {
+            $set('line_items.'.Str::uuid(), [
+                'product_id' => null,
+                'quantity' => 1,
+            ]);
+        }
+    }
+
+    private static function ensurePosTrailingEmptyLine(Set $set, Get $get): void
+    {
+        $lineItems = $get('line_items');
+        if (! is_array($lineItems) || $lineItems === []) {
+            $set('line_items', [[
+                'product_id' => null,
+                'quantity' => 1,
+            ]]);
+
+            return;
+        }
+
+        $hasEmpty = false;
+        foreach ($lineItems as $row) {
+            if (is_array($row) && blank($row['product_id'] ?? null)) {
+                $hasEmpty = true;
+                break;
+            }
+        }
+
+        if (! $hasEmpty) {
+            $set('line_items.'.Str::uuid(), [
+                'product_id' => null,
+                'quantity' => 1,
+            ]);
+        }
+    }
+
     /**
      * Estado inicial del formulario de caja (modal).
      *
@@ -2039,6 +2187,7 @@ final class CashRegisterAction
     {
         return array_merge([
             'client_id' => null,
+            'pos_product_search' => null,
             'payment_method' => 'punto_venta_ves',
             'bdv_pm_conciliated' => false,
             'card_last4' => null,

@@ -121,7 +121,7 @@ class Purchase extends Model
             'net_taxable_after_document_discount' => 'decimal:2',
             'total' => 'decimal:2',
             'declared_invoice_total' => 'decimal:2',
-            'official_usd_ves_rate' => 'decimal:2',
+            'official_usd_ves_rate' => 'decimal:8',
         ];
     }
 

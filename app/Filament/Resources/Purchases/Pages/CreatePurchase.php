@@ -336,7 +336,7 @@ class CreatePurchase extends CreateRecord
                     'supplier_invoice_date' => 'No se pudo obtener la tasa oficial Bs/USD (promedio) para la fecha de la factura.',
                 ]);
             }
-            $data['official_usd_ves_rate'] = round($rate, 2);
+            $data['official_usd_ves_rate'] = (float) $rate;
         } else {
             $data['official_usd_ves_rate'] = null;
         }

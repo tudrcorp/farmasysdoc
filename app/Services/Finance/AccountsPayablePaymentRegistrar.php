@@ -308,7 +308,7 @@ final class AccountsPayablePaymentRegistrar
             ]);
         }
 
-        return round((float) $rate, 2);
+        return (float) $rate;
     }
 
     private function assertUsdVesCoherentWithBcv(float $usd, float $ves, float $rateFx): void
@@ -318,7 +318,7 @@ final class AccountsPayablePaymentRegistrar
 
         if (abs($ves - $expectedVes) > $tolerance) {
             throw ValidationException::withMessages([
-                'amount_paid_ves' => 'El monto en Bs no coincide con el USD indicado usando la tasa BCV del día actual ('.number_format($rateFx, 2, ',', '.').' Bs/USD). Esperado aprox.: '.number_format($expectedVes, 2, ',', '.').' Bs.',
+                'amount_paid_ves' => 'El monto en Bs no coincide con el USD indicado usando la tasa BCV del día actual ('.number_format($rateFx, 6, ',', '.').' Bs/USD). Esperado aprox.: '.number_format($expectedVes, 2, ',', '.').' Bs.',
             ]);
         }
     }

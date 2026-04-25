@@ -32,6 +32,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\HtmlString;
 use Livewire\Component;
 
 class PurchaseForm
@@ -155,14 +156,15 @@ class PurchaseForm
                                     ->helperText('Fecha impresa en la factura del proveedor.')
                                     ->required()
                                     ->default(now())
-                                    ->native(false)
+                                    ->live()
+                                    // ->native(false)
                                     ->prefixIcon(Heroicon::CalendarDays),
                                 DatePicker::make('payment_due_date')
                                     ->label('Vencimiento (pago al proveedor)')
                                     ->helperText('Para compras a crédito define el vencimiento que se cargará en cuentas por pagar. Debe ser igual o posterior a la fecha de factura.')
                                     ->required()
                                     ->default(fn (Get $get): string => Carbon::parse($get('supplier_invoice_date') ?: now())->addDays(30)->toDateString())
-                                    ->native(false)
+                                    // ->native(false)
                                     ->prefixIcon(Heroicon::CreditCard)
                                     ->rules(['after_or_equal:supplier_invoice_date']),
                                 DatePicker::make('registered_in_system_date')
@@ -170,7 +172,7 @@ class PurchaseForm
                                     ->helperText('Fecha en que registras esta compra en el sistema.')
                                     ->required()
                                     ->default(now())
-                                    ->native(false)
+                                    // ->native(false)
                                     ->prefixIcon(Heroicon::Clock),
                             ]),
                         CheckboxList::make('entry_currency_selection')
@@ -279,7 +281,7 @@ class PurchaseForm
                     ->columnSpanFull(),
 
                 Section::make('Líneas de compra')
-                    ->description('Busque por nombre o código de barras y pulse Enter para añadir una fila. El descuento % se toma del producto (ajustable en la línea). El IVA lo define el catálogo (Grava IVA) y la tasa global: primero se aplica el descuento al subtotal bruto y el IVA corre sobre la base resultante. Los productos marcados como “requieren vencimiento en compras” muestran la columna de lote (mm/AAAA) y al guardar se registran en la tabla de lotes con el N° de factura.')
+                    ->description(fn (Get $get): HtmlString => self::purchaseLinesSectionDescription($get))
                     ->icon(Heroicon::Cube)
                     ->schema([
                         TextInput::make('purchase_line_product_search')
@@ -641,6 +643,54 @@ class PurchaseForm
         foreach ($header as $key => $value) {
             $set('data.'.$key, $value, true);
         }
+    }
+
+    private static function purchaseLinesSectionDescription(Get $get): HtmlString
+    {
+        $helpText = 'Busque por nombre o código de barras y pulse Enter para añadir una fila. El descuento % se toma del producto (ajustable en la línea). El IVA lo define el catálogo (Grava IVA) y la tasa global: primero se aplica el descuento al subtotal bruto y el IVA corre sobre la base resultante. Los productos marcados como “requieren vencimiento en compras” muestran la columna de lote (mm/AAAA) y al guardar se registran en la tabla de lotes con el N° de factura.';
+
+        $entryCurrency = (string) ($get('/data.entry_currency', true) ?? PurchaseEntryCurrency::USD->value);
+        $isVes = $entryCurrency === PurchaseEntryCurrency::VES->value;
+        $invoiceDate = $get('/data.supplier_invoice_date', true);
+        $rate = self::purchaseLinesBcvRate($invoiceDate);
+
+        $rateClass = $rate !== null && $rate > 0
+            ? 'farmadoc-pos-rate-pill farmadoc-pos-rate-pill--ok'
+            : 'farmadoc-pos-rate-pill farmadoc-pos-rate-pill--error';
+
+        $rateValue = $rate !== null && $rate > 0
+            ? '1 USD = Bs. '.number_format($rate, 6, ',', '.')
+            : 'Sin tasa BCV para la fecha seleccionada';
+
+        $modeHint = $isVes
+            ? 'Carga en VES: esta tasa se usa para convertir costos.'
+            : 'Cambie la moneda a VES para aplicar la tasa.';
+
+        $logoSrc = e(asset('images/logos/logoBCV.png'));
+
+        return new HtmlString(
+            '<div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">'.
+                '<p class="m-0 md:max-w-[72%]">'.e($helpText).'</p>'.
+                '<div class="md:max-w-[28%] md:text-right">'.
+                    '<p class="'.$rateClass.' inline-flex items-center gap-2" role="group" aria-label="Tasa referencial BCV">'.
+                        '<img src="'.$logoSrc.'" alt="BCV" class="farmadoc-pos-bcv-logo" loading="lazy" decoding="async" />'.
+                        '<span class="farmadoc-pos-rate-pill__text">'.e($rateValue).'</span>'.
+                    '</p>'.
+                    '<p class="m-0 text-xs text-gray-600 dark:text-gray-400">'.e($modeHint).'</p>'.
+                '</div>'.
+            '</div>'
+        );
+    }
+
+    private static function purchaseLinesBcvRate(mixed $invoiceDate): ?float
+    {
+        if (blank($invoiceDate)) {
+            return null;
+        }
+
+        $rate = app(VenezuelaOfficialUsdVesRateClient::class)->rateForDate((string) $invoiceDate);
+
+        return $rate !== null && $rate > 0 ? (float) $rate : null;
     }
 
     /**

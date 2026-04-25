@@ -117,7 +117,7 @@ class PurchaseHistoryInfolist
                             ->formatStateUsing(fn ($state): string => number_format((float) $state, 2, ',', '.').' USD'),
                         TextEntry::make('bcv_rate_at_payment')
                             ->label('Tasa BCV (Bs/USD) aplicada al pago')
-                            ->formatStateUsing(fn ($state): string => $state !== null ? number_format((float) $state, 2, ',', '.').' Bs/USD' : '—'),
+                            ->formatStateUsing(fn ($state): string => $state !== null ? number_format((float) $state, 6, ',', '.').' Bs/USD' : '—'),
                         TextEntry::make('payment_reference')
                             ->label('Referencia del pago')
                             ->placeholder('—'),

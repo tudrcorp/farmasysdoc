@@ -9996,9 +9996,9 @@ html.fi.dark .farmadoc-ios-shortcuts__list {
     flex-direction: row;
     flex-shrink: 0;
     align-items: center;
-    gap: 0.35rem;
-    min-height: 2.35rem;
-    padding: 0.28rem 0.62rem 0.28rem 0.48rem;
+    gap: 0.32rem;
+    min-height: 2.2rem;
+    padding: 0.24rem 0.56rem 0.24rem 0.44rem;
     border-radius: 9999px;
     text-decoration: none;
     color: rgb(15 23 42);
@@ -10112,11 +10112,11 @@ html.fi.dark .farmadoc-ios-shortcuts__segment--5 {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 1.5rem;
-    height: 1.5rem;
+    width: 1.4rem;
+    height: 1.4rem;
     flex-shrink: 0;
     border-radius: 9999px;
-    font-size: 0.6875rem;
+    font-size: 0.64rem;
     font-weight: 800;
     letter-spacing: -0.03em;
     background: rgb(255 255 255 / 0.55);
@@ -10152,7 +10152,7 @@ html.fi.dark .farmadoc-ios-shortcuts__segment--5 .farmadoc-ios-shortcuts__bubble
 }
 
 .farmadoc-ios-shortcuts__title {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     font-weight: 750;
     letter-spacing: -0.02em;
     line-height: 1.12;
@@ -10160,7 +10160,7 @@ html.fi.dark .farmadoc-ios-shortcuts__segment--5 .farmadoc-ios-shortcuts__bubble
 }
 
 .farmadoc-ios-shortcuts__hint {
-    font-size: 0.5625rem;
+    font-size: 0.54rem;
     font-weight: 600;
     letter-spacing: 0.02em;
     text-transform: uppercase;

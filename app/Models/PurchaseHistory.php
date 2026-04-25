@@ -49,7 +49,7 @@ class PurchaseHistory extends Model
             'paid_at' => 'datetime',
             'amount_paid_ves' => 'decimal:2',
             'amount_paid_usd' => 'decimal:2',
-            'bcv_rate_at_payment' => 'decimal:2',
+            'bcv_rate_at_payment' => 'decimal:8',
         ];
     }
 

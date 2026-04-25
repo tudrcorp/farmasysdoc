@@ -67,6 +67,7 @@ class ListSales extends ListRecords
         parent::cacheInteractsWithHeaderActions();
 
         $this->cacheAction(CashRegisterAction::makeRegister());
+        $this->cacheAction(CashRegisterAction::makePagoMovilConciliation());
     }
 
     /**

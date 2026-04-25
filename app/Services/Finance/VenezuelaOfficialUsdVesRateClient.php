@@ -150,7 +150,7 @@ final class VenezuelaOfficialUsdVesRateClient
         if (! is_numeric($value)) {
             return null;
         }
-        $f = round((float) $value, 2);
+        $f = (float) $value;
 
         return $f > 0 ? $f : null;
     }

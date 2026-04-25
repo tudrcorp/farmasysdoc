@@ -63,7 +63,7 @@ final class SaleIosBreakdownHtml
         if ($hasRate) {
             $html .= '<p class="farmadoc-sale-sheet__rate-pill" role="status">'
                 .'<span class="farmadoc-sale-sheet__rate-pill-label">Tasa en documento</span> '
-                .'<span class="farmadoc-sale-sheet__rate-pill-value">'.e(number_format((float) $rate, 4, ',', '.')).' Bs./USD</span>'
+                .'<span class="farmadoc-sale-sheet__rate-pill-value">'.e(number_format((float) $rate, 6, ',', '.')).' Bs./USD</span>'
                 .'</p>';
         }
 

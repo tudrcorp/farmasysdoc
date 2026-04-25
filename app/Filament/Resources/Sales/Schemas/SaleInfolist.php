@@ -148,7 +148,7 @@ class SaleInfolist
                                     ->label('Tasa BCV (Bs. / USD)')
                                     ->helperText('Valor usado al registrar el cobro en bolívares (API oficial o tasa manual en caja).')
                                     ->formatStateUsing(fn (?float $state): string => $state !== null && (float) $state > 0
-                                        ? '1 USD = Bs. '.number_format((float) $state, 2, ',', '.')
+                                        ? '1 USD = Bs. '.number_format((float) $state, 6, ',', '.')
                                         : '—')
                                     ->placeholder('—')
                                     ->icon(Heroicon::ChartBar),

@@ -194,7 +194,7 @@ class SalesTable
                     ->label('Tasa BCV')
                     ->tooltip('Bolívares por 1 USD aplicados al cobrar (referencia para validar el pago en Bs.)')
                     ->formatStateUsing(fn ($state): string => $state !== null && (float) $state > 0
-                        ? 'Bs. '.number_format((float) $state, 2, ',', '.').' / USD'
+                        ? 'Bs. '.number_format((float) $state, 6, ',', '.').' / USD'
                         : '—')
                     ->sortable()
                     ->alignEnd()

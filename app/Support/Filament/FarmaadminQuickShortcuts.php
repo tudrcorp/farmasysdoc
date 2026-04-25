@@ -5,6 +5,7 @@ namespace App\Support\Filament;
 use App\Filament\Resources\Inventories\InventoryResource;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Filament\Resources\OrderServices\OrderServiceResource;
+use App\Filament\Resources\Products\ProductResource;
 use App\Filament\Resources\ProductTransfers\ProductTransferResource;
 use App\Filament\Resources\Purchases\PurchaseResource;
 use App\Filament\Resources\Sales\SaleResource;
@@ -54,6 +55,16 @@ final class FarmaadminQuickShortcuts
                 'label' => 'Inventario',
                 'hint' => 'Existencias',
                 'href' => InventoryResource::getUrl(panel: $panel, isAbsolute: false),
+                'force_full_page' => false,
+            ];
+        }
+
+        if (ProductResource::canViewAny()) {
+            $items[] = [
+                'id' => 'productos',
+                'label' => 'Productos',
+                'hint' => 'Catálogo',
+                'href' => ProductResource::getUrl(panel: $panel, isAbsolute: false),
                 'force_full_page' => false,
             ];
         }

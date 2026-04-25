@@ -19,8 +19,8 @@ final class PurchaseMonetarySnapshotBuilder
     /**
      * @return array{
      *     usd_total: float,
-     *     issued_at: \Illuminate\Support\Carbon,
-     *     registered_at: \Illuminate\Support\Carbon,
+     *     issued_at: Carbon,
+     *     registered_at: Carbon,
      *     rate_at_issue: float,
      *     rate_at_load: float,
      *     ves_at_issue: float,
@@ -98,7 +98,7 @@ final class PurchaseMonetarySnapshotBuilder
         if ($purchase->entryCurrency() === PurchaseEntryCurrency::VES) {
             $stored = (float) ($purchase->official_usd_ves_rate ?? 0);
 
-            return $stored > 0 ? round($stored, 2) : null;
+            return $stored > 0 ? $stored : null;
         }
 
         return null;

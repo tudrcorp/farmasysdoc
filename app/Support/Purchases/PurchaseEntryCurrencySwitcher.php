@@ -38,7 +38,7 @@ final class PurchaseEntryCurrencySwitcher
             return null;
         }
 
-        $rate = self::money((float) $rate);
+        $rate = (float) $rate;
 
         foreach ($items as $i => $row) {
             if (! is_array($row)) {

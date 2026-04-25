@@ -91,7 +91,7 @@ final class ThermalFiscalReceiptFormatter
         $lines[] = $this->row($this->paymentLabel($sale->payment_method), $this->bs($totalBs), $width);
         $bcvStored = (float) ($sale->bcv_ves_per_usd ?? 0);
         if ($bcvStored > 0) {
-            $lines[] = $this->leftRow('TASA BCV:', '1 USD = Bs '.number_format($bcvStored, 2, ',', '.'));
+            $lines[] = $this->leftRow('TASA BCV:', '1 USD = Bs '.number_format($bcvStored, 6, ',', '.'));
         }
         $lines[] = '';
         $lines[] = $this->row((string) config('fiscal.mh_footer', 'MH'), (string) config('fiscal.printer_serial', 'ZZP0000000'), $width);

@@ -5,11 +5,13 @@ namespace App\Filament\Resources\Sales\Actions;
 use App\Enums\InventoryMovementType;
 use App\Enums\SaleStatus;
 use App\Filament\Resources\Sales\SaleResource;
+use App\Http\Requests\BdvConciliation\GetMovementRequest;
 use App\Models\Client;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Services\BdvConciliation\BdvConciliationClient;
 use App\Services\Dolar\DolarApiDolaresService;
 use App\Services\Dolar\DolarApiEstadoService;
 use App\Support\Finance\DefaultIgtfRate;
@@ -34,6 +36,8 @@ use Filament\Support\Enums\TextSize;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema as SchemaFacade;
@@ -42,11 +46,16 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Component as LivewireComponent;
 use RuntimeException;
+use Throwable;
 
 final class CashRegisterAction
 {
     /** Nombre Livewire/Filament de {@see self::makeClientGate()} (accesos directos, query `abrir=caja`, etc.). */
     public const CLIENT_GATE_ACTION_NAME = 'posClientGate';
+
+    public const REGISTER_ACTION_NAME = 'posRegister';
+
+    public const PAGO_MOVIL_CONCILIATION_ACTION_NAME = 'posPagoMovilConciliation';
 
     /**
      * Primer paso: buscar cliente (nombre o documento). Al elegir uno se abre la caja; «Continuar» sin elegir = mostrador.
@@ -209,7 +218,7 @@ final class CashRegisterAction
      */
     public static function makeRegister(): Action
     {
-        return Action::make('posRegister')
+        return Action::make(self::REGISTER_ACTION_NAME)
             ->label('Caja registradora')
             ->modalHeading('Caja registradora')
             ->modalDescription('Cargue productos, revise totales y confirme el cobro.')
@@ -225,6 +234,9 @@ final class CashRegisterAction
                 $clientId = $args['client_id'] ?? null;
 
                 $state = self::defaultPosFormState();
+                if (is_array($args['pos_data'] ?? null)) {
+                    $state = array_merge($state, $args['pos_data']);
+                }
                 if (filled($clientId)) {
                     $state['client_id'] = (int) $clientId;
                 }
@@ -255,6 +267,8 @@ final class CashRegisterAction
                             ])
                             ->schema([
                                 Hidden::make('client_id'),
+                                Hidden::make('bdv_pm_conciliated')
+                                    ->default(false),
                                 TextEntry::make('pos_client_summary')
                                     ->label('Cliente')
                                     ->state(function (Get $get): string {
@@ -385,6 +399,11 @@ final class CashRegisterAction
                                                     return;
                                                 }
 
+                                                $branchId = Auth::user()?->branch_id;
+                                                if (blank($branchId)) {
+                                                    return;
+                                                }
+
                                                 $keys = array_keys($lineItems);
                                                 $lastKey = $keys[array_key_last($keys)];
 
@@ -394,6 +413,24 @@ final class CashRegisterAction
 
                                                 $keysList = array_values($keys);
                                                 $newProductId = (int) $state;
+                                                self::warmPosDataForBranch((int) $branchId, [$newProductId]);
+
+                                                $selectedProduct = self::posProduct($newProductId);
+                                                $selectedProductLabel = $selectedProduct instanceof Product
+                                                    ? $selectedProduct->name
+                                                    : 'Producto #'.$newProductId;
+                                                $availableForSelectedProduct = self::posAvailableQuantity((int) $branchId, $newProductId);
+                                                if ($availableForSelectedProduct !== null && $availableForSelectedProduct <= 0.0001) {
+                                                    self::notifyPosStockZero($selectedProductLabel);
+                                                    $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
+                                                    $set("{$lineItemsPath}.{$currentItemKey}.quantity", 1, isAbsolute: true);
+
+                                                    if ($livewire instanceof LivewireComponent) {
+                                                        $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
+                                                    }
+
+                                                    return;
+                                                }
 
                                                 $mergeTargetKey = null;
                                                 foreach ($keysList as $k) {
@@ -422,6 +459,22 @@ final class CashRegisterAction
                                                         max(0.001, $targetQty + max(0.001, $currQty)),
                                                         3,
                                                     );
+
+                                                    if ($availableForSelectedProduct !== null && $mergedQty > ($availableForSelectedProduct + 0.0001)) {
+                                                        self::notifyPosQuantityExceedsStock(
+                                                            $selectedProductLabel,
+                                                            $mergedQty,
+                                                            $availableForSelectedProduct,
+                                                        );
+                                                        $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
+                                                        $set("{$lineItemsPath}.{$currentItemKey}.quantity", 1, isAbsolute: true);
+
+                                                        if ($livewire instanceof LivewireComponent) {
+                                                            $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
+                                                        }
+
+                                                        return;
+                                                    }
 
                                                     $set("{$lineItemsPath}.{$mergeTargetKey}.quantity", $mergedQty, isAbsolute: true);
                                                     $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
@@ -461,6 +514,33 @@ final class CashRegisterAction
                                             ->default(1)
                                             ->required()
                                             ->live(debounce: 150)
+                                            ->afterStateUpdated(function (mixed $state, Get $get): void {
+                                                $branchId = Auth::user()?->branch_id;
+                                                if (blank($branchId)) {
+                                                    return;
+                                                }
+
+                                                $productId = $get('product_id');
+                                                if (! filled($productId)) {
+                                                    return;
+                                                }
+
+                                                $pid = (int) $productId;
+                                                self::warmPosDataForBranch((int) $branchId, [$pid]);
+
+                                                $requestedQuantity = max(0.0, (float) $state);
+                                                $available = self::posAvailableQuantity((int) $branchId, $pid);
+                                                if ($available === null || $requestedQuantity <= ($available + 0.0001)) {
+                                                    return;
+                                                }
+
+                                                $product = self::posProduct($pid);
+                                                self::notifyPosQuantityExceedsStock(
+                                                    $product instanceof Product ? $product->name : 'Producto #'.$pid,
+                                                    $requestedQuantity,
+                                                    $available,
+                                                );
+                                            })
                                             ->inlinePrefix()
                                             ->inlineSuffix()
                                             ->prefixAction(
@@ -485,6 +565,24 @@ final class CashRegisterAction
                                                     ->action(function (Set $set, Get $get): void {
                                                         $current = (float) ($get('quantity') ?? 0);
                                                         $next = round(max(0.001, $current) + 1, 3);
+                                                        $branchId = Auth::user()?->branch_id;
+                                                        $productId = $get('product_id');
+                                                        if (filled($branchId) && filled($productId)) {
+                                                            $pid = (int) $productId;
+                                                            self::warmPosDataForBranch((int) $branchId, [$pid]);
+                                                            $available = self::posAvailableQuantity((int) $branchId, $pid);
+                                                            if ($available !== null && $next > ($available + 0.0001)) {
+                                                                $product = self::posProduct($pid);
+                                                                self::notifyPosQuantityExceedsStock(
+                                                                    $product instanceof Product ? $product->name : 'Producto #'.$pid,
+                                                                    $next,
+                                                                    $available,
+                                                                );
+
+                                                                return;
+                                                            }
+                                                        }
+
                                                         $set('quantity', $next);
                                                     }),
                                                 isInline: true,
@@ -552,8 +650,8 @@ final class CashRegisterAction
                                                     ->label('Tasa Bs. por 1 USD (manual)')
                                                     ->helperText('Solo si la API no está disponible. Se usa para convertir USD a bolívares.')
                                                     ->numeric()
-                                                    ->minValue(0.0001)
-                                                    ->step(0.01)
+                                                    ->minValue(0.000001)
+                                                    ->step(0.000001)
                                                     ->prefix('Bs.')
                                                     ->suffix('× 1 USD')
                                                     ->live(debounce: 300)
@@ -830,6 +928,15 @@ final class CashRegisterAction
                     vesUsdRate: $vesUsdRate
                 );
 
+                if ($paymentMethod === 'pago_movil') {
+                    $alreadyConciliated = filter_var($data['bdv_pm_conciliated'] ?? false, FILTER_VALIDATE_BOOL);
+                    if (! $alreadyConciliated) {
+                        self::openPagoMovilConciliationModal($action, $data, $paymentVes);
+
+                        return;
+                    }
+                }
+
                 if ($paymentMethod === 'punto_venta_ves' && ! preg_match('/^\d{4}$/', $cardLast4)) {
                     Notification::make()
                         ->title('Faltan los últimos 4 dígitos')
@@ -859,7 +966,7 @@ final class CashRegisterAction
                 }
 
                 $bcvVesPerUsd = ($vesUsdRate > 0.0 && $paymentVes > 0.00001)
-                    ? round($vesUsdRate, 6)
+                    ? $vesUsdRate
                     : null;
 
                 $actor = Auth::user()?->email
@@ -986,6 +1093,242 @@ final class CashRegisterAction
 
                 return redirect()->to($nextUrl);
             });
+    }
+
+    private static function openPagoMovilConciliationModal(Action $action, array $posData, float $paymentVes): void
+    {
+        $livewire = $action->getLivewire();
+        if (! is_object($livewire) || ! method_exists($livewire, 'replaceMountedAction')) {
+            Notification::make()
+                ->title('No se pudo abrir la conciliación')
+                ->body('El flujo de conciliación no pudo inicializarse. Intente nuevamente.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $livewire->replaceMountedAction(self::PAGO_MOVIL_CONCILIATION_ACTION_NAME, [
+            'pos_data' => $posData,
+            'payment_ves' => $paymentVes,
+        ]);
+    }
+
+    public static function makePagoMovilConciliation(): Action
+    {
+        return Action::make(self::PAGO_MOVIL_CONCILIATION_ACTION_NAME)
+            ->label('Validar Pago Móvil')
+            ->modalHeading('Conciliación Pagomóvil')
+            ->modalDescription('Complete los datos requeridos por el endpoint «Conciliación Pagomóvil» para validar el pago antes de cerrar la venta.')
+            ->modalIcon(Heroicon::ShieldCheck)
+            ->modalWidth(Width::ThreeExtraLarge)
+            ->modalSubmitActionLabel('Validar Pago')
+            ->modalCancelAction(function (Action $modalAction): Action {
+                return $modalAction
+                    ->label('Volver a caja')
+                    ->action(function (Action $action): void {
+                        $livewire = $action->getLivewire();
+                        if (! is_object($livewire) || ! method_exists($livewire, 'replaceMountedAction')) {
+                            return;
+                        }
+
+                        $args = $action->getArguments();
+                        $posData = is_array($args['pos_data'] ?? null) ? $args['pos_data'] : [];
+                        $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, ['pos_data' => $posData]);
+                    });
+            })
+            ->mountUsing(function (Action $action, ?Schema $schema): void {
+                $args = $action->getArguments();
+                $posData = is_array($args['pos_data'] ?? null) ? $args['pos_data'] : [];
+                $paymentVes = (float) ($args['payment_ves'] ?? 0);
+
+                $schema?->fill([
+                    'cedulaPagador' => '',
+                    'telefonoPagador' => '',
+                    'telefonoDestino' => '',
+                    'referencia' => (string) ($posData['reference'] ?? ''),
+                    'fechaPago' => now()->toDateString(),
+                    'importe' => number_format(max(0.0, $paymentVes), 2, '.', ''),
+                    'bancoOrigen' => '0102',
+                    'reqCed' => false,
+                ]);
+            })
+            ->schema([
+                Grid::make(['default' => 1, 'sm' => 2])
+                    ->schema([
+                        TextInput::make('cedulaPagador')
+                            ->label('Cédula pagador')
+                            ->required()
+                            ->maxLength(32),
+                        TextInput::make('telefonoPagador')
+                            ->label('Teléfono pagador')
+                            ->required()
+                            ->maxLength(32),
+                        TextInput::make('telefonoDestino')
+                            ->label('Teléfono destino (comercio)')
+                            ->required()
+                            ->maxLength(32),
+                        TextInput::make('bancoOrigen')
+                            ->label('Banco origen')
+                            ->required()
+                            ->maxLength(16),
+                        TextInput::make('fechaPago')
+                            ->label('Fecha del pago (AAAA-MM-DD)')
+                            ->required(),
+                        TextInput::make('importe')
+                            ->label('Importe (Bs)')
+                            ->required(),
+                        TextInput::make('referencia')
+                            ->label('Referencia')
+                            ->required()
+                            ->maxLength(64)
+                            ->columnSpanFull(),
+                        Select::make('reqCed')
+                            ->label('¿Validar cédula? (reqCed)')
+                            ->options([
+                                '0' => 'No',
+                                '1' => 'Sí',
+                            ])
+                            ->default('0')
+                            ->required()
+                            ->native(false),
+                    ]),
+            ])
+            ->action(function (array $data, Action $action): void {
+                $livewire = $action->getLivewire();
+                if (! is_object($livewire) || ! method_exists($livewire, 'replaceMountedAction')) {
+                    return;
+                }
+
+                $args = $action->getArguments();
+                $posData = is_array($args['pos_data'] ?? null) ? $args['pos_data'] : [];
+
+                $candidate = [
+                    'cedulaPagador' => trim((string) ($data['cedulaPagador'] ?? '')),
+                    'telefonoPagador' => trim((string) ($data['telefonoPagador'] ?? '')),
+                    'telefonoDestino' => trim((string) ($data['telefonoDestino'] ?? '')),
+                    'referencia' => trim((string) ($data['referencia'] ?? '')),
+                    'fechaPago' => trim((string) ($data['fechaPago'] ?? '')),
+                    'importe' => trim((string) ($data['importe'] ?? '')),
+                    'bancoOrigen' => trim((string) ($data['bancoOrigen'] ?? '')),
+                    'reqCed' => filter_var(($data['reqCed'] ?? '0') === '1', FILTER_VALIDATE_BOOL),
+                ];
+
+                try {
+                    $validated = validator($candidate, (new GetMovementRequest)->rules(), (new GetMovementRequest)->messages())->validate();
+                    $payload = GetMovementRequest::movementPayloadFromValidated($validated);
+                    $environment = app()->isProduction() ? 'production' : 'qa';
+                    $response = app(BdvConciliationClient::class)->postGetMovement($payload, $environment);
+                } catch (ConnectionException $e) {
+                    Notification::make()
+                        ->title('Pago no conciliado')
+                        ->body('Error de conexión con BDV: '.$e->getMessage().'. Sugerencia: seleccione otro método de pago.')
+                        ->danger()
+                        ->send();
+                    $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, ['pos_data' => $posData]);
+
+                    return;
+                } catch (RuntimeException $e) {
+                    Notification::make()
+                        ->title('Pago no conciliado')
+                        ->body($e->getMessage().' Sugerencia: seleccione otro método de pago.')
+                        ->danger()
+                        ->send();
+                    $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, ['pos_data' => $posData]);
+
+                    return;
+                } catch (Throwable $e) {
+                    Notification::make()
+                        ->title('Pago no conciliado')
+                        ->body('La conciliación falló: '.$e->getMessage().'. Sugerencia: seleccione otro método de pago.')
+                        ->danger()
+                        ->send();
+                    $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, ['pos_data' => $posData]);
+
+                    return;
+                }
+
+                if (! self::isBdvConciliationSuccessful($response)) {
+                    Notification::make()
+                        ->title('Pago no conciliado')
+                        ->body(self::bdvConciliationFailureMessage($response).' Sugerencia: seleccione otro método de pago.')
+                        ->danger()
+                        ->send();
+                    $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, ['pos_data' => $posData]);
+
+                    return;
+                }
+
+                $posData['reference'] = $candidate['referencia'];
+                $posData['bdv_pm_conciliated'] = true;
+
+                Notification::make()
+                    ->title('Pago conciliado correctamente')
+                    ->body('La venta se registrará automáticamente.')
+                    ->success()
+                    ->send();
+
+                $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, ['pos_data' => $posData]);
+                if (method_exists($livewire, 'callMountedAction')) {
+                    $livewire->callMountedAction();
+                }
+            });
+    }
+
+    private static function isBdvConciliationSuccessful(Response $response): bool
+    {
+        if (! $response->successful()) {
+            return false;
+        }
+
+        $decoded = $response->json();
+        if (! is_array($decoded)) {
+            return true;
+        }
+
+        if (isset($decoded['status']) && is_numeric($decoded['status']) && (int) $decoded['status'] >= 400) {
+            return false;
+        }
+
+        if (isset($decoded['codigo'])) {
+            return in_array((string) $decoded['codigo'], ['00', '01'], true);
+        }
+
+        if (! isset($decoded['code'])) {
+            return true;
+        }
+
+        $code = $decoded['code'];
+        if (in_array($code, ['1000', '200', '00'], true)) {
+            return true;
+        }
+
+        $asInt = is_int($code) ? $code : (is_numeric($code) ? (int) $code : null);
+        if ($asInt !== null && in_array($asInt, [1000, 200], true)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static function bdvConciliationFailureMessage(Response $response): string
+    {
+        $decoded = $response->json();
+        if (is_array($decoded)) {
+            foreach (['message', 'error', 'descripcion', 'detalle'] as $key) {
+                if (isset($decoded[$key]) && is_string($decoded[$key]) && trim($decoded[$key]) !== '') {
+                    return trim($decoded[$key]);
+                }
+            }
+
+            if (isset($decoded['code']) || isset($decoded['codigo'])) {
+                $code = (string) ($decoded['code'] ?? $decoded['codigo']);
+
+                return 'BDV devolvió código '.$code.' en la conciliación.';
+            }
+        }
+
+        return 'El banco no confirmó la conciliación del Pago Móvil (HTTP '.$response->status().').';
     }
 
     private static function uniqueSaleNumber(): string
@@ -1475,6 +1818,39 @@ final class CashRegisterAction
         request()->attributes->set($invKey, $map);
     }
 
+    private static function posAvailableQuantity(int $branchId, int $productId): ?float
+    {
+        $inventory = self::posBranchInventory($branchId, $productId)
+            ?? self::ensurePosBranchInventoryRecord($branchId, $productId);
+
+        if (! $inventory instanceof Inventory) {
+            return null;
+        }
+
+        return round((float) $inventory->quantity - (float) $inventory->reserved_quantity, 3);
+    }
+
+    private static function notifyPosStockZero(string $productLabel): void
+    {
+        Notification::make()
+            ->title('Producto sin existencia')
+            ->body('El producto "'.$productLabel.'" tiene existencia 0. Escanee otro producto para continuar.')
+            ->warning()
+            ->send();
+    }
+
+    private static function notifyPosQuantityExceedsStock(string $productLabel, float $requestedQuantity, float $availableQuantity): void
+    {
+        Notification::make()
+            ->title('Cantidad mayor a la existencia')
+            ->body(
+                'Para "'.$productLabel.'" solicitó '.number_format($requestedQuantity, 3, '.', '').
+                ' y solo hay '.number_format($availableQuantity, 3, '.', '').' disponibles.'
+            )
+            ->warning()
+            ->send();
+    }
+
     /**
      * Garantiza fila de inventario en la sucursal (p. ej. producto recién dado de alta o solo comprado en otra sede).
      */
@@ -1664,6 +2040,7 @@ final class CashRegisterAction
         return array_merge([
             'client_id' => null,
             'payment_method' => 'punto_venta_ves',
+            'bdv_pm_conciliated' => false,
             'card_last4' => null,
             'mixed_usd_paid' => null,
             'reference' => null,
@@ -2008,9 +2385,9 @@ final class CashRegisterAction
             : 'farmadoc-pos-rate-pill farmadoc-pos-rate-pill--error';
 
         if ($hasApi) {
-            $rateLabel = '1 USD = Bs. '.number_format((float) $apiRate, 2, ',', '.').' (API oficial)';
+            $rateLabel = '1 USD = Bs. '.number_format((float) $apiRate, 6, ',', '.').' (API oficial)';
         } elseif ($hasManual) {
-            $rateLabel = '1 USD = Bs. '.number_format((float) $manual, 2, ',', '.').' (manual)';
+            $rateLabel = '1 USD = Bs. '.number_format((float) $manual, 6, ',', '.').' (manual)';
         } else {
             $rateLabel = 'Sin tasa · ingrese manualmente';
         }

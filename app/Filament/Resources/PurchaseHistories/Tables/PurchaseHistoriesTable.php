@@ -12,8 +12,8 @@ use App\Support\Purchases\PurchaseHistoryPaymentMethod;
 use Filament\Actions\ViewAction;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -113,6 +113,7 @@ class PurchaseHistoriesTable
                 TextColumn::make('bcv_rate_at_payment')
                     ->label('Tasa BCV pago')
                     ->alignEnd()
+                    ->formatStateUsing(fn ($state): string => $state !== null ? number_format((float) $state, 6, ',', '.').' Bs/USD' : '—')
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('accounts_payable_id')

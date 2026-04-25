@@ -37,7 +37,7 @@ final class AccountsPayableBulkPaymentPayload
             return new self(false, 'No hay tasa BCV oficial (promedio) para el día actual; no se puede armar el pago masivo.', [], 0.0, 0.0, 0.0);
         }
 
-        $rate = round((float) $rate, 2);
+        $rate = (float) $rate;
         $lines = [];
         $totalUsd = 0.0;
         $totalVes = 0.0;

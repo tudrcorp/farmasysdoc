@@ -58,6 +58,12 @@ $productionBaseResolved = $resolveBdvBaseUrl(
 
 return [
 
+    /*
+     * Teléfono Pago Móvil del comercio (destino BDV). No se pide en el formulario de conciliación; definir en .env:
+     * TEL=04242878918
+     */
+    'commerce_mobile_phone' => trim((string) env('TEL', '')),
+
     'timeout' => (int) env('BDV_CONCILIATION_TIMEOUT', 30),
 
     'connect_timeout' => (int) env('BDV_CONCILIATION_CONNECT_TIMEOUT', 15),

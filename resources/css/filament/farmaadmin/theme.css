@@ -2257,6 +2257,54 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
 
 /* Caja registradora (modal POS) — UI tipo iOS */
 
+/* Modal conciliación Pago Móvil BDV (logo institucional + formulario) */
+.farmadoc-bdv-pm-conciliation-modal.fi-modal-window {
+    overflow: hidden;
+}
+
+/* Aire entre el logo ancho y el título (evita que el icono “monte” sobre el texto). */
+.farmadoc-bdv-pm-conciliation-modal.fi-modal-window .fi-modal-header .fi-modal-icon-ctn {
+    flex-shrink: 0;
+    margin-inline-end: 1.25rem;
+}
+
+.farmadoc-bdv-pm-conciliation-modal.fi-modal-window .fi-modal-header {
+    column-gap: 1rem;
+}
+
+.farmadoc-bdv-pm-conciliation-modal.fi-modal-window .fi-modal-header > div:has(.fi-modal-heading) {
+    min-width: 0;
+}
+
+.farmadoc-bdv-pm-conciliation-modal .farmadoc-bdv-pm-modal-icon-img {
+    display: block;
+    max-height: 3.5rem;
+    max-width: 14rem;
+    width: auto;
+    height: auto;
+}
+
+/* El fondo del icono en modales Filament suele ser cuadrado tipo heroicon; lo adaptamos al logo rectangular. */
+.farmadoc-bdv-pm-conciliation-modal.fi-modal-window .fi-modal-header .fi-modal-icon-bg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    padding: 0.5rem 0.625rem;
+    border-radius: 0.5rem;
+}
+
+.farmadoc-bdv-pm-conciliation-modal.fi-modal-window .fi-modal-icon .farmadoc-bdv-pm-modal-icon-img {
+    border-radius: 0.375rem;
+}
+
+.dark .farmadoc-bdv-pm-conciliation-modal .farmadoc-bdv-pm-modal-icon-img {
+    opacity: 0.96;
+}
+
 /* Dos columnas (lg+): carrito ~8/12, total+pago ~4/12 — más aire para el repeater */
 @media (min-width: 64rem) {
     .farmadoc-pos-main-layout {

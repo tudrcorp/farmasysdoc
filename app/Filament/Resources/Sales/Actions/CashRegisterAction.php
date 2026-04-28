@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Sales\Actions;
 
 use App\Enums\InventoryMovementType;
 use App\Enums\SaleStatus;
+use App\Enums\VenezuelanPagoMovilBank;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Http\Requests\BdvConciliation\GetMovementRequest;
 use App\Models\Client;
@@ -16,7 +17,10 @@ use App\Services\Dolar\DolarApiDolaresService;
 use App\Services\Dolar\DolarApiEstadoService;
 use App\Support\Finance\DefaultIgtfRate;
 use App\Support\Finance\DefaultVatRate;
+use DateTimeInterface;
 use Filament\Actions\Action;
+use Filament\Actions\Contracts\HasActions;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
@@ -24,6 +28,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
+use Filament\Pages\BasePage;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
@@ -226,6 +231,9 @@ final class CashRegisterAction
             ->modalWidth(Width::SevenExtraLarge)
             ->modalSubmitActionLabel('Registrar venta')
             ->modalCancelAction(fn (Action $action): Action => $action->color('danger'))
+            ->registerModalActions([
+                self::makePagoMovilConciliation(),
+            ])
             ->extraAttributes([
                 'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
             ])
@@ -305,13 +313,25 @@ final class CashRegisterAction
                                     ->searchDebounce(150)
                                     ->disabled(fn (): bool => blank(Auth::user()?->branch_id))
                                     ->native(false)
-                                    ->getSearchResultsUsing(function (string $search): array {
+                                    ->getSearchResultsUsing(function (string $search, Get $get): array {
                                         $branchId = Auth::user()?->branch_id;
                                         if (blank($branchId)) {
                                             return [];
                                         }
 
-                                        return self::searchInventoryProductsForBranch((int) $branchId, $search);
+                                        return self::searchInventoryProductsForBranch((int) $branchId, $search, $get);
+                                    })
+                                    ->getOptionLabelUsing(function ($value, Get $get): ?string {
+                                        if (blank($value)) {
+                                            return null;
+                                        }
+
+                                        $branchId = Auth::user()?->branch_id;
+                                        if (blank($branchId)) {
+                                            return null;
+                                        }
+
+                                        return self::buildPosSearchOptionLabelFromCatalog((int) $branchId, (int) $value, $get);
                                     })
                                     ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
                                         if (! filled($state)) {
@@ -358,6 +378,10 @@ final class CashRegisterAction
                                                 ? $product->barcode.' · '.$product->name
                                                 : $product->name)
                                             : 'Producto';
+                                        $branchId = Auth::user()?->branch_id;
+                                        if ($product instanceof Product && filled($branchId)) {
+                                            $title .= self::posProductBolivaresAndBranchStockSuffix((int) $branchId, $product, $get);
+                                        }
                                         $total = self::formatMoney(self::computeLineTotalFromRowState($state, $get));
 
                                         return new HtmlString(
@@ -378,15 +402,15 @@ final class CashRegisterAction
                                             ->searchable()
                                             ->searchDebounce(200)
                                             ->disabled(fn (): bool => blank(Auth::user()?->branch_id))
-                                            ->getSearchResultsUsing(function (string $search): array {
+                                            ->getSearchResultsUsing(function (string $search, Get $get): array {
                                                 $branchId = Auth::user()?->branch_id;
                                                 if (blank($branchId)) {
                                                     return [];
                                                 }
 
-                                                return self::searchInventoryProductsForBranch((int) $branchId, $search);
+                                                return self::searchInventoryProductsForBranch((int) $branchId, $search, $get);
                                             })
-                                            ->getOptionLabelUsing(function ($value): ?string {
+                                            ->getOptionLabelUsing(function ($value, Get $get): ?string {
                                                 if (blank($value)) {
                                                     return null;
                                                 }
@@ -397,21 +421,9 @@ final class CashRegisterAction
                                                 }
 
                                                 $id = (int) $value;
-                                                self::warmPosDataForBranch((int) $branchId, [$id]);
-                                                $product = self::posProduct($id);
-                                                if (! $product) {
-                                                    return null;
-                                                }
 
-                                                $label = filled($product->barcode)
-                                                    ? $product->barcode.' · '.$product->name
-                                                    : $product->name;
-                                                $inv = self::posBranchInventory((int) $branchId, $id);
-                                                if ($inv instanceof Inventory) {
-                                                    $label .= ' · '.self::formatMoney((float) ($product->sale_price ?? 0));
-                                                }
-
-                                                return $label;
+                                                return self::buildPosSearchOptionLabelFromCatalog((int) $branchId, $id, $get)
+                                                    ?? ('Producto #'.$id);
                                             })
                                             ->afterStateUpdated(function (
                                                 mixed $state,
@@ -728,6 +740,27 @@ final class CashRegisterAction
                                             ->default('punto_venta_ves')
                                             ->required()
                                             ->live()
+                                            ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
+                                                if ($state === 'pago_movil') {
+                                                    $set('bdv_pm_conciliated', false);
+                                                    $livewire = $component->getLivewire();
+                                                    if ($livewire instanceof HasActions) {
+                                                        $paymentVes = self::computePaymentBreakdownForForm($get)['payment_ves'];
+                                                        $reference = trim((string) ($get('reference') ?? ''));
+                                                        $livewire->mountAction(self::PAGO_MOVIL_CONCILIATION_ACTION_NAME, [
+                                                            'pos_data' => [
+                                                                'reference' => $reference,
+                                                                'client_id' => filled($get('client_id')) ? (int) $get('client_id') : null,
+                                                            ],
+                                                            'payment_ves' => $paymentVes,
+                                                        ]);
+                                                    }
+
+                                                    return;
+                                                }
+
+                                                $set('bdv_pm_conciliated', false);
+                                            })
                                             ->native(false)
                                             ->prefixIcon(Heroicon::CreditCard),
                                         TextInput::make('card_last4')
@@ -761,12 +794,12 @@ final class CashRegisterAction
                                             ->dehydrated(false),
                                         TextInput::make('reference')
                                             ->label('Referencia de pago')
-                                            ->helperText('Obligatoria para pagos en bolivares y para Zelle.')
+                                            ->helperText('Obligatoria para transferencia VES, Zelle y pagos mixtos con parte en bolívares. En Pago Móvil la referencia se indica en la ventana de conciliación BDV.')
                                             ->maxLength(255)
                                             ->markAsRequired(function (Get $get): bool {
                                                 $method = (string) ($get('payment_method') ?? '');
 
-                                                if (in_array($method, ['transfer_ves', 'pago_movil', 'zelle'], true)) {
+                                                if (in_array($method, ['transfer_ves', 'zelle'], true)) {
                                                     return true;
                                                 }
 
@@ -780,7 +813,7 @@ final class CashRegisterAction
                                                 Rule::requiredIf(function () use ($get): bool {
                                                     $method = (string) ($get('payment_method') ?? '');
 
-                                                    if (in_array($method, ['transfer_ves', 'pago_movil', 'zelle'], true)) {
+                                                    if (in_array($method, ['transfer_ves', 'zelle'], true)) {
                                                         return true;
                                                     }
 
@@ -792,9 +825,9 @@ final class CashRegisterAction
                                                 }),
                                             ])
                                             ->validationMessages([
-                                                'required' => 'Debe indicar una referencia de pago para pagos en bolivares y para Zelle.',
+                                                'required' => 'Debe indicar una referencia de pago para transferencia VES, Zelle o la parte en bolívares del pago mixto.',
                                             ])
-                                            ->visible(fn (Get $get): bool => in_array($get('payment_method'), ['transfer_ves', 'pago_movil', 'zelle', 'mixed'], true)),
+                                            ->visible(fn (Get $get): bool => in_array($get('payment_method'), ['transfer_ves', 'zelle', 'mixed'], true)),
                                     ]),
                             ])
                             ->columnSpan(['lg' => 4]),
@@ -975,7 +1008,12 @@ final class CashRegisterAction
                 if ($paymentMethod === 'pago_movil') {
                     $alreadyConciliated = filter_var($data['bdv_pm_conciliated'] ?? false, FILTER_VALIDATE_BOOL);
                     if (! $alreadyConciliated) {
-                        self::openPagoMovilConciliationModal($action, $data, $paymentVes);
+                        Notification::make()
+                            ->title('Conciliación pendiente')
+                            ->body('Complete la ventana de conciliación Pago Móvil y pulse «Validar Pago» antes de registrar la venta.')
+                            ->warning()
+                            ->send();
+                        $action->halt();
 
                         return;
                     }
@@ -996,13 +1034,23 @@ final class CashRegisterAction
                     $paymentReference = 'POS ****'.$cardLast4;
                 }
 
-                $shouldRequireReference = in_array($paymentMethod, ['transfer_ves', 'pago_movil', 'zelle'], true)
+                $shouldRequireReference = in_array($paymentMethod, ['transfer_ves', 'zelle'], true)
                     || ($paymentMethod === 'mixed' && $paymentVes > 0);
 
                 if ($shouldRequireReference && $paymentReference === '') {
                     Notification::make()
                         ->title('Indique la referencia de pago')
-                        ->body('La referencia es obligatoria para pagos en bolivares y para Zelle.')
+                        ->body('La referencia es obligatoria para transferencia VES, Zelle o la parte en bolívares del pago mixto.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                if ($paymentMethod === 'pago_movil' && $paymentReference === '') {
+                    Notification::make()
+                        ->title('Falta la referencia del Pago Móvil')
+                        ->body('Valide el pago en la ventana de conciliación BDV para registrar la referencia antes de cerrar la venta.')
                         ->danger()
                         ->send();
 
@@ -1139,155 +1187,322 @@ final class CashRegisterAction
             });
     }
 
-    private static function openPagoMovilConciliationModal(Action $action, array $posData, float $paymentVes): void
+    /**
+     * Logo BDV para la modal de conciliación Pago Móvil (encabezado Filament).
+     */
+    private static function bdvPagoMovilModalLogoIconHtml(): HtmlString
     {
-        $livewire = $action->getLivewire();
-        if (! is_object($livewire) || ! method_exists($livewire, 'replaceMountedAction')) {
-            Notification::make()
-                ->title('No se pudo abrir la conciliación')
-                ->body('El flujo de conciliación no pudo inicializarse. Intente nuevamente.')
-                ->danger()
-                ->send();
+        $src = asset('images/logos/bdv-banco-de-venezuela.png');
 
-            return;
-        }
-
-        $livewire->replaceMountedAction(self::PAGO_MOVIL_CONCILIATION_ACTION_NAME, [
-            'pos_data' => $posData,
-            'payment_ves' => $paymentVes,
-        ]);
+        return new HtmlString(
+            '<img src="'.e($src).'" alt="Banco de Venezuela" class="farmadoc-bdv-pm-modal-icon-img h-14 w-auto max-w-56 object-contain object-left" width="220" height="62" decoding="async" loading="eager" />'
+        );
     }
 
+    /**
+     * Fecha Y-m-d para la API BDV (DatePicker puede devolver Carbon u otro {@see DateTimeInterface}).
+     */
+    private static function formatDateForBdvConciliationCandidate(mixed $value): string
+    {
+        if ($value instanceof DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+
+        return trim((string) $value);
+    }
+
+    /**
+     * Cédula o RIF en formato alfanumérico compacto para la API BDV (p. ej. V12345678, E12345678, J123456789).
+     */
+    private static function normalizeBdvCedulaPagadorPayload(string $cedula): string
+    {
+        $clean = strtoupper(preg_replace('/[^A-Z0-9]/', '', trim($cedula)) ?? '');
+        if ($clean === '') {
+            return '';
+        }
+        if (preg_match('/^[VEJG]\d{5,14}$/', $clean) === 1) {
+            return $clean;
+        }
+
+        return strlen($clean) <= 32 ? $clean : substr($clean, 0, 32);
+    }
+
+    /**
+     * A partir del cliente registrado: documento listo para {@see GetMovementRequest} (prefijo V/E/J/G según tipo).
+     */
+    private static function formatBdvCedulaPagadorFromClient(Client $client): ?string
+    {
+        $number = trim((string) $client->document_number);
+        if ($number === '') {
+            return null;
+        }
+
+        $type = strtoupper(trim((string) ($client->document_type ?? '')));
+        $digitsOnly = preg_replace('/\D/', '', $number) ?? '';
+        $alnum = strtoupper(preg_replace('/[^A-Z0-9]/', '', $number) ?? '');
+
+        if ($alnum !== '' && preg_match('/^[VEJG]\d{5,}$/', $alnum) === 1) {
+            return self::normalizeBdvCedulaPagadorPayload($alnum);
+        }
+
+        $formatted = match ($type) {
+            'CE' => $digitsOnly !== '' ? 'E'.$digitsOnly : null,
+            'CC' => $digitsOnly !== '' ? 'V'.$digitsOnly : null,
+            'RIF' => $alnum !== ''
+                ? $alnum
+                : ($digitsOnly !== '' ? 'J'.$digitsOnly : null),
+            default => $alnum !== '' ? $alnum : null,
+        };
+
+        if ($formatted === null || $formatted === '') {
+            return null;
+        }
+
+        $normalized = self::normalizeBdvCedulaPagadorPayload($formatted);
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    /**
+     * Teléfono afiliado al Pago Móvil: dígitos y prefijo 04… cuando aplique (58… → 04…).
+     */
+    private static function normalizeBdvTelefonoPagadorPayload(string $phone): string
+    {
+        $digits = preg_replace('/\D+/', '', trim($phone)) ?? '';
+        if ($digits === '') {
+            return '';
+        }
+
+        if (str_starts_with($digits, '58') && strlen($digits) >= 12) {
+            return '0'.substr($digits, 2);
+        }
+
+        if (strlen($digits) === 10 && str_starts_with($digits, '4')) {
+            return '0'.$digits;
+        }
+
+        return strlen($digits) <= 32 ? $digits : substr($digits, 0, 32);
+    }
+
+    /**
+     * Teléfono del cliente registrado listo para la API BDV.
+     */
+    private static function formatBdvTelefonoPagadorFromClient(Client $client): ?string
+    {
+        $normalized = self::normalizeBdvTelefonoPagadorPayload((string) $client->phone);
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    /**
+     * Segunda modal (apilada sobre la caja): conciliación BDV para Pago Móvil.
+     */
     public static function makePagoMovilConciliation(): Action
     {
         return Action::make(self::PAGO_MOVIL_CONCILIATION_ACTION_NAME)
-            ->label('Validar Pago Móvil')
-            ->modalHeading('Conciliación Pagomóvil')
-            ->modalDescription('Complete los datos requeridos por el endpoint «Conciliación Pagomóvil» para validar el pago antes de cerrar la venta.')
-            ->modalIcon(Heroicon::ShieldCheck)
-            ->modalWidth(Width::ThreeExtraLarge)
-            ->modalSubmitActionLabel('Validar Pago')
+            ->label('Conciliación Pago Móvil')
+            ->modalHeading('Conciliación Pago Móvil')
+            ->modalDescription('Complete el formulario y pulse «Validar Pago». Referencia: 4–6 dígitos. Teléfono comercio: variable TEL en el servidor.')
+            ->modalIcon(fn (): HtmlString => self::bdvPagoMovilModalLogoIconHtml())
+            ->modalAlignment(Alignment::Start)
+            ->extraModalWindowAttributes([
+                'class' => 'farmadoc-bdv-pm-conciliation-modal',
+            ])
+            ->modalWidth(Width::ExtraLarge)
+            ->modalSubmitActionLabel('Validar con BDV')
+            ->closeModalByClickingAway(false)
             ->modalCancelAction(function (Action $modalAction): Action {
                 return $modalAction
-                    ->label('Volver a caja')
-                    ->action(function (Action $action): void {
-                        $livewire = $action->getLivewire();
-                        if (! is_object($livewire) || ! method_exists($livewire, 'replaceMountedAction')) {
-                            return;
-                        }
-
-                        $args = $action->getArguments();
-                        $posData = is_array($args['pos_data'] ?? null) ? $args['pos_data'] : [];
-                        $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, ['pos_data' => $posData]);
+                    ->label('Cerrar')
+                    ->color('gray')
+                    ->action(function (BasePage $livewire): void {
+                        $livewire->unmountAction();
+                        self::patchPosRegisterMountedData($livewire, [
+                            'payment_method' => 'punto_venta_ves',
+                            'bdv_pm_conciliated' => false,
+                        ]);
                     });
             })
             ->mountUsing(function (Action $action, ?Schema $schema): void {
                 $args = $action->getArguments();
                 $posData = is_array($args['pos_data'] ?? null) ? $args['pos_data'] : [];
                 $paymentVes = (float) ($args['payment_ves'] ?? 0);
-
+                $ref = trim((string) ($posData['reference'] ?? ''));
+                $refDigits = preg_replace('/\D+/', '', $ref) ?? '';
+                $prefillReferencia = (preg_match('/^\d{4,6}$/', $refDigits) === 1) ? $refDigits : null;
+                $clientId = isset($posData['client_id']) ? (int) $posData['client_id'] : 0;
+                $client = $clientId > 0
+                    ? Client::query()->find($clientId)
+                    : null;
+                $prefillCedula = $client instanceof Client
+                    ? self::formatBdvCedulaPagadorFromClient($client)
+                    : null;
+                $prefillTelefono = $client instanceof Client
+                    ? self::formatBdvTelefonoPagadorFromClient($client)
+                    : null;
                 $schema?->fill([
-                    'cedulaPagador' => '',
-                    'telefonoPagador' => '',
-                    'telefonoDestino' => '',
-                    'referencia' => (string) ($posData['reference'] ?? ''),
-                    'fechaPago' => now()->toDateString(),
-                    'importe' => number_format(max(0.0, $paymentVes), 2, '.', ''),
-                    'bancoOrigen' => '0102',
-                    'reqCed' => false,
+                    'bdv_pm_cedula_pagador' => $prefillCedula,
+                    'bdv_pm_telefono_pagador' => $prefillTelefono,
+                    'bdv_pm_referencia' => $prefillReferencia,
+                    'bdv_pm_banco_origen' => VenezuelanPagoMovilBank::BancoDeVenezuela->value,
+                    'bdv_pm_fecha_pago' => now()->toDateString(),
+                    'bdv_pm_importe' => number_format(max(0.0, $paymentVes), 2, '.', ''),
+                    'bdv_pm_req_ced' => '0',
                 ]);
             })
             ->schema([
-                Grid::make(['default' => 1, 'sm' => 2])
+                Grid::make(1)
                     ->schema([
-                        TextInput::make('cedulaPagador')
-                            ->label('Cédula pagador')
-                            ->required()
-                            ->maxLength(32),
-                        TextInput::make('telefonoPagador')
-                            ->label('Teléfono pagador')
-                            ->required()
-                            ->maxLength(32),
-                        TextInput::make('telefonoDestino')
-                            ->label('Teléfono destino (comercio)')
-                            ->required()
-                            ->maxLength(32),
-                        TextInput::make('bancoOrigen')
-                            ->label('Banco origen')
-                            ->required()
-                            ->maxLength(16),
-                        TextInput::make('fechaPago')
-                            ->label('Fecha del pago (AAAA-MM-DD)')
-                            ->required(),
-                        TextInput::make('importe')
-                            ->label('Importe (Bs)')
-                            ->required(),
-                        TextInput::make('referencia')
-                            ->label('Referencia')
-                            ->required()
-                            ->maxLength(64)
-                            ->columnSpanFull(),
-                        Select::make('reqCed')
-                            ->label('¿Validar cédula? (reqCed)')
-                            ->options([
-                                '0' => 'No',
-                                '1' => 'Sí',
+                        Section::make('Quién pagó')
+                            ->description('Datos del titular que originó el Pago Móvil.')
+                            ->icon(Heroicon::UserCircle)
+                            ->iconColor('primary')
+                            ->schema([
+                                Grid::make(['default' => 1, 'sm' => 2])
+                                    ->schema([
+                                        TextInput::make('bdv_pm_cedula_pagador')
+                                            ->label('Cédula / RIF')
+                                            ->placeholder('V-12345678')
+                                            ->maxLength(32)
+                                            ->prefixIcon(Heroicon::Identification)
+                                            ->required(),
+                                        TextInput::make('bdv_pm_telefono_pagador')
+                                            ->label('Teléfono afiliado al pago')
+                                            ->placeholder('04141234567')
+                                            ->maxLength(32)
+                                            ->prefixIcon(Heroicon::DevicePhoneMobile)
+                                            ->tel()
+                                            ->required(),
+                                    ]),
+                                Select::make('bdv_pm_banco_origen')
+                                    ->label('Banco del pagador')
+                                    ->helperText('Entidad desde la que salió el Pago Móvil.')
+                                    ->options(VenezuelanPagoMovilBank::optionsForSelect())
+                                    ->searchable()
+                                    ->default(VenezuelanPagoMovilBank::BancoDeVenezuela->value)
+                                    ->required()
+                                    ->native(false),
                             ])
-                            ->default('0')
-                            ->required()
-                            ->native(false),
+                            ->compact(),
+                        Section::make('Detalle del movimiento')
+                            ->description('Deben coincidir con el comprobante del cliente.')
+                            ->icon(Heroicon::DocumentText)
+                            ->iconColor('gray')
+                            ->schema([
+                                TextInput::make('bdv_pm_referencia')
+                                    ->label('Referencia del pago')
+                                    ->helperText('Solo números: 4 a 6 dígitos, sin espacios ni símbolos.')
+                                    ->placeholder('123456')
+                                    ->inputMode('numeric')
+                                    ->minLength(4)
+                                    ->maxLength(6)
+                                    ->regex('/^\d{4,6}$/')
+                                    ->prefixIcon(Heroicon::Hashtag)
+                                    ->required()
+                                    ->validationMessages([
+                                        'regex' => 'La referencia debe tener entre 4 y 6 dígitos numéricos.',
+                                        'min' => 'La referencia debe tener al menos 4 dígitos.',
+                                        'max' => 'La referencia no puede superar 6 dígitos.',
+                                    ]),
+                                Grid::make(['default' => 1, 'sm' => 2])
+                                    ->schema([
+                                        DatePicker::make('bdv_pm_fecha_pago')
+                                            ->label('Fecha del pago')
+                                            ->helperText('Fecha en que el cliente realizó el pago.')
+                                            ->default(now())
+                                            ->required()
+                                            ->prefixIcon(Heroicon::CalendarDays),
+                                        TextInput::make('bdv_pm_importe')
+                                            ->label('Importe en bolívares')
+                                            ->numeric()
+                                            ->minValue(0.000001)
+                                            ->step(0.000001)
+                                            ->prefix('Bs.')
+                                            ->prefixIcon(Heroicon::Banknotes)
+                                            ->required(),
+                                    ]),
+                                Select::make('bdv_pm_req_ced')
+                                    ->label('Validar cédula en BDV (reqCed)')
+                                    ->helperText('«Sí» solo si el manual indica validación de cédula para su caso.')
+                                    ->options([
+                                        '0' => 'No',
+                                        '1' => 'Sí',
+                                    ])
+                                    ->default('0')
+                                    ->required()
+                                    ->native(false),
+                            ])
+                            ->compact(),
                     ]),
             ])
             ->action(function (array $data, Action $action): void {
                 $livewire = $action->getLivewire();
-                if (! is_object($livewire) || ! method_exists($livewire, 'replaceMountedAction')) {
+                if (! $livewire instanceof BasePage) {
                     return;
                 }
 
-                $args = $action->getArguments();
-                $posData = is_array($args['pos_data'] ?? null) ? $args['pos_data'] : [];
+                $paymentVes = (float) ($action->getArguments()['payment_ves'] ?? 0);
+                $importe = trim((string) ($data['bdv_pm_importe'] ?? ''));
+                if ($importe === '') {
+                    $importe = number_format(max(0.0, $paymentVes), 2, '.', '');
+                }
+
+                $telefonoComercio = trim((string) config('bdv_conciliation.commerce_mobile_phone', ''));
+                if ($telefonoComercio === '') {
+                    Notification::make()
+                        ->title('Falta teléfono del comercio')
+                        ->body('Configure la variable de entorno TEL (teléfono Pago Móvil del comercio) y vuelva a intentar.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                $referencia = preg_replace('/\D+/', '', (string) ($data['bdv_pm_referencia'] ?? '')) ?? '';
 
                 $candidate = [
-                    'cedulaPagador' => trim((string) ($data['cedulaPagador'] ?? '')),
-                    'telefonoPagador' => trim((string) ($data['telefonoPagador'] ?? '')),
-                    'telefonoDestino' => trim((string) ($data['telefonoDestino'] ?? '')),
-                    'referencia' => trim((string) ($data['referencia'] ?? '')),
-                    'fechaPago' => trim((string) ($data['fechaPago'] ?? '')),
-                    'importe' => trim((string) ($data['importe'] ?? '')),
-                    'bancoOrigen' => trim((string) ($data['bancoOrigen'] ?? '')),
-                    'reqCed' => filter_var(($data['reqCed'] ?? '0') === '1', FILTER_VALIDATE_BOOL),
+                    'cedulaPagador' => self::normalizeBdvCedulaPagadorPayload(trim((string) ($data['bdv_pm_cedula_pagador'] ?? ''))),
+                    'telefonoPagador' => self::normalizeBdvTelefonoPagadorPayload((string) ($data['bdv_pm_telefono_pagador'] ?? '')),
+                    'telefonoDestino' => $telefonoComercio,
+                    'referencia' => $referencia,
+                    'fechaPago' => self::formatDateForBdvConciliationCandidate($data['bdv_pm_fecha_pago'] ?? null),
+                    'importe' => $importe,
+                    'bancoOrigen' => trim((string) ($data['bdv_pm_banco_origen'] ?? '')),
+                    'reqCed' => filter_var(($data['bdv_pm_req_ced'] ?? '0') === '1', FILTER_VALIDATE_BOOL),
                 ];
 
+                $rules = (new GetMovementRequest)->rules();
+                $rules['referencia'] = ['required', 'string', 'regex:/^\d{4,6}$/'];
+                $messages = (new GetMovementRequest)->messages();
+                $messages['referencia.regex'] = 'La referencia debe tener entre 4 y 6 dígitos numéricos, sin letras ni símbolos.';
+
                 try {
-                    $validated = validator($candidate, (new GetMovementRequest)->rules(), (new GetMovementRequest)->messages())->validate();
+                    $validated = validator($candidate, $rules, $messages)->validate();
                     $payload = GetMovementRequest::movementPayloadFromValidated($validated);
                     $environment = app()->isProduction() ? 'production' : 'qa';
                     $response = app(BdvConciliationClient::class)->postGetMovement($payload, $environment);
                 } catch (ConnectionException $e) {
                     Notification::make()
                         ->title('Pago no conciliado')
-                        ->body('Error de conexión con BDV: '.$e->getMessage().'. Sugerencia: seleccione otro método de pago.')
+                        ->body('Error de conexión con BDV: '.$e->getMessage().'. Sugerencia: seleccione otro método de pago o reintente.')
                         ->danger()
                         ->send();
-                    $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, ['pos_data' => $posData]);
 
                     return;
                 } catch (RuntimeException $e) {
                     Notification::make()
                         ->title('Pago no conciliado')
-                        ->body($e->getMessage().' Sugerencia: seleccione otro método de pago.')
+                        ->body($e->getMessage().' Sugerencia: seleccione otro método de pago o reintente.')
                         ->danger()
                         ->send();
-                    $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, ['pos_data' => $posData]);
 
                     return;
                 } catch (Throwable $e) {
                     Notification::make()
                         ->title('Pago no conciliado')
-                        ->body('La conciliación falló: '.$e->getMessage().'. Sugerencia: seleccione otro método de pago.')
+                        ->body('La conciliación falló: '.$e->getMessage().'. Sugerencia: seleccione otro método de pago o reintente.')
                         ->danger()
                         ->send();
-                    $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, ['pos_data' => $posData]);
 
                     return;
                 }
@@ -1295,28 +1510,52 @@ final class CashRegisterAction
                 if (! self::isBdvConciliationSuccessful($response)) {
                     Notification::make()
                         ->title('Pago no conciliado')
-                        ->body(self::bdvConciliationFailureMessage($response).' Sugerencia: seleccione otro método de pago.')
+                        ->body(self::bdvConciliationFailureMessage($response).' Sugerencia: seleccione otro método de pago o reintente.')
                         ->danger()
                         ->send();
-                    $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, ['pos_data' => $posData]);
 
                     return;
                 }
 
-                $posData['reference'] = $candidate['referencia'];
-                $posData['bdv_pm_conciliated'] = true;
+                $livewire->unmountAction();
+                self::patchPosRegisterMountedData($livewire, [
+                    'reference' => $candidate['referencia'],
+                    'bdv_pm_conciliated' => true,
+                ]);
 
                 Notification::make()
                     ->title('Pago conciliado correctamente')
-                    ->body('La venta se registrará automáticamente.')
+                    ->body('Ya puede pulsar «Registrar venta» para cerrar la operación.')
                     ->success()
                     ->send();
-
-                $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, ['pos_data' => $posData]);
-                if (method_exists($livewire, 'callMountedAction')) {
-                    $livewire->callMountedAction();
-                }
             });
+    }
+
+    /**
+     * @param  array<string, mixed>  $patch
+     */
+    private static function patchPosRegisterMountedData(BasePage $livewire, array $patch): void
+    {
+        $mounted = $livewire->mountedActions ?? null;
+        if (! is_array($mounted) || $mounted === []) {
+            return;
+        }
+
+        foreach ($mounted as $i => $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+
+            if (($entry['name'] ?? '') !== self::REGISTER_ACTION_NAME) {
+                continue;
+            }
+
+            $current = is_array($entry['data'] ?? null) ? $entry['data'] : [];
+            $mounted[$i]['data'] = array_merge($current, $patch);
+            $livewire->mountedActions = $mounted;
+
+            return;
+        }
     }
 
     private static function isBdvConciliationSuccessful(Response $response): bool
@@ -1404,6 +1643,119 @@ final class CashRegisterAction
     private static function formatBolivaresReferenceFromVes(float $vesAmount): string
     {
         return 'Bs. '.number_format(round($vesAmount, 2), 2, ',', '.');
+    }
+
+    /**
+     * Etiqueta de opción en el buscador POS sin cargar modelos (solo datos ya resueltos en SQL + tasa precalculada).
+     */
+    private static function formatPosSearchOptionLabelFast(string $base, float $saleUsd, float $branchQty, float $rate): string
+    {
+        $label = $base.' · '.self::formatMoney($saleUsd);
+        if ($rate > 0.0) {
+            $label .= ' · '.self::formatBolivaresReferenceFromVes(round($saleUsd * $rate, 2));
+        } else {
+            $label .= ' · Bs. —';
+        }
+        if ($branchQty <= 0.0001) {
+            $label .= ' · Cant. 0';
+        } else {
+            $label .= ' · Cant. '.number_format($branchQty, 2, ',', '.');
+        }
+
+        return $label;
+    }
+
+    /**
+     * Etiqueta para validación del Select cuando el valor no está en el último resultado de búsqueda (2 lecturas ligeras).
+     */
+    private static function buildPosSearchOptionLabelFromCatalog(int $branchId, int $productId, ?Get $get): ?string
+    {
+        $row = DB::table('products')
+            ->select(['name', 'barcode', 'sale_price'])
+            ->where('id', $productId)
+            ->where('is_active', true)
+            ->first();
+        if ($row === null) {
+            return null;
+        }
+
+        $base = filled($row->barcode)
+            ? $row->barcode.' · '.$row->name
+            : $row->name;
+        $qty = (float) (DB::table('inventories')
+            ->where('branch_id', $branchId)
+            ->where('product_id', $productId)
+            ->value('quantity') ?? 0);
+        $rate = self::effectiveVesUsdRateForPosProductLabels($get);
+
+        return self::formatPosSearchOptionLabelFast(
+            $base,
+            (float) ($row->sale_price ?? 0),
+            max(0.0, $qty),
+            $rate,
+        );
+    }
+
+    /**
+     * Tasa Bs./USD para etiquetas de producto en la caja: primero el formulario (API BCV o manual), si no, la del día vía {@see initialDolarFormState()}.
+     */
+    private static function effectiveVesUsdRateForPosProductLabels(?Get $get): float
+    {
+        if ($get !== null) {
+            $fromForm = self::effectiveVesUsdRate($get);
+            if ($fromForm > 0.0) {
+                return $fromForm;
+            }
+        }
+
+        $api = self::officialVesUsdRateFromInitialFormStateCached();
+        if ($api > 0.0) {
+            return $api;
+        }
+
+        return 0.0;
+    }
+
+    /**
+     * Tasa oficial cacheada por petición (evita repetir llamadas a la API del dólar en cada fila del buscador).
+     */
+    private static function officialVesUsdRateFromInitialFormStateCached(): float
+    {
+        if (request()->attributes->has('cash_register.official_ves_usd_rate')) {
+            return (float) request()->attributes->get('cash_register.official_ves_usd_rate');
+        }
+
+        $initial = self::initialDolarFormState();
+        $api = $initial['ves_usd_rate'] ?? null;
+        $rate = (is_numeric($api) && (float) $api > 0) ? (float) $api : 0.0;
+        request()->attributes->set('cash_register.official_ves_usd_rate', $rate);
+
+        return $rate;
+    }
+
+    /**
+     * Sufijo para el título de línea POS: precio en Bs. (tasa BCV/formulario) y existencia en la sucursal del usuario.
+     */
+    private static function posProductBolivaresAndBranchStockSuffix(int $branchId, Product $product, Get $get): string
+    {
+        self::warmPosDataForBranch($branchId, [(int) $product->id]);
+
+        $usd = (float) ($product->sale_price ?? 0);
+        $segments = [];
+        $rate = self::effectiveVesUsdRateForPosProductLabels($get);
+        if ($rate > 0.0) {
+            $segments[] = self::formatBolivaresReferenceFromVes(round($usd * $rate, 2));
+        }
+
+        $inv = self::posBranchInventory($branchId, (int) $product->id);
+        $qty = $inv instanceof Inventory ? max(0.0, (float) $inv->quantity) : 0.0;
+        if ($qty <= 0.0001) {
+            $segments[] = 'Cant. 0';
+        } else {
+            $segments[] = 'Cant. '.number_format($qty, 2, ',', '.');
+        }
+
+        return $segments === [] ? '' : (' · '.implode(' · ', $segments));
     }
 
     /**
@@ -1943,7 +2295,7 @@ final class CashRegisterAction
      *
      * @return array<int, string>
      */
-    private static function searchInventoryProductsForBranch(int $branchId, string $search): array
+    private static function searchInventoryProductsForBranch(int $branchId, string $search, ?Get $get = null): array
     {
         $term = trim($search);
 
@@ -1986,7 +2338,7 @@ final class CashRegisterAction
 
             if (filled($exactProductId)) {
                 $id = (int) $exactProductId;
-                $selectCols = ['id', 'name', 'barcode'];
+                $selectCols = ['id', 'name', 'barcode', 'sale_price'];
                 if (SchemaFacade::hasColumn('products', 'sku')) {
                     $selectCols[] = 'sku';
                 }
@@ -1994,29 +2346,36 @@ final class CashRegisterAction
                 $row = DB::table('products')
                     ->select($selectCols)
                     ->where('id', $id)
+                    ->where('is_active', true)
                     ->first();
 
                 if ($row !== null) {
-                    self::ensurePosBranchInventoryRecord($branchId, $id);
-                    self::warmPosDataForBranch($branchId, [$id]);
-                    $label = filled($row->barcode)
+                    $base = filled($row->barcode)
                         ? $row->barcode.' · '.$row->name
                         : $row->name;
-                    $prod = self::posProduct($id);
-                    if ($prod instanceof Product) {
-                        $label .= ' · '.self::formatMoney((float) ($prod->sale_price ?? 0));
-                    }
-                    $inv = self::posBranchInventory($branchId, $id);
-                    if (! $inv instanceof Inventory || (float) $inv->quantity <= 0) {
-                        $label .= ' · Sin existencias en sucursal (stock 0 hasta recepción)';
-                    }
+                    $qty = (float) (DB::table('inventories')
+                        ->where('branch_id', $branchId)
+                        ->where('product_id', $id)
+                        ->value('quantity') ?? 0);
+                    $rate = self::effectiveVesUsdRateForPosProductLabels($get);
 
-                    return [$id => $label];
+                    return [$id => self::formatPosSearchOptionLabelFast(
+                        $base,
+                        (float) ($row->sale_price ?? 0),
+                        max(0.0, $qty),
+                        $rate,
+                    )];
                 }
             }
         }
 
-        $selectList = ['products.id', 'products.name', 'products.barcode'];
+        $selectList = [
+            'products.id',
+            'products.name',
+            'products.barcode',
+            'products.sale_price',
+            'inventories.quantity as branch_quantity',
+        ];
         if (SchemaFacade::hasColumn('products', 'sku')) {
             $selectList[] = 'products.sku';
         }
@@ -2056,21 +2415,21 @@ final class CashRegisterAction
             return [];
         }
 
-        $ids = $rows->pluck('id')->map(fn (mixed $id): int => (int) $id)->unique()->values()->all();
-        self::warmPosDataForBranch($branchId, $ids);
+        $rate = self::effectiveVesUsdRateForPosProductLabels($get);
 
-        return $rows->mapWithKeys(function ($row) use ($branchId): array {
+        return $rows->mapWithKeys(function ($row) use ($rate): array {
             $id = (int) $row->id;
-            $label = filled($row->barcode)
+            $base = filled($row->barcode)
                 ? $row->barcode.' · '.$row->name
                 : $row->name;
-            $inv = self::posBranchInventory($branchId, $id);
-            $prod = self::posProduct($id);
-            if ($inv instanceof Inventory && $prod instanceof Product) {
-                $label .= ' · '.self::formatMoney((float) ($prod->sale_price ?? 0));
-            }
+            $qty = isset($row->branch_quantity) ? max(0.0, (float) $row->branch_quantity) : 0.0;
 
-            return [$id => $label];
+            return [$id => self::formatPosSearchOptionLabelFast(
+                $base,
+                (float) ($row->sale_price ?? 0),
+                $qty,
+                $rate,
+            )];
         })->all();
     }
 

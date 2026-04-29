@@ -1304,7 +1304,7 @@ final class CashRegisterAction
         return Action::make(self::PAGO_MOVIL_CONCILIATION_ACTION_NAME)
             ->label('Conciliación Pago Móvil')
             ->modalHeading('Conciliación Pago Móvil')
-            ->modalDescription('Tres pasos: pagador, comprobante y validación con BDV. Referencia: 4–6 dígitos. Teléfono comercio: variable TEL.')
+            // ->modalDescription('Tres pasos: pagador, comprobante y validación con BDV. Referencia: 4–6 dígitos. Teléfono comercio: variable TEL.')
             ->modalIcon(fn (): HtmlString => self::bdvPagoMovilModalLogoIconHtml())
             ->modalAlignment(Alignment::Center)
             ->extraModalWindowAttributes([

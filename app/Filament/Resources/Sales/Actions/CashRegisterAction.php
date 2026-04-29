@@ -33,6 +33,8 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\FontWeight;
@@ -1009,8 +1011,8 @@ final class CashRegisterAction
                     $alreadyConciliated = filter_var($data['bdv_pm_conciliated'] ?? false, FILTER_VALIDATE_BOOL);
                     if (! $alreadyConciliated) {
                         Notification::make()
-                            ->title('Conciliación pendiente')
-                            ->body('Complete la ventana de conciliación Pago Móvil y pulse «Validar Pago» antes de registrar la venta.')
+                            ->title('Pago no conciliado por BDV')
+                            ->body('El pago no fue conciliado por BDV. Complete el asistente de conciliación Pago Móvil y pulse «Validar con BDV» antes de registrar la venta.')
                             ->warning()
                             ->send();
                         $action->halt();
@@ -1295,22 +1297,28 @@ final class CashRegisterAction
     }
 
     /**
-     * Segunda modal (apilada sobre la caja): conciliación BDV para Pago Móvil.
+     * Segunda modal (apilada sobre la caja): conciliación BDV para Pago Móvil (asistente tipo wizard iOS).
      */
     public static function makePagoMovilConciliation(): Action
     {
         return Action::make(self::PAGO_MOVIL_CONCILIATION_ACTION_NAME)
             ->label('Conciliación Pago Móvil')
             ->modalHeading('Conciliación Pago Móvil')
-            ->modalDescription('Complete el formulario y pulse «Validar Pago». Referencia: 4–6 dígitos. Teléfono comercio: variable TEL en el servidor.')
+            ->modalDescription('Tres pasos: pagador, comprobante y validación con BDV. Referencia: 4–6 dígitos. Teléfono comercio: variable TEL.')
             ->modalIcon(fn (): HtmlString => self::bdvPagoMovilModalLogoIconHtml())
-            ->modalAlignment(Alignment::Start)
+            ->modalAlignment(Alignment::Center)
             ->extraModalWindowAttributes([
-                'class' => 'farmadoc-bdv-pm-conciliation-modal',
+                'class' => 'farmadoc-bdv-pm-conciliation-modal farmadoc-bdv-pm-conciliation-modal--ios-sheet',
             ])
-            ->modalWidth(Width::ExtraLarge)
+            ->modalWidth(Width::FiveExtraLarge)
             ->modalSubmitActionLabel('Validar con BDV')
             ->closeModalByClickingAway(false)
+            ->modifyWizardUsing(function (Wizard $wizard): Wizard {
+                return $wizard
+                    ->extraAttributes([
+                        'class' => 'farmadoc-bdv-pm-wizard-ios',
+                    ]);
+            })
             ->modalCancelAction(function (Action $modalAction): Action {
                 return $modalAction
                     ->label('Cerrar')
@@ -1348,50 +1356,57 @@ final class CashRegisterAction
                     'bdv_pm_fecha_pago' => now()->toDateString(),
                     'bdv_pm_importe' => number_format(max(0.0, $paymentVes), 2, '.', ''),
                     'bdv_pm_req_ced' => '0',
+                    'bdv_pm_failed' => false,
+                    'bdv_pm_failure_message' => null,
                 ]);
             })
-            ->schema([
-                Grid::make(1)
+            ->steps([
+                Step::make('Pagador')
+                    ->description('Quién originó el Pago Móvil.')
+                    ->icon(Heroicon::UserCircle)
+                    ->completedIcon(Heroicon::OutlinedCheckCircle)
                     ->schema([
-                        Section::make('Quién pagó')
-                            ->description('Datos del titular que originó el Pago Móvil.')
-                            ->icon(Heroicon::UserCircle)
-                            ->iconColor('primary')
-                            ->schema([
-                                Grid::make(['default' => 1, 'sm' => 2])
-                                    ->schema([
-                                        TextInput::make('bdv_pm_cedula_pagador')
-                                            ->label('Cédula / RIF')
-                                            ->placeholder('V-12345678')
-                                            ->maxLength(32)
-                                            ->prefixIcon(Heroicon::Identification)
-                                            ->required(),
-                                        TextInput::make('bdv_pm_telefono_pagador')
-                                            ->label('Teléfono afiliado al pago')
-                                            ->placeholder('04141234567')
-                                            ->maxLength(32)
-                                            ->prefixIcon(Heroicon::DevicePhoneMobile)
-                                            ->tel()
-                                            ->required(),
-                                    ]),
-                                Select::make('bdv_pm_banco_origen')
-                                    ->label('Banco del pagador')
-                                    ->helperText('Entidad desde la que salió el Pago Móvil.')
-                                    ->options(VenezuelanPagoMovilBank::optionsForSelect())
-                                    ->searchable()
-                                    ->default(VenezuelanPagoMovilBank::BancoDeVenezuela->value)
-                                    ->required()
-                                    ->native(false),
+                        Grid::make(['default' => 1, 'sm' => 2])
+                            ->extraAttributes([
+                                'class' => 'farmadoc-bdv-pm-wizard-step-fields',
                             ])
-                            ->compact(),
-                        Section::make('Detalle del movimiento')
-                            ->description('Deben coincidir con el comprobante del cliente.')
-                            ->icon(Heroicon::DocumentText)
-                            ->iconColor('gray')
+                            ->schema([
+                                TextInput::make('bdv_pm_cedula_pagador')
+                                    ->label('Cédula / RIF')
+                                    ->placeholder('V-12345678')
+                                    ->maxLength(32)
+                                    ->prefixIcon(Heroicon::Identification)
+                                    ->required(),
+                                TextInput::make('bdv_pm_telefono_pagador')
+                                    ->label('Teléfono afiliado al pago')
+                                    ->placeholder('04141234567')
+                                    ->maxLength(32)
+                                    ->prefixIcon(Heroicon::DevicePhoneMobile)
+                                    ->tel()
+                                    ->required(),
+                            ]),
+                        Select::make('bdv_pm_banco_origen')
+                            ->label('Banco del pagador')
+                            ->helperText('Entidad de origen del Pago Móvil.')
+                            ->options(VenezuelanPagoMovilBank::optionsForSelect())
+                            ->searchable()
+                            ->default(VenezuelanPagoMovilBank::BancoDeVenezuela->value)
+                            ->required()
+                            ->native(false),
+                    ]),
+                Step::make('Comprobante')
+                    ->description('Referencia, fecha e importe.')
+                    ->icon(Heroicon::DocumentText)
+                    ->completedIcon(Heroicon::OutlinedCheckCircle)
+                    ->schema([
+                        Grid::make(['default' => 1, 'sm' => 3])
+                            ->extraAttributes([
+                                'class' => 'farmadoc-bdv-pm-conciliation-detail-row farmadoc-bdv-pm-wizard-step-fields',
+                            ])
                             ->schema([
                                 TextInput::make('bdv_pm_referencia')
-                                    ->label('Referencia del pago')
-                                    ->helperText('Solo números: 4 a 6 dígitos, sin espacios ni símbolos.')
+                                    ->label('Referencia')
+                                    ->helperText('4–6 dígitos, solo números.')
                                     ->placeholder('123456')
                                     ->inputMode('numeric')
                                     ->minLength(4)
@@ -1404,35 +1419,79 @@ final class CashRegisterAction
                                         'min' => 'La referencia debe tener al menos 4 dígitos.',
                                         'max' => 'La referencia no puede superar 6 dígitos.',
                                     ]),
-                                Grid::make(['default' => 1, 'sm' => 2])
-                                    ->schema([
-                                        DatePicker::make('bdv_pm_fecha_pago')
-                                            ->label('Fecha del pago')
-                                            ->helperText('Fecha en que el cliente realizó el pago.')
-                                            ->default(now())
-                                            ->required()
-                                            ->prefixIcon(Heroicon::CalendarDays),
-                                        TextInput::make('bdv_pm_importe')
-                                            ->label('Importe en bolívares')
-                                            ->numeric()
-                                            ->minValue(0.000001)
-                                            ->step(0.000001)
-                                            ->prefix('Bs.')
-                                            ->prefixIcon(Heroicon::Banknotes)
-                                            ->required(),
-                                    ]),
-                                Select::make('bdv_pm_req_ced')
-                                    ->label('Validar cédula en BDV (reqCed)')
-                                    ->helperText('«Sí» solo si el manual indica validación de cédula para su caso.')
-                                    ->options([
-                                        '0' => 'No',
-                                        '1' => 'Sí',
-                                    ])
-                                    ->default('0')
+                                DatePicker::make('bdv_pm_fecha_pago')
+                                    ->label('Fecha del pago')
+                                    ->helperText('Fecha del comprobante.')
+                                    ->default(now())
                                     ->required()
-                                    ->native(false),
+                                    ->prefixIcon(Heroicon::CalendarDays),
+                                TextInput::make('bdv_pm_importe')
+                                    ->label('Importe (Bs.)')
+                                    ->numeric()
+                                    ->minValue(0.000001)
+                                    ->step(0.000001)
+                                    ->prefix('Bs.')
+                                    ->prefixIcon(Heroicon::Banknotes)
+                                    ->required(),
+                            ]),
+                        Select::make('bdv_pm_req_ced')
+                            ->label('Validar cédula en BDV (reqCed)')
+                            ->helperText('«Sí» solo si el manual lo exige para su caso.')
+                            ->options([
+                                '0' => 'No',
+                                '1' => 'Sí',
                             ])
-                            ->compact(),
+                            ->default('0')
+                            ->required()
+                            ->native(false),
+                    ]),
+                Step::make('BDV')
+                    ->description('Revise y consulte al banco.')
+                    ->icon(Heroicon::ShieldCheck)
+                    ->schema([
+                        Hidden::make('bdv_pm_failed')
+                            ->default(false),
+                        Hidden::make('bdv_pm_failure_message')
+                            ->default(null),
+                        TextEntry::make('bdv_pm_failure_inline')
+                            ->hiddenLabel()
+                            ->columnSpanFull()
+                            ->html()
+                            ->hidden(fn (Get $get): bool => ! filter_var($get('bdv_pm_failed') ?? false, FILTER_VALIDATE_BOOL))
+                            ->state(fn (Get $get): HtmlString => self::bdvPmFailureInlineHtml($get))
+                            ->dehydrated(false)
+                            ->extraEntryWrapperAttributes([
+                                'class' => 'farmadoc-bdv-pm-inline-failure',
+                            ]),
+                        Action::make('bdvPmBackToCashRegister')
+                            ->label('Regresar a caja y seleccionar otro método')
+                            ->icon(Heroicon::ArrowUturnLeft)
+                            ->color('danger')
+                            ->visible(fn (Get $get): bool => filter_var($get('bdv_pm_failed') ?? false, FILTER_VALIDATE_BOOL))
+                            ->extraAttributes([
+                                'class' => 'farmadoc-bdv-pm-inline-failure-action',
+                            ])
+                            ->action(function (Action $action): void {
+                                $livewire = $action->getLivewire();
+                                if (! $livewire instanceof BasePage) {
+                                    return;
+                                }
+
+                                $livewire->unmountAction();
+                                self::patchPosRegisterMountedData($livewire, [
+                                    'payment_method' => 'punto_venta_ves',
+                                    'bdv_pm_conciliated' => false,
+                                ]);
+                            }),
+                        TextEntry::make('bdv_pm_wizard_review')
+                            ->hiddenLabel()
+                            ->columnSpanFull()
+                            ->html()
+                            ->state(fn (Get $get): HtmlString => self::bdvPmWizardReviewHtml($get))
+                            ->dehydrated(false)
+                            ->extraEntryWrapperAttributes([
+                                'class' => 'farmadoc-bdv-pm-wizard-review',
+                            ]),
                     ]),
             ])
             ->action(function (array $data, Action $action): void {
@@ -1449,11 +1508,11 @@ final class CashRegisterAction
 
                 $telefonoComercio = trim((string) config('bdv_conciliation.commerce_mobile_phone', ''));
                 if ($telefonoComercio === '') {
-                    Notification::make()
-                        ->title('Falta teléfono del comercio')
-                        ->body('Configure la variable de entorno TEL (teléfono Pago Móvil del comercio) y vuelva a intentar.')
-                        ->danger()
-                        ->send();
+                    self::markBdvConciliationFailureInWizard(
+                        $livewire,
+                        'Falta el teléfono Pago Móvil del comercio (variable TEL en el servidor). No se puede consultar a BDV hasta configurarlo.',
+                        'Configuración incompleta',
+                    );
 
                     return;
                 }
@@ -1482,59 +1541,203 @@ final class CashRegisterAction
                     $environment = app()->isProduction() ? 'production' : 'qa';
                     $response = app(BdvConciliationClient::class)->postGetMovement($payload, $environment);
                 } catch (ConnectionException $e) {
-                    Notification::make()
-                        ->title('Pago no conciliado')
-                        ->body('Error de conexión con BDV: '.$e->getMessage().'. Sugerencia: seleccione otro método de pago o reintente.')
-                        ->danger()
-                        ->send();
+                    self::markBdvConciliationFailureInWizard(
+                        $livewire,
+                        'No hubo respuesta del banco: '.self::truncateForUserMessage($e->getMessage()).' Compruebe la red o reintente más tarde.',
+                        'Sin conexión con BDV',
+                    );
 
                     return;
                 } catch (RuntimeException $e) {
-                    Notification::make()
-                        ->title('Pago no conciliado')
-                        ->body($e->getMessage().' Sugerencia: seleccione otro método de pago o reintente.')
-                        ->danger()
-                        ->send();
+                    self::markBdvConciliationFailureInWizard(
+                        $livewire,
+                        self::truncateForUserMessage($e->getMessage()),
+                        'Conciliación no aceptada',
+                    );
 
                     return;
                 } catch (Throwable $e) {
-                    Notification::make()
-                        ->title('Pago no conciliado')
-                        ->body('La conciliación falló: '.$e->getMessage().'. Sugerencia: seleccione otro método de pago o reintente.')
-                        ->danger()
-                        ->send();
+                    self::markBdvConciliationFailureInWizard(
+                        $livewire,
+                        'Ocurrió un error al conciliar: '.self::truncateForUserMessage($e->getMessage()),
+                        'Conciliación fallida',
+                    );
 
                     return;
                 }
 
                 if (! self::isBdvConciliationSuccessful($response)) {
-                    Notification::make()
-                        ->title('Pago no conciliado')
-                        ->body(self::bdvConciliationFailureMessage($response).' Sugerencia: seleccione otro método de pago o reintente.')
-                        ->danger()
-                        ->send();
+                    self::markBdvConciliationFailureInWizard(
+                        $livewire,
+                        self::bdvConciliationFailureMessage($response),
+                        'Pago no conciliado por BDV',
+                    );
 
                     return;
                 }
 
-                $livewire->unmountAction();
                 self::patchPosRegisterMountedData($livewire, [
                     'reference' => $candidate['referencia'],
                     'bdv_pm_conciliated' => true,
                 ]);
 
-                Notification::make()
-                    ->title('Pago conciliado correctamente')
-                    ->body('Ya puede pulsar «Registrar venta» para cerrar la operación.')
-                    ->success()
-                    ->send();
+                $livewire->js(self::bdvPmConciliationSuccessOverlayScript());
             });
+    }
+
+    /**
+     * Guarda el fallo de conciliación en el wizard para mostrar alerta inline y acción de retorno a caja.
+     */
+    private static function markBdvConciliationFailureInWizard(
+        BasePage $livewire,
+        string $detailMessage,
+        ?string $title = null,
+    ): void {
+        $message = trim($detailMessage);
+        if ($title !== null && $title !== '') {
+            $message = $title.'. '.$message;
+        }
+
+        self::patchMountedActionData($livewire, self::PAGO_MOVIL_CONCILIATION_ACTION_NAME, [
+            'bdv_pm_failed' => true,
+            'bdv_pm_failure_message' => $message,
+        ]);
+    }
+
+    private static function truncateForUserMessage(string $message, int $maxLength = 280): string
+    {
+        $t = trim($message);
+
+        if ($t === '') {
+            return '';
+        }
+
+        if (strlen($t) <= $maxLength) {
+            return $t;
+        }
+
+        return substr($t, 0, $maxLength - 1).'…';
+    }
+
+    private static function bdvPmFailureInlineHtml(Get $get): HtmlString
+    {
+        $message = trim((string) ($get('bdv_pm_failure_message') ?? ''));
+        if ($message === '') {
+            $message = 'El banco no confirmó el pago.';
+        }
+
+        return new HtmlString(
+            '<div class="farmadoc-bdv-pm-inline-alert" role="alert" aria-live="assertive">'
+            .'<p class="farmadoc-bdv-pm-inline-alert__title">Pago no conciliado por BDV</p>'
+            .'<p class="farmadoc-bdv-pm-inline-alert__body">'.e($message).'</p>'
+            .'<p class="farmadoc-bdv-pm-inline-alert__hint">Use el botón de abajo para volver a la caja y escoger otro método de pago.</p>'
+            .'</div>'
+        );
+    }
+
+    /**
+     * Resumen HTML del paso final del asistente BDV (solo lectura).
+     */
+    private static function bdvPmWizardReviewHtml(Get $get): HtmlString
+    {
+        $bankCode = trim((string) $get('bdv_pm_banco_origen'));
+        $bank = VenezuelanPagoMovilBank::tryFrom($bankCode);
+        $bankLabel = $bank instanceof VenezuelanPagoMovilBank ? e($bank->optionLabel()) : e($bankCode);
+
+        $fechaRaw = $get('bdv_pm_fecha_pago');
+        $fechaLabel = '';
+        if ($fechaRaw instanceof DateTimeInterface) {
+            $fechaLabel = $fechaRaw->format('d/m/Y');
+        } elseif (is_string($fechaRaw) && $fechaRaw !== '') {
+            try {
+                $fechaLabel = (new \DateTimeImmutable($fechaRaw))->format('d/m/Y');
+            } catch (Throwable) {
+                $fechaLabel = (string) $fechaRaw;
+            }
+        }
+
+        $req = ($get('bdv_pm_req_ced') ?? '0') === '1' ? 'Sí' : 'No';
+
+        $rows = [
+            ['Cédula / RIF', e((string) ($get('bdv_pm_cedula_pagador') ?? ''))],
+            ['Teléfono pagador', e((string) ($get('bdv_pm_telefono_pagador') ?? ''))],
+            ['Banco origen', $bankLabel],
+            ['Referencia', e((string) ($get('bdv_pm_referencia') ?? ''))],
+            ['Fecha', e($fechaLabel)],
+            ['Importe (Bs.)', e((string) ($get('bdv_pm_importe') ?? ''))],
+            ['Validar cédula (reqCed)', e($req)],
+        ];
+
+        $lis = '';
+        foreach ($rows as [$k, $v]) {
+            $lis .= '<li class="farmadoc-bdv-pm-review-list__item"><span class="farmadoc-bdv-pm-review-list__k">'.e($k).'</span><span class="farmadoc-bdv-pm-review-list__v">'.$v.'</span></li>';
+        }
+
+        return new HtmlString(
+            '<p class="farmadoc-bdv-pm-review-intro">Si todo coincide con el comprobante del cliente, pulse <strong>Validar con BDV</strong>. Tras la confirmación se registrará la venta automáticamente.</p>'
+            .'<ul class="farmadoc-bdv-pm-review-list" role="list">'.$lis.'</ul>'
+        );
+    }
+
+    /**
+     * Muestra overlay con check animado, espera 2 s, cierra la conciliación y envía «Registrar venta».
+     */
+    private static function bdvPmConciliationSuccessOverlayScript(): string
+    {
+        return <<<'JS'
+(function () {
+    const root = document.querySelector('.farmadoc-bdv-pm-conciliation-modal--ios-sheet');
+    if (!root) {
+        $wire.unmountAction();
+        setTimeout(() => $wire.callMountedAction(), 150);
+
+        return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'farmadoc-bdv-pm-success-overlay';
+    overlay.setAttribute('role', 'status');
+    overlay.setAttribute('aria-live', 'polite');
+    overlay.innerHTML = '<div class="farmadoc-bdv-pm-success-overlay__backdrop"></div>'
+        + '<div class="farmadoc-bdv-pm-success-overlay__card">'
+        + '<div class="farmadoc-bdv-pm-success-check" aria-hidden="true">'
+        + '<svg class="farmadoc-bdv-pm-success-check__svg" viewBox="0 0 52 52" width="68" height="68" focusable="false">'
+        + '<circle class="farmadoc-bdv-pm-success-check__circle" cx="26" cy="26" r="23" fill="none" stroke="currentColor" stroke-width="2.5"/>'
+        + '<path class="farmadoc-bdv-pm-success-check__tick" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" d="M14 27l8 8 16-20"/>'
+        + '</svg></div>'
+        + '<p class="farmadoc-bdv-pm-success-overlay__title">Pago conciliado</p>'
+        + '<p class="farmadoc-bdv-pm-success-overlay__sub">Registrando la venta…</p></div>';
+
+    root.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('farmadoc-bdv-pm-success-overlay--visible'));
+
+    setTimeout(() => {
+        overlay.classList.add('farmadoc-bdv-pm-success-overlay--exiting');
+    }, 1700);
+
+    setTimeout(() => {
+        $wire.unmountAction();
+    }, 2000);
+
+    setTimeout(() => {
+        $wire.callMountedAction();
+    }, 2150);
+})();
+JS;
     }
 
     /**
      * @param  array<string, mixed>  $patch
      */
     private static function patchPosRegisterMountedData(BasePage $livewire, array $patch): void
+    {
+        self::patchMountedActionData($livewire, self::REGISTER_ACTION_NAME, $patch);
+    }
+
+    /**
+     * @param  array<string, mixed>  $patch
+     */
+    private static function patchMountedActionData(BasePage $livewire, string $actionName, array $patch): void
     {
         $mounted = $livewire->mountedActions ?? null;
         if (! is_array($mounted) || $mounted === []) {
@@ -1546,7 +1749,7 @@ final class CashRegisterAction
                 continue;
             }
 
-            if (($entry['name'] ?? '') !== self::REGISTER_ACTION_NAME) {
+            if (($entry['name'] ?? '') !== $actionName) {
                 continue;
             }
 

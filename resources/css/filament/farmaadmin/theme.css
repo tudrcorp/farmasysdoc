@@ -2305,6 +2305,678 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
     opacity: 0.96;
 }
 
+/* Conciliación PM BDV — hoja ancha, tipografía sistema, acento institucional (zoom alto / iOS) */
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet.fi-modal-window {
+    max-width: min(74rem, calc(100vw - 1.25rem));
+    border-radius: 1.375rem;
+    font-family:
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        Roboto,
+        'Helvetica Neue',
+        Arial,
+        sans-serif;
+    border: 1px solid rgb(234 179 8 / 0.22);
+    box-shadow:
+        0 0 0 1px rgb(255 255 255 / 0.55) inset,
+        0 32px 64px -16px rgb(0 0 0 / 0.28),
+        0 12px 24px -8px rgb(0 0 0 / 0.12);
+    background: linear-gradient(165deg, rgb(255 253 245) 0%, rgb(255 255 255) 38%, rgb(250 250 250) 100%);
+}
+
+.dark .farmadoc-bdv-pm-conciliation-modal--ios-sheet.fi-modal-window {
+    border-color: rgb(234 179 8 / 0.28);
+    background: linear-gradient(165deg, rgb(39 39 42) 0%, rgb(24 24 27) 45%, rgb(28 28 30) 100%);
+    box-shadow:
+        0 0 0 1px rgb(255 255 255 / 0.06) inset,
+        0 32px 64px -16px rgb(0 0 0 / 0.65),
+        0 12px 24px -8px rgb(0 0 0 / 0.45);
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .fi-modal-header {
+    padding-block: 0.85rem 0.55rem;
+    padding-inline: 1.1rem;
+    border-bottom: 1px solid rgb(0 0 0 / 0.05);
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.65) 0%, transparent 100%);
+}
+
+.dark .farmadoc-bdv-pm-conciliation-modal--ios-sheet .fi-modal-header {
+    border-bottom-color: rgb(255 255 255 / 0.07);
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.04) 0%, transparent 100%);
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .fi-modal-heading {
+    font-size: 1.125rem;
+    font-weight: 650;
+    letter-spacing: -0.035em;
+    line-height: 1.2;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .fi-modal-description {
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    opacity: 0.88;
+    max-width: 42rem;
+    margin-top: 0.2rem;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .fi-modal-content {
+    padding-block: 0.65rem 0.5rem;
+    padding-inline: 1rem 1.05rem;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .fi-modal-footer {
+    padding-block: 0.75rem 1rem;
+    padding-inline: 1rem;
+    gap: 0.5rem;
+    border-top: 1px solid rgb(0 0 0 / 0.06);
+    background: rgb(255 255 255 / 0.55);
+    backdrop-filter: blur(8px);
+}
+
+.dark .farmadoc-bdv-pm-conciliation-modal--ios-sheet .fi-modal-footer {
+    border-top-color: rgb(255 255 255 / 0.08);
+    background: rgb(24 24 27 / 0.55);
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .fi-modal-footer .fi-btn {
+    min-height: 2.75rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.farmadoc-bdv-pm-conciliation-form-grid {
+    align-items: stretch;
+}
+
+.farmadoc-bdv-pm-conciliation-form-grid > .fi-sc-section {
+    min-width: 0;
+}
+
+.farmadoc-bdv-pm-conciliation-panel .fi-section {
+    border-radius: 1rem;
+    overflow: hidden;
+    border: 1px solid rgb(0 0 0 / 0.06);
+    background-color: rgb(249 250 251);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.75),
+        0 1px 2px rgb(0 0 0 / 0.04);
+}
+
+.dark .farmadoc-bdv-pm-conciliation-panel .fi-section {
+    border-color: rgb(255 255 255 / 0.09);
+    background-color: rgb(24 24 27 / 0.55);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.farmadoc-bdv-pm-conciliation-panel .fi-section-header {
+    padding-block: 0.5rem 0.35rem;
+    padding-inline: 0.75rem;
+}
+
+.farmadoc-bdv-pm-conciliation-panel .fi-section-header-heading {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+}
+
+.farmadoc-bdv-pm-conciliation-panel .fi-section-header-description {
+    font-size: 0.75rem;
+    line-height: 1.3;
+    margin-top: 0.125rem;
+}
+
+.farmadoc-bdv-pm-conciliation-panel .fi-section-content {
+    gap: 0.5rem;
+    padding-block: 0.5rem 0.65rem;
+    padding-inline: 0.75rem;
+}
+
+.farmadoc-bdv-pm-conciliation-panel .fi-fo-field-wrp-label label {
+    font-size: 0.8125rem;
+}
+
+.farmadoc-bdv-pm-conciliation-panel .fi-input-wrp,
+.farmadoc-bdv-pm-conciliation-panel .fi-select-input {
+    border-radius: 0.625rem;
+}
+
+.farmadoc-bdv-pm-conciliation-detail-row {
+    align-items: flex-end;
+}
+
+@media (max-width: 639px) {
+    .farmadoc-bdv-pm-conciliation-modal--ios-sheet.fi-modal-window {
+        max-width: calc(100vw - 0.75rem);
+        border-radius: 1.125rem;
+    }
+}
+
+/* Wizard BDV — segmentos + paso activo con acento */
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios.fi-sc-wizard {
+    gap: 0.85rem;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    padding: 0.35rem;
+    margin-bottom: 0.15rem;
+    border-radius: 0.875rem;
+    background: rgb(0 0 0 / 0.045);
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+.dark .farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header {
+    background: rgb(0 0 0 / 0.35);
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.35);
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step-separator {
+    align-self: stretch;
+    width: 0.5rem;
+    flex-shrink: 0;
+    opacity: 0.18;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step-btn {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.35rem;
+    padding: 0.5rem 0.3rem;
+    border-radius: 0.65rem;
+    font-size: 0.72rem;
+    font-weight: 650;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+    border: 1px solid transparent;
+    background: transparent;
+    color: inherit;
+    text-align: center;
+    transition:
+        background 0.2s cubic-bezier(0.32, 0.72, 0, 1),
+        color 0.2s ease,
+        box-shadow 0.2s ease,
+        border-color 0.2s ease,
+        transform 0.15s ease;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step-btn:active {
+    transform: scale(0.98);
+}
+
+/* Iconos pasos: círculo fino + glifo plano oro/mostaza (referencia BDV) */
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step-icon-ctn {
+    --bdv-wizard-icon-ring: rgb(166 138 69);
+    --bdv-wizard-icon-ink: rgb(190 162 78);
+
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    margin-inline: auto;
+    flex-shrink: 0;
+    aspect-ratio: 1;
+    border-radius: 9999px;
+    border: 1.5px solid var(--bdv-wizard-icon-ring);
+    background: transparent;
+    color: var(--bdv-wizard-icon-ink);
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step-icon-ctn .fi-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: inherit;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step-icon-ctn svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    flex-shrink: 0;
+    color: inherit;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step:not(.fi-active):not(.fi-completed) .fi-sc-wizard-header-step-icon-ctn {
+    --bdv-wizard-icon-ring: rgb(120 104 58 / 0.55);
+    --bdv-wizard-icon-ink: rgb(148 130 78 / 0.65);
+
+    opacity: 0.85;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step.fi-active .fi-sc-wizard-header-step-icon-ctn {
+    --bdv-wizard-icon-ring: rgb(202 165 45);
+    --bdv-wizard-icon-ink: rgb(228 196 90);
+
+    border-width: 2px;
+    box-shadow: 0 0 0 1px rgb(234 179 8 / 0.2);
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step.fi-completed .fi-sc-wizard-header-step-icon-ctn {
+    --bdv-wizard-icon-ring: rgb(176 148 58);
+    --bdv-wizard-icon-ink: rgb(236 208 120);
+
+    border-color: var(--bdv-wizard-icon-ring);
+    background: rgb(166 138 45 / 0.22);
+    color: var(--bdv-wizard-icon-ink);
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    min-width: 0;
+    text-align: center;
+    gap: 0.15rem;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step.fi-active .fi-sc-wizard-header-step-btn {
+    background: rgb(255 255 255 / 0.98);
+    border-color: rgb(234 179 8 / 0.45);
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.9) inset,
+        0 4px 14px rgb(234 179 8 / 0.18),
+        0 1px 3px rgb(0 0 0 / 0.06);
+}
+
+.dark .farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step.fi-active .fi-sc-wizard-header-step-btn {
+    background: rgb(39 39 42 / 0.98);
+    border-color: rgb(250 204 21 / 0.35);
+    box-shadow:
+        0 0 0 1px rgb(250 204 21 / 0.12),
+        0 8px 22px rgb(0 0 0 / 0.45);
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step.fi-completed .fi-sc-wizard-header-step-btn {
+    color: rgb(63 63 70);
+}
+
+.dark .farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step.fi-completed .fi-sc-wizard-header-step-btn {
+    color: rgb(212 212 216);
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step-label {
+    display: block;
+    width: 100%;
+    font-size: 0.72rem;
+    text-align: center;
+    text-wrap: balance;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step-description {
+    display: block;
+    width: 100%;
+    font-size: 0.625rem;
+    font-weight: 500;
+    opacity: 0.72;
+    line-height: 1.25;
+    text-align: center;
+    text-wrap: balance;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-header-step-number {
+    font-size: 0.65rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--bdv-wizard-icon-ink, rgb(190 162 78));
+    opacity: 0.9;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios form.fi-sc-wizard-step {
+    margin-top: 0.15rem;
+    padding: 0.85rem 0.95rem 1rem;
+    border-radius: 1rem;
+    border: 1px solid rgb(0 0 0 / 0.06);
+    background: rgb(255 255 255 / 0.85);
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.9) inset;
+}
+
+.dark .farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios form.fi-sc-wizard-step {
+    border-color: rgb(255 255 255 / 0.08);
+    background: rgb(39 39 42 / 0.5);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgb(0 0 0 / 0.06);
+}
+
+.dark .farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-footer {
+    border-top-color: rgb(255 255 255 / 0.08);
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-sc-wizard-footer .fi-btn {
+    min-height: 2.65rem;
+    border-radius: 0.7rem;
+    font-weight: 600;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-input-wrp,
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-select-input {
+    border-radius: 0.7rem;
+    transition:
+        box-shadow 0.15s ease,
+        border-color 0.15s ease;
+}
+
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-input-wrp:focus-within,
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet .farmadoc-bdv-pm-wizard-ios .fi-select-input:focus-within {
+    box-shadow: 0 0 0 3px rgb(234 179 8 / 0.22);
+}
+
+.farmadoc-bdv-pm-wizard-step-fields {
+    align-items: flex-end;
+}
+
+.farmadoc-bdv-pm-wizard-review .fi-in-entry {
+    border-radius: 0.75rem;
+}
+
+.farmadoc-bdv-pm-inline-failure {
+    margin-bottom: 0.55rem;
+}
+
+.farmadoc-bdv-pm-inline-alert {
+    border-radius: 0.875rem;
+    border: 1px solid rgb(239 68 68 / 0.28);
+    background: linear-gradient(180deg, rgb(254 242 242 / 0.95) 0%, rgb(255 255 255 / 0.95) 100%);
+    padding: 0.75rem 0.85rem;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+.dark .farmadoc-bdv-pm-inline-alert {
+    border-color: rgb(248 113 113 / 0.35);
+    background: linear-gradient(180deg, rgb(69 10 10 / 0.35) 0%, rgb(24 24 27 / 0.65) 100%);
+}
+
+.farmadoc-bdv-pm-inline-alert__title {
+    margin: 0;
+    font-size: 0.88rem;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    color: rgb(185 28 28);
+}
+
+.dark .farmadoc-bdv-pm-inline-alert__title {
+    color: rgb(252 165 165);
+}
+
+.farmadoc-bdv-pm-inline-alert__body {
+    margin: 0.35rem 0 0;
+    font-size: 0.79rem;
+    line-height: 1.45;
+    color: rgb(127 29 29);
+}
+
+.dark .farmadoc-bdv-pm-inline-alert__body {
+    color: rgb(254 202 202);
+}
+
+.farmadoc-bdv-pm-inline-alert__hint {
+    margin: 0.45rem 0 0;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: rgb(120 53 15);
+}
+
+.dark .farmadoc-bdv-pm-inline-alert__hint {
+    color: rgb(253 186 116);
+}
+
+.farmadoc-bdv-pm-inline-failure-action .fi-btn {
+    width: 100%;
+    min-height: 2.6rem;
+    border-radius: 0.72rem;
+    font-weight: 600;
+}
+
+.farmadoc-bdv-pm-review-intro {
+    margin: 0 0 0.75rem;
+    padding: 0.65rem 0.75rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: rgb(63 63 70);
+    border-radius: 0.75rem;
+    background: rgb(254 252 232 / 0.85);
+    border: 1px solid rgb(234 179 8 / 0.25);
+}
+
+.dark .farmadoc-bdv-pm-review-intro {
+    color: rgb(228 228 231);
+    background: rgb(66 32 6 / 0.35);
+    border-color: rgb(234 179 8 / 0.22);
+}
+
+.farmadoc-bdv-pm-review-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-radius: 0.875rem;
+    overflow: hidden;
+    border: 1px solid rgb(0 0 0 / 0.07);
+    background: linear-gradient(180deg, rgb(250 250 250) 0%, rgb(255 255 255) 100%);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+}
+
+.dark .farmadoc-bdv-pm-review-list {
+    border-color: rgb(255 255 255 / 0.1);
+    background: linear-gradient(180deg, rgb(30 30 33) 0%, rgb(24 24 27) 100%);
+}
+
+.farmadoc-bdv-pm-review-list__item {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.85rem;
+    padding: 0.55rem 0.8rem;
+    font-size: 0.8125rem;
+    border-bottom: 1px solid rgb(0 0 0 / 0.045);
+}
+
+.farmadoc-bdv-pm-review-list__item:nth-child(even) {
+    background: rgb(0 0 0 / 0.02);
+}
+
+.dark .farmadoc-bdv-pm-review-list__item {
+    border-bottom-color: rgb(255 255 255 / 0.06);
+}
+
+.dark .farmadoc-bdv-pm-review-list__item:nth-child(even) {
+    background: rgb(255 255 255 / 0.02);
+}
+
+.farmadoc-bdv-pm-review-list__item:last-child {
+    border-bottom: none;
+}
+
+.farmadoc-bdv-pm-review-list__k {
+    color: rgb(82 82 91);
+    flex-shrink: 0;
+    font-weight: 500;
+}
+
+.dark .farmadoc-bdv-pm-review-list__k {
+    color: rgb(161 161 170);
+}
+
+.farmadoc-bdv-pm-review-list__v {
+    font-weight: 600;
+    text-align: end;
+    word-break: break-word;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+}
+
+/* Overlay éxito — cristal + check más grande */
+.farmadoc-bdv-pm-conciliation-modal--ios-sheet {
+    position: relative;
+}
+
+.farmadoc-bdv-pm-success-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.farmadoc-bdv-pm-success-overlay--visible {
+    opacity: 1;
+}
+
+.farmadoc-bdv-pm-success-overlay--exiting {
+    opacity: 0;
+    transition: opacity 0.32s ease;
+}
+
+.farmadoc-bdv-pm-success-overlay__backdrop {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: rgb(255 255 255 / 0.78);
+    backdrop-filter: blur(14px) saturate(1.35);
+}
+
+.dark .farmadoc-bdv-pm-success-overlay__backdrop {
+    background: rgb(24 24 27 / 0.82);
+    backdrop-filter: blur(14px) saturate(1.2);
+}
+
+.farmadoc-bdv-pm-success-overlay__card {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    max-width: 20rem;
+    pointer-events: none;
+    padding: 0.5rem 0.75rem;
+    animation: farmadoc-bdv-pm-success-card-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.05s both;
+}
+
+@keyframes farmadoc-bdv-pm-success-card-in {
+    from {
+        opacity: 0;
+        transform: scale(0.88) translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.farmadoc-bdv-pm-success-check {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 0.85rem;
+    color: rgb(22 163 74);
+    filter: drop-shadow(0 6px 14px rgb(34 197 94 / 0.35));
+}
+
+.dark .farmadoc-bdv-pm-success-check {
+    filter: drop-shadow(0 6px 18px rgb(74 222 128 / 0.25));
+}
+
+.farmadoc-bdv-pm-success-check__svg {
+    display: block;
+    width: 4.25rem;
+    height: 4.25rem;
+}
+
+.farmadoc-bdv-pm-success-check__circle {
+    stroke-dasharray: 166;
+    stroke-dashoffset: 166;
+    transform-origin: 50% 50%;
+}
+
+.farmadoc-bdv-pm-success-check__tick {
+    stroke-dasharray: 48;
+    stroke-dashoffset: 48;
+}
+
+.farmadoc-bdv-pm-success-overlay--visible .farmadoc-bdv-pm-success-check__circle {
+    animation: farmadoc-bdv-pm-check-circle 0.58s cubic-bezier(0.32, 0.72, 0, 1) 0.06s forwards;
+}
+
+.farmadoc-bdv-pm-success-overlay--visible .farmadoc-bdv-pm-success-check__tick {
+    animation: farmadoc-bdv-pm-check-tick 0.42s cubic-bezier(0.32, 0.72, 0, 1) 0.48s forwards;
+}
+
+.farmadoc-bdv-pm-success-overlay__title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 650;
+    letter-spacing: -0.04em;
+    line-height: 1.15;
+}
+
+.farmadoc-bdv-pm-success-overlay__sub {
+    margin: 0.4rem 0 0;
+    font-size: 0.875rem;
+    color: rgb(82 82 91);
+    font-weight: 500;
+}
+
+.dark .farmadoc-bdv-pm-success-overlay__sub {
+    color: rgb(161 161 170);
+}
+
+@keyframes farmadoc-bdv-pm-check-circle {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes farmadoc-bdv-pm-check-tick {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .farmadoc-bdv-pm-success-overlay--visible .farmadoc-bdv-pm-success-check__circle,
+    .farmadoc-bdv-pm-success-overlay--visible .farmadoc-bdv-pm-success-check__tick {
+        animation: none;
+        stroke-dashoffset: 0;
+    }
+
+    .farmadoc-bdv-pm-success-overlay,
+    .farmadoc-bdv-pm-success-overlay--exiting {
+        transition-duration: 0.01ms;
+    }
+
+    .farmadoc-bdv-pm-success-overlay__card {
+        animation: none;
+    }
+}
+
 /* Dos columnas (lg+): carrito ~8/12, total+pago ~4/12 — más aire para el repeater */
 @media (min-width: 64rem) {
     .farmadoc-pos-main-layout {

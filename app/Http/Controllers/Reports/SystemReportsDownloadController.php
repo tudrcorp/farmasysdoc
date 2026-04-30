@@ -22,6 +22,7 @@ final class SystemReportsDownloadController extends Controller
         'traslados-por-sucursal',
         'traslados-costos',
         'clientes',
+        'catalogo-productos',
         'top-clientes-sucursal',
         'productos-mas-vendidos',
         'inventario',

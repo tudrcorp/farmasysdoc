@@ -41,6 +41,7 @@ final class SystemReportsCsvExporter
             'traslados-por-sucursal' => $this->streamTrasladosPorSucursal($user, $from, $to),
             'traslados-costos' => $this->streamTrasladosCostos($user, $from, $to),
             'clientes' => $this->streamClientes(),
+            'catalogo-productos' => $this->streamCatalogoProductos(),
             'top-clientes-sucursal' => $this->streamTopClientesPorSucursal($user, $from, $to, (int) $request->query('top', 10)),
             'productos-mas-vendidos' => $this->streamProductosMasVendidos($user, $from, $to, (string) $request->query('agrupar', 'sucursal')),
             'inventario' => $this->streamInventario($user, (string) $request->query('moneda', 'ambas')),
@@ -314,6 +315,113 @@ final class SystemReportsCsvExporter
         }
 
         return $this->csvResponse('reporte-clientes-'.now()->format('YmdHis').'.csv', $headers, $data);
+    }
+
+    private function streamCatalogoProductos(): StreamedResponse
+    {
+        $rows = Product::query()
+            ->with(['supplier:id', 'productCategory:id,name'])
+            ->orderBy('name')
+            ->limit(100_000)
+            ->get();
+
+        $headers = [
+            'id',
+            'supplier_id',
+            'barcode',
+            'sku',
+            'name',
+            'slug',
+            'description',
+            'image',
+            'categoria',
+            'brand',
+            'presentation',
+            'unit_of_measure',
+            'unit_content',
+            'net_content_label',
+            'sale_price',
+            'cost_price',
+            'discount_percent',
+            'applies_vat',
+            'active_ingredient',
+            'concentration',
+            'presentation_type',
+            'requires_prescription',
+            'is_controlled_substance',
+            'health_registration_number',
+            'ingredients',
+            'allergens',
+            'nutritional_information',
+            'manufacturer',
+            'model',
+            'warranty_months',
+            'medical_device_class',
+            'requires_calibration',
+            'storage_conditions',
+            'requires_expiry_on_purchase',
+            'expiration_date',
+            'is_active',
+            'created_by',
+            'updated_by',
+            'created_at',
+            'updated_at',
+        ];
+
+        $data = [];
+        foreach ($rows as $p) {
+            $activeIngredient = $p->active_ingredient;
+            if (is_array($activeIngredient)) {
+                $activeIngredientCsv = json_encode($activeIngredient, JSON_UNESCAPED_UNICODE) ?: '';
+            } else {
+                $activeIngredientCsv = $activeIngredient !== null ? (string) $activeIngredient : '';
+            }
+
+            $data[] = [
+                $p->id,
+                $p->supplier_id,
+                $p->barcode,
+                $p->sku,
+                $p->name,
+                $p->slug,
+                $p->description,
+                $p->image,
+                $p->productCategory?->name,
+                $p->brand,
+                $p->presentation,
+                $p->unit_of_measure,
+                $p->unit_content,
+                $p->net_content_label,
+                $p->sale_price,
+                $p->cost_price,
+                $p->discount_percent,
+                $p->applies_vat ? '1' : '0',
+                $activeIngredientCsv,
+                $p->concentration,
+                $p->presentation_type,
+                $p->requires_prescription ? '1' : '0',
+                $p->is_controlled_substance ? '1' : '0',
+                $p->health_registration_number,
+                $p->ingredients,
+                $p->allergens,
+                $p->nutritional_information,
+                $p->manufacturer,
+                $p->model,
+                $p->warranty_months,
+                $p->medical_device_class,
+                $p->requires_calibration ? '1' : '0',
+                $p->storage_conditions,
+                $p->requires_expiry_on_purchase ? '1' : '0',
+                $p->expiration_date?->toDateString(),
+                $p->is_active ? '1' : '0',
+                $p->created_by,
+                $p->updated_by,
+                $p->created_at?->toDateTimeString(),
+                $p->updated_at?->toDateTimeString(),
+            ];
+        }
+
+        return $this->csvResponse('reporte-catalogo-productos-'.now()->format('YmdHis').'.csv', $headers, $data);
     }
 
     private function streamTopClientesPorSucursal(User $user, Carbon $from, Carbon $to, int $top): StreamedResponse

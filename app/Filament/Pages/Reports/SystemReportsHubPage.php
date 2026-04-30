@@ -110,6 +110,7 @@ final class SystemReportsHubPage extends Page
                 'description' => 'Clientes, ranking de compra y rotación de productos.',
                 'items' => [
                     ['slug' => 'clientes', 'title' => 'Clientes', 'hint' => 'Directorio de clientes.', 'dates' => false],
+                    ['slug' => 'catalogo-productos', 'title' => 'Catálogo de productos', 'hint' => 'Filas de la tabla products (precios de lista, categoría y datos regulatorios).', 'dates' => false],
                     [
                         'slug' => 'top-clientes-sucursal',
                         'title' => 'Top clientes por sucursal',

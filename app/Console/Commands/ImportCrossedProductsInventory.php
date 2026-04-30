@@ -17,9 +17,10 @@ use RuntimeException;
 
 #[Signature('app:import-crossed-products-inventory
     {file : Ruta absoluta del CSV}
-    {--branch=La California : Nombre (o parte) de la sucursal destino}
-    {--truncate : Trunca products e inventories antes de importar}')]
-#[Description('Importa CSV cruzado a products e inventories para una sucursal específica')]
+    {--branch-id= : ID de la sucursal destino (prioritario; recomendado con varias sucursales)}
+    {--branch=La California : Nombre (o parte) de la sucursal si no usas --branch-id}
+    {--truncate : Trunca products e inventories antes de importar (destructivo; no usar en multi-sucursal)}')]
+#[Description('Importa CSV a inventarios por sucursal: upsert stock; productos/catálogo solo si faltan (sin truncar por defecto)')]
 class ImportCrossedProductsInventory extends Command
 {
     /**
@@ -48,6 +49,7 @@ class ImportCrossedProductsInventory extends Command
     public function handle(): int
     {
         $file = (string) $this->argument('file');
+        $branchIdOption = $this->option('branch-id');
         $branchTerm = (string) $this->option('branch');
         $truncate = (bool) $this->option('truncate');
 
@@ -57,25 +59,28 @@ class ImportCrossedProductsInventory extends Command
             return self::FAILURE;
         }
 
-        $branch = Branch::query()
-            ->where('name', 'like', '%'.$branchTerm.'%')
-            ->orderBy('name')
-            ->first();
+        $branch = null;
+        if ($branchIdOption !== null && $branchIdOption !== '' && is_numeric($branchIdOption)) {
+            $branch = Branch::query()->whereKey((int) $branchIdOption)->first();
+            if (! $branch instanceof Branch) {
+                $this->error('No existe sucursal con ID: '.$branchIdOption);
 
-        if (! $branch instanceof Branch) {
-            $this->error('No encontré una sucursal que coincida con: '.$branchTerm);
+                return self::FAILURE;
+            }
+        } else {
+            $branch = Branch::query()
+                ->where('name', 'like', '%'.$branchTerm.'%')
+                ->orderBy('name')
+                ->first();
 
-            return self::FAILURE;
+            if (! $branch instanceof Branch) {
+                $this->error('No encontré una sucursal que coincida con: '.$branchTerm.'. Usa --branch-id= para fijar la sucursal.');
+
+                return self::FAILURE;
+            }
         }
 
         $this->warmCategoryMap();
-        $defaultCategoryId = $this->defaultCategoryId();
-
-        if ($defaultCategoryId === null) {
-            $this->error('No existe categoría por defecto para asignar productos.');
-
-            return self::FAILURE;
-        }
 
         $actor = auth()->user()?->email
             ?? auth()->user()?->name
@@ -84,9 +89,9 @@ class ImportCrossedProductsInventory extends Command
         $supplier = $this->resolveImportSupplier($actor);
 
         $createdProducts = 0;
-        $createdInventories = 0;
+        $updatedProducts = 0;
+        $upsertedInventories = 0;
         $skippedRows = 0;
-        $unknownDepartments = [];
 
         /** @var array<string, bool> $usedBarcodes */
         $usedBarcodes = [];
@@ -130,6 +135,7 @@ class ImportCrossedProductsInventory extends Command
             $priceWithoutVat = $this->csvDecimal($row[7] ?? '0');
             $ivaFinalPrice = $this->csvDecimal($row[8] ?? '0');
             $finalPriceWithVat = $this->csvDecimal($row[9] ?? '0');
+            $percentUtil = $this->parsePercentUtil($row[10] ?? '');
             $reference = trim((string) ($row[11] ?? ''));
             $brand = trim((string) ($row[12] ?? ''));
             $model = trim((string) ($row[13] ?? ''));
@@ -141,80 +147,108 @@ class ImportCrossedProductsInventory extends Command
                 continue;
             }
 
-            $categoryId = $this->resolveCategoryIdFromDepartment($departmentRaw);
-            if ($categoryId === null) {
-                $categoryId = $defaultCategoryId;
-                $normalized = $this->normalizeDepartment($departmentRaw);
-                $unknownDepartments[$normalized] = ($unknownDepartments[$normalized] ?? 0) + 1;
-            }
+            $category = $this->resolveProductCategoryForDepartment($departmentRaw, $percentUtil, $actor);
 
             $barcode = $this->sanitizeBarcode($barcodeRaw);
             if ($barcode !== null && isset($usedBarcodes[$barcode])) {
                 $barcode = null;
             }
 
-            $sku = $this->makeUniqueSku($barcodeRaw !== '' ? $barcodeRaw : $name, $usedSkus);
-            $slug = $this->makeUniqueSlug($name, $barcodeRaw, $usedSlugs);
-
-            $product = Product::withoutEvents(function () use (
-                $supplier,
-                $sku,
-                $barcode,
-                $name,
-                $slug,
-                $brand,
-                $model,
-                $priceWithoutVat,
-                $cost,
-                $ivaCosto,
-                $activeIngredient,
-                $actor,
-                $categoryId,
-            ): Product {
-                /** @var Product $created */
-                $created = Product::query()->create([
-                    'supplier_id' => $supplier->id,
-                    'sku' => $sku,
-                    'barcode' => $barcode,
-                    'name' => $name,
-                    'slug' => $slug,
-                    'description' => null,
-                    'brand' => $brand !== '' ? $brand : 'Sin marca',
-                    'presentation' => $model !== '' ? $model : null,
-                    // Valor exacto del CSV (Precio Final sin Iva), sin recálculo por eventos.
-                    'sale_price' => round(max(0.0, $priceWithoutVat), 2),
-                    // Valor exacto del CSV (Costo sin Iva), sin recálculo por eventos.
-                    'cost_price' => round(max(0.0, $cost), 2),
-                    'discount_percent' => 0,
-                    'applies_vat' => $ivaCosto > 0.000001,
-                    'requires_expiry_on_purchase' => true,
-                    'is_active' => true,
-                    'created_by' => $actor,
-                    'updated_by' => $actor,
-                    'product_category_id' => $categoryId,
-                    'active_ingredient' => $activeIngredient,
-                    'concentration' => null,
-                    'presentation_type' => null,
-                    'requires_prescription' => false,
-                    'is_controlled_substance' => false,
-                    'health_registration_number' => null,
-                    'ingredients' => null,
-                    'allergens' => null,
-                    'nutritional_information' => null,
-                    'manufacturer' => null,
-                    'model' => null,
-                    'warranty_months' => null,
-                    'medical_device_class' => null,
-                    'requires_calibration' => false,
-                    'storage_conditions' => null,
-                    'expiration_date' => null,
-                ]);
-
-                return $created;
-            });
-
+            $existing = null;
             if ($barcode !== null) {
-                $usedBarcodes[$barcode] = true;
+                $existing = Product::query()->where('barcode', $barcode)->first();
+            }
+
+            if ($existing instanceof Product) {
+                Product::withoutEvents(function () use (
+                    $existing,
+                    $category,
+                    $name,
+                    $brand,
+                    $model,
+                    $priceWithoutVat,
+                    $cost,
+                    $ivaCosto,
+                    $activeIngredient,
+                    $actor,
+                ): void {
+                    $existing->update([
+                        'product_category_id' => $category->id,
+                        'name' => $name,
+                        'brand' => $brand !== '' ? $brand : $existing->brand,
+                        'model' => $model !== '' ? $model : $existing->model,
+                        'sale_price' => round(max(0.0, $priceWithoutVat), 2),
+                        'cost_price' => round(max(0.0, $cost), 2),
+                        'discount_percent' => 0,
+                        'applies_vat' => $ivaCosto > 0.000001,
+                        'active_ingredient' => $activeIngredient ?? $existing->active_ingredient,
+                        'updated_by' => $actor,
+                    ]);
+                });
+                $updatedProducts++;
+                $product = $existing->fresh();
+            } else {
+                $sku = $this->makeUniqueSku($barcodeRaw !== '' ? $barcodeRaw : $name, $usedSkus);
+                $slug = $this->makeUniqueSlug($name, $barcodeRaw, $usedSlugs);
+
+                $product = Product::withoutEvents(function () use (
+                    $supplier,
+                    $sku,
+                    $barcode,
+                    $name,
+                    $slug,
+                    $brand,
+                    $model,
+                    $priceWithoutVat,
+                    $cost,
+                    $ivaCosto,
+                    $activeIngredient,
+                    $actor,
+                    $category,
+                ): Product {
+                    /** @var Product $created */
+                    $created = Product::query()->create([
+                        'supplier_id' => $supplier->id,
+                        'sku' => $sku,
+                        'barcode' => $barcode,
+                        'name' => $name,
+                        'slug' => $slug,
+                        'description' => null,
+                        'brand' => $brand !== '' ? $brand : 'Sin marca',
+                        'model' => $model !== '' ? $model : null,
+                        'sale_price' => round(max(0.0, $priceWithoutVat), 2),
+                        'cost_price' => round(max(0.0, $cost), 2),
+                        'discount_percent' => 0,
+                        'applies_vat' => $ivaCosto > 0.000001,
+                        'requires_expiry_on_purchase' => true,
+                        'is_active' => true,
+                        'created_by' => $actor,
+                        'updated_by' => $actor,
+                        'product_category_id' => $category->id,
+                        'active_ingredient' => $activeIngredient,
+                        'concentration' => null,
+                        'presentation_type' => null,
+                        'requires_prescription' => false,
+                        'is_controlled_substance' => false,
+                        'ingredients' => null,
+                        'allergens' => null,
+                        'nutritional_information' => null,
+                        'manufacturer' => null,
+                        'warranty_months' => null,
+                        'medical_device_class' => null,
+                        'requires_calibration' => false,
+                        'storage_conditions' => null,
+                        'expiration_date' => null,
+                    ]);
+
+                    return $created;
+                });
+
+                $createdProducts++;
+
+                if ($barcode !== null) {
+                    $usedBarcodes[$barcode] = true;
+                }
             }
 
             Inventory::withoutEvents(function () use (
@@ -230,30 +264,33 @@ class ImportCrossedProductsInventory extends Command
                 $activeIngredient,
                 $actor,
                 $reference,
-                $categoryId,
+                $category,
             ): void {
-                Inventory::query()->create([
-                    'branch_id' => $branch->id,
-                    'product_id' => $product->id,
-                    'quantity' => round(max(0.0, $stock), 3),
-                    'reserved_quantity' => 0,
-                    'cost_price' => round(max(0.0, $cost), 8),
-                    'vat_cost_amount' => round(max(0.0, $ivaCosto), 8),
-                    'cost_plus_vat' => round(max(0.0, $costPlusVat), 8),
-                    'final_price_without_vat' => round(max(0.0, $priceWithoutVat), 8),
-                    'vat_final_price_amount' => round(max(0.0, $ivaFinalPrice), 8),
-                    'final_price_with_vat' => round(max(0.0, $finalPriceWithVat), 8),
-                    'product_category_id' => $categoryId,
-                    'active_ingredient' => $activeIngredient,
-                    'allow_negative_stock' => false,
-                    'created_by' => $actor,
-                    'updated_by' => $actor,
-                    'notes' => $reference !== '' ? 'Import CSV · '.$reference : 'Import CSV',
-                ]);
+                Inventory::query()->updateOrCreate(
+                    [
+                        'branch_id' => $branch->id,
+                        'product_id' => $product->id,
+                    ],
+                    [
+                        'quantity' => round(max(0.0, $stock), 3),
+                        'reserved_quantity' => 0,
+                        'cost_price' => round(max(0.0, $cost), 8),
+                        'vat_cost_amount' => round(max(0.0, $ivaCosto), 8),
+                        'cost_plus_vat' => round(max(0.0, $costPlusVat), 8),
+                        'final_price_without_vat' => round(max(0.0, $priceWithoutVat), 8),
+                        'vat_final_price_amount' => round(max(0.0, $ivaFinalPrice), 8),
+                        'final_price_with_vat' => round(max(0.0, $finalPriceWithVat), 8),
+                        'product_category_id' => $category->id,
+                        'active_ingredient' => $activeIngredient,
+                        'allow_negative_stock' => false,
+                        'created_by' => $actor,
+                        'updated_by' => $actor,
+                        'notes' => $reference !== '' ? 'Import CSV · '.$reference : 'Import CSV',
+                    ],
+                );
             });
 
-            $createdProducts++;
-            $createdInventories++;
+            $upsertedInventories++;
         }
 
         fclose($handle);
@@ -261,15 +298,9 @@ class ImportCrossedProductsInventory extends Command
         $this->info('Importación completada.');
         $this->line('Sucursal: '.$branch->name.' (ID '.$branch->id.')');
         $this->line('Productos creados: '.$createdProducts);
-        $this->line('Inventarios creados: '.$createdInventories);
+        $this->line('Productos actualizados (ya existían por código): '.$updatedProducts);
+        $this->line('Registros de inventario (insert/actualización): '.$upsertedInventories);
         $this->line('Filas omitidas: '.$skippedRows);
-
-        if ($unknownDepartments !== []) {
-            $this->warn('Departamentos sin mapeo exacto (se asignó categoría por defecto):');
-            foreach ($unknownDepartments as $department => $count) {
-                $this->line(' - '.$department.' ('.$count.')');
-            }
-        }
 
         return self::SUCCESS;
     }
@@ -286,16 +317,38 @@ class ImportCrossedProductsInventory extends Command
         }
     }
 
-    private function defaultCategoryId(): ?int
+    private function resolveProductCategoryForDepartment(string $departmentRaw, float $profitPercentHint, string $actor): ProductCategory
     {
-        $medicamentos = $this->categoryIdByNormalizedName['medicamentos'] ?? null;
-        if ($medicamentos !== null) {
-            return $medicamentos;
+        $resolvedId = $this->resolveCategoryIdFromDepartment($departmentRaw);
+        if ($resolvedId !== null) {
+            /** @var ProductCategory $found */
+            $found = ProductCategory::query()->findOrFail($resolvedId);
+
+            return $found;
         }
 
-        $first = ProductCategory::query()->orderBy('id')->value('id');
+        $normalized = $this->normalizeDepartment($departmentRaw);
+        $slugBase = $normalized !== '' ? $normalized : 'sin-departamento';
+        $slug = Str::slug($slugBase);
+        if ($slug === '') {
+            $slug = 'import-'.Str::lower(Str::random(10));
+        }
 
-        return filled($first) ? (int) $first : null;
+        $displayName = $this->departmentDisplayName($departmentRaw);
+
+        return ProductCategory::query()->firstOrCreate(
+            ['slug' => $slug],
+            [
+                'name' => $displayName,
+                'description' => null,
+                'image' => null,
+                'is_active' => true,
+                'is_medication' => str_contains($normalized, 'medic'),
+                'profit_percentage' => round(max(0.0, min(999.99, $profitPercentHint)), 2),
+                'created_by' => $actor,
+                'updated_by' => $actor,
+            ],
+        );
     }
 
     private function resolveCategoryIdFromDepartment(string $department): ?int
@@ -318,6 +371,25 @@ class ImportCrossedProductsInventory extends Command
         $normalized = preg_replace('/\s+/u', ' ', $normalized) ?? $normalized;
 
         return trim($normalized);
+    }
+
+    private function departmentDisplayName(string $raw): string
+    {
+        $trimmed = trim($raw);
+        if (preg_match('/^\d+\s*-\s*(.+)$/u', $trimmed, $matches) === 1) {
+            return trim($matches[1]);
+        }
+
+        return $trimmed !== '' ? $trimmed : 'Sin departamento';
+    }
+
+    private function parsePercentUtil(mixed $raw): float
+    {
+        $value = trim((string) $raw);
+        $value = str_replace(['%', ' '], '', $value);
+        $value = str_replace(',', '.', $value);
+
+        return is_numeric($value) ? max(0.0, (float) $value) : 0.0;
     }
 
     private function csvDecimal(mixed $raw): float

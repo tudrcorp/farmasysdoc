@@ -29,12 +29,11 @@ use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Pages\BasePage;
+use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
-use Filament\Schemas\Components\Wizard;
-use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\FontWeight;
@@ -42,6 +41,7 @@ use Filament\Support\Enums\Size;
 use Filament\Support\Enums\TextSize;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
@@ -1371,28 +1371,23 @@ final class CashRegisterAction
     }
 
     /**
-     * Segunda modal (apilada sobre la caja): conciliación BDV para Pago Móvil (asistente tipo wizard iOS).
+     * Segunda modal (apilada sobre la caja): conciliación BDV para Pago Móvil.
+     * Esquema plano (un único fieldset, sin wizard) para que el estado llegue de forma fiable a la acción.
      */
     public static function makePagoMovilConciliation(): Action
     {
         return Action::make(self::PAGO_MOVIL_CONCILIATION_ACTION_NAME)
             ->label('Conciliación Pago Móvil')
             ->modalHeading('Conciliación Pago Móvil')
-            // ->modalDescription('Tres pasos: pagador, comprobante y validación con BDV. Referencia: 4–6 dígitos. Teléfono comercio: variable TEL.')
             ->modalIcon(fn (): HtmlString => self::bdvPagoMovilModalLogoIconHtml())
             ->modalAlignment(Alignment::Center)
             ->extraModalWindowAttributes([
                 'class' => 'farmadoc-bdv-pm-conciliation-modal farmadoc-bdv-pm-conciliation-modal--ios-sheet',
             ])
-            ->modalWidth(Width::FiveExtraLarge)
+            ->modalWidth(Width::FourExtraLarge)
             ->modalSubmitActionLabel('Validar con BDV')
             ->closeModalByClickingAway(false)
-            ->modifyWizardUsing(function (Wizard $wizard): Wizard {
-                return $wizard
-                    ->extraAttributes([
-                        'class' => 'farmadoc-bdv-pm-wizard-ios',
-                    ]);
-            })
+            ->formWrapper(true)
             ->modalCancelAction(function (Action $modalAction): Action {
                 return $modalAction
                     ->label('Cerrar')
@@ -1406,6 +1401,7 @@ final class CashRegisterAction
                     });
             })
             ->mountUsing(function (Action $action, ?Schema $schema): void {
+                // dd('mountUsing', $action, $schema);
                 $args = $action->getArguments();
                 $posData = is_array($args['pos_data'] ?? null) ? $args['pos_data'] : [];
                 $paymentVes = (float) ($args['payment_ves'] ?? 0);
@@ -1422,6 +1418,7 @@ final class CashRegisterAction
                 $prefillTelefono = $client instanceof Client
                     ? self::formatBdvTelefonoPagadorFromClient($client)
                     : null;
+                // dd('posData', $posData, 'prefillCedula', $prefillCedula, 'prefillTelefono', $prefillTelefono, 'prefillReferencia', $prefillReferencia);
                 $schema?->fill([
                     'bdv_pm_cedula_pagador' => $prefillCedula,
                     'bdv_pm_telefono_pagador' => $prefillTelefono,
@@ -1434,16 +1431,15 @@ final class CashRegisterAction
                     'bdv_pm_failure_message' => null,
                 ]);
             })
-            ->steps([
-                Step::make('Pagador')
-                    ->description('Quién originó el Pago Móvil.')
-                    ->icon(Heroicon::UserCircle)
-                    ->completedIcon(Heroicon::OutlinedCheckCircle)
+            ->schema([
+                Fieldset::make('Conciliación Pago Móvil')
+                    ->columns(['default' => 1, 'sm' => 2])
                     ->schema([
                         Grid::make(['default' => 1, 'sm' => 2])
                             ->extraAttributes([
                                 'class' => 'farmadoc-bdv-pm-wizard-step-fields',
                             ])
+                            ->columnSpanFull()
                             ->schema([
                                 TextInput::make('bdv_pm_cedula_pagador')
                                     ->label('Cédula / RIF')
@@ -1466,17 +1462,13 @@ final class CashRegisterAction
                             ->searchable()
                             ->default(VenezuelanPagoMovilBank::BancoDeVenezuela->value)
                             ->required()
-                            ->native(false),
-                    ]),
-                Step::make('Comprobante')
-                    ->description('Referencia, fecha e importe.')
-                    ->icon(Heroicon::DocumentText)
-                    ->completedIcon(Heroicon::OutlinedCheckCircle)
-                    ->schema([
+                            ->native(false)
+                            ->columnSpanFull(),
                         Grid::make(['default' => 1, 'sm' => 3])
                             ->extraAttributes([
                                 'class' => 'farmadoc-bdv-pm-conciliation-detail-row farmadoc-bdv-pm-wizard-step-fields',
                             ])
+                            ->columnSpanFull()
                             ->schema([
                                 TextInput::make('bdv_pm_referencia')
                                     ->label('Referencia')
@@ -1517,12 +1509,8 @@ final class CashRegisterAction
                             ])
                             ->default('0')
                             ->required()
-                            ->native(false),
-                    ]),
-                Step::make('BDV')
-                    ->description('Revise y consulte al banco.')
-                    ->icon(Heroicon::ShieldCheck)
-                    ->schema([
+                            ->native(false)
+                            ->columnSpanFull(),
                         Hidden::make('bdv_pm_failed')
                             ->default(false),
                         Hidden::make('bdv_pm_failure_message')
@@ -1557,18 +1545,16 @@ final class CashRegisterAction
                                     'bdv_pm_conciliated' => false,
                                 ]);
                             }),
-                        TextEntry::make('bdv_pm_wizard_review')
-                            ->hiddenLabel()
-                            ->columnSpanFull()
-                            ->html()
-                            ->state(fn (Get $get): HtmlString => self::bdvPmWizardReviewHtml($get))
-                            ->dehydrated(false)
-                            ->extraEntryWrapperAttributes([
-                                'class' => 'farmadoc-bdv-pm-wizard-review',
-                            ]),
                     ]),
             ])
             ->action(function (array $data, Action $action): void {
+                $raw = $action->getRawData();
+                $rawArray = $raw instanceof Arrayable
+                    ? $raw->toArray()
+                    : (is_array($raw) ? $raw : []);
+                /** @var array<string, mixed> $data */
+                $data = array_merge($rawArray, $data);
+
                 $livewire = $action->getLivewire();
                 if (! $livewire instanceof BasePage) {
                     return;
@@ -1718,6 +1704,7 @@ final class CashRegisterAction
                 }
 
                 if (! self::isBdvConciliationSuccessful($response)) {
+                    self::notifyBdvConciliationApiFailure($response);
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
                         self::bdvConciliationFailureMessage($response),
@@ -1783,50 +1770,6 @@ final class CashRegisterAction
             .'<p class="farmadoc-bdv-pm-inline-alert__body">'.e($message).'</p>'
             .'<p class="farmadoc-bdv-pm-inline-alert__hint">Use el botón de abajo para volver a la caja y escoger otro método de pago.</p>'
             .'</div>'
-        );
-    }
-
-    /**
-     * Resumen HTML del paso final del asistente BDV (solo lectura).
-     */
-    private static function bdvPmWizardReviewHtml(Get $get): HtmlString
-    {
-        $bankCode = trim((string) $get('bdv_pm_banco_origen'));
-        $bank = VenezuelanPagoMovilBank::tryFrom($bankCode);
-        $bankLabel = $bank instanceof VenezuelanPagoMovilBank ? e($bank->optionLabel()) : e($bankCode);
-
-        $fechaRaw = $get('bdv_pm_fecha_pago');
-        $fechaLabel = '';
-        if ($fechaRaw instanceof DateTimeInterface) {
-            $fechaLabel = $fechaRaw->format('d/m/Y');
-        } elseif (is_string($fechaRaw) && $fechaRaw !== '') {
-            try {
-                $fechaLabel = (new \DateTimeImmutable($fechaRaw))->format('d/m/Y');
-            } catch (Throwable) {
-                $fechaLabel = (string) $fechaRaw;
-            }
-        }
-
-        $req = ($get('bdv_pm_req_ced') ?? '0') === '1' ? 'Sí' : 'No';
-
-        $rows = [
-            ['Cédula / RIF', e((string) ($get('bdv_pm_cedula_pagador') ?? ''))],
-            ['Teléfono pagador', e((string) ($get('bdv_pm_telefono_pagador') ?? ''))],
-            ['Banco origen', $bankLabel],
-            ['Referencia', e((string) ($get('bdv_pm_referencia') ?? ''))],
-            ['Fecha', e($fechaLabel)],
-            ['Importe (Bs.)', e((string) ($get('bdv_pm_importe') ?? ''))],
-            ['Validar cédula (reqCed)', e($req)],
-        ];
-
-        $lis = '';
-        foreach ($rows as [$k, $v]) {
-            $lis .= '<li class="farmadoc-bdv-pm-review-list__item"><span class="farmadoc-bdv-pm-review-list__k">'.e($k).'</span><span class="farmadoc-bdv-pm-review-list__v">'.$v.'</span></li>';
-        }
-
-        return new HtmlString(
-            '<p class="farmadoc-bdv-pm-review-intro">Si todo coincide con el comprobante del cliente, pulse <strong>Validar con BDV</strong>. Tras la confirmación se registrará la venta automáticamente.</p>'
-            .'<ul class="farmadoc-bdv-pm-review-list" role="list">'.$lis.'</ul>'
         );
     }
 
@@ -1966,6 +1909,82 @@ JS;
         }
 
         return 'El banco no confirmó la conciliación del Pago Móvil (HTTP '.$response->status().').';
+    }
+
+    /**
+     * Notificación con el detalle devuelto por BDV cuando la respuesta no es una conciliación satisfactoria
+     * (p. ej. distinta de code 1000 / data.status 1000 y HTTP 200 según el contrato documentado).
+     */
+    private static function notifyBdvConciliationApiFailure(Response $response): void
+    {
+        $body = self::truncateForUserMessage(self::formatBdvApiResponseForNotification($response), 1800);
+
+        Notification::make()
+            ->title('BDV: no se concilió el Pago Móvil')
+            ->body($body !== '' ? $body : 'El banco no confirmó el pago. Revise los datos o intente de nuevo.')
+            ->danger()
+            ->persistent()
+            ->send();
+    }
+
+    /**
+     * Resume la respuesta HTTP/JSON de getMovement para mostrarla al usuario.
+     */
+    private static function formatBdvApiResponseForNotification(Response $response): string
+    {
+        $lines = ['HTTP '.$response->status()];
+        $decoded = $response->json();
+
+        if (! is_array($decoded)) {
+            $raw = trim($response->body());
+            if ($raw !== '') {
+                $lines[] = 'Cuerpo: '.$raw;
+            }
+
+            return implode("\n", $lines);
+        }
+
+        foreach (['code', 'codigo'] as $codeKey) {
+            if (array_key_exists($codeKey, $decoded)) {
+                $val = $decoded[$codeKey];
+                $lines[] = 'Código: '.(is_scalar($val) ? (string) $val : json_encode($val));
+
+                break;
+            }
+        }
+
+        if (isset($decoded['message']) && is_string($decoded['message']) && trim($decoded['message']) !== '') {
+            $lines[] = 'Mensaje: '.trim($decoded['message']);
+        }
+
+        foreach (['error', 'errors', 'descripcion', 'detalle'] as $key) {
+            if (! isset($decoded[$key])) {
+                continue;
+            }
+            $fragment = is_string($decoded[$key])
+                ? trim($decoded[$key])
+                : (json_encode($decoded[$key], JSON_UNESCAPED_UNICODE) ?: '');
+            if ($fragment !== '' && $fragment !== '[]' && $fragment !== '{}') {
+                $lines[] = ucfirst($key).': '.$fragment;
+            }
+        }
+
+        $data = $decoded['data'] ?? null;
+        if (is_array($data)) {
+            foreach (['status', 'amount', 'reason', 'codigo', 'mensaje'] as $dk) {
+                if (! array_key_exists($dk, $data)) {
+                    continue;
+                }
+                $v = $data[$dk];
+                $lines[] = 'data.'.$dk.': '.(is_scalar($v) ? (string) $v : (json_encode($v, JSON_UNESCAPED_UNICODE) ?: ''));
+            }
+        }
+
+        if (isset($decoded['status']) && ! is_array($decoded['status'])) {
+            $lines[] = 'status (raíz): '.(is_scalar($decoded['status']) ? (string) $decoded['status'] : (json_encode($decoded['status'], JSON_UNESCAPED_UNICODE) ?: ''));
+        }
+
+        return implode("\n", $lines);
     }
 
     private static function uniqueSaleNumber(): string

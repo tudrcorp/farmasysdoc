@@ -47,10 +47,13 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema as SchemaFacade;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 use Livewire\Component as LivewireComponent;
 use RuntimeException;
 use Throwable;
@@ -1297,6 +1300,77 @@ final class CashRegisterAction
     }
 
     /**
+     * Entorno getMovement para la caja: opcionalmente {@see config('bdv_conciliation.pos_conciliation_environment')};
+     * si no aplica, igual que antes (solo producción Laravel → API producción).
+     */
+    private static function bdvPosConciliationEnvironment(): string
+    {
+        $raw = config('bdv_conciliation.pos_conciliation_environment');
+        if (is_string($raw) && $raw !== '') {
+            $normalized = strtolower(trim($raw));
+            if (in_array($normalized, ['qa', 'production'], true)) {
+                return $normalized;
+            }
+        }
+
+        return app()->isProduction() ? 'production' : 'qa';
+    }
+
+    /**
+     * Importe en formato string esperado por getMovement (punto decimal, sin miles).
+     */
+    private static function normalizeBdvImporteForPosWizard(mixed $importeField, float $paymentVesFallback): string
+    {
+        if ($importeField === null || $importeField === '') {
+            return number_format(max(0.0, $paymentVesFallback), 2, '.', '');
+        }
+
+        if (is_numeric($importeField)) {
+            return number_format(max(0.0, (float) $importeField), 2, '.', '');
+        }
+
+        $s = trim((string) $importeField);
+        if ($s === '') {
+            return number_format(max(0.0, $paymentVesFallback), 2, '.', '');
+        }
+
+        $s = str_replace(' ', '', $s);
+        if (str_contains($s, ',') && str_contains($s, '.')) {
+            $s = str_replace('.', '', $s);
+            $s = str_replace(',', '.', $s);
+        } elseif (str_contains($s, ',') && ! str_contains($s, '.')) {
+            $s = str_replace(',', '.', $s);
+        } else {
+            $s = str_replace(',', '', $s);
+        }
+
+        if (! is_numeric($s)) {
+            return $s;
+        }
+
+        return number_format(max(0.0, (float) $s), 2, '.', '');
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private static function redactBdvConciliationPayloadForLog(array $payload): array
+    {
+        $out = $payload;
+        if (isset($out['cedulaPagador']) && is_string($out['cedulaPagador']) && strlen($out['cedulaPagador']) > 4) {
+            $out['cedulaPagador'] = '***'.substr($out['cedulaPagador'], -4);
+        }
+        foreach (['telefonoPagador', 'telefonoDestino'] as $key) {
+            if (isset($out[$key]) && is_string($out[$key]) && strlen($out[$key]) > 4) {
+                $out[$key] = '***'.substr($out[$key], -4);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * Segunda modal (apilada sobre la caja): conciliación BDV para Pago Móvil (asistente tipo wizard iOS).
      */
     public static function makePagoMovilConciliation(): Action
@@ -1501,16 +1575,30 @@ final class CashRegisterAction
                 }
 
                 $paymentVes = (float) ($action->getArguments()['payment_ves'] ?? 0);
-                $importe = trim((string) ($data['bdv_pm_importe'] ?? ''));
-                if ($importe === '') {
-                    $importe = number_format(max(0.0, $paymentVes), 2, '.', '');
-                }
+                $importe = self::normalizeBdvImporteForPosWizard($data['bdv_pm_importe'] ?? null, $paymentVes);
 
                 $telefonoComercio = trim((string) config('bdv_conciliation.commerce_mobile_phone', ''));
                 if ($telefonoComercio === '') {
+                    Log::warning('bdv.pos_conciliation.config', [
+                        'message' => 'Falta TEL (commerce_mobile_phone) para conciliación en caja.',
+                    ]);
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
                         'Falta el teléfono Pago Móvil del comercio (variable TEL en el servidor). No se puede consultar a BDV hasta configurarlo.',
+                        'Configuración incompleta',
+                    );
+
+                    return;
+                }
+
+                $telefonoDestinoNorm = self::normalizeBdvTelefonoPagadorPayload($telefonoComercio);
+                if ($telefonoDestinoNorm === '') {
+                    Log::warning('bdv.pos_conciliation.config', [
+                        'message' => 'TEL presente pero no normalizable a formato BDV (telefonoDestino vacío).',
+                    ]);
+                    self::markBdvConciliationFailureInWizard(
+                        $livewire,
+                        'El teléfono Pago Móvil del comercio (TEL) no tiene un formato válido. Use 04XX… o 58… como indica el manual BDV.',
                         'Configuración incompleta',
                     );
 
@@ -1522,7 +1610,7 @@ final class CashRegisterAction
                 $candidate = [
                     'cedulaPagador' => self::normalizeBdvCedulaPagadorPayload(trim((string) ($data['bdv_pm_cedula_pagador'] ?? ''))),
                     'telefonoPagador' => self::normalizeBdvTelefonoPagadorPayload((string) ($data['bdv_pm_telefono_pagador'] ?? '')),
-                    'telefonoDestino' => $telefonoComercio,
+                    'telefonoDestino' => $telefonoDestinoNorm,
                     'referencia' => $referencia,
                     'fechaPago' => self::formatDateForBdvConciliationCandidate($data['bdv_pm_fecha_pago'] ?? null),
                     'importe' => $importe,
@@ -1535,12 +1623,66 @@ final class CashRegisterAction
                 $messages = (new GetMovementRequest)->messages();
                 $messages['referencia.regex'] = 'La referencia debe tener entre 4 y 6 dígitos numéricos, sin letras ni símbolos.';
 
+                $environment = self::bdvPosConciliationEnvironment();
+
                 try {
                     $validated = validator($candidate, $rules, $messages)->validate();
                     $payload = GetMovementRequest::movementPayloadFromValidated($validated);
-                    $environment = app()->isProduction() ? 'production' : 'qa';
+
+                    Log::info('bdv.pos_conciliation.request', [
+                        'environment' => $environment,
+                        'payload_redacted' => self::redactBdvConciliationPayloadForLog($payload),
+                    ]);
+
                     $response = app(BdvConciliationClient::class)->postGetMovement($payload, $environment);
+
+                    $responseBody = $response->json();
+                    $logBody = is_array($responseBody) ? $responseBody : $response->body();
+
+                    if ($response->successful() && self::isBdvConciliationSuccessful($response)) {
+                        Log::info('bdv.pos_conciliation.response_ok', [
+                            'environment' => $environment,
+                            'http_status' => $response->status(),
+                            'body' => $logBody,
+                        ]);
+                    } else {
+                        Log::warning('bdv.pos_conciliation.response_not_accepted', [
+                            'environment' => $environment,
+                            'http_status' => $response->status(),
+                            'successful_http' => $response->successful(),
+                            'body' => $logBody,
+                        ]);
+                    }
+                } catch (ValidationException $e) {
+                    Log::warning('bdv.pos_conciliation.validation_failed', [
+                        'environment' => $environment,
+                        'errors' => $e->errors(),
+                        'payload_redacted' => self::redactBdvConciliationPayloadForLog($candidate),
+                    ]);
+                    self::markBdvConciliationFailureInWizard(
+                        $livewire,
+                        collect($e->errors())->flatten()->implode(' '),
+                        'Datos inválidos',
+                    );
+
+                    return;
+                } catch (InvalidArgumentException $e) {
+                    Log::error('bdv.pos_conciliation.invalid_argument', [
+                        'environment' => $environment,
+                        'message' => $e->getMessage(),
+                    ]);
+                    self::markBdvConciliationFailureInWizard(
+                        $livewire,
+                        self::truncateForUserMessage($e->getMessage()),
+                        'Conciliación no aceptada',
+                    );
+
+                    return;
                 } catch (ConnectionException $e) {
+                    Log::error('bdv.pos_conciliation.connection', [
+                        'environment' => $environment,
+                        'message' => $e->getMessage(),
+                    ]);
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
                         'No hubo respuesta del banco: '.self::truncateForUserMessage($e->getMessage()).' Compruebe la red o reintente más tarde.',
@@ -1549,6 +1691,10 @@ final class CashRegisterAction
 
                     return;
                 } catch (RuntimeException $e) {
+                    Log::error('bdv.pos_conciliation.runtime', [
+                        'environment' => $environment,
+                        'message' => $e->getMessage(),
+                    ]);
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
                         self::truncateForUserMessage($e->getMessage()),
@@ -1557,6 +1703,11 @@ final class CashRegisterAction
 
                     return;
                 } catch (Throwable $e) {
+                    Log::error('bdv.pos_conciliation.exception', [
+                        'environment' => $environment,
+                        'exception' => $e::class,
+                        'message' => $e->getMessage(),
+                    ]);
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
                         'Ocurrió un error al conciliar: '.self::truncateForUserMessage($e->getMessage()),

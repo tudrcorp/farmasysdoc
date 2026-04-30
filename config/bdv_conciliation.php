@@ -64,6 +64,13 @@ return [
      */
     'commerce_mobile_phone' => trim((string) env('TEL', '')),
 
+    /*
+     * Entorno BDV para la conciliación desde la caja (getMovement). Si no se define, se usa:
+     * producción cuando APP_ENV=production, si no calidad (qa). Así se puede forzar p. ej.
+     * BDV_POS_CONCILIATION_ENV=production en staging/local para coincidir con el playground.
+     */
+    'pos_conciliation_environment' => env('BDV_POS_CONCILIATION_ENV'),
+
     'timeout' => (int) env('BDV_CONCILIATION_TIMEOUT', 30),
 
     'connect_timeout' => (int) env('BDV_CONCILIATION_CONNECT_TIMEOUT', 15),

@@ -1849,13 +1849,35 @@ JS;
     }
 
     /**
+     * Referencia en bolívares para el precio de lista (USD): si el producto grava IVA, el monto en Bs. incluye el IVA sobre la base convertida.
+     */
+    private static function posListPriceVesFromUsd(float $usdUnit, bool $appliesVat, float $vesPerUsd): float
+    {
+        if ($vesPerUsd <= 0.0) {
+            return 0.0;
+        }
+
+        $baseVes = round($usdUnit * $vesPerUsd, 2);
+        if (! $appliesVat) {
+            return $baseVes;
+        }
+
+        $vatRate = DefaultVatRate::percent();
+        if ($vatRate <= 0.0) {
+            return $baseVes;
+        }
+
+        return round($baseVes + round($baseVes * $vatRate / 100, 2), 2);
+    }
+
+    /**
      * Etiqueta de opción en el buscador POS sin cargar modelos (solo datos ya resueltos en SQL + tasa precalculada).
      */
-    private static function formatPosSearchOptionLabelFast(string $base, float $saleUsd, float $branchQty, float $rate): string
+    private static function formatPosSearchOptionLabelFast(string $base, float $saleUsd, bool $appliesVat, float $branchQty, float $rate): string
     {
         $label = $base.' · '.self::formatMoney($saleUsd);
         if ($rate > 0.0) {
-            $label .= ' · '.self::formatBolivaresReferenceFromVes(round($saleUsd * $rate, 2));
+            $label .= ' · '.self::formatBolivaresReferenceFromVes(self::posListPriceVesFromUsd($saleUsd, $appliesVat, $rate));
         } else {
             $label .= ' · Bs. —';
         }
@@ -1874,7 +1896,7 @@ JS;
     private static function buildPosSearchOptionLabelFromCatalog(int $branchId, int $productId, ?Get $get): ?string
     {
         $row = DB::table('products')
-            ->select(['name', 'barcode', 'sale_price'])
+            ->select(['name', 'barcode', 'sale_price', 'applies_vat'])
             ->where('id', $productId)
             ->where('is_active', true)
             ->first();
@@ -1894,6 +1916,7 @@ JS;
         return self::formatPosSearchOptionLabelFast(
             $base,
             (float) ($row->sale_price ?? 0),
+            (bool) ($row->applies_vat ?? false),
             max(0.0, $qty),
             $rate,
         );
@@ -1947,7 +1970,9 @@ JS;
         $segments = [];
         $rate = self::effectiveVesUsdRateForPosProductLabels($get);
         if ($rate > 0.0) {
-            $segments[] = self::formatBolivaresReferenceFromVes(round($usd * $rate, 2));
+            $segments[] = self::formatBolivaresReferenceFromVes(
+                self::posListPriceVesFromUsd($usd, (bool) ($product->applies_vat ?? false), $rate),
+            );
         }
 
         $inv = self::posBranchInventory($branchId, (int) $product->id);
@@ -2214,7 +2239,7 @@ JS;
     }
 
     /**
-     * Total de una línea desde el estado del ítem del repeater (precio lista × cantidad, sin impuestos).
+     * Total de una línea desde el estado del ítem del repeater (precio lista × cantidad; con IVA si el producto grava).
      *
      * @param  array<string, mixed>  $rowState
      */
@@ -2244,8 +2269,14 @@ JS;
         }
 
         $unit = (float) ($product->sale_price ?? 0);
+        $lineNetUsd = round($qty * $unit, 2);
+        $appliesVat = (bool) ($product->applies_vat ?? false);
+        $vatRate = DefaultVatRate::percent();
+        $taxUsd = $appliesVat && $vatRate > 0.0
+            ? round($lineNetUsd * $vatRate / 100, 2)
+            : 0.0;
 
-        return round($qty * $unit, 2);
+        return round($lineNetUsd + $taxUsd, 2);
     }
 
     /**
@@ -2541,7 +2572,7 @@ JS;
 
             if (filled($exactProductId)) {
                 $id = (int) $exactProductId;
-                $selectCols = ['id', 'name', 'barcode', 'sale_price'];
+                $selectCols = ['id', 'name', 'barcode', 'sale_price', 'applies_vat'];
                 if (SchemaFacade::hasColumn('products', 'sku')) {
                     $selectCols[] = 'sku';
                 }
@@ -2565,6 +2596,7 @@ JS;
                     return [$id => self::formatPosSearchOptionLabelFast(
                         $base,
                         (float) ($row->sale_price ?? 0),
+                        (bool) ($row->applies_vat ?? false),
                         max(0.0, $qty),
                         $rate,
                     )];
@@ -2577,6 +2609,7 @@ JS;
             'products.name',
             'products.barcode',
             'products.sale_price',
+            'products.applies_vat',
             'inventories.quantity as branch_quantity',
         ];
         if (SchemaFacade::hasColumn('products', 'sku')) {
@@ -2630,6 +2663,7 @@ JS;
             return [$id => self::formatPosSearchOptionLabelFast(
                 $base,
                 (float) ($row->sale_price ?? 0),
+                (bool) ($row->applies_vat ?? false),
                 $qty,
                 $rate,
             )];

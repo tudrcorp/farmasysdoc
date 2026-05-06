@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Products\Schemas;
 
 use App\Models\Product;
+use App\Support\Finance\DefaultVatRate;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -103,10 +104,29 @@ class ProductInfolist
                     ->description('Precio de venta (lista) = costo + (costo × % de ganancia de la categoría). Contenido comercial y valores únicos para todas las sucursales.')
                     ->icon(Heroicon::CurrencyDollar)
                     ->schema([
-                        TextEntry::make('productCategory.name')
-                            ->label('Categoría')
-                            ->placeholder('—')
-                            ->icon(Heroicon::Swatch),
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                        ])
+                            ->schema([
+                                TextEntry::make('productCategory.name')
+                                    ->label('Categoría')
+                                    ->placeholder('—')
+                                    ->badge()
+                                    ->size('lg')
+                                    ->weight('bold')
+                                    ->color('warning')
+                                    ->icon(Heroicon::Swatch),
+                                TextEntry::make('category_profit_percent')
+                                    ->label('Margen de ganancia (categoría)')
+                                    ->badge()
+                                    ->size('lg')
+                                    ->weight('bold')
+                                    ->state(fn (Product $record): string => number_format(max(0.0, (float) ($record->productCategory?->profit_percentage ?? 0)), 2, '.', ',').' %')
+                                    ->color('warning')
+                                    ->icon(Heroicon::ChartBarSquare)
+                                    ->helperText('Porcentaje configurado en la categoría del producto; define el precio lista sobre el costo.'),
+                            ]),
                         Grid::make([
                             'default' => 1,
                             'sm' => 2,
@@ -131,6 +151,43 @@ class ProductInfolist
                                     ->suffix(' %')
                                     ->numeric(2)
                                     ->icon(Heroicon::Tag),
+                            ]),
+                        TextEntry::make('vat_status')
+                            ->label('Régimen IVA')
+                            ->badge()
+                            ->size('lg')
+                            ->weight('bold')
+                            ->state(fn (Product $record): string => $record->applies_vat ? 'GRAVA IVA' : 'NO GRAVA IVA')
+                            ->color(fn (Product $record): string => $record->applies_vat ? 'success' : 'danger')
+                            ->icon(fn (Product $record): Heroicon => $record->applies_vat ? Heroicon::CheckBadge : Heroicon::XCircle),
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                        ])
+                            ->schema([
+                                TextEntry::make('final_list_price_with_vat')
+                                    ->label('Precio final con IVA (lista)')
+                                    ->money('USD')
+                                    ->weight('bold')
+                                    ->size('lg')
+                                    ->state(function (Product $record): float {
+                                        $base = (float) ($record->sale_price ?? 0);
+                                        $rate = max(0.0, DefaultVatRate::percent());
+
+                                        return round($base + ($base * $rate / 100), 2);
+                                    })
+                                    ->visible(fn (Product $record): bool => $record->applies_vat)
+                                    ->icon(Heroicon::Banknotes)
+                                    ->helperText(fn (): string => 'Precio lista + IVA ('.rtrim(rtrim(number_format(DefaultVatRate::percent(), 2, '.', ''), '0'), '.').' % tasa del sistema).'),
+                                TextEntry::make('final_list_price_without_vat')
+                                    ->label('Precio final sin IVA')
+                                    ->money('USD')
+                                    ->weight('bold')
+                                    ->size('lg')
+                                    ->state(fn (Product $record): float => round((float) ($record->sale_price ?? 0), 2))
+                                    ->visible(fn (Product $record): bool => ! $record->applies_vat)
+                                    ->icon(Heroicon::Banknotes)
+                                    ->helperText('Producto exento: el precio de lista es el precio final (sin componente IVA).'),
                             ]),
                         Grid::make([
                             'default' => 1,

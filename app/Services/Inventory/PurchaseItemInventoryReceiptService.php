@@ -118,6 +118,10 @@ final class PurchaseItemInventoryReceiptService
                 }
             }
 
+            if ($delta > 0) {
+                $this->syncProductMaxCost($product, $unitCost, $actorLabel);
+            }
+
             $inventory->quantity = $nextQuantity;
             $inventory->cost_price = $unitCost;
             $inventory->syncFinancialSnapshotFromRelatedProductAndCost();
@@ -148,6 +152,58 @@ final class PurchaseItemInventoryReceiptService
 
             return $createdMovement;
         });
+    }
+
+    public function syncProductMaxCostFromPurchaseItem(
+        PurchaseItem $item,
+        ?Authenticatable $actor = null,
+    ): void {
+        $productId = (int) $item->product_id;
+        $purchaseId = (int) $item->purchase_id;
+
+        if ($productId <= 0 || $purchaseId <= 0) {
+            return;
+        }
+
+        $purchase = Purchase::query()->whereKey($purchaseId)->first();
+        if (! $purchase instanceof Purchase) {
+            return;
+        }
+
+        $product = Product::query()->whereKey($productId)->first();
+        if (! $product instanceof Product) {
+            return;
+        }
+
+        $unitCost = round(max(0.0, (float) ($item->unit_cost ?? 0)), 2);
+        if ($purchase->entryCurrency() === PurchaseEntryCurrency::VES) {
+            $rate = (float) ($purchase->official_usd_ves_rate ?? 0);
+            if ($rate > 0) {
+                $unitCost = round(max(0.0, $unitCost / $rate), 2);
+            }
+        }
+
+        $this->syncProductMaxCost($product, $unitCost, self::actorLabel($actor));
+    }
+
+    private function syncProductMaxCost(Product $product, float $candidateCost, string $actorLabel): void
+    {
+        $currentProductCost = round(max(0.0, (float) ($product->cost_price ?? 0)), 2);
+
+        if ($candidateCost <= $currentProductCost) {
+            return;
+        }
+
+        $salePrice = Product::salePriceFromCostAndCategoryProfit(
+            $candidateCost,
+            $product->product_category_id !== null ? (int) $product->product_category_id : null,
+        );
+
+        $product->forceFill([
+            'cost_price' => $candidateCost,
+            'sale_price' => $salePrice,
+            'updated_by' => $actorLabel,
+        ])->saveQuietly();
     }
 
     private static function actorLabel(?Authenticatable $user): string

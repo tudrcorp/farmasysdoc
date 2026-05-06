@@ -17,28 +17,28 @@ final class PurchaseItemObserver
         if ($purchaseItem->wasRecentlyCreated) {
             $delta = (float) $purchaseItem->quantity_ordered;
 
-            if (abs($delta) < 0.0001) {
-                return;
+            if (abs($delta) >= 0.0001) {
+                $this->receiptService->applyQuantityDelta($purchaseItem, $delta, Auth::user());
             }
 
-            $this->receiptService->applyQuantityDelta($purchaseItem, $delta, Auth::user());
+            $this->receiptService->syncProductMaxCostFromPurchaseItem($purchaseItem, Auth::user());
 
             return;
         }
 
-        if (! $purchaseItem->wasChanged('quantity_ordered')) {
-            return;
+        if ($purchaseItem->wasChanged('quantity_ordered')) {
+            $previous = (float) ($purchaseItem->getOriginal('quantity_ordered') ?? 0);
+            $current = (float) $purchaseItem->quantity_ordered;
+            $delta = $current - $previous;
+
+            if (abs($delta) >= 0.0001) {
+                $this->receiptService->applyQuantityDelta($purchaseItem, $delta, Auth::user());
+            }
         }
 
-        $previous = (float) ($purchaseItem->getOriginal('quantity_ordered') ?? 0);
-        $current = (float) $purchaseItem->quantity_ordered;
-        $delta = $current - $previous;
-
-        if (abs($delta) < 0.0001) {
-            return;
+        if ($purchaseItem->wasChanged('unit_cost')) {
+            $this->receiptService->syncProductMaxCostFromPurchaseItem($purchaseItem, Auth::user());
         }
-
-        $this->receiptService->applyQuantityDelta($purchaseItem, $delta, Auth::user());
     }
 
     public function deleted(PurchaseItem $purchaseItem): void

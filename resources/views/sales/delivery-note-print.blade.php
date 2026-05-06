@@ -15,6 +15,8 @@
         }
 
         .toolbar {
+            position: relative;
+            z-index: 60;
             display: flex;
             flex-wrap: wrap;
             gap: 0.5rem;
@@ -45,10 +47,84 @@
         }
 
         .sheet {
+            position: relative;
+            z-index: 1;
             background: #fff;
             border: 1px solid #e5e7eb;
             border-radius: 0.5rem;
             padding: 1rem;
+        }
+
+        .doc-top {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid #18acb2;
+        }
+
+        .doc-top-logo img {
+            display: block;
+            max-height: 48px;
+            width: auto;
+        }
+
+        .doc-top-title-wrap {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .doc-top-title-wrap h1 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #0e5c5f;
+        }
+
+        .doc-top-title-wrap .doc-subtitle {
+            margin: 0.25rem 0 0 0;
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+
+        /* Marca de agua: 3 logos, misma inclinación, repartidos en vertical (cada hoja al imprimir). */
+        .watermark-layer {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .watermark-mark {
+            position: absolute;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            transform-origin: center center;
+        }
+
+        .watermark-mark img {
+            display: block;
+            width: min(520px, 82vw);
+            max-width: none;
+            height: auto;
+            opacity: 0.06;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .watermark-mark.wm-1 {
+            top: 22%;
+        }
+
+        .watermark-mark.wm-2 {
+            top: 50%;
+        }
+
+        .watermark-mark.wm-3 {
+            top: 78%;
         }
 
         .header {
@@ -136,6 +212,14 @@
     </style>
 </head>
 <body>
+    @if(filled($pdf_logo_data_uri ?? null))
+        <div class="watermark-layer" aria-hidden="true">
+            <span class="watermark-mark wm-1"><img src="{{ $pdf_logo_data_uri }}" alt=""></span>
+            <span class="watermark-mark wm-2"><img src="{{ $pdf_logo_data_uri }}" alt=""></span>
+            <span class="watermark-mark wm-3"><img src="{{ $pdf_logo_data_uri }}" alt=""></span>
+        </div>
+    @endif
+
     <div class="toolbar">
         <a href="{{ $saleViewUrl }}" class="primary">Ver venta</a>
         <a href="{{ $salesIndexUrl }}">Listado de ventas</a>
@@ -143,7 +227,17 @@
     </div>
 
     <main class="sheet">
-        <h1 style="margin: 0 0 1rem 0;">Nota de entrega</h1>
+        <header class="doc-top">
+            @if(filled($pdf_logo_data_uri ?? null))
+                <div class="doc-top-logo">
+                    <img src="{{ $pdf_logo_data_uri }}" alt="{{ $app_name ?? config('app.name') }}">
+                </div>
+            @endif
+            <div class="doc-top-title-wrap">
+                <h1>Nota de entrega</h1>
+                <p class="doc-subtitle">{{ $app_name ?? config('app.name') }} · Documento de entrega de mercancía</p>
+            </div>
+        </header>
 
         <section class="header">
             <div class="block">

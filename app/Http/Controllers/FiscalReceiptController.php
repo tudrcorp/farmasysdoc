@@ -29,10 +29,17 @@ final class FiscalReceiptController extends Controller
             ['module' => 'pos_caja'],
         );
 
+        $logoPath = public_path('images/logos/farmadoc-ligth.png');
+        $pdfLogoDataUri = is_readable($logoPath)
+            ? 'data:image/png;base64,'.base64_encode((string) file_get_contents($logoPath))
+            : null;
+
         return view('sales.delivery-note-print', [
             'sale' => $sale,
             'saleViewUrl' => SaleResource::getUrl('view', ['record' => $sale]),
             'salesIndexUrl' => SaleResource::getUrl('index'),
+            'app_name' => (string) config('app.name'),
+            'pdf_logo_data_uri' => $pdfLogoDataUri,
         ]);
     }
 

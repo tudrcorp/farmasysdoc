@@ -334,6 +334,8 @@ class SalesTable
             'zelle' => 'Zelle',
             'pago_movil' => 'Pago Movil',
             'mixed' => 'Pago Multiple',
+            'credito_cliente' => 'Crédito · cuenta por cobrar',
+            'punto_venta_ves' => 'Punto de venta',
             'transfer_usd' => 'Transferencias USD',
             'traslado_sucursal' => 'Traslado entre sucursales (costo)',
             'cash', 'efectivo' => 'Efectivo',

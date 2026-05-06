@@ -56,4 +56,12 @@ class Client extends Model
     {
         return $this->hasMany(Order::class);
     }
+
+    /**
+     * @return HasMany<AccountsReceivable, $this>
+     */
+    public function accountsReceivables(): HasMany
+    {
+        return $this->hasMany(AccountsReceivable::class);
+    }
 }

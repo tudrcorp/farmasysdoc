@@ -67,6 +67,7 @@ class StatsListSaleByPaymentMethod extends StatsOverviewWidget
             ['key' => 'zelle', 'label' => 'Zelle', 'icon' => Heroicon::PaperAirplane],
             ['key' => 'pago_movil', 'label' => 'Pago Movil', 'icon' => Heroicon::DevicePhoneMobile],
             ['key' => 'mixed', 'label' => 'Pago Multiple', 'icon' => Heroicon::ArrowsRightLeft],
+            ['key' => 'credito_cliente', 'label' => 'Crédito · CxC', 'icon' => Heroicon::ArrowTrendingUp],
         ];
     }
 

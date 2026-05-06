@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Sales\Schemas;
 
 use App\Enums\SaleStatus;
+use App\Filament\Resources\AccountsReceivables\AccountsReceivableResource;
 use App\Filament\Resources\Branches\BranchResource;
 use App\Filament\Resources\Clients\ClientResource;
 use App\Models\Sale;
@@ -164,6 +165,17 @@ class SaleInfolist
                                     ->color(fn (?string $state): string => self::paymentStatusBadgeColor($state))
                                     ->placeholder('—')
                                     ->icon(Heroicon::CheckBadge),
+                                TextEntry::make('accountsReceivable.id')
+                                    ->label('Cuenta por cobrar')
+                                    ->badge()
+                                    ->color('warning')
+                                    ->placeholder('Sin registro')
+                                    ->formatStateUsing(fn (?string $state): string => filled($state) ? 'CxC #'.$state : '—')
+                                    ->url(fn (?string $state): ?string => filled($state)
+                                        ? AccountsReceivableResource::getUrl('view', ['record' => (int) $state], isAbsolute: false)
+                                        : null)
+                                    ->icon(Heroicon::ArrowTrendingUp)
+                                    ->visible(fn (Sale $record): bool => $record->accountsReceivable !== null),
                                 TextEntry::make('sold_at')
                                     ->label('Fecha y hora de la venta')
                                     ->dateTime('d/m/Y H:i')
@@ -280,6 +292,8 @@ class SaleInfolist
             'zelle' => 'Zelle',
             'pago_movil' => 'Pago Movil',
             'mixed' => 'Pago Multiple',
+            'credito_cliente' => 'Crédito · cuenta por cobrar',
+            'punto_venta_ves' => 'Punto de venta',
             'transfer_usd' => 'Transferencias USD',
             'traslado_sucursal' => 'Traslado entre sucursales (costo)',
             'cash', 'efectivo' => 'Efectivo',

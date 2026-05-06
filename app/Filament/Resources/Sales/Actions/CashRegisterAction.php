@@ -15,11 +15,13 @@ use App\Models\Sale;
 use App\Services\BdvConciliation\BdvConciliationClient;
 use App\Services\Dolar\DolarApiDolaresService;
 use App\Services\Dolar\DolarApiEstadoService;
+use App\Services\Finance\AccountsReceivableFromSaleRegistrar;
 use App\Support\Finance\DefaultIgtfRate;
 use App\Support\Finance\DefaultVatRate;
 use DateTimeInterface;
 use Filament\Actions\Action;
 use Filament\Actions\Contracts\HasActions;
+use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
@@ -741,11 +743,21 @@ final class CashRegisterAction
                                                 'zelle' => 'Zelle',
                                                 'pago_movil' => 'Pago Movil',
                                                 'mixed' => 'Pago Multiple',
+                                                'credito_cliente' => 'Crédito · cuenta por cobrar',
                                             ])
                                             ->default('punto_venta_ves')
                                             ->required()
                                             ->live()
                                             ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
+                                                if ($state === 'credito_cliente') {
+                                                    $set('generate_accounts_receivable', true);
+                                                    $set('bdv_pm_conciliated', false);
+
+                                                    return;
+                                                }
+
+                                                $set('generate_accounts_receivable', false);
+
                                                 if ($state === 'pago_movil') {
                                                     $set('bdv_pm_conciliated', false);
                                                     $livewire = $component->getLivewire();
@@ -756,6 +768,7 @@ final class CashRegisterAction
                                                             'pos_data' => [
                                                                 'reference' => $reference,
                                                                 'client_id' => filled($get('client_id')) ? (int) $get('client_id') : null,
+                                                                'generate_accounts_receivable' => false,
                                                             ],
                                                             'payment_ves' => $paymentVes,
                                                         ]);
@@ -768,6 +781,27 @@ final class CashRegisterAction
                                             })
                                             ->native(false)
                                             ->prefixIcon(Heroicon::CreditCard),
+                                        Checkbox::make('generate_accounts_receivable')
+                                            ->label('Generar cuenta por cobrar automáticamente')
+                                            ->helperText('Registra la venta con saldo pendiente y crea el recibo en Cuentas por cobrar. Requiere cliente identificado y forma de pago «Crédito».')
+                                            ->default(false)
+                                            ->live()
+                                            ->afterStateUpdated(function (mixed $state, Set $set, Get $get): void {
+                                                if (filter_var($state, FILTER_VALIDATE_BOOLEAN)) {
+                                                    $set('payment_method', 'credito_cliente');
+                                                    $set('bdv_pm_conciliated', false);
+
+                                                    return;
+                                                }
+
+                                                if (($get('payment_method') ?? '') === 'credito_cliente') {
+                                                    $set('payment_method', 'punto_venta_ves');
+                                                }
+                                            })
+                                            ->columnSpanFull()
+                                            ->extraAttributes([
+                                                'class' => 'rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-4 dark:border-white/10 dark:bg-white/5',
+                                            ]),
                                         TextInput::make('card_last4')
                                             ->label('Últimos 4 dígitos de la tarjeta')
                                             ->helperText('Obligatorio para Punto de Venta: exactamente 4 dígitos. Los errores se muestran debajo del campo.')
@@ -956,6 +990,39 @@ final class CashRegisterAction
                 $discountTotal = $pricing['discount_total'];
                 $documentTotal = $pricing['document_total'];
 
+                $generateAccountsReceivable = filter_var($data['generate_accounts_receivable'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                if ($paymentMethod === 'credito_cliente') {
+                    if (! filled($data['client_id'] ?? null)) {
+                        Notification::make()
+                            ->title('Cliente obligatorio')
+                            ->body('Las ventas con cuenta por cobrar requieren un cliente identificado. Vuelva al paso anterior y seleccione o registre el cliente.')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+
+                    if (! $generateAccountsReceivable) {
+                        Notification::make()
+                            ->title('Confirme la cuenta por cobrar')
+                            ->body('Marque «Generar cuenta por cobrar automáticamente» para registrar la venta a crédito.')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+                }
+
+                if ($generateAccountsReceivable && $paymentMethod !== 'credito_cliente') {
+                    Notification::make()
+                        ->title('Forma de pago incompatible')
+                        ->body('Para generar cuenta por cobrar use la opción «Crédito · cuenta por cobrar» en Cobro (o marque el recuadro de CxC).')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
                 $payloadItems = [];
 
                 foreach ($validLines as $i => $entry) {
@@ -1071,7 +1138,7 @@ final class CashRegisterAction
                     ?? 'sistema';
 
                 try {
-                    $sale = DB::transaction(function () use ($branchId, $data, $payloadItems, $lines, $products, $subtotal, $taxTotal, $igtfTotal, $discountTotal, $documentTotal, $actor, $paymentMethod, $paymentUsd, $paymentVes, $paymentReference, $bcvVesPerUsd): Sale {
+                    $sale = DB::transaction(function () use ($branchId, $data, $payloadItems, $lines, $products, $subtotal, $taxTotal, $igtfTotal, $discountTotal, $documentTotal, $actor, $paymentMethod, $paymentUsd, $paymentVes, $paymentReference, $bcvVesPerUsd, $generateAccountsReceivable): Sale {
                         $qtyByProduct = [];
                         foreach ($lines as $row) {
                             $pid = (int) $row['product_id'];
@@ -1118,8 +1185,12 @@ final class CashRegisterAction
                             'payment_ves' => round($paymentVes, 2),
                             'bcv_ves_per_usd' => $bcvVesPerUsd,
                             'reference' => $paymentReference !== '' ? $paymentReference : null,
-                            'payment_status' => 'paid',
-                            'notes' => null,
+                            'payment_status' => $paymentMethod === 'credito_cliente'
+                                ? 'pendiente'
+                                : 'paid',
+                            'notes' => $generateAccountsReceivable && $paymentMethod === 'credito_cliente'
+                                ? 'Venta a crédito · cuenta por cobrar registrada desde caja.'
+                                : null,
                             'sold_at' => now(),
                             'created_by' => $actor,
                             'updated_by' => $actor,
@@ -1167,6 +1238,10 @@ final class CashRegisterAction
                             ]);
                         }
 
+                        if ($paymentMethod === 'credito_cliente' && $generateAccountsReceivable) {
+                            AccountsReceivableFromSaleRegistrar::register($sale, $actor);
+                        }
+
                         return $sale;
                     });
                 } catch (RuntimeException $e) {
@@ -1178,9 +1253,14 @@ final class CashRegisterAction
                     return;
                 }
 
+                $saleSuccessBody = 'Total '.self::formatMoney($documentTotal).' · '.$sale->sale_number;
+                if ($sale->payment_method === 'credito_cliente') {
+                    $saleSuccessBody .= ' · Cuenta por cobrar creada.';
+                }
+
                 Notification::make()
                     ->title('Venta registrada')
-                    ->body('Total '.self::formatMoney($documentTotal).' · '.$sale->sale_number)
+                    ->body($saleSuccessBody)
                     ->success()
                     ->send();
 
@@ -1397,6 +1477,7 @@ final class CashRegisterAction
                         self::patchPosRegisterMountedData($livewire, [
                             'payment_method' => 'punto_venta_ves',
                             'bdv_pm_conciliated' => false,
+                            'generate_accounts_receivable' => false,
                         ]);
                     });
             })
@@ -1543,6 +1624,7 @@ final class CashRegisterAction
                                 self::patchPosRegisterMountedData($livewire, [
                                     'payment_method' => 'punto_venta_ves',
                                     'bdv_pm_conciliated' => false,
+                                    'generate_accounts_receivable' => false,
                                 ]);
                             }),
                     ]),
@@ -2164,6 +2246,7 @@ JS;
         $rate = max(0.0, $vesUsdRate);
 
         return match ($paymentMethod) {
+            'credito_cliente' => [0.0, 0.0],
             'efectivo_usd', 'transfer_usd', 'zelle' => [$documentTotalUsd, 0.0],
             'transfer_ves', 'pago_movil', 'efectivo_ves', 'punto_venta_ves' => [0.0, round($documentTotalUsd * $rate, 2)],
             'mixed' => [
@@ -2177,7 +2260,7 @@ JS;
     private static function isUsdOnlyPaymentMethod(string $paymentMethod): bool
     {
         return match ($paymentMethod) {
-            'transfer_ves', 'pago_movil', 'efectivo_ves', 'punto_venta_ves', 'mixed' => false,
+            'transfer_ves', 'pago_movil', 'efectivo_ves', 'punto_venta_ves', 'mixed', 'credito_cliente' => false,
             default => true,
         };
     }
@@ -2955,6 +3038,7 @@ JS;
             'client_id' => null,
             'pos_product_search' => null,
             'payment_method' => 'punto_venta_ves',
+            'generate_accounts_receivable' => false,
             'bdv_pm_conciliated' => false,
             'card_last4' => null,
             'mixed_usd_paid' => null,

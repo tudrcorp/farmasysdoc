@@ -19,7 +19,7 @@ use RuntimeException;
     {file : Ruta absoluta del CSV}
     {--branch-id= : ID de la sucursal destino (prioritario; recomendado con varias sucursales)}
     {--branch=La California : Nombre (o parte) de la sucursal si no usas --branch-id}
-    {--truncate : Trunca products e inventories antes de importar (destructivo; no usar en multi-sucursal)}')]
+    {--truncate-inventories : Trunca solo inventories antes de importar (útil para cargas limpias multi-sucursal)}')]
 #[Description('Importa CSV a inventarios por sucursal: upsert stock; productos/catálogo solo si faltan (sin truncar por defecto)')]
 class ImportCrossedProductsInventory extends Command
 {
@@ -51,7 +51,7 @@ class ImportCrossedProductsInventory extends Command
         $file = (string) $this->argument('file');
         $branchIdOption = $this->option('branch-id');
         $branchTerm = (string) $this->option('branch');
-        $truncate = (bool) $this->option('truncate');
+        $truncateInventories = (bool) $this->option('truncate-inventories');
 
         if (! is_file($file) || ! is_readable($file)) {
             $this->error('No se puede leer el CSV: '.$file);
@@ -100,10 +100,9 @@ class ImportCrossedProductsInventory extends Command
         /** @var array<string, bool> $usedSlugs */
         $usedSlugs = [];
 
-        if ($truncate) {
+        if ($truncateInventories) {
             DB::statement('SET FOREIGN_KEY_CHECKS=0');
             Inventory::query()->truncate();
-            Product::query()->truncate();
             DB::statement('SET FOREIGN_KEY_CHECKS=1');
         }
 
@@ -172,12 +171,15 @@ class ImportCrossedProductsInventory extends Command
                     $activeIngredient,
                     $actor,
                 ): void {
+                    $incomingSalePrice = round(max(0.0, $priceWithoutVat), 2);
+                    $currentSalePrice = round(max(0.0, (float) ($existing->sale_price ?? 0)), 2);
+
                     $existing->update([
                         'product_category_id' => $category->id,
                         'name' => $name,
                         'brand' => $brand !== '' ? $brand : $existing->brand,
                         'model' => $model !== '' ? $model : $existing->model,
-                        'sale_price' => round(max(0.0, $priceWithoutVat), 2),
+                        'sale_price' => max($incomingSalePrice, $currentSalePrice),
                         'cost_price' => round(max(0.0, $cost), 2),
                         'discount_percent' => 0,
                         'applies_vat' => $ivaCosto > 0.000001,
@@ -288,6 +290,18 @@ class ImportCrossedProductsInventory extends Command
                         'notes' => $reference !== '' ? 'Import CSV · '.$reference : 'Import CSV',
                     ],
                 );
+            });
+
+            Product::withoutEvents(function () use ($product, $priceWithoutVat, $actor): void {
+                $incomingSalePrice = round(max(0.0, $priceWithoutVat), 2);
+                $currentSalePrice = round(max(0.0, (float) ($product->sale_price ?? 0)), 2);
+
+                if ($incomingSalePrice > $currentSalePrice) {
+                    $product->update([
+                        'sale_price' => $incomingSalePrice,
+                        'updated_by' => $actor,
+                    ]);
+                }
             });
 
             $upsertedInventories++;

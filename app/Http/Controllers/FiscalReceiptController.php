@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Filament\Resources\Sales\SaleResource;
 use App\Models\Sale;
+use App\Services\Audit\AuditLogger;
 use App\Services\Fiscal\ThermalFiscalReceiptFormatter;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -12,12 +13,44 @@ use Illuminate\View\View;
 
 final class FiscalReceiptController extends Controller
 {
+    public function printDeliveryNote(Request $request, Sale $sale): View
+    {
+        abort_unless(Auth::check(), 403);
+        abort_unless(SaleResource::canView($sale), 403);
+
+        $sale->load(['branch', 'client', 'items.product']);
+
+        AuditLogger::record(
+            'pos_caja_delivery_note_viewed',
+            'Caja · Vista de nota de entrega · '.$sale->sale_number,
+            Sale::class,
+            $sale->id,
+            $sale->sale_number,
+            ['module' => 'pos_caja'],
+        );
+
+        return view('sales.delivery-note-print', [
+            'sale' => $sale,
+            'saleViewUrl' => SaleResource::getUrl('view', ['record' => $sale]),
+            'salesIndexUrl' => SaleResource::getUrl('index'),
+        ]);
+    }
+
     public function print(Request $request, Sale $sale): View
     {
         abort_unless(Auth::check(), 403);
         abort_unless(SaleResource::canView($sale), 403);
 
         $sale->load(['branch', 'client', 'items']);
+
+        AuditLogger::record(
+            'pos_caja_fiscal_receipt_viewed',
+            'Caja · Vista de comprobante fiscal · '.$sale->sale_number,
+            Sale::class,
+            $sale->id,
+            $sale->sale_number,
+            ['module' => 'pos_caja'],
+        );
 
         $formatter = app(ThermalFiscalReceiptFormatter::class);
         $plain = $formatter->format($sale);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
+use App\Services\Audit\AuditLogger;
 use App\Services\Sales\CashRegisterCloseReportBuilder;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -21,6 +22,16 @@ final class CashRegisterClosePdfController extends Controller
         }
 
         $payload = app(CashRegisterCloseReportBuilder::class)->build($from, $until);
+
+        AuditLogger::record(
+            'pos_caja_close_pdf_downloaded',
+            'Caja · Descarga de PDF de cierre de caja',
+            properties: [
+                'module' => 'pos_caja',
+                'period_from' => $from->toDateString(),
+                'period_until' => $until->toDateString(),
+            ],
+        );
 
         $suffix = $from->isSameDay($until)
             ? $from->format('Y-m-d')

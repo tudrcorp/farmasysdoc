@@ -12,6 +12,7 @@ use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Services\Audit\AuditLogger;
 use App\Services\BdvConciliation\BdvConciliationClient;
 use App\Services\Dolar\DolarApiDolaresService;
 use App\Services\Dolar\DolarApiEstadoService;
@@ -69,6 +70,8 @@ final class CashRegisterAction
 
     public const PAGO_MOVIL_CONCILIATION_ACTION_NAME = 'posPagoMovilConciliation';
 
+    public const CREDIT_SALE_CONFIRMATION_ACTION_NAME = 'posCreditSaleConfirmation';
+
     /**
      * Primer paso: buscar cliente (nombre o documento). Al elegir uno se abre la caja; «Continuar» sin elegir = mostrador.
      */
@@ -119,13 +122,24 @@ final class CashRegisterAction
                                     return;
                                 }
 
+                                $clientId = (int) $state;
+                                $pickedLabel = Client::query()->whereKey($clientId)->value('name');
+                                AuditLogger::record(
+                                    'pos_caja_client_picked_from_catalog',
+                                    'Caja · Cliente elegido desde catálogo',
+                                    Client::class,
+                                    $clientId,
+                                    filled($pickedLabel) ? (string) $pickedLabel : null,
+                                    ['module' => 'pos_caja', 'via' => 'busqueda_instantanea'],
+                                );
+
                                 $livewire = $component->getLivewire();
                                 if (! is_object($livewire) || ! method_exists($livewire, 'replaceMountedAction')) {
                                     return;
                                 }
 
                                 $livewire->replaceMountedAction('posRegister', [
-                                    'client_id' => (int) $state,
+                                    'client_id' => $clientId,
                                 ]);
                             })
                             ->native(false)
@@ -167,8 +181,18 @@ final class CashRegisterAction
 
                 $cid = $data['client_id'] ?? null;
                 if (filled($cid)) {
+                    $clientId = (int) $cid;
+                    $pickedLabel = Client::query()->whereKey($clientId)->value('name');
+                    AuditLogger::record(
+                        'pos_caja_client_picked_from_catalog',
+                        'Caja · Cliente elegido desde catálogo',
+                        Client::class,
+                        $clientId,
+                        filled($pickedLabel) ? (string) $pickedLabel : null,
+                        ['module' => 'pos_caja', 'via' => 'continuar_modal'],
+                    );
                     $livewire->replaceMountedAction('posRegister', [
-                        'client_id' => (int) $cid,
+                        'client_id' => $clientId,
                     ]);
 
                     return;
@@ -199,6 +223,18 @@ final class CashRegisterAction
                             ->body('Ya existe un cliente con ese documento; se abrirá la venta con ese registro.')
                             ->success()
                             ->send();
+                        $docDigits = preg_replace('/\D+/', '', $quickDoc) ?? '';
+                        AuditLogger::record(
+                            'pos_caja_quick_client_existing_doc',
+                            'Caja · Registro rápido: documento ya existente; se usa cliente registrado',
+                            Client::class,
+                            $existing->id,
+                            $existing->name,
+                            [
+                                'module' => 'pos_caja',
+                                'document_last4' => strlen($docDigits) >= 4 ? substr($docDigits, -4) : null,
+                            ],
+                        );
                         $livewire->replaceMountedAction('posRegister', [
                             'client_id' => $existing->id,
                         ]);
@@ -207,6 +243,14 @@ final class CashRegisterAction
                     }
 
                     $client = self::createClientFromPosQuickForm($quickName, $quickDoc, $quickPhone);
+                    AuditLogger::record(
+                        'pos_caja_quick_client_created',
+                        'Caja · Cliente nuevo desde registro rápido',
+                        Client::class,
+                        $client->id,
+                        $client->name,
+                        ['module' => 'pos_caja'],
+                    );
                     Notification::make()
                         ->title('Cliente registrado')
                         ->body('Se guardó el cliente y puede cargar productos.')
@@ -219,6 +263,11 @@ final class CashRegisterAction
                     return;
                 }
 
+                AuditLogger::record(
+                    'pos_caja_walk_in',
+                    'Caja · Inicio de venta mostrador (sin cliente)',
+                    properties: ['module' => 'pos_caja'],
+                );
                 $livewire->replaceMountedAction('posRegister', [
                     'client_id' => null,
                 ]);
@@ -239,6 +288,7 @@ final class CashRegisterAction
             ->modalSubmitActionLabel('Registrar venta')
             ->modalCancelAction(fn (Action $action): Action => $action->color('danger'))
             ->registerModalActions([
+                self::makeCreditSaleConfirmation(),
                 self::makePagoMovilConciliation(),
             ])
             ->extraAttributes([
@@ -283,6 +333,8 @@ final class CashRegisterAction
                             ->schema([
                                 Hidden::make('client_id'),
                                 Hidden::make('bdv_pm_conciliated')
+                                    ->default(false),
+                                Hidden::make('credit_sale_confirmed')
                                     ->default(false),
                                 TextEntry::make('pos_client_summary')
                                     ->label('Cliente')
@@ -877,6 +929,11 @@ final class CashRegisterAction
                 $branchId = Auth::user()?->branch_id;
 
                 if (blank($branchId)) {
+                    AuditLogger::record(
+                        'pos_caja_sale_blocked',
+                        'Caja · No se registró la venta: usuario sin sucursal',
+                        properties: ['module' => 'pos_caja', 'reason' => 'usuario_sin_sucursal'],
+                    );
                     Notification::make()
                         ->title('Tu usuario no tiene sucursal asignada.')
                         ->danger()
@@ -888,6 +945,21 @@ final class CashRegisterAction
                 $paymentMethod = (string) ($data['payment_method'] ?? '');
                 $paymentReference = trim((string) ($data['reference'] ?? ''));
                 $cardLast4 = trim((string) ($data['card_last4'] ?? ''));
+
+                if (
+                    $paymentMethod === 'credito_cliente'
+                    && ! filter_var($data['credit_sale_confirmed'] ?? false, FILTER_VALIDATE_BOOLEAN)
+                ) {
+                    $livewire = $action->getLivewire();
+
+                    if ($livewire instanceof HasActions) {
+                        $livewire->mountAction(self::CREDIT_SALE_CONFIRMATION_ACTION_NAME, [
+                            'pos_data' => $data,
+                        ]);
+                    }
+
+                    return;
+                }
 
                 $lines = collect($data['line_items'] ?? [])
                     ->filter(function (mixed $row): bool {
@@ -902,6 +974,11 @@ final class CashRegisterAction
                     ->all();
 
                 if ($lines === []) {
+                    AuditLogger::record(
+                        'pos_caja_sale_blocked',
+                        'Caja · No se registró la venta: carrito sin líneas válidas',
+                        properties: ['module' => 'pos_caja', 'reason' => 'sin_productos'],
+                    );
                     Notification::make()
                         ->title('Debe cargar al menos un producto')
                         ->body('Seleccione un producto y una cantidad mayor a cero en al menos una línea antes de registrar la venta.')
@@ -1080,6 +1157,11 @@ final class CashRegisterAction
                 if ($paymentMethod === 'pago_movil') {
                     $alreadyConciliated = filter_var($data['bdv_pm_conciliated'] ?? false, FILTER_VALIDATE_BOOL);
                     if (! $alreadyConciliated) {
+                        AuditLogger::record(
+                            'pos_caja_sale_blocked',
+                            'Caja · No se registró la venta: Pago Móvil sin validar en BDV',
+                            properties: ['module' => 'pos_caja', 'reason' => 'pago_movil_sin_conciliar'],
+                        );
                         Notification::make()
                             ->title('Pago no conciliado por BDV')
                             ->body('El pago no fue conciliado por BDV. Complete el asistente de conciliación Pago Móvil y pulse «Validar con BDV» antes de registrar la venta.')
@@ -1092,6 +1174,11 @@ final class CashRegisterAction
                 }
 
                 if ($paymentMethod === 'punto_venta_ves' && ! preg_match('/^\d{4}$/', $cardLast4)) {
+                    AuditLogger::record(
+                        'pos_caja_sale_blocked',
+                        'Caja · No se registró la venta: datos de tarjeta POS incompletos',
+                        properties: ['module' => 'pos_caja', 'reason' => 'punto_venta_sin_ultimos_4'],
+                    );
                     Notification::make()
                         ->title('Faltan los últimos 4 dígitos')
                         ->body('Para pagos por Punto de Venta debe indicar exactamente los últimos 4 dígitos de la tarjeta.')
@@ -1245,6 +1332,15 @@ final class CashRegisterAction
                         return $sale;
                     });
                 } catch (RuntimeException $e) {
+                    AuditLogger::record(
+                        'pos_caja_sale_blocked',
+                        'Caja · Venta rechazada al guardar',
+                        properties: [
+                            'module' => 'pos_caja',
+                            'reason' => 'error_transaccion',
+                            'message' => Str::limit($e->getMessage(), 500),
+                        ],
+                    );
                     Notification::make()
                         ->title($e->getMessage())
                         ->danger()
@@ -1252,6 +1348,23 @@ final class CashRegisterAction
 
                     return;
                 }
+
+                AuditLogger::record(
+                    'pos_caja_sale_completed',
+                    'Caja · Venta registrada · '.$sale->sale_number,
+                    Sale::class,
+                    $sale->id,
+                    $sale->sale_number,
+                    [
+                        'module' => 'pos_caja',
+                        'payment_method' => $sale->payment_method,
+                        'total' => (float) $sale->total,
+                        'branch_id' => (int) $sale->branch_id,
+                        'client_id' => $sale->client_id,
+                        'cuenta_por_cobrar' => $sale->payment_method === 'credito_cliente'
+                            && $generateAccountsReceivable,
+                    ],
+                );
 
                 $saleSuccessBody = 'Total '.self::formatMoney($documentTotal).' · '.$sale->sale_number;
                 if ($sale->payment_method === 'credito_cliente') {
@@ -1265,10 +1378,63 @@ final class CashRegisterAction
                     ->send();
 
                 $nextUrl = config('fiscal.auto_print_on_sale_complete', true)
-                    ? route('sales.fiscal-receipt.print', $sale)
+                    ? ($sale->payment_method === 'credito_cliente'
+                        ? route('sales.delivery-note.print', $sale)
+                        : route('sales.fiscal-receipt.print', $sale))
                     : SaleResource::getUrl('view', ['record' => $sale], isAbsolute: false);
 
                 return redirect()->to($nextUrl);
+            });
+    }
+
+    public static function makeCreditSaleConfirmation(): Action
+    {
+        return Action::make(self::CREDIT_SALE_CONFIRMATION_ACTION_NAME)
+            ->label('Confirmar venta a crédito')
+            ->modalHeading('Confirmar venta a crédito')
+            ->modalDescription('Está por registrar una venta a crédito. Se generará una cuenta por cobrar y un documento de nota de entrega. ¿Desea continuar?')
+            ->modalIcon(Heroicon::ExclamationCircle)
+            ->modalWidth(Width::Medium)
+            ->modalSubmitActionLabel('Sí, registrar venta')
+            ->modalCancelActionLabel('No, volver a caja')
+            ->modalCancelAction(fn (Action $action): Action => $action->color('gray'))
+            ->action(function (Action $action): void {
+                $args = $action->getArguments();
+                $posData = is_array($args['pos_data'] ?? null) ? $args['pos_data'] : [];
+                if ($posData === []) {
+                    return;
+                }
+
+                $posData['credit_sale_confirmed'] = true;
+
+                $clientIdCxC = isset($posData['client_id']) ? (int) $posData['client_id'] : 0;
+                $clientLabel = $clientIdCxC > 0
+                    ? Client::query()->whereKey($clientIdCxC)->value('name')
+                    : null;
+                AuditLogger::record(
+                    'pos_caja_credit_confirmed',
+                    'Caja · Usuario confirmó venta a crédito / cuenta por cobrar',
+                    $clientIdCxC > 0 ? Client::class : null,
+                    $clientIdCxC > 0 ? $clientIdCxC : null,
+                    filled($clientLabel) ? (string) $clientLabel : null,
+                    [
+                        'module' => 'pos_caja',
+                        'generate_accounts_receivable_expected' => filter_var($posData['generate_accounts_receivable'] ?? false, FILTER_VALIDATE_BOOL),
+                    ],
+                );
+
+                $livewire = $action->getLivewire();
+
+                if (! $livewire instanceof BasePage) {
+                    return;
+                }
+
+                self::patchPosRegisterMountedData($livewire, $posData);
+                $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, [
+                    'pos_data' => $posData,
+                    'client_id' => $posData['client_id'] ?? null,
+                ]);
+                $livewire->callMountedAction();
             });
     }
 
@@ -1473,6 +1639,14 @@ final class CashRegisterAction
                     ->label('Cerrar')
                     ->color('gray')
                     ->action(function (BasePage $livewire): void {
+                        AuditLogger::record(
+                            'pos_caja_bdv_modal_abandoned',
+                            'Caja · Conciliación BDV cerrada; se cambió a otro método de cobro',
+                            properties: [
+                                'module' => 'pos_caja',
+                                'via' => 'boton_cerrar_modal',
+                            ],
+                        );
                         $livewire->unmountAction();
                         self::patchPosRegisterMountedData($livewire, [
                             'payment_method' => 'punto_venta_ves',
@@ -1619,6 +1793,15 @@ final class CashRegisterAction
                                 if (! $livewire instanceof BasePage) {
                                     return;
                                 }
+
+                                AuditLogger::record(
+                                    'pos_caja_bdv_modal_abandoned',
+                                    'Caja · Conciliación BDV cerrada; se cambió a otro método de cobro',
+                                    properties: [
+                                        'module' => 'pos_caja',
+                                        'via' => 'regresar_a_caja_otro_metodo',
+                                    ],
+                                );
 
                                 $livewire->unmountAction();
                                 self::patchPosRegisterMountedData($livewire, [
@@ -1796,6 +1979,19 @@ final class CashRegisterAction
                     return;
                 }
 
+                AuditLogger::record(
+                    'pos_caja_bdv_conciliation_ok',
+                    'Caja · Pago Móvil validado por BDV',
+                    properties: [
+                        'module' => 'pos_caja',
+                        'environment' => $environment,
+                        'referencia_suffix' => strlen($candidate['referencia']) >= 2
+                            ? substr($candidate['referencia'], -2)
+                            : null,
+                        'importe_bs' => $candidate['importe'],
+                    ],
+                );
+
                 self::patchPosRegisterMountedData($livewire, [
                     'reference' => $candidate['referencia'],
                     'bdv_pm_conciliated' => true,
@@ -1822,6 +2018,15 @@ final class CashRegisterAction
             'bdv_pm_failed' => true,
             'bdv_pm_failure_message' => $message,
         ]);
+
+        AuditLogger::record(
+            'pos_caja_bdv_conciliation_failed',
+            'Caja · Conciliación Pago Móvil no aceptada',
+            properties: [
+                'module' => 'pos_caja',
+                'detail' => Str::limit($message, 800),
+            ],
+        );
     }
 
     private static function truncateForUserMessage(string $message, int $maxLength = 280): string

@@ -302,11 +302,17 @@ class SalesTable
                         ->label('Ver venta')
                         ->icon(Heroicon::Eye),
                     Action::make('printFiscalReceipt')
-                        ->label('Factura fiscal')
+                        ->label(fn (Sale $record): string => $record->payment_method === 'credito_cliente'
+                            ? 'Nota de entrega'
+                            : 'Factura fiscal')
                         ->icon(Heroicon::Printer)
                         ->color('gray')
-                        ->tooltip('Ticket térmico (texto/ESC-POS) — prueba de impresión')
-                        ->url(fn (Sale $record): string => route('sales.fiscal-receipt', $record))
+                        ->tooltip(fn (Sale $record): string => $record->payment_method === 'credito_cliente'
+                            ? 'Documento de entrega para ventas a crédito'
+                            : 'Ticket térmico (texto/ESC-POS) — prueba de impresión')
+                        ->url(fn (Sale $record): string => $record->payment_method === 'credito_cliente'
+                            ? route('sales.delivery-note.print', $record)
+                            : route('sales.fiscal-receipt', $record))
                         ->openUrlInNewTab(),
                 ]),
             ])

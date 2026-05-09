@@ -22,6 +22,7 @@ class Delivery extends Model
     protected $fillable = [
         'branch_id',
         'order_id',
+        'product_transfer_id',
         'order_number',
         'user_id',
         'delivery_type',
@@ -50,6 +51,11 @@ class Delivery extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function productTransfer(): BelongsTo
+    {
+        return $this->belongsTo(ProductTransfer::class);
     }
 
     public function user(): BelongsTo

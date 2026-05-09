@@ -5,6 +5,7 @@ namespace App\Support\Filament;
 use App\Filament\Resources\Deliveries\DeliveryResource;
 use App\Filament\Resources\OrderServices\OrderServiceResource;
 use App\Filament\Resources\ProductTransfers\ProductTransferResource;
+use App\Filament\Resources\ProductTransferSales\ProductTransferSaleResource;
 use App\Models\User;
 use Filament\Resources\Resource;
 
@@ -20,6 +21,7 @@ final class FarmaadminDeliveryUserAccess
         DeliveryResource::class,
         OrderServiceResource::class,
         ProductTransferResource::class,
+        ProductTransferSaleResource::class,
     ];
 
     public static function isRestrictedDeliveryUser(): bool

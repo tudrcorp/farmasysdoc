@@ -29,6 +29,7 @@ class FarmaadminMenuAccessCatalog
             'inventory_movements' => ['label' => 'Movimientos de inventario', 'route_name_fragment' => 'resources.inventory-movements.', 'group' => 'Inventario'],
             'inventory_adjustments' => ['label' => 'Ajustes de inventario', 'route_name_fragment' => 'resources.inventory-adjustments.', 'group' => 'Inventario'],
             'product_transfers' => ['label' => 'Traslados de productos', 'route_name_fragment' => 'resources.product-transfers.', 'group' => 'Inventario'],
+            'product_transfer_sales' => ['label' => 'Traslados de venta', 'route_name_fragment' => 'resources.product-transfer-sales.', 'group' => 'Inventario'],
             'suppliers' => ['label' => 'Proveedores', 'route_name_fragment' => 'resources.suppliers.', 'group' => 'Inventario'],
             'branches' => ['label' => 'Sucursales', 'route_name_fragment' => 'resources.branches.', 'group' => 'Configuración'],
             'roles' => ['label' => 'Roles', 'route_name_fragment' => 'resources.roles.', 'group' => 'Configuración'],

@@ -14,6 +14,7 @@ use App\Filament\Resources\ProductTransfers\Tables\ProductTransfersTable;
 use App\Models\ProductTransfer;
 use App\Models\User;
 use App\Services\Inventory\ProductTransferCompletionService;
+use App\Support\Audit\ProductTransferSaleAuditLogger;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Radio;
@@ -203,6 +204,11 @@ class ProductTransferResource extends Resource
                     'in_progress_at' => now(),
                     'updated_by' => $actor,
                 ])->save();
+
+                $record->refresh();
+                if (ProductTransferSaleAuditLogger::isSaleTransfer($record)) {
+                    ProductTransferSaleAuditLogger::logDeliveryTook($record, $user);
+                }
             });
     }
 
@@ -388,6 +394,14 @@ class ProductTransferResource extends Resource
                 }
 
                 $record->forceFill($payload)->save();
+
+                $record->refresh();
+                if (
+                    ProductTransferSaleAuditLogger::isSaleTransfer($record)
+                    && $currentStatus instanceof ProductTransferStatus
+                ) {
+                    ProductTransferSaleAuditLogger::logAdminStatusChanged($record, $currentStatus, $newStatus);
+                }
 
                 Notification::make()
                     ->success()

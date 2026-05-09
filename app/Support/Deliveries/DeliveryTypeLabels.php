@@ -11,6 +11,9 @@ final class DeliveryTypeLabels
 {
     public const TYPE_MANUAL = 'manual';
 
+    /** Entrega generada al crear un traslado de venta (TV-). */
+    public const TYPE_SALE_TRANSFER = 'sale_transfer';
+
     /**
      * @return array<string, string>
      */
@@ -45,6 +48,7 @@ final class DeliveryTypeLabels
             PartnerOrderDeliverySync::DELIVERY_TYPE_PARTNER => 'Aliado · envío a domicilio',
             PartnerOrderDeliverySync::DELIVERY_TYPE_CLIENT_ORDER => 'Cliente / sucursal · envío',
             self::TYPE_MANUAL => 'Registro manual',
+            self::TYPE_SALE_TRANSFER => 'Traslado de venta · entrega cliente',
             default => $type,
         };
     }

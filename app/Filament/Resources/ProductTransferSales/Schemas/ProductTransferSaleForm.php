@@ -3,21 +3,26 @@
 namespace App\Filament\Resources\ProductTransferSales\Schemas;
 
 use App\Enums\ProductTransferStatus;
+use App\Filament\Resources\Sales\Actions\CashRegisterAction;
 use App\Models\Client;
+use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\User;
 use App\Support\Filament\BranchAuthScope;
+use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Operation;
+use Filament\Support\Enums\Size;
 use Filament\Support\Icons\Heroicon;
 use Filament\Support\Services\RelationshipJoiner;
 use Illuminate\Database\Eloquent\Builder;
@@ -57,11 +62,11 @@ class ProductTransferSaleForm
     {
         $query->where($query->qualifyColumn('is_active'), true);
 
-        $fromId = $get('../../from_branch_id');
+        $toId = $get('../../to_branch_id');
         $selectedProductId = $get('product_id');
         $table = $query->getModel()->getTable();
 
-        if (! filled($fromId) || (int) $fromId <= 0) {
+        if (! filled($toId) || (int) $toId <= 0) {
             if (filled($selectedProductId)) {
                 return $query
                     ->whereKey((int) $selectedProductId)
@@ -71,14 +76,14 @@ class ProductTransferSaleForm
             return $query->whereRaw('0 = 1');
         }
 
-        $fromId = (int) $fromId;
+        $toId = (int) $toId;
 
         return $query
-            ->where(function (Builder $outer) use ($fromId, $table, $selectedProductId, $query): void {
-                $outer->whereExists(function (QueryBuilder $sub) use ($fromId, $table): void {
+            ->where(function (Builder $outer) use ($toId, $table, $selectedProductId, $query): void {
+                $outer->whereExists(function (QueryBuilder $sub) use ($toId, $table): void {
                     $sub->from('inventories')
                         ->whereColumn('inventories.product_id', $table.'.id')
-                        ->where('inventories.branch_id', $fromId)
+                        ->where('inventories.branch_id', $toId)
                         ->where('inventories.quantity', '>', 0);
                 });
 
@@ -112,79 +117,70 @@ class ProductTransferSaleForm
         $relationshipQuery->limit($component->getOptionsLimit());
 
         $qualifiedRelatedKeyName = $component->getQualifiedRelatedKeyNameForRelationship($relationship);
-        $relationshipTitleAttribute = $component->getRelationshipTitleAttribute();
-        if (! str_contains((string) $relationshipTitleAttribute, '->')) {
-            $relationshipTitleAttribute = $relationshipQuery->qualifyColumn((string) $relationshipTitleAttribute);
+        $get = $component->makeGetUtility();
+        $toId = (int) ($get('../../to_branch_id') ?? 0);
+        if ($toId <= 0) {
+            return [];
         }
 
-        return $relationshipQuery
-            ->pluck($relationshipTitleAttribute, $qualifiedRelatedKeyName)
+        $ids = $relationshipQuery
+            ->pluck($qualifiedRelatedKeyName)
+            ->map(static fn (mixed $id): int => (int) $id)
             ->all();
+
+        $options = [];
+        foreach ($ids as $id) {
+            $options[$id] = CashRegisterAction::saleTransferDestinationProductOptionLabel($toId, $id, $get)
+                ?? (string) Product::query()->whereKey($id)->value('name');
+        }
+
+        return $options;
     }
 
     /**
      * @return array<int, string>
      */
-    public static function transferProductGlobalSearchResults(?string $search): array
+    public static function transferProductGlobalSearchResults(?string $search, Get $get): array
     {
-        $query = Product::query()
-            ->where('is_active', true)
-            ->orderBy('name', 'asc')
-            ->limit(30)
-            ->select(['id', 'name', 'sku', 'barcode', 'active_ingredient']);
-
-        $term = filled($search) ? trim((string) $search) : '';
-        if ($term !== '') {
-            $like = '%'.addcslashes($term, '%_\\').'%';
-            $query->where(function (Builder $q) use ($like): void {
-                $q->where('name', 'like', $like)
-                    ->orWhere('sku', 'like', $like)
-                    ->orWhere('barcode', 'like', $like)
-                    ->orWhere('active_ingredient', 'like', $like);
-            });
+        $toId = (int) ($get('to_branch_id') ?? 0);
+        if ($toId <= 0) {
+            return [];
         }
 
-        return $query->get()
-            ->mapWithKeys(fn (Product $product): array => [
-                (int) $product->id => self::transferProductOptionLabelFromProduct($product),
-            ])
-            ->all();
+        return CashRegisterAction::saleTransferDestinationProductSearch(
+            $toId,
+            filled($search) ? trim((string) $search) : '',
+            $get,
+        );
     }
 
-    public static function transferProductOptionLabel(mixed $value): ?string
+    public static function transferProductGlobalOptionLabel(mixed $value, Get $get): ?string
     {
         if (! filled($value)) {
             return null;
         }
 
-        $product = Product::query()
-            ->select(['id', 'name', 'sku', 'barcode', 'active_ingredient'])
-            ->find((int) $value);
-
-        if (! $product instanceof Product) {
+        $toId = (int) ($get('to_branch_id') ?? 0);
+        if ($toId <= 0) {
             return null;
         }
 
-        return self::transferProductOptionLabelFromProduct($product);
+        return CashRegisterAction::saleTransferDestinationProductOptionLabel($toId, (int) $value, $get);
     }
 
-    public static function transferProductOptionLabelFromProduct(Product $product): string
+    public static function transferRepeaterProductOptionLabel(mixed $value, Get $get): ?string
     {
-        $code = filled($product->barcode)
-            ? (string) $product->barcode
-            : (filled($product->sku) ? (string) $product->sku : null);
-        $activeIngredient = filled($product->active_ingredient)
-            ? (is_array($product->active_ingredient)
-                ? collect($product->active_ingredient)->filter()->implode(', ')
-                : (string) $product->active_ingredient)
-            : null;
-        $segments = array_values(array_filter([
-            $product->name,
-            $code,
-            $activeIngredient,
-        ], fn (mixed $segment): bool => filled($segment)));
+        if (! filled($value)) {
+            return null;
+        }
 
-        return implode(' · ', $segments);
+        $toId = (int) ($get('../../to_branch_id') ?? 0);
+        if ($toId <= 0) {
+            return Product::query()->whereKey((int) $value)->value('name');
+        }
+
+        return CashRegisterAction::saleTransferDestinationProductOptionLabel($toId, (int) $value, $get)
+            ?? Product::query()->whereKey((int) $value)->value('name');
     }
 
     /**
@@ -242,6 +238,33 @@ class ProductTransferSaleForm
 
     public static function appendProductFromGlobalSearchToItems(int $productId, Set $set, Get $get): void
     {
+        $toId = (int) ($get('to_branch_id') ?? 0);
+        if ($toId <= 0) {
+            Notification::make()
+                ->title('Seleccione sucursal destino')
+                ->body('Elija la sucursal destino antes de agregar productos.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $hasStock = Inventory::query()
+            ->where('branch_id', $toId)
+            ->where('product_id', $productId)
+            ->where('quantity', '>', 0)
+            ->exists();
+
+        if (! $hasStock) {
+            Notification::make()
+                ->title('Sin existencia en destino')
+                ->body('El producto no tiene inventario disponible en la sucursal destino.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
         $items = $get('items');
         $rows = [];
 
@@ -275,34 +298,66 @@ class ProductTransferSaleForm
             ];
         }
 
-        $last = $rows[array_key_last($rows)] ?? null;
-        if (! is_array($last) || filled($last['product_id'] ?? null)) {
-            $rows[] = [
-                'product_id' => null,
-                'quantity' => 1,
-            ];
-        }
-
         $set('items', $rows);
     }
 
     public static function focusGlobalTransferProductSearchJs(): string
     {
         return <<<'JS'
-setTimeout(() => {
-    const selectors = [
-        'input[placeholder="Código, nombre o principio activo (todas las sucursales)"]',
-        'input[placeholder="Código, nombre o principio activo"]',
-        'input[type="search"]',
-    ];
-    const input = selectors
-        .map((selector) => document.querySelector(selector))
-        .find((candidate) => candidate instanceof HTMLInputElement);
-    if (input instanceof HTMLInputElement) {
-        input.focus();
-        input.select();
-    }
-}, 60);
+(() => {
+    const wrapSel = '.farmadoc-sale-transfer-product-search-wrap';
+    /** Solo un click: el toggle del botón cerraba el panel si se programaba dos veces (parpadeo). */
+    let openClicked = false;
+    let tries = 0;
+    const maxTries = 35;
+
+    const focusInPanel = (btn) => {
+        const panelId = btn.getAttribute('aria-controls');
+        if (!panelId) {
+            return false;
+        }
+        const panel = document.getElementById(panelId);
+        const input = panel?.querySelector(
+            'input.fi-input:not([type="hidden"]), input[type="search"]',
+        );
+        if (input instanceof HTMLInputElement) {
+            input.focus({ preventScroll: false });
+            return true;
+        }
+        return false;
+    };
+
+    const step = () => {
+        tries += 1;
+        if (tries > maxTries) {
+            return;
+        }
+
+        const wrap = document.querySelector(wrapSel);
+        const btn = wrap?.querySelector('.fi-select-input-btn');
+        if (!(btn instanceof HTMLElement)) {
+            setTimeout(step, 80);
+            return;
+        }
+
+        const expanded = btn.getAttribute('aria-expanded') === 'true';
+
+        if (!expanded && !openClicked) {
+            openClicked = true;
+            btn.click();
+            setTimeout(step, 100);
+            return;
+        }
+
+        if (expanded && focusInPanel(btn)) {
+            return;
+        }
+
+        setTimeout(step, 80);
+    };
+
+    setTimeout(step, 180);
+})();
 JS;
     }
 
@@ -311,7 +366,7 @@ JS;
         return $schema
             ->components([
                 Section::make('Identificación')
-                    ->description('En edición verá el código generado al guardar el traslado.')
+                    ->description('En edición verá el código asignado al guardar (prefijo TV-; los demás traslados usan TRAS-).')
                     ->visibleOn('edit')
                     ->icon(Heroicon::Hashtag)
                     ->schema([
@@ -409,19 +464,25 @@ JS;
                     ->columns(1)
                     ->columnSpanFull(),
                 Section::make('Productos a trasladar')
-                    ->description('Busque por código, principio activo o nombre. Al elegir un producto se agrega automáticamente al detalle.')
+                    ->description('Busque por código, principio activo o nombre en la sucursal destino (solo artículos con existencia mayor que cero). Al elegir un producto se agrega al detalle.')
                     ->icon(Heroicon::Cube)
                     ->schema([
                         Select::make('sale_transfer_product_search')
                             ->label('Buscador general de productos')
-                            ->placeholder('Código, nombre o principio activo (todas las sucursales)')
+                            ->placeholder('Código, nombre o principio activo (sucursal destino)')
                             ->searchPrompt('Escriba código, principio activo o nombre')
-                            ->helperText('Al seleccionar con click o Enter, se agrega en el repeater y el cursor vuelve a este buscador.')
+                            ->helperText('Inventario de la sucursal destino con existencia > 0; precios como en caja. Al seleccionar, se agrega al detalle y el foco vuelve aquí.')
+                            ->extraFieldWrapperAttributes([
+                                'class' => 'farmadoc-sale-transfer-product-search-wrap',
+                            ])
+                            ->extraInputAttributes([
+                                'data-sale-transfer-product-search' => '',
+                            ])
                             ->live()
                             ->searchable()
                             ->searchDebounce(150)
-                            ->getSearchResultsUsing(fn (?string $search): array => self::transferProductGlobalSearchResults($search))
-                            ->getOptionLabelUsing(fn (mixed $value): ?string => self::transferProductOptionLabel($value))
+                            ->getSearchResultsUsing(fn (?string $search, Get $get): array => self::transferProductGlobalSearchResults($search, $get))
+                            ->getOptionLabelUsing(fn (mixed $value, Get $get): ?string => self::transferProductGlobalOptionLabel($value, $get))
                             ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
                                 if (! filled($state)) {
                                     return;
@@ -460,12 +521,13 @@ JS;
                                     )
                                     ->searchable()
                                     ->getSearchResultsUsing(fn (Select $component, ?string $search): array => self::transferProductSelectSearchResults($component, $search))
+                                    ->getOptionLabelUsing(fn (mixed $value, Get $get): ?string => self::transferRepeaterProductOptionLabel($value, $get))
                                     ->preload()
                                     ->native(false)
                                     ->required()
-                                    ->helperText(fn (Get $get): string => filled($get('../../from_branch_id'))
-                                        ? 'Solo productos con inventario disponible en la sucursal origen.'
-                                        : 'Seleccione primero la sucursal origen.')
+                                    ->helperText(fn (Get $get): string => filled($get('../../to_branch_id'))
+                                        ? 'Solo productos con existencia en la sucursal destino (etiqueta con precio y cantidad como en caja).'
+                                        : 'Seleccione primero la sucursal destino.')
                                     ->prefixIcon(Heroicon::Cube),
                                 TextInput::make('quantity')
                                     ->label('Cantidad')
@@ -474,14 +536,62 @@ JS;
                                     ->step(0.001)
                                     ->required()
                                     ->default(1)
-                                    ->prefixIcon(Heroicon::Calculator),
+                                    ->live(debounce: 150)
+                                    ->inlinePrefix()
+                                    ->inlineSuffix()
+                                    ->prefixAction(
+                                        Action::make('decreaseSaleTransferQuantity')
+                                            ->label('Menos')
+                                            ->icon(Heroicon::Minus)
+                                            ->color('gray')
+                                            ->size(Size::Small)
+                                            ->action(function (Set $set, Get $get): void {
+                                                $current = (float) ($get('quantity') ?? 0);
+                                                $next = max(0.001, round($current - 1, 3));
+                                                $set('quantity', $next);
+                                            }),
+                                        isInline: true,
+                                    )
+                                    ->suffixAction(
+                                        Action::make('increaseSaleTransferQuantity')
+                                            ->label('Más')
+                                            ->icon(Heroicon::Plus)
+                                            ->color('gray')
+                                            ->size(Size::Small)
+                                            ->action(function (Set $set, Get $get): void {
+                                                $current = (float) ($get('quantity') ?? 0);
+                                                $next = round(max(0.001, $current) + 1, 3);
+                                                $toId = (int) ($get('../../to_branch_id') ?? 0);
+                                                $productId = $get('product_id');
+                                                if ($toId > 0 && filled($productId)) {
+                                                    $available = (float) (Inventory::query()
+                                                        ->where('branch_id', $toId)
+                                                        ->where('product_id', (int) $productId)
+                                                        ->value('quantity') ?? 0);
+                                                    if ($next > $available + 0.0001) {
+                                                        Notification::make()
+                                                            ->title('Cantidad superior a la existencia en destino')
+                                                            ->body('Ajuste la cantidad al inventario disponible en la sucursal destino.')
+                                                            ->warning()
+                                                            ->send();
+
+                                                        return;
+                                                    }
+                                                }
+                                                $set('quantity', $next);
+                                            }),
+                                        isInline: true,
+                                    )
+                                    ->extraAttributes([
+                                        'class' => 'farmadoc-sale-transfer-qty-field',
+                                    ]),
                             ])
                             ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
                 Section::make('Información de la factura del cliente')
-                    ->description('Busque el cliente por nombre o documento, igual que en caja.')
+                    ->description('Busque el cliente por nombre o documento. Si no existe, regístrelo aquí mismo y continúe sin salir del traslado.')
                     ->icon(Heroicon::User)
                     ->schema([
                         Grid::make([
@@ -492,12 +602,35 @@ JS;
                                 Select::make('client_id')
                                     ->label('Cliente')
                                     ->placeholder('Nombre o documento de identidad…')
+                                    ->live()
                                     ->searchable()
                                     ->searchDebounce(100)
                                     ->getSearchResultsUsing(fn (?string $search): array => self::transferClientSearchResults($search))
                                     ->getOptionLabelUsing(fn (mixed $value): ?string => self::transferClientOptionLabel($value))
                                     ->native(false)
                                     ->prefixIcon(Heroicon::User)
+                                    ->columnSpanFull(),
+                                Section::make('Cliente nuevo')
+                                    ->description('Visible cuando no selecciona un cliente existente. Complete nombre, cédula y teléfono para registrarlo automáticamente al guardar.')
+                                    ->icon(Heroicon::UserPlus)
+                                    ->iconColor('gray')
+                                    ->visible(fn (Get $get): bool => blank($get('client_id')))
+                                    ->schema([
+                                        TextInput::make('quick_client_name')
+                                            ->label('Nombre completo')
+                                            ->maxLength(255)
+                                            ->columnSpanFull(),
+                                        TextInput::make('quick_client_document')
+                                            ->label('Cédula / documento')
+                                            ->maxLength(120)
+                                            ->columnSpan(['default' => 1, 'sm' => 1]),
+                                        TextInput::make('quick_client_phone')
+                                            ->label('Teléfono')
+                                            ->tel()
+                                            ->maxLength(120)
+                                            ->columnSpan(['default' => 1, 'sm' => 1]),
+                                    ])
+                                    ->columns(['default' => 1, 'sm' => 2])
                                     ->columnSpanFull(),
                                 TextInput::make('customer_invoice_reference')
                                     ->label('Nro. de factura cliente')

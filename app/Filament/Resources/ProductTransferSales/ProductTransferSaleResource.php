@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ProductTransferSales;
 
+use App\Filament\Resources\Concerns\RestrictsAccessForDeliveryUsers;
 use App\Filament\Resources\ProductTransfers\ProductTransferResource;
 use App\Filament\Resources\ProductTransferSales\Pages\CreateProductTransferSale;
 use App\Filament\Resources\ProductTransferSales\Pages\ListProductTransferSales;
@@ -11,6 +12,7 @@ use App\Filament\Resources\ProductTransferSales\Schemas\ProductTransferSaleInfol
 use App\Filament\Resources\ProductTransferSales\Tables\ProductTransferSalesTable;
 use App\Models\ProductTransfer;
 use App\Models\User;
+use App\Support\Filament\FarmaadminDeliveryUserAccess;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -22,6 +24,8 @@ use Illuminate\Support\Facades\Auth;
 
 class ProductTransferSaleResource extends Resource
 {
+    use RestrictsAccessForDeliveryUsers;
+
     protected static ?string $model = ProductTransfer::class;
 
     protected static ?string $navigationLabel = 'Traslados de venta';
@@ -67,12 +71,35 @@ class ProductTransferSaleResource extends Resource
     }
 
     /**
+     * Listado: solo traslados de venta emitidos desde sucursales permitidas al usuario.
+     *
+     * Administrador y delivery: todos. GERENCIA: orígenes en sucursales del pivote.
+     * Resto: solo donde {@see ProductTransfer::from_branch_id} es la sucursal del usuario.
+     *
      * @return Builder<ProductTransfer>
      */
     public static function getEloquentQuery(): Builder
     {
-        return ProductTransferResource::getEloquentQuery()
+        $query = parent::getEloquentQuery()
             ->where('transfer_type', 'sale_transfer');
+
+        $user = Auth::user();
+        if (! $user instanceof User) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if ($user->isAdministrator() || $user->isDeliveryUser()) {
+            return $query;
+        }
+
+        $originBranchIds = $user->restrictedBranchIdsForQueries();
+        if ($originBranchIds === []) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return count($originBranchIds) === 1
+            ? $query->where('from_branch_id', $originBranchIds[0])
+            : $query->whereIn('from_branch_id', $originBranchIds);
     }
 
     public static function canView(Model $record): bool
@@ -81,12 +108,40 @@ class ProductTransferSaleResource extends Resource
             return false;
         }
 
-        return $record->transfer_type === 'sale_transfer'
-            && ProductTransferResource::canView($record);
+        if ($record->transfer_type !== 'sale_transfer') {
+            return false;
+        }
+
+        $user = Auth::user();
+        if (! $user instanceof User) {
+            return false;
+        }
+
+        if ($user->isAdministrator() || $user->isDeliveryUser()) {
+            return true;
+        }
+
+        $originBranchIds = $user->restrictedBranchIdsForQueries();
+
+        return $originBranchIds !== []
+            && in_array((int) $record->from_branch_id, $originBranchIds, true);
     }
 
     public static function canCreate(): bool
     {
+        if (FarmaadminDeliveryUserAccess::denies(static::class)) {
+            return false;
+        }
+
+        if (! static::canAccessCurrentMenuItem()) {
+            return false;
+        }
+
         return ProductTransferResource::canCreate();
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return ProductTransferResource::canDelete($record);
     }
 }

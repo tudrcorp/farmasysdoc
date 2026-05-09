@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Sales\Actions;
 
 use App\Enums\InventoryMovementType;
+use App\Enums\ProductTransferStatus;
 use App\Enums\SaleStatus;
 use App\Enums\VenezuelanPagoMovilBank;
 use App\Filament\Resources\Sales\SaleResource;
@@ -13,6 +14,7 @@ use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\ProductTransfer;
 use App\Models\Sale;
 use App\Services\Audit\AuditLogger;
 use App\Services\BdvConciliation\BdvConciliationClient;
@@ -48,6 +50,7 @@ use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Auth;
@@ -363,6 +366,30 @@ final class CashRegisterAction
                                     ->dehydrated(false)
                                     ->icon(Heroicon::User)
                                     ->iconColor('gray')
+                                    ->columnSpanFull(),
+                                Select::make('pos_sale_transfer_id')
+                                    ->label('Traslado de venta (En proceso)')
+                                    ->placeholder('Ej. TV-260002 o parte del código')
+                                    ->helperText('Busque por código (TV-… o TRAS-… antiguos). Aparecen los traslados en proceso donde su sucursal es origen o destino.')
+                                    ->live()
+                                    ->searchable()
+                                    ->searchDebounce(150)
+                                    ->getSearchResultsUsing(fn (string $search): array => self::posSaleTransferSearchResults($search))
+                                    ->getOptionLabelUsing(fn ($value): ?string => self::posSaleTransferOptionLabel($value))
+                                    ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
+                                        if (! filled($state)) {
+                                            return;
+                                        }
+
+                                        self::loadPosLineItemsFromSaleTransfer((int) $state, $set);
+
+                                        $livewire = $component->getLivewire();
+                                        if ($livewire instanceof LivewireComponent) {
+                                            $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
+                                        }
+                                    })
+                                    ->native(false)
+                                    ->prefixIcon(Heroicon::Truck)
                                     ->columnSpanFull(),
                                 Select::make('pos_product_search')
                                     ->label('Buscar producto')
@@ -3186,7 +3213,7 @@ JS;
      *
      * @return array<int, string>
      */
-    private static function searchInventoryProductsForBranch(int $branchId, string $search, ?Get $get = null): array
+    private static function searchInventoryProductsForBranch(int $branchId, string $search, ?Get $get = null, bool $requirePositiveQuantity = false): array
     {
         $term = trim($search);
 
@@ -3196,6 +3223,7 @@ JS;
                 ->where('inventories.branch_id', $branchId)
                 ->where('products.is_active', true)
                 ->whereNotNull('inventories.product_id')
+                ->when($requirePositiveQuantity, fn ($q) => $q->where('inventories.quantity', '>', 0))
                 ->where('products.barcode', $term)
                 ->value('products.id');
 
@@ -3205,6 +3233,7 @@ JS;
                     ->where('inventories.branch_id', $branchId)
                     ->where('products.is_active', true)
                     ->whereNotNull('inventories.product_id')
+                    ->when($requirePositiveQuantity, fn ($q) => $q->where('inventories.quantity', '>', 0))
                     ->where('products.sku', $term)
                     ->value('products.id');
             }
@@ -3215,6 +3244,7 @@ JS;
                     ->where('inventories.branch_id', $branchId)
                     ->where('products.is_active', true)
                     ->whereNotNull('inventories.product_id')
+                    ->when($requirePositiveQuantity, fn ($q) => $q->where('inventories.quantity', '>', 0))
                     ->where('products.slug', $term)
                     ->value('products.id');
             }
@@ -3223,7 +3253,17 @@ JS;
             if (blank($exactProductId)) {
                 $catalogId = self::resolvePosProductIdByExactCatalogCode($term);
                 if ($catalogId !== null) {
-                    $exactProductId = $catalogId;
+                    if ($requirePositiveQuantity) {
+                        $catQty = (float) (DB::table('inventories')
+                            ->where('branch_id', $branchId)
+                            ->where('product_id', $catalogId)
+                            ->value('quantity') ?? 0);
+                        if ($catQty > 0.0001) {
+                            $exactProductId = $catalogId;
+                        }
+                    } else {
+                        $exactProductId = $catalogId;
+                    }
                 }
             }
 
@@ -3259,6 +3299,10 @@ JS;
                             'applies_vat' => (bool) ($row->applies_vat ?? false),
                         ];
 
+                    if ($requirePositiveQuantity && max(0.0, $qty) <= 0.0001) {
+                        return [];
+                    }
+
                     return [$id => self::formatPosSearchOptionLabelFast(
                         $base,
                         $unitPricing['unit_net'],
@@ -3290,6 +3334,7 @@ JS;
             ->where('inventories.branch_id', $branchId)
             ->where('products.is_active', true)
             ->whereNotNull('inventories.product_id')
+            ->when($requirePositiveQuantity, fn ($q) => $q->where('inventories.quantity', '>', 0))
             ->select($selectList)
             ->orderBy('products.name')
             ->limit($term === '' ? 25 : 40);
@@ -3630,6 +3675,7 @@ JS;
     {
         return array_merge([
             'client_id' => null,
+            'pos_sale_transfer_id' => null,
             'pos_product_search' => null,
             'payment_method' => 'punto_venta_ves',
             'mixed_ves_payment_method' => 'punto_venta_ves',
@@ -3646,6 +3692,180 @@ JS;
                 ],
             ],
         ], self::initialDolarFormState());
+    }
+
+    /**
+     * @return array<int|string, string>
+     */
+    private static function posSaleTransferSearchResults(string $search): array
+    {
+        $query = self::posSaleTransferBaseQuery();
+        $term = trim($search);
+        // Normalizar guiones tipográficos al pegar desde WhatsApp u otros (PHP requiere comillas dobles para \u{…}).
+        $term = str_replace(
+            ["\u{2013}", "\u{2014}", "\u{2212}"],
+            ['-', '-', '-'],
+            $term,
+        );
+        $term = preg_replace('/\s+/u', ' ', $term) ?? $term;
+
+        if ($term !== '') {
+            $like = '%'.addcslashes($term, '%_\\').'%';
+            $digitsOnly = preg_replace('/\D+/', '', $term) ?? '';
+
+            $query->where(function (Builder $q) use ($like, $term, $digitsOnly): void {
+                $q->where('code', 'like', $like);
+
+                if ($digitsOnly !== '' && strlen($digitsOnly) >= 3) {
+                    $q->orWhere('code', 'like', '%'.$digitsOnly.'%');
+                }
+
+                if (ctype_digit($term)) {
+                    $q->orWhereKey((int) $term);
+                }
+
+                $q->orWhereHas('fromBranch', function (Builder $b) use ($like): void {
+                    $b->where('name', 'like', $like)
+                        ->orWhere('code', 'like', $like);
+                })->orWhereHas('toBranch', function (Builder $b) use ($like): void {
+                    $b->where('name', 'like', $like)
+                        ->orWhere('code', 'like', $like);
+                });
+            });
+        }
+
+        return $query
+            ->limit(20)
+            ->get()
+            ->mapWithKeys(fn (ProductTransfer $transfer): array => [
+                $transfer->id => self::posSaleTransferLabel($transfer),
+            ])
+            ->all();
+    }
+
+    private static function posSaleTransferOptionLabel(mixed $value): ?string
+    {
+        if (blank($value)) {
+            return null;
+        }
+
+        $transfer = self::posSaleTransferBaseQuery()
+            ->whereKey((int) $value)
+            ->first();
+
+        if (! $transfer instanceof ProductTransfer) {
+            return null;
+        }
+
+        return self::posSaleTransferLabel($transfer);
+    }
+
+    /**
+     * @return Builder<ProductTransfer>
+     */
+    private static function posSaleTransferBaseQuery(): Builder
+    {
+        $query = ProductTransfer::query()
+            ->with([
+                'fromBranch:id,name',
+                'toBranch:id,name',
+                'items:id,product_transfer_id,product_id,quantity',
+            ])
+            ->where('transfer_type', 'sale_transfer')
+            ->where('status', ProductTransferStatus::InProgress->value)
+            ->orderByDesc('updated_at');
+
+        $branchId = Auth::user()?->branch_id;
+        if (filled($branchId)) {
+            $bid = (int) $branchId;
+            $query->where(function (Builder $q) use ($bid): void {
+                $q->where('to_branch_id', $bid)
+                    ->orWhere('from_branch_id', $bid);
+            });
+        }
+
+        return $query;
+    }
+
+    private static function posSaleTransferLabel(ProductTransfer $transfer): string
+    {
+        $from = filled($transfer->fromBranch?->name) ? (string) $transfer->fromBranch?->name : 'Origen #'.$transfer->from_branch_id;
+        $to = filled($transfer->toBranch?->name) ? (string) $transfer->toBranch?->name : 'Destino #'.$transfer->to_branch_id;
+        $itemsCount = $transfer->items->count();
+
+        return "{$transfer->code} · {$from} → {$to} · {$itemsCount} ítems";
+    }
+
+    private static function loadPosLineItemsFromSaleTransfer(int $transferId, Set $set): void
+    {
+        $transfer = self::posSaleTransferBaseQuery()
+            ->whereKey($transferId)
+            ->first();
+
+        if (! $transfer instanceof ProductTransfer) {
+            Notification::make()
+                ->title('Traslado no disponible')
+                ->body('El traslado no está «En proceso», no es de venta o su usuario no pertenece a la sucursal origen ni destino.')
+                ->warning()
+                ->send();
+
+            $set('pos_sale_transfer_id', null);
+
+            return;
+        }
+
+        $rows = $transfer->items
+            ->sortBy('id')
+            ->map(function ($item): array {
+                $quantity = max(0.001, (float) ($item->quantity ?? 1));
+
+                return [
+                    'product_id' => filled($item->product_id) ? (int) $item->product_id : null,
+                    'quantity' => round($quantity, 3),
+                ];
+            })
+            ->filter(fn (array $row): bool => filled($row['product_id']))
+            ->values()
+            ->all();
+
+        if ($rows === []) {
+            Notification::make()
+                ->title('Traslado sin productos')
+                ->body('El traslado seleccionado no tiene ítems para cargar en caja.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        $rows[] = [
+            'product_id' => null,
+            'quantity' => 1,
+        ];
+
+        $set('line_items', $rows);
+        $set('pos_product_search', null);
+
+        $branchId = Auth::user()?->branch_id;
+        if (filled($branchId)) {
+            $productIds = collect($rows)
+                ->pluck('product_id')
+                ->filter(fn (mixed $id): bool => filled($id))
+                ->map(fn (mixed $id): int => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
+            if ($productIds !== []) {
+                self::warmPosDataForBranch((int) $branchId, $productIds);
+            }
+        }
+
+        Notification::make()
+            ->title('Ítems del traslado cargados')
+            ->body('Se cargaron automáticamente los productos y cantidades del traslado seleccionado.')
+            ->success()
+            ->send();
     }
 
     /**
@@ -4001,5 +4221,28 @@ JS;
             '<p class="farmadoc-pos-total-ios__ves">≈ '.e($vesLine).'</p>'.
             '<p class="farmadoc-pos-total-ios__hint">'.e($hint).'</p>'
         );
+    }
+
+    /**
+     * Búsqueda de productos para traslados de venta: inventario en sucursal destino con existencia mayor que cero (misma presentación que la caja).
+     *
+     * @return array<int, string>
+     */
+    public static function saleTransferDestinationProductSearch(int $branchId, string $search, ?Get $get = null): array
+    {
+        if ($branchId <= 0) {
+            return [];
+        }
+
+        return self::searchInventoryProductsForBranch($branchId, $search, $get, true);
+    }
+
+    public static function saleTransferDestinationProductOptionLabel(int $branchId, int $productId, ?Get $get = null): ?string
+    {
+        if ($branchId <= 0 || $productId <= 0) {
+            return null;
+        }
+
+        return self::buildPosSearchOptionLabelFromCatalog($branchId, $productId, $get);
     }
 }

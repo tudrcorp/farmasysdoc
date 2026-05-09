@@ -12,6 +12,7 @@ use App\Models\ProductTransfer;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\User;
+use App\Support\Audit\ProductTransferSaleAuditLogger;
 use App\Support\ProductTransferStockValidator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -230,6 +231,10 @@ final class ProductTransferCompletionService
                 'sale_id' => $sale->id,
                 'updated_by' => $actor,
             ])->save();
+
+            if (ProductTransferSaleAuditLogger::isSaleTransfer($locked)) {
+                ProductTransferSaleAuditLogger::logCompleted($locked->fresh(), $user, (int) $sale->id);
+            }
         });
     }
 

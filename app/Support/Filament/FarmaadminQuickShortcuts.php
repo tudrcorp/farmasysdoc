@@ -7,6 +7,7 @@ use App\Filament\Resources\Orders\OrderResource;
 use App\Filament\Resources\OrderServices\OrderServiceResource;
 use App\Filament\Resources\Products\ProductResource;
 use App\Filament\Resources\ProductTransfers\ProductTransferResource;
+use App\Filament\Resources\ProductTransferSales\ProductTransferSaleResource;
 use App\Filament\Resources\Purchases\PurchaseResource;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Models\User;
@@ -85,6 +86,16 @@ final class FarmaadminQuickShortcuts
                 'label' => 'Traslados',
                 'hint' => 'Entre sucursales',
                 'href' => ProductTransferResource::getUrl(panel: $panel, isAbsolute: false),
+                'force_full_page' => false,
+            ];
+        }
+
+        if (ProductTransferSaleResource::canCreate()) {
+            $items[] = [
+                'id' => 'traslado-venta-nuevo',
+                'label' => 'Traslado venta',
+                'hint' => 'Nuevo traslado de venta',
+                'href' => ProductTransferSaleResource::getUrl('create', panel: $panel, isAbsolute: false),
                 'force_full_page' => false,
             ];
         }

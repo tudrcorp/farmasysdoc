@@ -43,7 +43,7 @@ class DeliveriesTable
                 'class' => 'fi-ta-deliveries-table',
             ], merge: true)
             ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                ->with(['branch', 'order', 'user']))
+                ->with(['branch', 'order', 'user', 'productTransfer']))
             ->columns([
                 TextColumn::make('order_number')
                     ->label('Nº pedido')
@@ -79,6 +79,7 @@ class DeliveriesTable
                         PartnerOrderDeliverySync::DELIVERY_TYPE_PARTNER => 'info',
                         PartnerOrderDeliverySync::DELIVERY_TYPE_CLIENT_ORDER => 'success',
                         DeliveryTypeLabels::TYPE_MANUAL => 'warning',
+                        DeliveryTypeLabels::TYPE_SALE_TRANSFER => 'primary',
                         default => 'gray',
                     })
                     ->searchable()
@@ -403,6 +404,11 @@ class DeliveriesTable
             return 'Datos actuales del pedido vinculado: persona de contacto y dirección de entrega.';
         }
 
+        $snap = $record->order_snapshot;
+        if (is_array($snap) && ($snap['kind'] ?? null) === 'sale_transfer') {
+            return 'Traslado de venta: sucursales, cliente, dirección de entrega y productos a transportar.';
+        }
+
         if (is_array($record->order_snapshot) && $record->order_snapshot !== []) {
             return 'Información del pedido del aliado guardada al crear o actualizar esta entrega.';
         }
@@ -424,6 +430,10 @@ class DeliveriesTable
         }
 
         $snap = $delivery->order_snapshot;
+        if (is_array($snap) && ($snap['kind'] ?? null) === 'sale_transfer') {
+            return self::deliveryOrderSectionsFromSaleTransferSnapshot($snap);
+        }
+
         if (is_array($snap) && $snap !== []) {
             return self::deliveryOrderSectionsFromSnapshot($snap);
         }
@@ -488,6 +498,100 @@ class DeliveriesTable
                 ],
             ],
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $snap
+     * @return list<array{title: string, rows: list<array{label: string, value: string}>}>
+     */
+    private static function deliveryOrderSectionsFromSaleTransferSnapshot(array $snap): array
+    {
+        $code = self::snapshotStringValue($snap, 'code');
+        $status = self::snapshotStringValue($snap, 'transfer_status_label');
+        $invoice = self::snapshotStringValue($snap, 'customer_invoice_reference');
+
+        $lines = '—';
+        if (isset($snap['lines']) && is_array($snap['lines'])) {
+            $parts = [];
+            foreach ($snap['lines'] as $line) {
+                if (! is_array($line)) {
+                    continue;
+                }
+                $pn = $line['product_name'] ?? '—';
+                $q = $line['quantity'] ?? '—';
+                $parts[] = '• '.(string) $pn.' × '.(string) $q;
+            }
+            if ($parts !== []) {
+                $lines = implode("\n", $parts);
+            }
+        }
+
+        return [
+            [
+                'title' => 'Traslado de venta',
+                'rows' => [
+                    ['label' => 'Código', 'value' => $code],
+                    ['label' => 'Estado del traslado', 'value' => $status],
+                    ['label' => 'Nº factura cliente', 'value' => $invoice],
+                ],
+            ],
+            [
+                'title' => 'Cliente (factura)',
+                'rows' => [
+                    ['label' => 'Nombre', 'value' => self::snapshotStringValue($snap, 'client_name')],
+                    ['label' => 'Teléfono', 'value' => self::snapshotStringValue($snap, 'client_phone')],
+                    ['label' => 'Documento', 'value' => self::snapshotStringValue($snap, 'client_document')],
+                ],
+            ],
+            [
+                'title' => 'Sucursal origen (recogida)',
+                'rows' => [
+                    ['label' => 'Detalle', 'value' => self::formatSaleTransferBranchBlock($snap['from_branch'] ?? null)],
+                ],
+            ],
+            [
+                'title' => 'Sucursal destino (inventario)',
+                'rows' => [
+                    ['label' => 'Detalle', 'value' => self::formatSaleTransferBranchBlock($snap['to_branch'] ?? null)],
+                ],
+            ],
+            [
+                'title' => 'Entrega al cliente',
+                'rows' => [
+                    ['label' => 'Quien recibe', 'value' => self::snapshotStringValue($snap, 'delivery_recipient_name')],
+                    ['label' => 'Teléfono', 'value' => self::snapshotStringValue($snap, 'delivery_phone')],
+                    ['label' => 'Dirección', 'value' => self::snapshotStringValue($snap, 'delivery_address')],
+                    ['label' => 'Notas', 'value' => self::snapshotStringValue($snap, 'delivery_notes')],
+                ],
+            ],
+            [
+                'title' => 'Productos a transportar',
+                'rows' => [
+                    ['label' => 'Ítems', 'value' => $lines],
+                ],
+            ],
+        ];
+    }
+
+    private static function formatSaleTransferBranchBlock(mixed $branch): string
+    {
+        if (! is_array($branch)) {
+            return '—';
+        }
+
+        $segments = array_values(array_filter([
+            filled($branch['name'] ?? null) ? (string) $branch['name'] : null,
+            filled($branch['address'] ?? null) ? (string) $branch['address'] : null,
+            trim(implode(', ', array_filter([
+                is_scalar($branch['city'] ?? null) ? (string) $branch['city'] : '',
+                is_scalar($branch['state'] ?? null) ? (string) $branch['state'] : '',
+            ]))),
+            filled($branch['phone'] ?? null) ? 'Tel. '.(string) $branch['phone'] : null,
+        ]));
+
+        $text = implode("\n", $segments);
+
+        return $text !== '' ? $text : '—';
     }
 
     /**

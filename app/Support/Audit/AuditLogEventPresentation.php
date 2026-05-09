@@ -37,6 +37,12 @@ final class AuditLogEventPresentation
             'pos_caja_close_pdf_downloaded' => 'Caja: descarga PDF cierre de caja',
             'pos_caja_fiscal_receipt_viewed' => 'Caja/comprobantes: vista comprobante fiscal',
             'pos_caja_delivery_note_viewed' => 'Caja/comprobantes: vista nota de entrega',
+            'sale_transfer_created' => 'Traslado de venta: alta',
+            'sale_transfer_viewed' => 'Traslado de venta: consulta de detalle',
+            'sale_transfer_delivery_took' => 'Traslado de venta: tomado por delivery',
+            'sale_transfer_completed' => 'Traslado de venta: completado',
+            'sale_transfer_admin_status_changed' => 'Traslado de venta: cambio de estatus (admin/gerencia)',
+            'sale_transfer_deleted' => 'Traslado de venta: eliminado',
         ];
     }
 
@@ -77,6 +83,12 @@ final class AuditLogEventPresentation
             'pos_caja_close_pdf_downloaded' => 'info',
             'pos_caja_fiscal_receipt_viewed' => 'gray',
             'pos_caja_delivery_note_viewed' => 'gray',
+            'sale_transfer_created' => 'success',
+            'sale_transfer_viewed' => 'gray',
+            'sale_transfer_delivery_took' => 'warning',
+            'sale_transfer_completed' => 'success',
+            'sale_transfer_admin_status_changed' => 'warning',
+            'sale_transfer_deleted' => 'danger',
             default => 'gray',
         };
     }

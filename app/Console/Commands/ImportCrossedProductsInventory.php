@@ -2,8 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\InventoryMovementType;
 use App\Models\Branch;
 use App\Models\Inventory;
+use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Supplier;
@@ -91,6 +93,7 @@ class ImportCrossedProductsInventory extends Command
         $createdProducts = 0;
         $updatedProducts = 0;
         $upsertedInventories = 0;
+        $createdMovements = 0;
         $skippedRows = 0;
 
         /** @var array<string, bool> $usedBarcodes */
@@ -130,10 +133,6 @@ class ImportCrossedProductsInventory extends Command
             $stock = $this->csvDecimal($row[3] ?? '0');
             $cost = $this->csvDecimal($row[4] ?? '0');
             $ivaCosto = $this->csvDecimal($row[5] ?? '0');
-            $costPlusVat = $this->csvDecimal($row[6] ?? '0');
-            $priceWithoutVat = $this->csvDecimal($row[7] ?? '0');
-            $ivaFinalPrice = $this->csvDecimal($row[8] ?? '0');
-            $finalPriceWithVat = $this->csvDecimal($row[9] ?? '0');
             $percentUtil = $this->parsePercentUtil($row[10] ?? '');
             $reference = trim((string) ($row[11] ?? ''));
             $brand = trim((string) ($row[12] ?? ''));
@@ -165,21 +164,22 @@ class ImportCrossedProductsInventory extends Command
                     $name,
                     $brand,
                     $model,
-                    $priceWithoutVat,
                     $cost,
                     $ivaCosto,
                     $activeIngredient,
                     $actor,
                 ): void {
-                    $incomingSalePrice = round(max(0.0, $priceWithoutVat), 2);
-                    $currentSalePrice = round(max(0.0, (float) ($existing->sale_price ?? 0)), 2);
+                    $computedSalePrice = Product::salePriceFromCostAndCategoryProfit(
+                        max(0.0, $cost),
+                        (int) $category->id,
+                    );
 
                     $existing->update([
                         'product_category_id' => $category->id,
                         'name' => $name,
                         'brand' => $brand !== '' ? $brand : $existing->brand,
                         'model' => $model !== '' ? $model : $existing->model,
-                        'sale_price' => max($incomingSalePrice, $currentSalePrice),
+                        'sale_price' => $computedSalePrice,
                         'cost_price' => round(max(0.0, $cost), 2),
                         'discount_percent' => 0,
                         'applies_vat' => $ivaCosto > 0.000001,
@@ -201,13 +201,17 @@ class ImportCrossedProductsInventory extends Command
                     $slug,
                     $brand,
                     $model,
-                    $priceWithoutVat,
                     $cost,
                     $ivaCosto,
                     $activeIngredient,
                     $actor,
                     $category,
                 ): Product {
+                    $computedSalePrice = Product::salePriceFromCostAndCategoryProfit(
+                        max(0.0, $cost),
+                        (int) $category->id,
+                    );
+
                     /** @var Product $created */
                     $created = Product::query()->create([
                         'supplier_id' => $supplier->id,
@@ -218,7 +222,7 @@ class ImportCrossedProductsInventory extends Command
                         'description' => null,
                         'brand' => $brand !== '' ? $brand : 'Sin marca',
                         'model' => $model !== '' ? $model : null,
-                        'sale_price' => round(max(0.0, $priceWithoutVat), 2),
+                        'sale_price' => $computedSalePrice,
                         'cost_price' => round(max(0.0, $cost), 2),
                         'discount_percent' => 0,
                         'applies_vat' => $ivaCosto > 0.000001,
@@ -258,49 +262,54 @@ class ImportCrossedProductsInventory extends Command
                 $product,
                 $stock,
                 $cost,
-                $ivaCosto,
-                $costPlusVat,
-                $priceWithoutVat,
-                $ivaFinalPrice,
-                $finalPriceWithVat,
                 $activeIngredient,
                 $actor,
                 $reference,
                 $category,
+                &$createdMovements,
             ): void {
-                Inventory::query()->updateOrCreate(
-                    [
+                $inventory = Inventory::query()
+                    ->where('branch_id', $branch->id)
+                    ->where('product_id', $product->id)
+                    ->first();
+
+                $previousQuantity = round((float) ($inventory?->quantity ?? 0), 3);
+                $targetQuantity = round(max(0.0, $stock), 3);
+                $quantityDelta = round($targetQuantity - $previousQuantity, 3);
+
+                if (! $inventory instanceof Inventory) {
+                    $inventory = new Inventory([
                         'branch_id' => $branch->id,
                         'product_id' => $product->id,
-                    ],
-                    [
-                        'quantity' => round(max(0.0, $stock), 3),
                         'reserved_quantity' => 0,
-                        'cost_price' => round(max(0.0, $cost), 8),
-                        'vat_cost_amount' => round(max(0.0, $ivaCosto), 8),
-                        'cost_plus_vat' => round(max(0.0, $costPlusVat), 8),
-                        'final_price_without_vat' => round(max(0.0, $priceWithoutVat), 8),
-                        'vat_final_price_amount' => round(max(0.0, $ivaFinalPrice), 8),
-                        'final_price_with_vat' => round(max(0.0, $finalPriceWithVat), 8),
-                        'product_category_id' => $category->id,
-                        'active_ingredient' => $activeIngredient,
                         'allow_negative_stock' => false,
                         'created_by' => $actor,
-                        'updated_by' => $actor,
-                        'notes' => $reference !== '' ? 'Import CSV · '.$reference : 'Import CSV',
-                    ],
-                );
-            });
-
-            Product::withoutEvents(function () use ($product, $priceWithoutVat, $actor): void {
-                $incomingSalePrice = round(max(0.0, $priceWithoutVat), 2);
-                $currentSalePrice = round(max(0.0, (float) ($product->sale_price ?? 0)), 2);
-
-                if ($incomingSalePrice > $currentSalePrice) {
-                    $product->update([
-                        'sale_price' => $incomingSalePrice,
-                        'updated_by' => $actor,
                     ]);
+                }
+
+                $inventory->quantity = $targetQuantity;
+                $inventory->cost_price = round(max(0.0, $cost), 8);
+                $inventory->product_category_id = $category->id;
+                $inventory->active_ingredient = $activeIngredient;
+                $inventory->last_movement_at = now();
+                $inventory->updated_by = $actor;
+                $inventory->notes = $reference !== '' ? 'Import CSV · '.$reference : 'Import CSV';
+                $inventory->syncFinancialSnapshotFromRelatedProductAndCost();
+                $inventory->save();
+
+                if (abs($quantityDelta) >= 0.0001) {
+                    InventoryMovement::query()->create([
+                        'product_id' => $product->id,
+                        'inventory_id' => $inventory->id,
+                        'movement_type' => $inventory->wasRecentlyCreated ? InventoryMovementType::Initial : InventoryMovementType::Adjustment,
+                        'quantity' => $quantityDelta,
+                        'unit_cost' => round(max(0.0, $cost), 2),
+                        'notes' => $reference !== ''
+                            ? 'Import CSV sucursal '.$branch->id.' · '.$reference
+                            : 'Import CSV sucursal '.$branch->id,
+                        'created_by' => $actor,
+                    ]);
+                    $createdMovements++;
                 }
             });
 
@@ -314,6 +323,7 @@ class ImportCrossedProductsInventory extends Command
         $this->line('Productos creados: '.$createdProducts);
         $this->line('Productos actualizados (ya existían por código): '.$updatedProducts);
         $this->line('Registros de inventario (insert/actualización): '.$upsertedInventories);
+        $this->line('Movimientos de inventario creados: '.$createdMovements);
         $this->line('Filas omitidas: '.$skippedRows);
 
         return self::SUCCESS;

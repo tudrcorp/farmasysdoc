@@ -6,7 +6,9 @@ use App\Enums\DeliveryStatus;
 use App\Enums\OrderStatus;
 use App\Filament\Resources\Branches\BranchResource;
 use App\Filament\Resources\Orders\OrderResource;
+use App\Filament\Resources\ProductTransferSales\ProductTransferSaleResource;
 use App\Models\Delivery;
+use App\Models\ProductTransfer;
 use App\Models\User;
 use App\Support\Deliveries\DeliveryTypeLabels;
 use App\Support\Orders\PartnerOrderDeliverySync;
@@ -57,6 +59,7 @@ class DeliveryInfolist
                                     ->color(fn (?string $state): string => match ($state) {
                                         PartnerOrderDeliverySync::DELIVERY_TYPE_PARTNER => 'info',
                                         PartnerOrderDeliverySync::DELIVERY_TYPE_CLIENT_ORDER => 'success',
+                                        DeliveryTypeLabels::TYPE_SALE_TRANSFER => 'primary',
                                         default => 'gray',
                                     })
                                     ->icon(Heroicon::Tag),
@@ -120,13 +123,81 @@ class DeliveryInfolist
                     ->columns(1)
                     ->columnSpanFull(),
 
+                Section::make('Traslado de venta · detalle')
+                    ->description('Información guardada al crear el traslado (TV-): sucursales, cliente, dirección de entrega e ítems.')
+                    ->icon(Heroicon::ArrowsRightLeft)
+                    ->visible(fn (Delivery $record): bool => self::isSaleTransferSnapshot($record))
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                        ])
+                            ->schema([
+                                TextEntry::make('stv_transfer_link')
+                                    ->label('Abrir traslado')
+                                    ->state(fn (Delivery $record): string => self::snapshotString($record, 'code'))
+                                    ->icon(Heroicon::ArrowTopRightOnSquare)
+                                    ->url(fn (Delivery $record): ?string => self::adminSaleTransferUrl($record))
+                                    ->openUrlInNewTab(false)
+                                    ->placeholder('—'),
+                                TextEntry::make('stv_transfer_status')
+                                    ->label('Estado del traslado (snapshot)')
+                                    ->state(fn (Delivery $record): string => self::snapshotString($record, 'transfer_status_label'))
+                                    ->placeholder('—'),
+                                TextEntry::make('stv_invoice')
+                                    ->label('Nº factura cliente')
+                                    ->state(fn (Delivery $record): string => self::snapshotString($record, 'customer_invoice_reference'))
+                                    ->placeholder('—'),
+                                TextEntry::make('stv_client')
+                                    ->label('Cliente')
+                                    ->state(fn (Delivery $record): string => self::saleTransferClientLine($record))
+                                    ->placeholder('—')
+                                    ->columnSpan(['default' => 1, 'sm' => 2]),
+                                TextEntry::make('stv_from_branch')
+                                    ->label('Origen (recogida)')
+                                    ->state(fn (Delivery $record): string => self::saleTransferBranchLine($record, 'from_branch'))
+                                    ->placeholder('—')
+                                    ->columnSpan(['default' => 1, 'sm' => 2]),
+                                TextEntry::make('stv_to_branch')
+                                    ->label('Destino (inventario)')
+                                    ->state(fn (Delivery $record): string => self::saleTransferBranchLine($record, 'to_branch'))
+                                    ->placeholder('—')
+                                    ->columnSpan(['default' => 1, 'sm' => 2]),
+                                TextEntry::make('stv_recipient')
+                                    ->label('Entrega · quien recibe')
+                                    ->state(fn (Delivery $record): string => self::snapshotString($record, 'delivery_recipient_name'))
+                                    ->placeholder('—'),
+                                TextEntry::make('stv_recipient_phone')
+                                    ->label('Entrega · teléfono')
+                                    ->state(fn (Delivery $record): string => self::snapshotString($record, 'delivery_phone'))
+                                    ->placeholder('—'),
+                                TextEntry::make('stv_address')
+                                    ->label('Entrega · dirección')
+                                    ->state(fn (Delivery $record): string => self::snapshotString($record, 'delivery_address'))
+                                    ->placeholder('—')
+                                    ->columnSpan(['default' => 1, 'sm' => 2]),
+                                TextEntry::make('stv_notes')
+                                    ->label('Entrega · notas')
+                                    ->state(fn (Delivery $record): string => self::snapshotString($record, 'delivery_notes'))
+                                    ->placeholder('—')
+                                    ->columnSpan(['default' => 1, 'sm' => 2]),
+                                TextEntry::make('stv_products')
+                                    ->label('Productos')
+                                    ->state(fn (Delivery $record): string => self::snapshotString($record, 'lines_summary'))
+                                    ->placeholder('—')
+                                    ->columnSpan(['default' => 1, 'sm' => 2]),
+                            ]),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
                 Section::make('Datos del pedido al generar la entrega')
                     ->description('Copia de la información de envío y totales en el momento en que se creó o actualizó esta fila (útil para operaciones sin abrir el pedido).')
                     ->icon(Heroicon::ArchiveBox)
                     ->extraAttributes([
                         'class' => 'fi-delivery-infolist-snapshot-section',
                     ])
-                    ->visible(fn (Delivery $record): bool => filled($record->order_snapshot) && is_array($record->order_snapshot))
+                    ->visible(fn (Delivery $record): bool => filled($record->order_snapshot) && is_array($record->order_snapshot) && ! self::isSaleTransferSnapshot($record))
                     ->schema([
                         Grid::make([
                             'default' => 1,
@@ -223,6 +294,72 @@ class DeliveryInfolist
                     ->columns(1)
                     ->columnSpanFull(),
             ]);
+    }
+
+    private static function isSaleTransferSnapshot(Delivery $record): bool
+    {
+        $s = $record->order_snapshot;
+
+        return is_array($s) && ($s['kind'] ?? null) === 'sale_transfer';
+    }
+
+    private static function saleTransferClientLine(Delivery $record): string
+    {
+        $s = self::snap($record);
+        if ($s === null) {
+            return '—';
+        }
+        $name = $s['client_name'] ?? '';
+        $phone = $s['client_phone'] ?? '';
+        $doc = $s['client_document'] ?? '';
+        $parts = array_filter([
+            filled($name) ? (string) $name : null,
+            filled($phone) ? 'Tel. '.(string) $phone : null,
+            filled($doc) ? 'Doc. '.(string) $doc : null,
+        ]);
+
+        return $parts !== [] ? implode(' · ', $parts) : '—';
+    }
+
+    /**
+     * @param  'from_branch'|'to_branch'  $key
+     */
+    private static function saleTransferBranchLine(Delivery $record, string $key): string
+    {
+        $s = self::snap($record);
+        if ($s === null || ! isset($s[$key]) || ! is_array($s[$key])) {
+            return '—';
+        }
+        $b = $s[$key];
+        $segments = array_values(array_filter([
+            filled($b['name'] ?? null) ? (string) $b['name'] : null,
+            filled($b['address'] ?? null) ? (string) $b['address'] : null,
+            trim(implode(', ', array_filter([
+                is_scalar($b['city'] ?? null) ? (string) $b['city'] : '',
+                is_scalar($b['state'] ?? null) ? (string) $b['state'] : '',
+            ]))),
+            filled($b['phone'] ?? null) ? 'Tel. '.(string) $b['phone'] : null,
+        ]));
+
+        return $segments !== [] ? implode("\n", $segments) : '—';
+    }
+
+    private static function adminSaleTransferUrl(Delivery $record): ?string
+    {
+        if ($record->product_transfer_id === null) {
+            return null;
+        }
+
+        $transfer = ProductTransfer::query()->find($record->product_transfer_id);
+        if (! $transfer instanceof ProductTransfer || $transfer->transfer_type !== 'sale_transfer') {
+            return null;
+        }
+
+        if (! ProductTransferSaleResource::canView($transfer)) {
+            return null;
+        }
+
+        return ProductTransferSaleResource::getUrl('view', ['record' => $transfer], isAbsolute: false);
     }
 
     private static function adminOrderUrl(Delivery $record): ?string

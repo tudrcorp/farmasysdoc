@@ -49,10 +49,22 @@ class ProductTransfer extends Model
 
     /**
      * Formato: TRAS-{año 2 dígitos}000{id}, p. ej. TRAS-260001 para id 1 en 2026.
+     *
+     * Traslados operativos generales (internos, externos, ajustes).
      */
     public static function automaticCodeForId(int $id): string
     {
         return 'TRAS-'.date('y').'000'.$id;
+    }
+
+    /**
+     * Formato: TV-{año 2 dígitos}000{id} — solo registros con transfer_type «sale_transfer».
+     *
+     * Prefijo distinto de {@see automaticCodeForId()} para no confundirlos con traslados de inventario (TRAS-).
+     */
+    public static function automaticSaleTransferCodeForId(int $id): string
+    {
+        return 'TV-'.date('y').'000'.$id;
     }
 
     /**
@@ -77,6 +89,14 @@ class ProductTransfer extends Model
     public function items(): HasMany
     {
         return $this->hasMany(ProductTransferItem::class);
+    }
+
+    /**
+     * @return HasMany<Delivery, $this>
+     */
+    public function deliveries(): HasMany
+    {
+        return $this->hasMany(Delivery::class);
     }
 
     /**

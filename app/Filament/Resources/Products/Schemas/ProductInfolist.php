@@ -6,10 +6,13 @@ use App\Models\Product;
 use App\Support\Finance\DefaultVatRate;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\ImageEntry;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Alignment;
 use Filament\Support\Icons\Heroicon;
 
 class ProductInfolist
@@ -208,6 +211,57 @@ class ProductInfolist
                                     ->placeholder('—')
                                     ->icon(Heroicon::Beaker),
                             ]),
+                        TextEntry::make('express_pricing_summary')
+                            ->label('Estructura de Costos Express')
+                            ->icon(Heroicon::BuildingStorefront)
+                            ->state(function (Product $record): string {
+                                $count = is_array($record->express_branch_prices)
+                                    ? count($record->express_branch_prices)
+                                    : 0;
+
+                                if ($count === 0) {
+                                    return 'No hay estructuras express configuradas.';
+                                }
+
+                                return 'Precios express calculados para '.$count.' sucursal(es).';
+                            })
+                            ->helperText('La tabla siguiente muestra el precio final del producto por sucursal express, según el % de ganancia configurado.')
+                            ->badge()
+                            ->color(fn (Product $record): string => filled($record->express_branch_prices) ? 'success' : 'gray')
+                            ->columnSpanFull(),
+                        RepeatableEntry::make('express_branch_prices')
+                            ->label('Detalle por sucursal express')
+                            ->placeholder('No hay precios express generados para este producto todavía.')
+                            ->table([
+                                TableColumn::make('Sucursal'),
+                                TableColumn::make('% ganancia')
+                                    ->width('8rem')
+                                    ->alignment(Alignment::Center),
+                                TableColumn::make('Final sin IVA')
+                                    ->alignment(Alignment::End),
+                                TableColumn::make('Final con IVA')
+                                    ->alignment(Alignment::End),
+                            ])
+                            ->schema([
+                                TextEntry::make('branch_name')
+                                    ->label('')
+                                    ->weight('medium')
+                                    ->placeholder('—'),
+                                TextEntry::make('profit_percentage')
+                                    ->label('')
+                                    ->alignment(Alignment::Center)
+                                    ->formatStateUsing(fn ($state): string => number_format((float) $state, 2, ',', '.').' %'),
+                                TextEntry::make('final_price_without_vat')
+                                    ->label('')
+                                    ->alignment(Alignment::End)
+                                    ->formatStateUsing(fn ($state): string => '$'.number_format((float) $state, 2, ',', '.')),
+                                TextEntry::make('final_price_with_vat')
+                                    ->label('')
+                                    ->alignment(Alignment::End)
+                                    ->weight('medium')
+                                    ->formatStateUsing(fn ($state): string => '$'.number_format((float) $state, 2, ',', '.')),
+                            ])
+                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

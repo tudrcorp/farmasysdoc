@@ -8,9 +8,11 @@ use App\Enums\VenezuelanPagoMovilBank;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Http\Requests\BdvConciliation\GetMovementRequest;
 use App\Models\Client;
+use App\Models\FarmaExpressCostStructure;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\Sale;
 use App\Services\Audit\AuditLogger;
 use App\Services\BdvConciliation\BdvConciliationClient;
@@ -810,11 +812,18 @@ final class CashRegisterAction
 
                                                 $set('generate_accounts_receivable', false);
 
-                                                if ($state === 'pago_movil') {
+                                                if (
+                                                    $state === 'pago_movil'
+                                                    || ($state === 'mixed' && self::selectedMixedVesPaymentMethodFromGet($get) === 'pago_movil')
+                                                ) {
                                                     $set('bdv_pm_conciliated', false);
                                                     $livewire = $component->getLivewire();
                                                     if ($livewire instanceof HasActions) {
                                                         $paymentVes = self::computePaymentBreakdownForForm($get)['payment_ves'];
+                                                        if ($paymentVes <= 0.00001) {
+                                                            return;
+                                                        }
+
                                                         $reference = trim((string) ($get('reference') ?? ''));
                                                         $livewire->mountAction(self::PAGO_MOVIL_CONCILIATION_ACTION_NAME, [
                                                             'pos_data' => [
@@ -859,14 +868,51 @@ final class CashRegisterAction
                                             ->helperText('Obligatorio para Punto de Venta: exactamente 4 dígitos. Los errores se muestran debajo del campo.')
                                             ->inputMode('numeric')
                                             // Sin ->required(): evita el atributo HTML `required` y el tooltip nativo del navegador (poco contraste).
-                                            ->markAsRequired(fn (Get $get): bool => $get('payment_method') === 'punto_venta_ves')
-                                            ->requiredIf('payment_method', 'punto_venta_ves')
+                                            ->markAsRequired(function (Get $get): bool {
+                                                if ($get('payment_method') === 'punto_venta_ves') {
+                                                    return true;
+                                                }
+
+                                                if ($get('payment_method') !== 'mixed') {
+                                                    return false;
+                                                }
+
+                                                return self::selectedMixedVesPaymentMethodFromGet($get) === 'punto_venta_ves'
+                                                    && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
+                                            })
+                                            ->rules(fn (Get $get): array => [
+                                                Rule::requiredIf(function () use ($get): bool {
+                                                    if ($get('payment_method') === 'punto_venta_ves') {
+                                                        return true;
+                                                    }
+
+                                                    if ($get('payment_method') !== 'mixed') {
+                                                        return false;
+                                                    }
+
+                                                    return self::selectedMixedVesPaymentMethodFromGet($get) === 'punto_venta_ves'
+                                                        && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
+                                                }),
+                                                'regex:/^\d{4}$/',
+                                            ])
                                             ->regex('/^\d{4}$/')
                                             ->validationMessages([
                                                 'required_if' => 'Debe indicar los últimos 4 dígitos de la tarjeta para Punto de Venta.',
+                                                'required' => 'Debe indicar los últimos 4 dígitos de la tarjeta para Punto de Venta.',
                                                 'regex' => 'Ingrese exactamente 4 dígitos numéricos.',
                                             ])
-                                            ->visible(fn (Get $get): bool => $get('payment_method') === 'punto_venta_ves'),
+                                            ->visible(function (Get $get): bool {
+                                                if ($get('payment_method') === 'punto_venta_ves') {
+                                                    return true;
+                                                }
+
+                                                if ($get('payment_method') !== 'mixed') {
+                                                    return false;
+                                                }
+
+                                                return self::selectedMixedVesPaymentMethodFromGet($get) === 'punto_venta_ves'
+                                                    && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
+                                            }),
                                         TextInput::make('mixed_usd_paid')
                                             ->label('Pago en USD (usuario)')
                                             ->numeric()
@@ -874,6 +920,80 @@ final class CashRegisterAction
                                             ->step(0.01)
                                             ->prefix('$')
                                             ->live(debounce: 300)
+                                            ->afterStateUpdated(function (mixed $state, Set $set, Get $get, TextInput $component): void {
+                                                if ($get('payment_method') !== 'mixed') {
+                                                    return;
+                                                }
+
+                                                $set('bdv_pm_conciliated', false);
+
+                                                if (self::selectedMixedVesPaymentMethodFromGet($get) !== 'pago_movil') {
+                                                    return;
+                                                }
+
+                                                $livewire = $component->getLivewire();
+                                                if (! $livewire instanceof HasActions) {
+                                                    return;
+                                                }
+
+                                                $paymentVes = self::computePaymentBreakdownForForm($get)['payment_ves'];
+                                                if ($paymentVes <= 0.00001) {
+                                                    return;
+                                                }
+
+                                                $reference = trim((string) ($get('reference') ?? ''));
+                                                $livewire->mountAction(self::PAGO_MOVIL_CONCILIATION_ACTION_NAME, [
+                                                    'pos_data' => [
+                                                        'reference' => $reference,
+                                                        'client_id' => filled($get('client_id')) ? (int) $get('client_id') : null,
+                                                        'generate_accounts_receivable' => false,
+                                                    ],
+                                                    'payment_ves' => $paymentVes,
+                                                ]);
+                                            })
+                                            ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'),
+                                        Select::make('mixed_ves_payment_method')
+                                            ->label('Tipo de pago en VES')
+                                            ->options([
+                                                'punto_venta_ves' => 'Punto de Venta',
+                                                'transfer_ves' => 'Transferencia VES',
+                                                'pago_movil' => 'Pago Movil',
+                                            ])
+                                            ->default('punto_venta_ves')
+                                            ->required()
+                                            ->live()
+                                            ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
+                                                if ($get('payment_method') !== 'mixed') {
+                                                    return;
+                                                }
+
+                                                $set('bdv_pm_conciliated', false);
+
+                                                if ((string) $state !== 'pago_movil') {
+                                                    return;
+                                                }
+
+                                                $livewire = $component->getLivewire();
+                                                if (! $livewire instanceof HasActions) {
+                                                    return;
+                                                }
+
+                                                $paymentVes = self::computePaymentBreakdownForForm($get)['payment_ves'];
+                                                if ($paymentVes <= 0.00001) {
+                                                    return;
+                                                }
+
+                                                $reference = trim((string) ($get('reference') ?? ''));
+                                                $livewire->mountAction(self::PAGO_MOVIL_CONCILIATION_ACTION_NAME, [
+                                                    'pos_data' => [
+                                                        'reference' => $reference,
+                                                        'client_id' => filled($get('client_id')) ? (int) $get('client_id') : null,
+                                                        'generate_accounts_receivable' => false,
+                                                    ],
+                                                    'payment_ves' => $paymentVes,
+                                                ]);
+                                            })
+                                            ->native(false)
                                             ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'),
                                         TextEntry::make('payment_usd_preview')
                                             ->label('payment_usd')
@@ -895,7 +1015,8 @@ final class CashRegisterAction
                                                 }
 
                                                 if ($method === 'mixed') {
-                                                    return self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
+                                                    return self::selectedMixedVesPaymentMethodFromGet($get) === 'transfer_ves'
+                                                        && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
                                                 }
 
                                                 return false;
@@ -909,7 +1030,8 @@ final class CashRegisterAction
                                                     }
 
                                                     if ($method === 'mixed') {
-                                                        return self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
+                                                        return self::selectedMixedVesPaymentMethodFromGet($get) === 'transfer_ves'
+                                                            && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
                                                     }
 
                                                     return false;
@@ -918,7 +1040,18 @@ final class CashRegisterAction
                                             ->validationMessages([
                                                 'required' => 'Debe indicar una referencia de pago para transferencia VES, Zelle o la parte en bolívares del pago mixto.',
                                             ])
-                                            ->visible(fn (Get $get): bool => in_array($get('payment_method'), ['transfer_ves', 'zelle', 'mixed'], true)),
+                                            ->visible(function (Get $get): bool {
+                                                if (in_array($get('payment_method'), ['transfer_ves', 'zelle'], true)) {
+                                                    return true;
+                                                }
+
+                                                if ($get('payment_method') !== 'mixed') {
+                                                    return false;
+                                                }
+
+                                                return self::selectedMixedVesPaymentMethodFromGet($get) === 'transfer_ves'
+                                                    && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
+                                            }),
                                     ]),
                             ])
                             ->columnSpan(['lg' => 4]),
@@ -943,6 +1076,7 @@ final class CashRegisterAction
                 }
 
                 $paymentMethod = (string) ($data['payment_method'] ?? '');
+                $mixedVesPaymentMethod = self::selectedMixedVesPaymentMethodFromData($data);
                 $paymentReference = trim((string) ($data['reference'] ?? ''));
                 $cardLast4 = trim((string) ($data['card_last4'] ?? ''));
 
@@ -1107,7 +1241,8 @@ final class CashRegisterAction
                     $qty = $entry['quantity'];
                     $inventory = $entry['inventory'];
                     $productId = (int) $product->id;
-                    $unit = (float) ($product->sale_price ?? 0);
+                    $unitPricing = self::posUnitPricingForBranch($product, (int) $inventory->branch_id);
+                    $unit = $unitPricing['unit_net'];
                     $unitCost = (float) ($product->cost_price ?? 0);
                     $pl = $pricing['per_line'][$i];
                     $lineSubtotal = $pl['line_subtotal'];
@@ -1154,7 +1289,10 @@ final class CashRegisterAction
                     vesUsdRate: $vesUsdRate
                 );
 
-                if ($paymentMethod === 'pago_movil') {
+                if (
+                    self::usesPagoMovilForVesPortion($paymentMethod, $mixedVesPaymentMethod)
+                    && $paymentVes > 0.00001
+                ) {
                     $alreadyConciliated = filter_var($data['bdv_pm_conciliated'] ?? false, FILTER_VALIDATE_BOOL);
                     if (! $alreadyConciliated) {
                         AuditLogger::record(
@@ -1173,7 +1311,11 @@ final class CashRegisterAction
                     }
                 }
 
-                if ($paymentMethod === 'punto_venta_ves' && ! preg_match('/^\d{4}$/', $cardLast4)) {
+                if (
+                    self::usesPointOfSaleForVesPortion($paymentMethod, $mixedVesPaymentMethod)
+                    && $paymentVes > 0.00001
+                    && ! preg_match('/^\d{4}$/', $cardLast4)
+                ) {
                     AuditLogger::record(
                         'pos_caja_sale_blocked',
                         'Caja · No se registró la venta: datos de tarjeta POS incompletos',
@@ -1191,10 +1333,20 @@ final class CashRegisterAction
 
                 if ($paymentMethod === 'punto_venta_ves') {
                     $paymentReference = 'POS ****'.$cardLast4;
+                } elseif (
+                    $paymentMethod === 'mixed'
+                    && $mixedVesPaymentMethod === 'punto_venta_ves'
+                    && $paymentVes > 0.00001
+                ) {
+                    $paymentReference = 'MIXTO POS ****'.$cardLast4;
                 }
 
                 $shouldRequireReference = in_array($paymentMethod, ['transfer_ves', 'zelle'], true)
-                    || ($paymentMethod === 'mixed' && $paymentVes > 0);
+                    || (
+                        $paymentMethod === 'mixed'
+                        && $mixedVesPaymentMethod === 'transfer_ves'
+                        && $paymentVes > 0
+                    );
 
                 if ($shouldRequireReference && $paymentReference === '') {
                     Notification::make()
@@ -1206,7 +1358,11 @@ final class CashRegisterAction
                     return;
                 }
 
-                if ($paymentMethod === 'pago_movil' && $paymentReference === '') {
+                if (
+                    self::usesPagoMovilForVesPortion($paymentMethod, $mixedVesPaymentMethod)
+                    && $paymentVes > 0.00001
+                    && $paymentReference === ''
+                ) {
                     Notification::make()
                         ->title('Falta la referencia del Pago Móvil')
                         ->body('Valide el pago en la ventana de conciliación BDV para registrar la referencia antes de cerrar la venta.')
@@ -2353,13 +2509,16 @@ JS;
     private static function buildPosSearchOptionLabelFromCatalog(int $branchId, int $productId, ?Get $get): ?string
     {
         $row = DB::table('products')
-            ->select(['name', 'barcode', 'sale_price', 'applies_vat'])
+            ->select(['name', 'barcode'])
             ->where('id', $productId)
             ->where('is_active', true)
             ->first();
         if ($row === null) {
             return null;
         }
+
+        self::warmPosDataForBranch($branchId, [$productId]);
+        $product = self::posProduct($productId);
 
         $base = filled($row->barcode)
             ? $row->barcode.' · '.$row->name
@@ -2369,11 +2528,18 @@ JS;
             ->where('product_id', $productId)
             ->value('quantity') ?? 0);
         $rate = self::effectiveVesUsdRateForPosProductLabels($get);
+        $unitPricing = $product instanceof Product
+            ? self::posUnitPricingForBranch($product, $branchId)
+            : [
+                'unit_net' => 0.0,
+                'unit_final' => 0.0,
+                'applies_vat' => false,
+            ];
 
         return self::formatPosSearchOptionLabelFast(
             $base,
-            (float) ($row->sale_price ?? 0),
-            (bool) ($row->applies_vat ?? false),
+            $unitPricing['unit_net'],
+            $unitPricing['applies_vat'],
             max(0.0, $qty),
             $rate,
         );
@@ -2423,12 +2589,13 @@ JS;
     {
         self::warmPosDataForBranch($branchId, [(int) $product->id]);
 
-        $usd = (float) ($product->sale_price ?? 0);
+        $unitPricing = self::posUnitPricingForBranch($product, $branchId);
+        $usd = $unitPricing['unit_net'];
         $segments = [];
         $rate = self::effectiveVesUsdRateForPosProductLabels($get);
         if ($rate > 0.0) {
             $segments[] = self::formatBolivaresReferenceFromVes(
-                self::posListPriceVesFromUsd($usd, (bool) ($product->applies_vat ?? false), $rate),
+                self::posListPriceVesFromUsd($usd, $unitPricing['applies_vat'], $rate),
             );
         }
 
@@ -2500,12 +2667,15 @@ JS;
         }
 
         $lineGross = [];
+        $linePricing = [];
 
-        foreach ($lines as $line) {
+        foreach ($lines as $index => $line) {
             $product = $line['product'];
             $qty = $line['quantity'];
-            $unit = (float) ($product->sale_price ?? 0);
-            $lineGross[] = round($qty * $unit, 2);
+            $inventory = $line['inventory'];
+            $branchId = $inventory instanceof Inventory ? (int) $inventory->branch_id : 0;
+            $linePricing[$index] = self::posUnitPricingForBranch($product, $branchId);
+            $lineGross[] = round($qty * $linePricing[$index]['unit_net'], 2);
         }
 
         $subtotal = round(array_sum($lineGross), 2);
@@ -2537,10 +2707,8 @@ JS;
         $taxTotal = 0.0;
 
         foreach ($lines as $i => $line) {
-            /** @var Product $product */
-            $product = $line['product'];
             $lineNet = $lineNets[$i] ?? 0.0;
-            $appliesVat = (bool) ($product->applies_vat ?? false);
+            $appliesVat = (bool) ($linePricing[$i]['applies_vat'] ?? false);
             $tax = $appliesVat && $vatRate > 0
                 ? round($lineNet * $vatRate / 100, 2)
                 : 0.0;
@@ -2653,6 +2821,39 @@ JS;
         ];
     }
 
+    private static function selectedMixedVesPaymentMethodFromGet(Get $get): string
+    {
+        $method = (string) ($get('mixed_ves_payment_method') ?? 'punto_venta_ves');
+
+        return in_array($method, ['transfer_ves', 'pago_movil', 'punto_venta_ves'], true)
+            ? $method
+            : 'punto_venta_ves';
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private static function selectedMixedVesPaymentMethodFromData(array $data): string
+    {
+        $method = (string) ($data['mixed_ves_payment_method'] ?? 'punto_venta_ves');
+
+        return in_array($method, ['transfer_ves', 'pago_movil', 'punto_venta_ves'], true)
+            ? $method
+            : 'punto_venta_ves';
+    }
+
+    private static function usesPagoMovilForVesPortion(string $paymentMethod, string $mixedVesPaymentMethod): bool
+    {
+        return $paymentMethod === 'pago_movil'
+            || ($paymentMethod === 'mixed' && $mixedVesPaymentMethod === 'pago_movil');
+    }
+
+    private static function usesPointOfSaleForVesPortion(string $paymentMethod, string $mixedVesPaymentMethod): bool
+    {
+        return $paymentMethod === 'punto_venta_ves'
+            || ($paymentMethod === 'mixed' && $mixedVesPaymentMethod === 'punto_venta_ves');
+    }
+
     /**
      * @return (
      *     array{
@@ -2726,15 +2927,9 @@ JS;
             return 0.0;
         }
 
-        $unit = (float) ($product->sale_price ?? 0);
-        $lineNetUsd = round($qty * $unit, 2);
-        $appliesVat = (bool) ($product->applies_vat ?? false);
-        $vatRate = DefaultVatRate::percent();
-        $taxUsd = $appliesVat && $vatRate > 0.0
-            ? round($lineNetUsd * $vatRate / 100, 2)
-            : 0.0;
+        $unitPricing = self::posUnitPricingForBranch($product, (int) $branchId);
 
-        return round($lineNetUsd + $taxUsd, 2);
+        return round($qty * $unitPricing['unit_final'], 2);
     }
 
     /**
@@ -2764,7 +2959,11 @@ JS;
                 'sale_price',
                 'cost_price',
                 'applies_vat',
+                'product_category_id',
             ];
+            if (SchemaFacade::hasColumn('products', 'express_branch_prices')) {
+                $select[] = 'express_branch_prices';
+            }
             if (SchemaFacade::hasColumn('products', 'sku')) {
                 $select[] = 'sku';
             }
@@ -3042,6 +3241,8 @@ JS;
                     ->first();
 
                 if ($row !== null) {
+                    self::warmPosDataForBranch($branchId, [$id]);
+                    $product = self::posProduct($id);
                     $base = filled($row->barcode)
                         ? $row->barcode.' · '.$row->name
                         : $row->name;
@@ -3050,11 +3251,18 @@ JS;
                         ->where('product_id', $id)
                         ->value('quantity') ?? 0);
                     $rate = self::effectiveVesUsdRateForPosProductLabels($get);
+                    $unitPricing = $product instanceof Product
+                        ? self::posUnitPricingForBranch($product, $branchId)
+                        : [
+                            'unit_net' => (float) ($row->sale_price ?? 0),
+                            'unit_final' => 0.0,
+                            'applies_vat' => (bool) ($row->applies_vat ?? false),
+                        ];
 
                     return [$id => self::formatPosSearchOptionLabelFast(
                         $base,
-                        (float) ($row->sale_price ?? 0),
-                        (bool) ($row->applies_vat ?? false),
+                        $unitPricing['unit_net'],
+                        $unitPricing['applies_vat'],
                         max(0.0, $qty),
                         $rate,
                     )];
@@ -3109,23 +3317,204 @@ JS;
             return [];
         }
 
+        self::warmPosDataForBranch(
+            $branchId,
+            $rows->pluck('id')->map(static fn (mixed $id): int => (int) $id)->all(),
+        );
+
         $rate = self::effectiveVesUsdRateForPosProductLabels($get);
 
-        return $rows->mapWithKeys(function ($row) use ($rate): array {
+        return $rows->mapWithKeys(function ($row) use ($rate, $branchId): array {
             $id = (int) $row->id;
+            $product = self::posProduct($id);
             $base = filled($row->barcode)
                 ? $row->barcode.' · '.$row->name
                 : $row->name;
             $qty = isset($row->branch_quantity) ? max(0.0, (float) $row->branch_quantity) : 0.0;
+            $unitPricing = $product instanceof Product
+                ? self::posUnitPricingForBranch($product, $branchId)
+                : [
+                    'unit_net' => (float) ($row->sale_price ?? 0),
+                    'unit_final' => 0.0,
+                    'applies_vat' => (bool) ($row->applies_vat ?? false),
+                ];
 
             return [$id => self::formatPosSearchOptionLabelFast(
                 $base,
-                (float) ($row->sale_price ?? 0),
-                (bool) ($row->applies_vat ?? false),
+                $unitPricing['unit_net'],
+                $unitPricing['applies_vat'],
                 $qty,
                 $rate,
             )];
         })->all();
+    }
+
+    /**
+     * @return array{unit_net: float, unit_final: float, applies_vat: bool}
+     */
+    private static function posUnitPricingForBranch(Product $product, int $branchId): array
+    {
+        $baseUnitNet = round(max(0.0, (float) ($product->sale_price ?? 0)), 2);
+        $appliesVat = (bool) ($product->applies_vat ?? false);
+        $vatRate = max(0.0, DefaultVatRate::percent());
+        $baseUnitFinal = $appliesVat && $vatRate > 0.0
+            ? round($baseUnitNet + round($baseUnitNet * $vatRate / 100, 2), 2)
+            : $baseUnitNet;
+
+        if ($branchId <= 0 || self::isImportedCategoryProduct($product)) {
+            return [
+                'unit_net' => $baseUnitNet,
+                'unit_final' => $baseUnitFinal,
+                'applies_vat' => $appliesVat,
+            ];
+        }
+
+        $expressProfit = self::posBranchExpressProfitPercentage($branchId);
+        if ($expressProfit === null) {
+            return [
+                'unit_net' => $baseUnitNet,
+                'unit_final' => $baseUnitFinal,
+                'applies_vat' => $appliesVat,
+            ];
+        }
+
+        $expressData = self::expressPriceDataForBranch($product, $branchId);
+        $expressWithoutVat = $expressData['final_price_without_vat'] ?? null;
+        $expressWithVat = $expressData['final_price_with_vat'] ?? null;
+
+        if ($expressWithoutVat === null) {
+            $costPrice = max(0.0, (float) ($product->cost_price ?? 0));
+            $expressWithoutVat = round($costPrice + ($costPrice * $expressProfit / 100), 2);
+        }
+
+        if ($appliesVat) {
+            if ($expressWithVat === null) {
+                $expressWithVat = $vatRate > 0.0
+                    ? round($expressWithoutVat + round($expressWithoutVat * $vatRate / 100, 2), 2)
+                    : $expressWithoutVat;
+            }
+
+            return [
+                'unit_net' => round(max(0.0, $expressWithoutVat), 2),
+                'unit_final' => round(max(0.0, $expressWithVat), 2),
+                'applies_vat' => true,
+            ];
+        }
+
+        $withoutVatForNoVatProduct = $expressWithoutVat > 0.0
+            ? $expressWithoutVat
+            : ($expressWithVat ?? 0.0);
+
+        return [
+            'unit_net' => round(max(0.0, $withoutVatForNoVatProduct), 2),
+            'unit_final' => round(max(0.0, $withoutVatForNoVatProduct), 2),
+            'applies_vat' => false,
+        ];
+    }
+
+    /**
+     * @return array{final_price_without_vat: float, final_price_with_vat: ?float}|null
+     */
+    private static function expressPriceDataForBranch(Product $product, int $branchId): ?array
+    {
+        $raw = $product->express_branch_prices;
+        if (! is_array($raw)) {
+            return null;
+        }
+
+        $entry = $raw[(string) $branchId] ?? $raw[$branchId] ?? null;
+        if (! is_array($entry)) {
+            return null;
+        }
+
+        $withoutVatRaw = $entry['final_price_without_vat'] ?? null;
+        $withVatRaw = $entry['final_price_with_vat'] ?? null;
+        $withoutVat = is_numeric($withoutVatRaw) ? max(0.0, (float) $withoutVatRaw) : null;
+        $withVat = is_numeric($withVatRaw) ? max(0.0, (float) $withVatRaw) : null;
+
+        if ($withoutVat === null && $withVat === null) {
+            return null;
+        }
+
+        if ($withoutVat === null && $withVat !== null) {
+            $withoutVat = $withVat;
+        }
+
+        return [
+            'final_price_without_vat' => round(max(0.0, (float) $withoutVat), 2),
+            'final_price_with_vat' => $withVat !== null ? round($withVat, 2) : null,
+        ];
+    }
+
+    private static function posBranchExpressProfitPercentage(int $branchId): ?float
+    {
+        if ($branchId <= 0) {
+            return null;
+        }
+
+        /** @var array<int, float|null> $cache */
+        $cache = request()->attributes->get('cash_register.express_profit_by_branch', []);
+        if (! is_array($cache)) {
+            $cache = [];
+        }
+
+        if (array_key_exists($branchId, $cache)) {
+            return $cache[$branchId];
+        }
+
+        $profit = FarmaExpressCostStructure::query()
+            ->where('branch_id', $branchId)
+            ->value('profit_percentage');
+
+        $cache[$branchId] = is_numeric($profit)
+            ? max(0.0, (float) $profit)
+            : null;
+
+        request()->attributes->set('cash_register.express_profit_by_branch', $cache);
+
+        return $cache[$branchId];
+    }
+
+    private static function isImportedCategoryProduct(Product $product): bool
+    {
+        $categoryId = (int) ($product->product_category_id ?? 0);
+        if ($categoryId <= 0) {
+            return false;
+        }
+
+        $name = self::productCategoryNameForPos($categoryId);
+        if ($name === null) {
+            return false;
+        }
+
+        $normalized = mb_strtoupper(Str::ascii(trim($name)));
+
+        return $normalized === 'IMPORTADOS';
+    }
+
+    private static function productCategoryNameForPos(int $categoryId): ?string
+    {
+        /** @var array<int, string|null> $cache */
+        $cache = request()->attributes->get('cash_register.product_category_name_by_id', []);
+        if (! is_array($cache)) {
+            $cache = [];
+        }
+
+        if (array_key_exists($categoryId, $cache)) {
+            return $cache[$categoryId];
+        }
+
+        $name = ProductCategory::query()
+            ->whereKey($categoryId)
+            ->value('name');
+
+        $cache[$categoryId] = is_string($name) && trim($name) !== ''
+            ? trim($name)
+            : null;
+
+        request()->attributes->set('cash_register.product_category_name_by_id', $cache);
+
+        return $cache[$categoryId];
     }
 
     private static function appendProductToPosLineItems(int $branchId, int $productId, Set $set, Get $get): void
@@ -3243,6 +3632,7 @@ JS;
             'client_id' => null,
             'pos_product_search' => null,
             'payment_method' => 'punto_venta_ves',
+            'mixed_ves_payment_method' => 'punto_venta_ves',
             'generate_accounts_receivable' => false,
             'bdv_pm_conciliated' => false,
             'card_last4' => null,

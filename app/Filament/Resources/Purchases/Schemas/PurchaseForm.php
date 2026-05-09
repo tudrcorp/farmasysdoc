@@ -16,6 +16,7 @@ use App\Support\Purchases\PurchaseEntryCurrencySwitcher;
 use App\Support\Purchases\PurchasePaymentStatus;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
@@ -175,6 +176,21 @@ class PurchaseForm
                                     // ->native(false)
                                     ->prefixIcon(Heroicon::Clock),
                             ]),
+                        FileUpload::make('supplier_invoice_photo_path')
+                            ->label('Foto de la factura')
+                            ->helperText('Obligatoria. Solo imagen JPG, PNG o WebP, máximo 2 MB. Se almacena de forma privada.')
+                            ->disk('local')
+                            ->directory('purchases/supplier-invoices')
+                            ->visibility('private')
+                            ->image()
+                            ->acceptedFileTypes([
+                                'image/jpeg',
+                                'image/png',
+                                'image/webp',
+                            ])
+                            ->maxSize(2048)
+                            ->required()
+                            ->columnSpanFull(),
                         CheckboxList::make('entry_currency_selection')
                             ->label('Moneda de la factura')
                             ->helperText('Marque solo una opción. En VES los importes se guardan en bolívares según la factura; el inventario usa USD con la tasa oficial (promedio) de la fecha de la factura.')

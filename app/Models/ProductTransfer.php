@@ -24,6 +24,12 @@ class ProductTransfer extends Model
         'completed_by',
         'completed_at',
         'sale_id',
+        'client_id',
+        'customer_invoice_reference',
+        'delivery_address',
+        'delivery_recipient_name',
+        'delivery_recipient_phone',
+        'delivery_notes',
         'delivery_user_id',
         'in_progress_at',
     ];
@@ -79,6 +85,14 @@ class ProductTransfer extends Model
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class);
+    }
+
+    /**
+     * @return BelongsTo<Client, $this>
+     */
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
     }
 
     /**

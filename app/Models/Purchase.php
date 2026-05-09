@@ -87,6 +87,7 @@ class Purchase extends Model
         'declared_invoice_total',
         'supplier_invoice_number',
         'supplier_control_number',
+        'supplier_invoice_photo_path',
         'supplier_invoice_date',
         'payment_due_date',
         'registered_in_system_date',

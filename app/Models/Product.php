@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Pricing\FarmaExpressBranchPriceSynchronizer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -47,6 +48,7 @@ class Product extends Model
         'cost_price',
         'discount_percent',
         'applies_vat',
+        'express_branch_prices',
         'requires_expiry_on_purchase',
     ];
 
@@ -68,6 +70,7 @@ class Product extends Model
             'requires_expiry_on_purchase' => 'boolean',
             'warranty_months' => 'integer',
             'active_ingredient' => 'array',
+            'express_branch_prices' => 'array',
             'expiration_date' => 'date',
         ];
     }
@@ -92,6 +95,14 @@ class Product extends Model
                 $costAmount,
                 (int) $product->product_category_id,
             );
+        });
+
+        static::saved(function (Product $product): void {
+            if (! $product->wasRecentlyCreated && ! $product->wasChanged(['cost_price', 'applies_vat'])) {
+                return;
+            }
+
+            app(FarmaExpressBranchPriceSynchronizer::class)->syncProduct($product);
         });
     }
 

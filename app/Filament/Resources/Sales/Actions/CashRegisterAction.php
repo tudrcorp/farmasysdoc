@@ -26,13 +26,13 @@ use App\Support\Finance\DefaultVatRate;
 use DateTimeInterface;
 use Filament\Actions\Action;
 use Filament\Actions\Contracts\HasActions;
-use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Pages\BasePage;
@@ -329,7 +329,6 @@ final class CashRegisterAction
                     ])
                     ->schema([
                         Section::make('Venta')
-                            ->description('Cliente definido en el paso anterior. Busque productos, indique cantidades y confirme el cobro.')
                             ->icon(Heroicon::ShoppingCart)
                             ->iconColor('primary')
                             ->extraAttributes([
@@ -363,14 +362,18 @@ final class CashRegisterAction
 
                                         return $client->name.$doc;
                                     })
+                                    ->weight(FontWeight::SemiBold)
+                                    ->size(TextSize::Large)
                                     ->dehydrated(false)
                                     ->icon(Heroicon::User)
-                                    ->iconColor('gray')
+                                    ->iconColor('primary')
+                                    ->extraAttributes([
+                                        'class' => 'rounded-xl bg-primary-500/10 px-3 py-2 text-primary-50 dark:bg-primary-500/15',
+                                    ])
                                     ->columnSpanFull(),
                                 Select::make('pos_sale_transfer_id')
-                                    ->label('Traslado de venta (En proceso)')
+                                    ->label('Buscador de Traslados de Venta (codigo del traslado)')
                                     ->placeholder('Ej. TV-260002 o parte del código')
-                                    ->helperText('Busque por código (TV-… o TRAS-… antiguos). Aparecen los traslados en proceso donde su sucursal es origen o destino.')
                                     ->live()
                                     ->searchable()
                                     ->searchDebounce(150)
@@ -392,9 +395,8 @@ final class CashRegisterAction
                                     ->prefixIcon(Heroicon::Truck)
                                     ->columnSpanFull(),
                                 Select::make('pos_product_search')
-                                    ->label('Buscar producto')
+                                    ->label('Buscador General de Productos (Nombre, Codigo, PA)')
                                     ->placeholder('Código, nombre o principio activo')
-                                    ->helperText('Busque en este mismo campo. Si escanea código exacto y pulsa ENTER, se agrega automáticamente; también puede buscar por nombre o principio activo y seleccionar.')
                                     ->searchPrompt('Escriba nombre, principio activo o código')
                                     ->live()
                                     ->searchable()
@@ -869,10 +871,10 @@ final class CashRegisterAction
                                             })
                                             ->native(false)
                                             ->prefixIcon(Heroicon::CreditCard),
-                                        Checkbox::make('generate_accounts_receivable')
-                                            ->label('Generar cuenta por cobrar automáticamente')
-                                            ->helperText('Registra la venta con saldo pendiente y crea el recibo en Cuentas por cobrar. Requiere cliente identificado y forma de pago «Crédito».')
+                                        Toggle::make('generate_accounts_receivable')
+                                            ->label('Vender a Credito')
                                             ->default(false)
+                                            ->inline(true)
                                             ->live()
                                             ->afterStateUpdated(function (mixed $state, Set $set, Get $get): void {
                                                 if (filter_var($state, FILTER_VALIDATE_BOOLEAN)) {
@@ -887,12 +889,12 @@ final class CashRegisterAction
                                                 }
                                             })
                                             ->columnSpanFull()
-                                            ->extraAttributes([
-                                                'class' => 'rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-4 dark:border-white/10 dark:bg-white/5',
+                                            ->extraFieldWrapperAttributes([
+                                                'class' => 'rounded-xl border border-zinc-300/60 bg-zinc-50/30 px-3 py-2 dark:border-white/20 dark:bg-white/5',
                                             ]),
                                         TextInput::make('card_last4')
                                             ->label('Últimos 4 dígitos de la tarjeta')
-                                            ->helperText('Obligatorio para Punto de Venta: exactamente 4 dígitos. Los errores se muestran debajo del campo.')
+                                            ->helperText('recibe 4 digitos')
                                             ->inputMode('numeric')
                                             // Sin ->required(): evita el atributo HTML `required` y el tooltip nativo del navegador (poco contraste).
                                             ->markAsRequired(function (Get $get): bool {
@@ -1022,14 +1024,20 @@ final class CashRegisterAction
                                             })
                                             ->native(false)
                                             ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'),
-                                        TextEntry::make('payment_usd_preview')
-                                            ->label('payment_usd')
-                                            ->state(fn (Get $get): string => self::formatMoney(self::computePaymentBreakdownForForm($get)['payment_usd']))
-                                            ->dehydrated(false),
-                                        TextEntry::make('payment_ves_preview')
-                                            ->label('payment_ves')
-                                            ->state(fn (Get $get): string => self::formatBolivaresReferenceFromVes(self::computePaymentBreakdownForForm($get)['payment_ves']))
-                                            ->dehydrated(false),
+                                        Grid::make([
+                                            'default' => 2,
+                                        ])
+                                            ->schema([
+                                                TextEntry::make('payment_usd_preview')
+                                                    ->label('Pago en Dolares(US$)')
+                                                    ->state(fn (Get $get): string => self::formatMoney(self::computePaymentBreakdownForForm($get)['payment_usd']))
+                                                    ->dehydrated(false),
+                                                TextEntry::make('payment_ves_preview')
+                                                    ->label('Pago en Bolivares(VES)')
+                                                    ->state(fn (Get $get): string => self::formatBolivaresReferenceFromVes(self::computePaymentBreakdownForForm($get)['payment_ves']))
+                                                    ->dehydrated(false),
+                                            ])
+                                            ->columnSpanFull(),
                                         TextInput::make('reference')
                                             ->label('Referencia de pago')
                                             ->helperText('Obligatoria para transferencia VES, Zelle y pagos mixtos con parte en bolívares. En Pago Móvil la referencia se indica en la ventana de conciliación BDV.')

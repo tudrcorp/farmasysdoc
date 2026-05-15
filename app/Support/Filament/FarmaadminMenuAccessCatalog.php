@@ -16,6 +16,8 @@ class FarmaadminMenuAccessCatalog
             'orders' => ['label' => 'Ordenes', 'route_name_fragment' => 'resources.orders.', 'group' => 'Operaciones'],
             'order_services' => ['label' => 'Ordenes de servicio', 'route_name_fragment' => 'resources.order-services.', 'group' => 'Operaciones'],
             'sales' => ['label' => 'Ventas', 'route_name_fragment' => 'resources.sales.', 'group' => 'Operaciones'],
+            'physical_cash_box' => ['label' => 'Caja física (vueltos)', 'route_name_fragment' => 'pages.caja-fisica', 'group' => 'Operaciones'],
+            'physical_cash_box_movements' => ['label' => 'Movimientos caja física', 'route_name_fragment' => 'resources.physical-cash-box-movements.', 'group' => 'Operaciones'],
             'purchases' => ['label' => 'Compras', 'route_name_fragment' => 'resources.purchases.', 'group' => 'Operaciones'],
             'accounts_receivable' => ['label' => 'Cuentas por cobrar', 'route_name_fragment' => 'resources.accounts-receivables.', 'group' => 'Operaciones'],
             'accounts_payable' => ['label' => 'Cuentas por pagar', 'route_name_fragment' => 'resources.accounts-payables.', 'group' => 'Operaciones'],

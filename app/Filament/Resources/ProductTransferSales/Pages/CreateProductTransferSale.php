@@ -3,11 +3,13 @@
 namespace App\Filament\Resources\ProductTransferSales\Pages;
 
 use App\Filament\Resources\ProductTransferSales\ProductTransferSaleResource;
+use App\Filament\Resources\ProductTransferSales\Schemas\ProductTransferSaleForm;
 use App\Models\Client;
 use App\Models\ProductTransfer;
 use App\Models\User;
 use App\Support\Audit\ProductTransferSaleAuditLogger;
 use App\Support\Deliveries\SaleTransferDeliveryCreator;
+use App\Support\Filament\BranchAuthScope;
 use App\Support\ProductTransfers\NotifyAdministratorsOnManagerTransferRequested;
 use App\Support\ProductTransferStockValidator;
 use Filament\Resources\Pages\CreateRecord;
@@ -41,6 +43,13 @@ class CreateProductTransferSale extends CreateRecord
         $data['status'] = 'pending';
         $data['transfer_type'] = 'sale_transfer';
         $data['client_id'] = self::resolveClientIdFromFormData($data);
+
+        if (! ProductTransferSaleForm::userMaySelectFromBranchOnSaleTransfer()) {
+            $lockedFrom = BranchAuthScope::suggestedBranchIdForOperationalForm();
+            if ($lockedFrom !== null) {
+                $data['from_branch_id'] = $lockedFrom;
+            }
+        }
 
         $fromBranchId = (int) ($data['from_branch_id'] ?? 0);
         ProductTransferStockValidator::assertSufficientStockAtBranch($fromBranchId, $data['items'] ?? []);

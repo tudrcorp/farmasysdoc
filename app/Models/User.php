@@ -397,6 +397,16 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasOne(PartnerCompanyUser::class);
     }
 
+    /**
+     * Caja física (efectivo para vueltos). Un cajero tiene como máximo un registro.
+     *
+     * @return HasOne<PhysicalCashBox, $this>
+     */
+    public function physicalCashBox(): HasOne
+    {
+        return $this->hasOne(PhysicalCashBox::class);
+    }
+
     public function roles(): HasMany
     {
         return $this->hasMany(Rol::class);

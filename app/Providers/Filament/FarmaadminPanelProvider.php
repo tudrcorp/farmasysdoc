@@ -9,6 +9,7 @@ use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\Auth\PasswordReset\RequestPasswordReset;
 use App\Filament\Pages\Auth\PasswordReset\ResetPassword;
 use App\Filament\Pages\Auth\Register;
+use App\Filament\Pages\CashierPhysicalCashBoxPage;
 use App\Filament\Pages\FarmaadminDashboard;
 use App\Filament\Pages\Marketing\MarketingHubPage;
 use App\Filament\Resources\Deliveries\DeliveryResource;
@@ -81,6 +82,7 @@ class FarmaadminPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
                 MarketingHubPage::class,
+                CashierPhysicalCashBoxPage::class,
             ])
             ->homeUrl(function (): string {
                 if (FarmaadminDeliveryUserAccess::isRestrictedDeliveryUser()) {

@@ -15,6 +15,23 @@ use Illuminate\Support\Facades\Auth;
  */
 class FarmaadminDashboard extends Dashboard
 {
+    /**
+     * @return int|array<string, ?int>
+     */
+    public function getColumns(): int|array
+    {
+        $user = request()->user() ?? Auth::user();
+
+        if ($user instanceof User && ! $user->isAdministrator()) {
+            return 1;
+        }
+
+        return [
+            'default' => 1,
+            'lg' => 2,
+        ];
+    }
+
     public static function shouldRegisterNavigation(): bool
     {
         if (FarmaadminDeliveryUserAccess::isRestrictedDeliveryUser()) {

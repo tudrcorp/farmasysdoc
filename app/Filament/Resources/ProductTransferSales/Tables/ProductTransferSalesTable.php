@@ -5,6 +5,7 @@ namespace App\Filament\Resources\ProductTransferSales\Tables;
 use App\Enums\ProductTransferStatus;
 use App\Filament\Resources\ProductTransfers\ProductTransferResource;
 use App\Filament\Resources\ProductTransferSales\ProductTransferSaleResource;
+use App\Filament\Resources\Sales\SaleResource;
 use App\Models\Branch;
 use App\Models\ProductTransfer;
 use App\Models\User;
@@ -55,12 +56,18 @@ class ProductTransferSalesTable
                     ->weight('medium')
                     ->searchable()
                     ->sortable()
-                    ->copyable()
-                    ->copyMessage('Código copiado')
                     ->icon(Heroicon::Hashtag)
                     ->iconColor('gray')
                     ->placeholder('—')
-                    ->tooltip('Identificador único del traslado'),
+                    ->url(fn (ProductTransfer $record): ?string => ProductTransferStatus::isInProgressValue($record->status)
+                        ? SaleResource::getUrl('index', [
+                            'abrir' => 'caja',
+                            'traslado_venta' => $record->id,
+                        ], isAbsolute: false)
+                        : null)
+                    ->tooltip(fn (ProductTransfer $record): string => ProductTransferStatus::isInProgressValue($record->status)
+                        ? 'Abrir caja con este traslado precargado'
+                        : 'Identificador único del traslado'),
                 TextColumn::make('sale.sale_number')
                     ->label('Venta')
                     ->description(fn (ProductTransfer $record): ?string => filled($record->client?->name)

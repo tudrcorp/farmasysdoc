@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Validation\ValidationException;
 
 class ProductTransferForm
 {
@@ -46,20 +47,74 @@ class ProductTransferForm
     }
 
     /**
-     * Sucursal solicitante (receptora): destino fijo a la sucursal de la sesión.
+     * Sucursal solicitante (receptora): fija a la sucursal principal del usuario salvo GERENCIA con más de una sucursal en el pivote `branch_user`, que puede elegir entre ellas.
      */
     protected static function shouldLockToBranchToUser(): bool
     {
         $user = auth()->user();
 
-        return $user instanceof User
-            && ! $user->isAdministrator()
-            && ! $user->isDeliveryUser()
-            && filled($user->branch_id);
+        if (! $user instanceof User || $user->isAdministrator() || $user->isDeliveryUser()) {
+            return false;
+        }
+
+        if ($user->hasGerenciaRole() && count($user->managedBranchIds()) > 1) {
+            return false;
+        }
+
+        return filled($user->branch_id);
+    }
+
+    public static function requestingBranchSelectHelperText(): string
+    {
+        if (self::shouldLockToBranchToUser()) {
+            return 'Su sucursal solicita el traslado (receptora); no puede cambiarse.';
+        }
+
+        $user = auth()->user();
+        if ($user instanceof User && $user->hasGerenciaRole() && count($user->managedBranchIds()) > 1) {
+            return 'Elija la sucursal solicitante entre las sucursales asignadas a su usuario.';
+        }
+
+        return 'Sucursal que recibirá la mercancía.';
     }
 
     /**
-     * Fija `to_branch_id` al usuario de sucursal (no admin, no delivery).
+     * Comprueba que `to_branch_id` sea coherente con el rol y las sucursales del usuario autenticado.
+     */
+    public static function assertToBranchIdPermittedForAuthenticatedUser(int $toBranchId): void
+    {
+        $user = auth()->user();
+        if (! $user instanceof User) {
+            return;
+        }
+
+        if ($user->isAdministrator() || $user->isDeliveryUser()) {
+            return;
+        }
+
+        if (self::shouldLockToBranchToUser()) {
+            $expected = filled($user->branch_id) ? (int) $user->branch_id : null;
+            if ($expected !== null && $toBranchId !== $expected) {
+                throw ValidationException::withMessages([
+                    'to_branch_id' => 'La sucursal solicitante no puede modificarse.',
+                ]);
+            }
+
+            return;
+        }
+
+        if ($user->hasGerenciaRole()) {
+            $ids = $user->managedBranchIds();
+            if (count($ids) > 1 && ! in_array($toBranchId, $ids, true)) {
+                throw ValidationException::withMessages([
+                    'to_branch_id' => 'Seleccione una sucursal destino entre las asignadas a su usuario.',
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Fija `to_branch_id` al usuario de sucursal cuando el destino va bloqueado; valida GERENCIA con varias sucursales.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
@@ -71,6 +126,8 @@ class ProductTransferForm
             $user = auth()->user();
             $data['to_branch_id'] = (int) $user->branch_id;
         }
+
+        self::assertToBranchIdPermittedForAuthenticatedUser((int) ($data['to_branch_id'] ?? 0));
 
         return $data;
     }
@@ -215,9 +272,7 @@ class ProductTransferForm
                                     })
                                     ->disabled(fn (): bool => self::shouldLockToBranchToUser())
                                     ->dehydrated(true)
-                                    ->helperText(fn (): string => self::shouldLockToBranchToUser()
-                                        ? 'Su sucursal solicita el traslado (receptora); no puede cambiarse.'
-                                        : 'Sucursal que recibirá la mercancía.')
+                                    ->helperText(fn (): string => self::requestingBranchSelectHelperText())
                                     ->prefixIcon(Heroicon::MapPin),
                                 Select::make('from_branch_id')
                                     ->label('Sucursal origen (emisora)')

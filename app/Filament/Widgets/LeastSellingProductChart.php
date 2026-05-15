@@ -6,7 +6,7 @@ use App\Services\Dashboard\ProductBranchSalesRankingService;
 
 class LeastSellingProductChart extends AbstractIosProductSalesBarChart
 {
-    protected static ?int $sort = 3;
+    protected static ?int $sort = 4;
 
     protected ?string $heading = 'Productos menos vendidos';
 

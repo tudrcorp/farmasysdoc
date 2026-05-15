@@ -12,10 +12,13 @@ use App\Models\Client;
 use App\Models\FarmaExpressCostStructure;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
+use App\Models\PhysicalCashBox;
+use App\Models\PhysicalCashBoxMovement;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductTransfer;
 use App\Models\Sale;
+use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\BdvConciliation\BdvConciliationClient;
 use App\Services\Dolar\DolarApiDolaresService;
@@ -47,6 +50,7 @@ use Filament\Support\Enums\FontWeight;
 use Filament\Support\Enums\Size;
 use Filament\Support\Enums\TextSize;
 use Filament\Support\Enums\Width;
+use Filament\Support\Exceptions\Halt;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Contracts\Support\Htmlable;
@@ -76,6 +80,9 @@ final class CashRegisterAction
     public const PAGO_MOVIL_CONCILIATION_ACTION_NAME = 'posPagoMovilConciliation';
 
     public const CREDIT_SALE_CONFIRMATION_ACTION_NAME = 'posCreditSaleConfirmation';
+
+    /** Modal posterior a la venta: vueltos en efectivo USD y movimiento en caja física. */
+    public const EFECTIVO_USD_POST_SALE_CHANGE_ACTION_NAME = 'posEfectivoUsdPostSaleChange';
 
     /**
      * Primer paso: buscar cliente (nombre o documento). Al elegir uno se abre la caja; «Continuar» sin elegir = mostrador.
@@ -295,6 +302,7 @@ final class CashRegisterAction
             ->registerModalActions([
                 self::makeCreditSaleConfirmation(),
                 self::makePagoMovilConciliation(),
+                self::makeEfectivoUsdPostSaleChange(),
             ])
             ->extraAttributes([
                 'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
@@ -306,6 +314,15 @@ final class CashRegisterAction
                 $state = self::defaultPosFormState();
                 if (is_array($args['pos_data'] ?? null)) {
                     $state = array_merge($state, $args['pos_data']);
+                }
+                if (filled($args['pos_sale_transfer_id'] ?? null)) {
+                    $prefillFromTransfer = self::prefillArgsFromSaleTransferId((int) $args['pos_sale_transfer_id']);
+                    if (is_array($prefillFromTransfer['pos_data'] ?? null)) {
+                        $state = array_merge($state, $prefillFromTransfer['pos_data']);
+                    }
+                    if (filled($prefillFromTransfer['client_id'] ?? null)) {
+                        $clientId = (int) $prefillFromTransfer['client_id'];
+                    }
                 }
                 if (filled($clientId)) {
                     $state['client_id'] = (int) $clientId;
@@ -368,7 +385,7 @@ final class CashRegisterAction
                                     ->icon(Heroicon::User)
                                     ->iconColor('primary')
                                     ->extraAttributes([
-                                        'class' => 'rounded-xl bg-primary-500/10 px-3 py-2 text-primary-50 dark:bg-primary-500/15',
+                                        'class' => 'rounded-xl bg-primary-500/10 px-3 py-2 text-primary-700 dark:bg-primary-500/15 dark:text-primary-100',
                                     ])
                                     ->columnSpanFull(),
                                 Select::make('pos_sale_transfer_id')
@@ -1305,9 +1322,10 @@ final class CashRegisterAction
 
                 $vesUsdRate = self::effectiveVesUsdRateFromData($data);
 
-                if ($documentTotal > 0
-                    && self::requiresVesConversion($paymentMethod, $documentTotal, (float) ($data['mixed_usd_paid'] ?? 0))
-                    && $vesUsdRate <= 0) {
+                $requiresVesUsdRate = self::requiresVesConversion($paymentMethod, $documentTotal, (float) ($data['mixed_usd_paid'] ?? 0))
+                    || ($paymentMethod === 'efectivo_usd' && $documentTotal > 0.00001);
+
+                if ($documentTotal > 0 && $requiresVesUsdRate && $vesUsdRate <= 0) {
                     Notification::make()
                         ->title('Indique la tasa Bs. por USD')
                         ->body('La API no devolvió una tasa válida. Ingrese manualmente el valor del bolívar para continuar.')
@@ -1407,7 +1425,7 @@ final class CashRegisterAction
                     return;
                 }
 
-                $bcvVesPerUsd = ($vesUsdRate > 0.0 && $paymentVes > 0.00001)
+                $bcvVesPerUsd = ($vesUsdRate > 0.0 && ($paymentVes > 0.00001 || $paymentMethod === 'efectivo_usd'))
                     ? $vesUsdRate
                     : null;
 
@@ -1448,7 +1466,7 @@ final class CashRegisterAction
                             }
                         }
 
-                        $sale = Sale::query()->create([
+                        $saleAttributes = [
                             'sale_number' => self::uniqueSaleNumber(),
                             'branch_id' => (int) $branchId,
                             'client_id' => filled($data['client_id'] ?? null) ? (int) $data['client_id'] : null,
@@ -1472,7 +1490,13 @@ final class CashRegisterAction
                             'sold_at' => now(),
                             'created_by' => $actor,
                             'updated_by' => $actor,
-                        ]);
+                        ];
+
+                        if (SchemaFacade::hasColumn('sales', 'efectivo_usd_caja_meta')) {
+                            $saleAttributes['efectivo_usd_caja_meta'] = null;
+                        }
+
+                        $sale = Sale::query()->create($saleAttributes);
 
                         foreach ($payloadItems as $item) {
                             $sale->items()->create($item);
@@ -1574,6 +1598,16 @@ final class CashRegisterAction
                         : route('sales.fiscal-receipt.print', $sale))
                     : SaleResource::getUrl('view', ['record' => $sale], isAbsolute: false);
 
+                $livewire = $action->getLivewire();
+                if ($sale->payment_method === 'efectivo_usd' && $livewire instanceof HasActions) {
+                    $livewire->mountAction(self::EFECTIVO_USD_POST_SALE_CHANGE_ACTION_NAME, [
+                        'sale_id' => $sale->id,
+                        'redirect_url' => $nextUrl,
+                    ]);
+
+                    return;
+                }
+
                 return redirect()->to($nextUrl);
             });
     }
@@ -1627,6 +1661,312 @@ final class CashRegisterAction
                 ]);
                 $livewire->callMountedAction();
             });
+    }
+
+    /**
+     * Tras una venta en efectivo USD: asistente de vueltos y registro en {@see PhysicalCashBoxMovement}.
+     */
+    public static function makeEfectivoUsdPostSaleChange(): Action
+    {
+        return Action::make(self::EFECTIVO_USD_POST_SALE_CHANGE_ACTION_NAME)
+            ->label('Vueltos efectivo USD')
+            ->modalHeading('Vueltos en efectivo USD')
+            ->modalDescription('Los importes en bolívares usan la tasa BCV guardada en la venta. Si registra el vuelto, quedará un movimiento en la tabla de caja física para conciliación.')
+            ->modalIcon(Heroicon::Banknotes)
+            ->modalWidth(Width::ThreeExtraLarge)
+            ->modalSubmitActionLabel('Continuar')
+            ->closeModalByClickingAway(false)
+            ->mountUsing(function (Action $action, ?Schema $schema): void {
+                $args = $action->getArguments();
+                $saleId = (int) ($args['sale_id'] ?? 0);
+                $redirectUrl = (string) ($args['redirect_url'] ?? '');
+                $sale = Sale::query()->find($saleId);
+                $invalid = ! $sale instanceof Sale || $sale->payment_method !== 'efectivo_usd';
+                $alreadyRecorded = false;
+                if (! $invalid) {
+                    $alreadyRecorded = PhysicalCashBoxMovement::query()->where('sale_id', $sale->id)->exists();
+                }
+
+                $snapshotTotal = $sale instanceof Sale ? (float) $sale->total : 0.0;
+                $snapshotBcv = $sale instanceof Sale && $sale->bcv_ves_per_usd !== null
+                    ? (float) $sale->bcv_ves_per_usd
+                    : 0.0;
+
+                $schema?->fill([
+                    'efd_sale_id' => $saleId,
+                    'efd_redirect_url' => $redirectUrl,
+                    'efd_snapshot_total' => $snapshotTotal,
+                    'efd_snapshot_bcv' => $snapshotBcv,
+                    'efd_invalid' => $invalid,
+                    'efd_already_recorded' => $alreadyRecorded,
+                    'efd_record_change' => ! $alreadyRecorded && ! $invalid,
+                    'efd_sale_number' => $sale instanceof Sale ? (string) $sale->sale_number : '',
+                    'cash_usd_client_bill' => null,
+                    'cash_usd_drawer_out' => 0,
+                ]);
+            })
+            ->schema([
+                Hidden::make('efd_sale_id')->dehydrated(),
+                Hidden::make('efd_redirect_url')->dehydrated(),
+                Hidden::make('efd_snapshot_total')->dehydrated(),
+                Hidden::make('efd_snapshot_bcv')->dehydrated(),
+                Hidden::make('efd_invalid')->default(false)->dehydrated(),
+                Hidden::make('efd_already_recorded')->default(false)->dehydrated(),
+                Hidden::make('efd_sale_number')->dehydrated(),
+                TextEntry::make('efd_error_banner')
+                    ->hiddenLabel()
+                    ->state('No se pudo cargar la venta en efectivo USD. Pulse Continuar para cerrar.')
+                    ->color('danger')
+                    ->visible(fn (Get $get): bool => self::truthyFormBool($get('efd_invalid'))),
+                TextEntry::make('efd_already_banner')
+                    ->hiddenLabel()
+                    ->state('Los vueltos de esta venta ya fueron registrados en caja física.')
+                    ->visible(fn (Get $get): bool => self::truthyFormBool($get('efd_already_recorded'))),
+                TextEntry::make('efd_sale_context')
+                    ->hiddenLabel()
+                    ->weight(FontWeight::SemiBold)
+                    ->state(fn (Get $get): string => 'Venta '.($get('efd_sale_number') ?? '').' · Total '.self::formatMoney((float) ($get('efd_snapshot_total') ?? 0)))
+                    ->visible(fn (Get $get): bool => ! self::truthyFormBool($get('efd_invalid'))),
+                Toggle::make('efd_record_change')
+                    ->label('¿Registrar vuelto y salida de USD desde la caja?')
+                    ->helperText('Desactive solo si no dará vuelto desde caja o lo registrará después; no se creará movimiento de conciliación.')
+                    ->default(true)
+                    ->inline(true)
+                    ->live()
+                    ->visible(fn (Get $get): bool => ! self::truthyFormBool($get('efd_invalid'))
+                        && ! self::truthyFormBool($get('efd_already_recorded'))),
+                TextInput::make('cash_usd_client_bill')
+                    ->label('Billete del cliente (USD)')
+                    ->numeric()
+                    ->minValue(0.01)
+                    ->step(0.01)
+                    ->prefix('$')
+                    ->live(debounce: 200)
+                    ->helperText('Denominación del billete o monto en efectivo USD que entregó el cliente.')
+                    ->visible(fn (Get $get): bool => ! self::truthyFormBool($get('efd_invalid'))
+                        && ! self::truthyFormBool($get('efd_already_recorded'))
+                        && self::truthyFormBool($get('efd_record_change'))),
+                Fieldset::make('Vuelto sobre el billete')
+                    ->schema([
+                        Grid::make(2)
+                            ->schema([
+                                TextEntry::make('efd_change_on_bill_usd')
+                                    ->label('Vuelto en USD')
+                                    ->size(TextSize::Large)
+                                    ->weight(FontWeight::SemiBold)
+                                    ->state(fn (Get $get): string => self::formatPostSaleEfectivoUsdChangeOnBillUsdLabel($get))
+                                    ->dehydrated(false),
+                                TextEntry::make('efd_change_on_bill_ves')
+                                    ->label('Equivalente en VES')
+                                    ->size(TextSize::Large)
+                                    ->weight(FontWeight::SemiBold)
+                                    ->state(fn (Get $get): string => self::formatPostSaleEfectivoUsdChangeOnBillVesLabel($get))
+                                    ->dehydrated(false),
+                            ]),
+                    ])
+                    ->visible(fn (Get $get): bool => ! self::truthyFormBool($get('efd_invalid'))
+                        && ! self::truthyFormBool($get('efd_already_recorded'))
+                        && self::truthyFormBool($get('efd_record_change'))),
+                Fieldset::make('Vuelto según USD entregado desde caja')
+                    ->schema([
+                        TextInput::make('cash_usd_drawer_out')
+                            ->label('USD retirados de la caja para vueltos')
+                            ->numeric()
+                            ->minValue(0)
+                            ->step(0.01)
+                            ->prefix('$')
+                            ->default(0)
+                            ->live(debounce: 200)
+                            ->helperText(fn (Get $get): string => self::postSaleEfectivoUsdDrawerOutHelperText($get)),
+                        Grid::make(2)
+                            ->schema([
+                                TextEntry::make('efd_final_change_usd')
+                                    ->label('Vuelto en USD (restante)')
+                                    ->size(TextSize::Large)
+                                    ->weight(FontWeight::SemiBold)
+                                    ->state(fn (Get $get): string => self::formatPostSaleEfectivoUsdFinalChangeUsdLabel($get))
+                                    ->dehydrated(false),
+                                TextEntry::make('efd_final_change_ves')
+                                    ->label('Vuelto en VES (restante)')
+                                    ->size(TextSize::Large)
+                                    ->weight(FontWeight::SemiBold)
+                                    ->state(fn (Get $get): string => self::formatPostSaleEfectivoUsdFinalChangeVesLabel($get))
+                                    ->dehydrated(false),
+                            ]),
+                    ])
+                    ->visible(fn (Get $get): bool => ! self::truthyFormBool($get('efd_invalid'))
+                        && ! self::truthyFormBool($get('efd_already_recorded'))
+                        && self::truthyFormBool($get('efd_record_change'))),
+            ])
+            ->action(function (array $data) {
+                $redirectUrl = trim((string) ($data['efd_redirect_url'] ?? ''));
+                $fallbackUrl = SaleResource::getUrl('index');
+                $redirectTarget = $redirectUrl !== '' ? $redirectUrl : $fallbackUrl;
+                $redirect = static fn () => redirect()->to($redirectTarget);
+
+                if (self::truthyFormBool($data['efd_invalid'] ?? false)) {
+                    return $redirect();
+                }
+
+                if (self::truthyFormBool($data['efd_already_recorded'] ?? false)) {
+                    return $redirect();
+                }
+
+                if (! self::truthyFormBool($data['efd_record_change'] ?? true)) {
+                    AuditLogger::record(
+                        'pos_efectivo_usd_caja_change_skipped',
+                        'Caja · Vueltos USD: usuario omitió registro en caja física',
+                        Sale::class,
+                        isset($data['efd_sale_id']) ? (int) $data['efd_sale_id'] : null,
+                        isset($data['efd_sale_number']) ? (string) $data['efd_sale_number'] : null,
+                        ['module' => 'pos_caja'],
+                    );
+
+                    return $redirect();
+                }
+
+                $saleId = (int) ($data['efd_sale_id'] ?? 0);
+                $sale = Sale::query()->find($saleId);
+                if (! $sale instanceof Sale || $sale->payment_method !== 'efectivo_usd') {
+                    return $redirect();
+                }
+
+                $user = Auth::user();
+                if (! $user instanceof User) {
+                    return $redirect();
+                }
+
+                $billRaw = $data['cash_usd_client_bill'] ?? null;
+                if (! is_numeric($billRaw) || (float) $billRaw <= 0) {
+                    Notification::make()
+                        ->title('Indique el billete en USD')
+                        ->body('Ingrese la denominación o monto en efectivo USD que entregó el cliente.')
+                        ->danger()
+                        ->send();
+
+                    throw new Halt;
+                }
+
+                $bill = round((float) $billRaw, 2);
+                $documentTotal = (float) $sale->total;
+                if ($bill + 0.0001 < $documentTotal) {
+                    Notification::make()
+                        ->title('El billete no cubre el total')
+                        ->body('El efectivo del cliente debe ser mayor o igual al total cobrado ('.self::formatMoney($documentTotal).').')
+                        ->danger()
+                        ->send();
+
+                    throw new Halt;
+                }
+
+                $drawer = self::parseNonNegativeUsdAmount($data['cash_usd_drawer_out'] ?? null);
+                $changeOnBillUsd = round($bill - $documentTotal, 2);
+                if ($drawer > $changeOnBillUsd + 0.0001) {
+                    Notification::make()
+                        ->title('USD desde caja demasiado altos')
+                        ->body('No puede retirar de la caja más dólares que el vuelto sobre el billete (máximo '.self::formatMoney($changeOnBillUsd).').')
+                        ->danger()
+                        ->send();
+
+                    throw new Halt;
+                }
+
+                $bcv = $sale->bcv_ves_per_usd !== null ? (float) $sale->bcv_ves_per_usd : 0.0;
+                $meta = self::buildEfectivoUsdCajaMetaArray($bill, $documentTotal, $drawer, $bcv);
+                $actor = $user->email ?? $user->name ?? 'sistema';
+
+                try {
+                    DB::transaction(function () use ($sale, $user, $meta, $actor, $bill, $documentTotal, $drawer, $bcv, $changeOnBillUsd): void {
+                        if (SchemaFacade::hasColumn('sales', 'efectivo_usd_caja_meta')) {
+                            $sale->efectivo_usd_caja_meta = $meta;
+                            $sale->updated_by = $actor;
+                            $sale->save();
+                        }
+
+                        if (! SchemaFacade::hasTable('cajas_fisicas_movimientos')) {
+                            return;
+                        }
+
+                        if (PhysicalCashBoxMovement::query()->where('sale_id', $sale->id)->exists()) {
+                            return;
+                        }
+
+                        $boxDefaults = [
+                            'amount_usd' => 0,
+                            'amount_ves' => 0,
+                        ];
+                        if (SchemaFacade::hasColumn('cajas_fisicas', 'is_open')) {
+                            $boxDefaults['is_open'] = false;
+                        }
+
+                        $box = PhysicalCashBox::query()->firstOrCreate(
+                            ['user_id' => $user->id],
+                            $boxDefaults,
+                        );
+
+                        $finalUsd = (float) $meta['final_change_usd'];
+                        $finalVes = $meta['final_change_ves'] !== null ? (float) $meta['final_change_ves'] : null;
+                        $changeOnBillVes = $meta['change_on_bill_ves'] !== null ? (float) $meta['change_on_bill_ves'] : null;
+
+                        PhysicalCashBoxMovement::query()->create([
+                            'physical_cash_box_id' => $box->id,
+                            'sale_id' => $sale->id,
+                            'kind' => 'efectivo_usd_vuelto',
+                            'client_bill_usd' => $bill,
+                            'document_total_usd' => $documentTotal,
+                            'change_on_bill_usd' => $changeOnBillUsd,
+                            'change_on_bill_ves' => $changeOnBillVes,
+                            'drawer_out_usd' => $drawer,
+                            'final_change_usd' => $finalUsd,
+                            'final_change_ves' => $finalVes,
+                            'bcv_ves_per_usd' => $bcv > 0 ? round($bcv, 6) : null,
+                            'meta' => $meta,
+                            'created_by' => $actor,
+                        ]);
+
+                        self::applyEfectivoUsdMovementToPhysicalCashBox(
+                            box: $box,
+                            clientBillUsd: $bill,
+                            drawerOutUsd: $drawer,
+                            finalChangeVes: $finalVes,
+                        );
+                    });
+                } catch (Throwable $e) {
+                    Log::error('pos_efectivo_usd_caja_change_failed', [
+                        'sale_id' => $sale->id,
+                        'message' => $e->getMessage(),
+                    ]);
+                    Notification::make()
+                        ->title('No se pudo guardar el movimiento de caja')
+                        ->body('Intente de nuevo o registre el vuelto manualmente. '.$e->getMessage())
+                        ->danger()
+                        ->send();
+
+                    throw new Halt;
+                }
+
+                AuditLogger::record(
+                    'pos_efectivo_usd_caja_change_recorded',
+                    'Caja · Vueltos USD registrados en caja física · '.$sale->sale_number,
+                    Sale::class,
+                    $sale->id,
+                    $sale->sale_number,
+                    [
+                        'module' => 'pos_caja',
+                        'sale_id' => $sale->id,
+                        'drawer_out_usd' => $drawer,
+                    ],
+                );
+
+                Notification::make()
+                    ->title('Movimiento de caja registrado')
+                    ->body('Vuelto en USD/VES guardado para conciliación de caja física.')
+                    ->success()
+                    ->send();
+
+                return $redirect();
+            });
+
     }
 
     /**
@@ -2497,35 +2837,25 @@ JS;
     }
 
     /**
-     * Referencia en bolívares para el precio de lista (USD): si el producto grava IVA, el monto en Bs. incluye el IVA sobre la base convertida.
+     * Referencia en bolívares para el precio de lista final en USD, respetando la precisión completa de la tasa BCV.
      */
-    private static function posListPriceVesFromUsd(float $usdUnit, bool $appliesVat, float $vesPerUsd): float
+    private static function posListPriceVesFromUsd(float $usdUnitFinal, float $vesPerUsd): float
     {
         if ($vesPerUsd <= 0.0) {
             return 0.0;
         }
 
-        $baseVes = round($usdUnit * $vesPerUsd, 2);
-        if (! $appliesVat) {
-            return $baseVes;
-        }
-
-        $vatRate = DefaultVatRate::percent();
-        if ($vatRate <= 0.0) {
-            return $baseVes;
-        }
-
-        return round($baseVes + round($baseVes * $vatRate / 100, 2), 2);
+        return $usdUnitFinal * $vesPerUsd;
     }
 
     /**
      * Etiqueta de opción en el buscador POS sin cargar modelos (solo datos ya resueltos en SQL + tasa precalculada).
      */
-    private static function formatPosSearchOptionLabelFast(string $base, float $saleUsd, bool $appliesVat, float $branchQty, float $rate): string
+    private static function formatPosSearchOptionLabelFast(string $base, float $saleUsdFinal, float $branchQty, float $rate): string
     {
-        $label = $base.' · '.self::formatMoney($saleUsd);
+        $label = $base.' · '.self::formatMoney($saleUsdFinal);
         if ($rate > 0.0) {
-            $label .= ' · '.self::formatBolivaresReferenceFromVes(self::posListPriceVesFromUsd($saleUsd, $appliesVat, $rate));
+            $label .= ' · '.self::formatBolivaresReferenceFromVes(self::posListPriceVesFromUsd($saleUsdFinal, $rate));
         } else {
             $label .= ' · Bs. —';
         }
@@ -2573,8 +2903,7 @@ JS;
 
         return self::formatPosSearchOptionLabelFast(
             $base,
-            $unitPricing['unit_net'],
-            $unitPricing['applies_vat'],
+            $unitPricing['unit_final'],
             max(0.0, $qty),
             $rate,
         );
@@ -2625,12 +2954,12 @@ JS;
         self::warmPosDataForBranch($branchId, [(int) $product->id]);
 
         $unitPricing = self::posUnitPricingForBranch($product, $branchId);
-        $usd = $unitPricing['unit_net'];
+        $usd = $unitPricing['unit_final'];
         $segments = [];
         $rate = self::effectiveVesUsdRateForPosProductLabels($get);
         if ($rate > 0.0) {
             $segments[] = self::formatBolivaresReferenceFromVes(
-                self::posListPriceVesFromUsd($usd, $unitPricing['applies_vat'], $rate),
+                self::posListPriceVesFromUsd($usd, $rate),
             );
         }
 
@@ -2643,6 +2972,191 @@ JS;
         }
 
         return $segments === [] ? '' : (' · '.implode(' · ', $segments));
+    }
+
+    /**
+     * Monto USD estrictamente positivo o null.
+     */
+    private static function parseStrictPositiveUsdAmount(mixed $value): ?float
+    {
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        $n = (float) $value;
+        if ($n <= 0.0) {
+            return null;
+        }
+
+        return $n;
+    }
+
+    private static function parseNonNegativeUsdAmount(mixed $value): float
+    {
+        if ($value === null || $value === '') {
+            return 0.0;
+        }
+
+        if (! is_numeric($value)) {
+            return 0.0;
+        }
+
+        return max(0.0, (float) $value);
+    }
+
+    private static function truthyFormBool(mixed $value): bool
+    {
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    private static function postSaleEfectivoUsdSnapshotTotal(Get $get): float
+    {
+        return (float) ($get('efd_snapshot_total') ?? 0);
+    }
+
+    private static function postSaleEfectivoUsdSnapshotBcv(Get $get): float
+    {
+        return (float) ($get('efd_snapshot_bcv') ?? 0);
+    }
+
+    private static function postSaleEfectivoUsdChangeOnBillUsd(Get $get): ?float
+    {
+        $bill = self::parseStrictPositiveUsdAmount($get('cash_usd_client_bill'));
+        if ($bill === null) {
+            return null;
+        }
+
+        return round($bill - self::postSaleEfectivoUsdSnapshotTotal($get), 2);
+    }
+
+    private static function postSaleEfectivoUsdFinalChangeUsd(Get $get): ?float
+    {
+        $onBill = self::postSaleEfectivoUsdChangeOnBillUsd($get);
+        if ($onBill === null) {
+            return null;
+        }
+
+        $drawer = self::parseNonNegativeUsdAmount($get('cash_usd_drawer_out'));
+
+        return round(max(0.0, $onBill - $drawer), 2);
+    }
+
+    private static function formatPostSaleEfectivoUsdChangeOnBillUsdLabel(Get $get): string
+    {
+        $usd = self::postSaleEfectivoUsdChangeOnBillUsd($get);
+        if ($usd === null) {
+            return '—';
+        }
+
+        return self::formatMoney($usd);
+    }
+
+    private static function formatPostSaleEfectivoUsdChangeOnBillVesLabel(Get $get): string
+    {
+        $rate = self::postSaleEfectivoUsdSnapshotBcv($get);
+        if ($rate <= 0.0) {
+            return 'Bs. —';
+        }
+
+        $usd = self::postSaleEfectivoUsdChangeOnBillUsd($get);
+        if ($usd === null) {
+            return 'Bs. —';
+        }
+
+        return self::formatBolivaresReferenceFromVes($usd * $rate);
+    }
+
+    private static function formatPostSaleEfectivoUsdFinalChangeUsdLabel(Get $get): string
+    {
+        $usd = self::postSaleEfectivoUsdFinalChangeUsd($get);
+        if ($usd === null) {
+            return '—';
+        }
+
+        return self::formatMoney($usd);
+    }
+
+    private static function formatPostSaleEfectivoUsdFinalChangeVesLabel(Get $get): string
+    {
+        $rate = self::postSaleEfectivoUsdSnapshotBcv($get);
+        if ($rate <= 0.0) {
+            return 'Bs. —';
+        }
+
+        $usd = self::postSaleEfectivoUsdFinalChangeUsd($get);
+        if ($usd === null) {
+            return 'Bs. —';
+        }
+
+        return self::formatBolivaresReferenceFromVes($usd * $rate);
+    }
+
+    private static function postSaleEfectivoUsdDrawerOutHelperText(Get $get): string
+    {
+        $onBill = self::postSaleEfectivoUsdChangeOnBillUsd($get);
+        if ($onBill === null) {
+            return 'Indique primero el billete. El máximo a retirar de la caja es el vuelto en USD sobre ese billete.';
+        }
+
+        if ($onBill < 0) {
+            return 'El billete indicado no cubre el total cobrado en esta venta.';
+        }
+
+        return 'Máximo desde la caja: '.self::formatMoney($onBill).' (vuelto en USD sobre el billete).';
+    }
+
+    /**
+     * @return array{
+     *     client_bill_usd: float,
+     *     document_total_usd: float,
+     *     change_on_bill_usd: float,
+     *     change_on_bill_ves: float|null,
+     *     bcv_ves_per_usd: float|null,
+     *     drawer_out_usd: float,
+     *     final_change_usd: float,
+     *     final_change_ves: float|null,
+     * }
+     */
+    private static function buildEfectivoUsdCajaMetaArray(
+        float $clientBillUsd,
+        float $documentTotalUsd,
+        float $drawerOutUsd,
+        float $vesUsdRate,
+    ): array {
+        $changeOnBill = round($clientBillUsd - $documentTotalUsd, 2);
+        $rate = max(0.0, $vesUsdRate);
+        $finalUsd = round(max(0.0, $changeOnBill - $drawerOutUsd), 2);
+
+        return [
+            'client_bill_usd' => round($clientBillUsd, 2),
+            'document_total_usd' => round($documentTotalUsd, 2),
+            'change_on_bill_usd' => $changeOnBill,
+            'change_on_bill_ves' => $rate > 0.0 ? round($changeOnBill * $rate, 2) : null,
+            'bcv_ves_per_usd' => $rate > 0.0 ? round($rate, 6) : null,
+            'drawer_out_usd' => round($drawerOutUsd, 2),
+            'final_change_usd' => $finalUsd,
+            'final_change_ves' => $rate > 0.0 ? round($finalUsd * $rate, 2) : null,
+        ];
+    }
+
+    /**
+     * Aplica el efecto del movimiento sobre la caja física del cajero:
+     * - USD: entra el billete del cliente y sale lo retirado en USD para vuelto.
+     * - VES: sale el vuelto restante entregado en bolívares.
+     */
+    private static function applyEfectivoUsdMovementToPhysicalCashBox(
+        PhysicalCashBox $box,
+        float $clientBillUsd,
+        float $drawerOutUsd,
+        ?float $finalChangeVes,
+    ): void {
+        $usdDelta = round(max(0.0, $clientBillUsd) - max(0.0, $drawerOutUsd), 2);
+        $vesDelta = -1 * round(max(0.0, $finalChangeVes ?? 0.0), 2);
+
+        $box->forceFill([
+            'amount_usd' => round((float) $box->amount_usd + $usdDelta, 2),
+            'amount_ves' => round((float) $box->amount_ves + $vesDelta, 2),
+        ])->save();
     }
 
     /**
@@ -3313,8 +3827,7 @@ JS;
 
                     return [$id => self::formatPosSearchOptionLabelFast(
                         $base,
-                        $unitPricing['unit_net'],
-                        $unitPricing['applies_vat'],
+                        $unitPricing['unit_final'],
                         max(0.0, $qty),
                         $rate,
                     )];
@@ -3394,8 +3907,7 @@ JS;
 
             return [$id => self::formatPosSearchOptionLabelFast(
                 $base,
-                $unitPricing['unit_net'],
-                $unitPricing['applies_vat'],
+                $unitPricing['unit_final'],
                 $qty,
                 $rate,
             )];
@@ -3700,6 +4212,52 @@ JS;
                 ],
             ],
         ], self::initialDolarFormState());
+    }
+
+    /**
+     * @return array{client_id: int|null, pos_data: array{pos_sale_transfer_id: int, pos_product_search: null, line_items: list<array{product_id: int|null, quantity: float|int}>}}|null
+     */
+    public static function prefillArgsFromSaleTransferId(int $transferId): ?array
+    {
+        $transfer = self::posSaleTransferBaseQuery()
+            ->whereKey($transferId)
+            ->first();
+
+        if (! $transfer instanceof ProductTransfer) {
+            return null;
+        }
+
+        $rows = $transfer->items
+            ->sortBy('id')
+            ->map(function ($item): array {
+                $quantity = max(0.001, (float) ($item->quantity ?? 1));
+
+                return [
+                    'product_id' => filled($item->product_id) ? (int) $item->product_id : null,
+                    'quantity' => round($quantity, 3),
+                ];
+            })
+            ->filter(fn (array $row): bool => filled($row['product_id']))
+            ->values()
+            ->all();
+
+        if ($rows === []) {
+            return null;
+        }
+
+        $rows[] = [
+            'product_id' => null,
+            'quantity' => 1,
+        ];
+
+        return [
+            'client_id' => filled($transfer->client_id) ? (int) $transfer->client_id : null,
+            'pos_data' => [
+                'pos_sale_transfer_id' => $transfer->id,
+                'pos_product_search' => null,
+                'line_items' => $rows,
+            ],
+        ];
     }
 
     /**

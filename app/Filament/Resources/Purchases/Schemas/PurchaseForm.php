@@ -177,16 +177,18 @@ class PurchaseForm
                                     ->prefixIcon(Heroicon::Clock),
                             ]),
                         FileUpload::make('supplier_invoice_photo_path')
-                            ->label('Foto de la factura')
-                            ->helperText('Obligatoria. Solo imagen JPG, PNG o WebP, máximo 2 MB. Se almacena de forma privada.')
+                            ->label('Archivo de la factura')
+                            ->helperText('Obligatorio. Formatos permitidos: PDF, XLS, XLSX, CSV, JPEG, PNG o JPG. Se almacena de forma privada.')
                             ->disk('local')
                             ->directory('purchases/supplier-invoices')
                             ->visibility('private')
-                            ->image()
                             ->acceptedFileTypes([
+                                'application/pdf',
+                                'application/vnd.ms-excel',
+                                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                'text/csv',
                                 'image/jpeg',
                                 'image/png',
-                                'image/webp',
                             ])
                             ->maxSize(2048)
                             ->required()

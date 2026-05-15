@@ -4,6 +4,7 @@ namespace App\Filament\Resources\ProductTransfers\Pages;
 
 use App\Enums\ProductTransferStatus;
 use App\Filament\Resources\ProductTransfers\ProductTransferResource;
+use App\Filament\Resources\ProductTransfers\Schemas\ProductTransferForm;
 use App\Models\ProductTransfer;
 use App\Services\Inventory\ProductTransferCompletionService;
 use App\Support\ProductTransferStockValidator;
@@ -26,6 +27,9 @@ class EditProductTransfer extends EditRecord
     {
         /** @var ProductTransfer $record */
         $record = $this->getRecord();
+
+        $toBranchId = (int) ($data['to_branch_id'] ?? $record->to_branch_id);
+        ProductTransferForm::assertToBranchIdPermittedForAuthenticatedUser($toBranchId);
 
         $willComplete = ($data['status'] ?? '') === ProductTransferStatus::Completed->value
             && ! ProductTransferStatus::isCompletedValue($record->status);

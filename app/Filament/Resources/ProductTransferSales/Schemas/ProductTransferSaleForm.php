@@ -34,6 +34,28 @@ use Livewire\Component as LivewireComponent;
 class ProductTransferSaleForm
 {
     /**
+     * Puede elegir la sucursal emisora (origen): administrador, delivery, o GERENCIA con más de una sucursal en el pivote.
+     * El resto opera en una sola sucursal y el origen queda fijado al valor por defecto de sesión.
+     */
+    public static function userMaySelectFromBranchOnSaleTransfer(): bool
+    {
+        $user = Auth::user();
+        if (! $user instanceof User) {
+            return false;
+        }
+
+        if ($user->isAdministrator() || $user->isDeliveryUser()) {
+            return true;
+        }
+
+        if ($user->hasGerenciaRole()) {
+            return count($user->managedBranchIds()) > 1;
+        }
+
+        return false;
+    }
+
+    /**
      * @return array<string, string>
      */
     public static function workflowStatusOptions(): array
@@ -403,6 +425,10 @@ JS;
                                                 $query->whereKeyNot((int) $toId);
                                             }
 
+                                            if (! self::userMaySelectFromBranchOnSaleTransfer()) {
+                                                return BranchAuthScope::applyToBranchFormSelect($query);
+                                            }
+
                                             return $query;
                                         },
                                     )
@@ -421,11 +447,15 @@ JS;
                                         }
                                     })
                                     ->default(fn (): ?int => BranchAuthScope::suggestedBranchIdForOperationalForm())
+                                    ->disabled(fn (): bool => ! self::userMaySelectFromBranchOnSaleTransfer())
+                                    ->dehydrated(true)
                                     ->rules(['different:to_branch_id'])
                                     ->validationMessages([
                                         'different' => 'La sucursal de origen debe ser distinta del destino.',
                                     ])
-                                    ->helperText('Por defecto, inicia con la sucursal de su usuario.')
+                                    ->helperText(fn (): string => self::userMaySelectFromBranchOnSaleTransfer()
+                                        ? 'Por defecto, inicia con la sucursal de su usuario.'
+                                        : 'Sucursal de origen fija según su usuario; no puede modificarse.')
                                     ->prefixIcon(Heroicon::BuildingStorefront),
                                 Select::make('to_branch_id')
                                     ->label('Sucursal destino')

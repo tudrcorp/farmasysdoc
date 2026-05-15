@@ -32,6 +32,7 @@ class Sale extends Model
         'payment_usd',
         'payment_ves',
         'bcv_ves_per_usd',
+        'efectivo_usd_caja_meta',
         'reference',
         'payment_status',
         'notes',
@@ -55,6 +56,7 @@ class Sale extends Model
             'payment_usd' => 'decimal:2',
             'payment_ves' => 'decimal:2',
             'bcv_ves_per_usd' => 'decimal:6',
+            'efectivo_usd_caja_meta' => 'array',
             'sold_at' => 'datetime',
         ];
     }
@@ -91,5 +93,15 @@ class Sale extends Model
     public function accountsReceivable(): HasOne
     {
         return $this->hasOne(AccountsReceivable::class);
+    }
+
+    /**
+     * Movimientos de caja física vinculados a la venta (vueltos en USD, etc.).
+     *
+     * @return HasMany<PhysicalCashBoxMovement, $this>
+     */
+    public function physicalCashBoxMovements(): HasMany
+    {
+        return $this->hasMany(PhysicalCashBoxMovement::class);
     }
 }

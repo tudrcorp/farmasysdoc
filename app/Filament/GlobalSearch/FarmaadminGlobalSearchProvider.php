@@ -12,6 +12,7 @@ use App\Models\PartnerCompany;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Services\Dolar\DolarApiDolaresService;
+use App\Support\Finance\DefaultVatRate;
 use Carbon\Carbon;
 use Filament\GlobalSearch\GlobalSearchResult;
 use Filament\GlobalSearch\GlobalSearchResults;
@@ -102,6 +103,7 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
             'description',
             'manufacturer',
             'sale_price',
+            'applies_vat',
         ];
 
         if ($hasSku) {
@@ -279,7 +281,10 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
             $details = array_merge($details, [
                 'Marca' => filled($product->brand) ? (string) $product->brand : '—',
                 'Principio activo' => $this->formatActiveIngredient($product->active_ingredient),
-                'Precio venta' => $this->formatSalePriceWithCurrentBcv((float) ($product->sale_price ?? 0)),
+                'Precio venta' => $this->formatSalePriceWithCurrentBcv(
+                    (float) ($product->sale_price ?? 0),
+                    (bool) ($product->applies_vat ?? false),
+                ),
             ]);
 
             $branches = $stockByBranchPerProduct[$product->id] ?? [];
@@ -525,19 +530,38 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
         return '—';
     }
 
-    private function formatSalePriceWithCurrentBcv(float $salePriceUsd): string
+    private function formatSalePriceWithCurrentBcv(float $salePriceUsd, bool $appliesVat): string
     {
         $normalizedUsd = max(0.0, $salePriceUsd);
+        $finalUsd = $this->salePriceFinalUsd($normalizedUsd, $appliesVat);
         $usd = '$'.number_format($normalizedUsd, 2, '.', ',');
+        if ($appliesVat && abs($finalUsd - $normalizedUsd) > 0.00001) {
+            $usd = '$'.number_format($finalUsd, 2, '.', ',').' (IVA inc.)';
+        }
+
         $rate = $this->resolveCurrentBcvUsdRate();
 
         if ($rate === null || $rate <= 0) {
             return $usd.' | Bs. —';
         }
 
-        $salePriceVes = $normalizedUsd * $rate;
+        $salePriceVes = $finalUsd * $rate;
 
         return $usd.' | Bs. '.number_format($salePriceVes, 2, ',', '.');
+    }
+
+    private function salePriceFinalUsd(float $baseUsd, bool $appliesVat): float
+    {
+        if (! $appliesVat) {
+            return $baseUsd;
+        }
+
+        $vatRate = max(0.0, DefaultVatRate::percent());
+        if ($vatRate <= 0.0) {
+            return $baseUsd;
+        }
+
+        return $baseUsd + ($baseUsd * $vatRate / 100);
     }
 
     private function resolveCurrentBcvUsdRate(): ?float

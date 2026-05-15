@@ -4,6 +4,7 @@ use App\Http\Controllers\Dev\BdvConciliationTestController;
 use App\Http\Controllers\FiscalReceiptController;
 use App\Http\Controllers\NominatimProxyController;
 use App\Http\Controllers\ProductTransfers\ProductTransferReportPdfController;
+use App\Http\Controllers\PublicProductSearchController;
 use App\Http\Controllers\Purchases\PurchaseAnnulmentApprovalController;
 use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
 use App\Http\Controllers\Reports\SystemReportsDownloadController;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
 Route::view('/docs/api', 'public.api-docs')->name('public.api-docs');
+Route::get('/buscar-productos', PublicProductSearchController::class)->name('public.products.search');
 Route::get('/sitemap.xml', function () {
     $urls = [
         route('home'),

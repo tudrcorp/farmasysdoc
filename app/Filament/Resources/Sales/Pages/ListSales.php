@@ -62,10 +62,10 @@ class ListSales extends ListRecords
              */
             $this->js(
                 'setTimeout(() => $wire.mountAction('
-                .Js::from($actionName)
-                .', '
-                .Js::from($actionArgs)
-                .'), 80)'
+                    . Js::from($actionName)
+                    . ', '
+                    . Js::from($actionArgs)
+                    . '), 80)'
             );
         }
     }
@@ -117,8 +117,8 @@ class ListSales extends ListRecords
                 ]),
             CashRegisterAction::makeClientGate(),
             Action::make('toggleSalesStatsVisibility')
-                ->label(fn (): string => $this->showSalesStats ? 'Ocultar Stats' : 'Mostrar Stats')
-                ->icon(fn (): Heroicon => $this->showSalesStats ? Heroicon::EyeSlash : Heroicon::Eye)
+                ->label(fn(): string => $this->showSalesStats ? 'Ocultar Stats' : 'Mostrar Stats')
+                ->icon(fn(): Heroicon => $this->showSalesStats ? Heroicon::EyeSlash : Heroicon::Eye)
                 ->color('gray')
                 ->extraAttributes([
                     'class' => 'farmadoc-ios-action',
@@ -178,7 +178,7 @@ class ListSales extends ListRecords
                         ]
                     );
 
-                    $this->js('window.open('.Js::from($url).', "_blank")');
+                    $this->js('window.open(' . Js::from($url) . ', "_blank")');
 
                     Notification::make()
                         ->title('Descarga iniciada')
@@ -194,7 +194,7 @@ class ListSales extends ListRecords
         $userId = Auth::id();
 
         return is_int($userId)
-            ? 'filament.sales.list.show_stats.user.'.$userId
+            ? 'filament.sales.list.show_stats.user.' . $userId
             : 'filament.sales.list.show_stats.guest';
     }
 }

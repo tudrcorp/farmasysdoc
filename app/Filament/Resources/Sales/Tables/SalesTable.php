@@ -24,6 +24,7 @@ use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -74,6 +75,8 @@ class SalesTable
                     ->iconColor('gray'),
                 TextColumn::make('branch.name')
                     ->label('Sucursal')
+                    ->badge()
+                    ->color(fn (Sale $record): string => self::branchBadgeColor($record->branch_id))
                     ->description(fn (Sale $record): ?string => filled($record->branch?->code)
                         ? 'Código: '.$record->branch->code
                         : null)
@@ -276,16 +279,20 @@ class SalesTable
                 //     ->options(SaleStatus::options())
                 //     ->multiple()
                 //     ->searchable(),
-                // SelectFilter::make('branch_id')
-                //     ->label('Sucursal')
-                //     ->relationship(
-                //         name: 'branch',
-                //         titleAttribute: 'name',
-                //         modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name'),
-                //     )
-                //     ->searchable()
-                //     ->preload()
-                //     ->multiple(),
+                SelectFilter::make('branch_id')
+                    ->label('Sucursal')
+                    ->relationship(
+                        name: 'branch',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: function (Builder $query): Builder {
+                            $query->where('is_active', true)->orderBy('name');
+
+                            return BranchAuthScope::applyToBranchFormSelect($query);
+                        },
+                    )
+                    ->searchable()
+                    ->preload()
+                    ->multiple(),
                 // TernaryFilter::make('client_assigned')
                 //     ->label('Cliente')
                 //     ->placeholder('Todos')
@@ -381,5 +388,17 @@ class SalesTable
             'refunded', 'reembolsado' => 'danger',
             default => 'gray',
         };
+    }
+
+    private static function branchBadgeColor(?int $branchId): string
+    {
+        if ($branchId === null || $branchId <= 0) {
+            return 'gray';
+        }
+
+        $palette = ['primary', 'info', 'success', 'warning', 'danger'];
+        $index = $branchId % count($palette);
+
+        return $palette[$index];
     }
 }

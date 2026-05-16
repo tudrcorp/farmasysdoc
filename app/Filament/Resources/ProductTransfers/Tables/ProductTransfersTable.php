@@ -6,6 +6,7 @@ use App\Enums\ProductTransferStatus;
 use App\Filament\Resources\ProductTransfers\ProductTransferResource;
 use App\Models\ProductTransfer;
 use App\Models\User;
+use App\Support\Filament\BranchAuthScope;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -13,6 +14,7 @@ use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -50,6 +52,8 @@ class ProductTransfersTable
                     ->iconColor('gray'),
                 TextColumn::make('fromBranch.name')
                     ->label('Origen')
+                    ->badge()
+                    ->color(fn (ProductTransfer $record): string => self::branchBadgeColor($record->from_branch_id))
                     ->description(fn (ProductTransfer $record): ?string => filled($record->fromBranch?->code)
                         ? 'Código: '.$record->fromBranch->code
                         : null)
@@ -65,6 +69,8 @@ class ProductTransfersTable
                     ->placeholder('—'),
                 TextColumn::make('toBranch.name')
                     ->label('Destino')
+                    ->badge()
+                    ->color(fn (ProductTransfer $record): string => self::branchBadgeColor($record->to_branch_id))
                     ->description(fn (ProductTransfer $record): ?string => filled($record->toBranch?->code)
                         ? 'Código: '.$record->toBranch->code
                         : null)
@@ -180,6 +186,36 @@ class ProductTransfersTable
             ->emptyStateIcon(Heroicon::ArrowPath)
             ->recordUrl(fn (ProductTransfer $record): string => ProductTransferResource::getUrl('view', ['record' => $record], isAbsolute: false))
             ->recordAction('view')
+            ->filters([
+                SelectFilter::make('from_branch_id')
+                    ->label('Sucursal origen')
+                    ->relationship(
+                        name: 'fromBranch',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: function (Builder $query): Builder {
+                            $query->where('is_active', true)->orderBy('name');
+
+                            return BranchAuthScope::applyToBranchFormSelect($query);
+                        },
+                    )
+                    ->searchable()
+                    ->preload()
+                    ->multiple(),
+                SelectFilter::make('to_branch_id')
+                    ->label('Sucursal destino')
+                    ->relationship(
+                        name: 'toBranch',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: function (Builder $query): Builder {
+                            $query->where('is_active', true)->orderBy('name');
+
+                            return BranchAuthScope::applyToBranchFormSelect($query);
+                        },
+                    )
+                    ->searchable()
+                    ->preload()
+                    ->multiple(),
+            ])
             ->recordActions([
                 ActionGroup::make([
                     ViewAction::make()
@@ -218,5 +254,17 @@ class ProductTransfersTable
             'adjustment', 'ajuste' => 'Ajuste',
             default => (string) $state,
         };
+    }
+
+    private static function branchBadgeColor(?int $branchId): string
+    {
+        if ($branchId === null || $branchId <= 0) {
+            return 'gray';
+        }
+
+        $palette = ['primary', 'info', 'success', 'warning', 'danger'];
+        $index = $branchId % count($palette);
+
+        return $palette[$index];
     }
 }

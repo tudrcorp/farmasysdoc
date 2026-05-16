@@ -78,7 +78,9 @@ class ProductTransferResource extends Resource
     }
 
     /**
-     * Administrador: todos. Delivery: todos. Sucursal: traslados donde es origen (envía) o destino (solicita/recibe).
+     * Administrador y delivery: todos.
+     * Gerencia: traslados donde origen o destino estén entre sus sucursales asignadas.
+     * Resto: traslados donde origen o destino coincidan con su sucursal principal.
      *
      * @return Builder<ProductTransfer>
      */
@@ -95,15 +97,14 @@ class ProductTransferResource extends Resource
             return $query;
         }
 
-        if (! filled($user->branch_id)) {
+        $branchIds = $user->restrictedBranchIdsForQueries();
+        if ($branchIds === []) {
             return $query->whereRaw('1 = 0');
         }
 
-        $branchId = (int) $user->branch_id;
-
-        return $query->where(function (Builder $q) use ($branchId): void {
-            $q->where('to_branch_id', $branchId)
-                ->orWhere('from_branch_id', $branchId);
+        return $query->where(function (Builder $q) use ($branchIds): void {
+            $q->whereIn('to_branch_id', $branchIds)
+                ->orWhereIn('from_branch_id', $branchIds);
         });
     }
 
@@ -122,14 +123,16 @@ class ProductTransferResource extends Resource
             return true;
         }
 
-        if (! filled($user->branch_id)) {
+        $branchIds = $user->restrictedBranchIdsForQueries();
+        if ($branchIds === []) {
             return false;
         }
 
-        $branchId = (int) $user->branch_id;
+        $toBranchId = (int) $record->to_branch_id;
+        $fromBranchId = (int) $record->from_branch_id;
 
-        return $branchId === (int) $record->to_branch_id
-            || $branchId === (int) $record->from_branch_id;
+        return in_array($toBranchId, $branchIds, true)
+            || in_array($fromBranchId, $branchIds, true);
     }
 
     public static function canCreate(): bool
@@ -143,7 +146,11 @@ class ProductTransferResource extends Resource
             return false;
         }
 
-        return $user->isAdministrator() || filled($user->branch_id);
+        if ($user->isAdministrator()) {
+            return true;
+        }
+
+        return $user->restrictedBranchIdsForQueries() !== [];
     }
 
     public static function canEdit(Model $record): bool

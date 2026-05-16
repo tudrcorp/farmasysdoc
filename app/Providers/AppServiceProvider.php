@@ -2,12 +2,14 @@
 
 namespace App\Providers;
 
+use App\Http\Responses\Auth\LogoutResponse;
 use App\Listeners\RecordAuthenticationAudit;
 use App\Models\PurchaseItem;
 use App\Observers\AuditModelObserver;
 use App\Observers\PurchaseItemObserver;
 use App\Support\Filesystem\ResilientFilesystem;
 use Carbon\CarbonImmutable;
+use Filament\Auth\Http\Responses\Contracts\LogoutResponse as FilamentLogoutResponseContract;
 use Filament\Support\Facades\FilamentView;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Auth\Events\Failed;
@@ -21,6 +23,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Laravel\Fortify\Contracts\LogoutResponse as FortifyLogoutResponseContract;
 use Livewire\Mechanisms\HandleComponents\Checksum;
 use ReflectionClass;
 use ReflectionException;
@@ -35,6 +38,11 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton('files', fn (): ResilientFilesystem => new ResilientFilesystem);
+        $this->app->singleton(
+            FilamentLogoutResponseContract::class,
+            LogoutResponse::class,
+        );
+        $this->app->singleton(FortifyLogoutResponseContract::class, LogoutResponse::class);
     }
 
     /**

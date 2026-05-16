@@ -8,7 +8,6 @@ use App\Models\Order;
 use App\Models\Sale;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -68,8 +67,11 @@ final class BranchAuthScope
     }
 
     /**
-     * Alcance de ventas: sucursales del usuario, más ventas creadas al completar un traslado donde el usuario
-     * pertenece a una sucursal receptora (esas ventas guardan `branch_id` de la sucursal emisora).
+     * Alcance de ventas por sucursal:
+     * - ADMINISTRADOR y DELIVERY: todas las sucursales.
+     * - GERENCIA: solo sucursales asignadas.
+     * - Resto: solo su sucursal principal.
+     * - CAJERO: además, solo ventas creadas por el propio usuario.
      *
      * @param  Builder<Sale>  $query
      * @return Builder<Sale>
@@ -91,15 +93,11 @@ final class BranchAuthScope
         }
 
         $salesTable = $query->getModel()->getTable();
-
-        $query->where(function (Builder $inner) use ($branchIds, $salesTable): void {
-            $inner->whereIn($salesTable.'.branch_id', $branchIds)
-                ->orWhereExists(function (QueryBuilder $sub) use ($branchIds, $salesTable): void {
-                    $sub->from('product_transfers')
-                        ->whereColumn('product_transfers.sale_id', $salesTable.'.id')
-                        ->whereIn('product_transfers.to_branch_id', $branchIds);
-                });
-        });
+        if (count($branchIds) === 1) {
+            $query->where($salesTable.'.branch_id', $branchIds[0]);
+        } else {
+            $query->whereIn($salesTable.'.branch_id', $branchIds);
+        }
 
         if ($user->isCashier()) {
             $identifiers = self::saleCreatorMatchValuesForUser($user);

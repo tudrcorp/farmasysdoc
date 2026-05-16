@@ -15,6 +15,7 @@ use Filament\Pages\Concerns\ExposesTableToWidgets;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Js;
 
@@ -26,9 +27,15 @@ class ListSales extends ListRecords
 
     protected static ?string $title = 'Listado de Ventas';
 
+    public bool $showSalesStats = true;
+
     public function mount(): void
     {
         parent::mount();
+        $this->showSalesStats = (bool) request()->session()->get(
+            $this->salesStatsVisibilitySessionKey(),
+            true,
+        );
 
         if (request()->query('abrir') === 'caja' && SaleResource::canViewAny()) {
             $saleTransferId = (int) request()->integer('traslado_venta');
@@ -68,6 +75,10 @@ class ListSales extends ListRecords
      */
     protected function getHeaderWidgets(): array
     {
+        if (! $this->showSalesStats) {
+            return [];
+        }
+
         return [
             StatsListSaleOverview::class,
             StatsListSaleByPaymentMethod::class,
@@ -105,6 +116,20 @@ class ListSales extends ListRecords
                     'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
                 ]),
             CashRegisterAction::makeClientGate(),
+            Action::make('toggleSalesStatsVisibility')
+                ->label(fn (): string => $this->showSalesStats ? 'Ocultar Stats' : 'Mostrar Stats')
+                ->icon(fn (): Heroicon => $this->showSalesStats ? Heroicon::EyeSlash : Heroicon::Eye)
+                ->color('gray')
+                ->extraAttributes([
+                    'class' => 'farmadoc-ios-action',
+                ])
+                ->action(function (): void {
+                    $this->showSalesStats = ! $this->showSalesStats;
+                    request()->session()->put(
+                        $this->salesStatsVisibilitySessionKey(),
+                        $this->showSalesStats,
+                    );
+                }),
             Action::make('closeSale')
                 ->label('Cierre de caja (PDF)')
                 ->icon(Heroicon::DocumentArrowDown)
@@ -162,5 +187,14 @@ class ListSales extends ListRecords
                         ->send();
                 }),
         ];
+    }
+
+    private function salesStatsVisibilitySessionKey(): string
+    {
+        $userId = Auth::id();
+
+        return is_int($userId)
+            ? 'filament.sales.list.show_stats.user.'.$userId
+            : 'filament.sales.list.show_stats.guest';
     }
 }

@@ -20,7 +20,7 @@ class SalesChart extends ChartWidget
 
     protected ?string $heading = 'Ventas por periodo';
 
-    protected ?string $description = 'Meses del año en curso: vista anual o desglose diario por mes.';
+    protected ?string $description = 'Meses del año en curso.';
 
     protected ?string $maxHeight = '320px';
 

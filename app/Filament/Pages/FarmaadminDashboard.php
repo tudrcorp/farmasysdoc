@@ -2,6 +2,8 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Widgets\ManagementBranchSalesByMonthChart;
+use App\Filament\Widgets\ManagementBranchSalesCurrentMonthDaysChart;
 use App\Filament\Widgets\SalesChart;
 use App\Models\User;
 use App\Support\Filament\FarmaadminDeliveryUserAccess;
@@ -21,6 +23,13 @@ class FarmaadminDashboard extends Dashboard
     public function getColumns(): int|array
     {
         $user = request()->user() ?? Auth::user();
+
+        if ($user instanceof User && $user->hasGerenciaRole()) {
+            return [
+                'default' => 1,
+                'lg' => 2,
+            ];
+        }
 
         if ($user instanceof User && ! $user->isAdministrator()) {
             return 1;
@@ -52,12 +61,22 @@ class FarmaadminDashboard extends Dashboard
 
         $user = request()->user() ?? Auth::user();
 
+        if ($user instanceof User && $user->hasGerenciaRole()) {
+            return [
+                ManagementBranchSalesByMonthChart::class,
+                ManagementBranchSalesCurrentMonthDaysChart::class,
+            ];
+        }
+
         if ($user instanceof User && ! $user->isAdministrator()) {
             return [
                 SalesChart::class,
             ];
         }
 
-        return parent::getWidgets();
+        $widgets = parent::getWidgets();
+        $widgets[] = ManagementBranchSalesCurrentMonthDaysChart::class;
+
+        return array_values(array_unique($widgets));
     }
 }

@@ -1387,10 +1387,31 @@ final class CashRegisterAction
                         );
 
                         $alreadyConciliated = $recentConciliation instanceof ConciliationBdv;
-                        if ($alreadyConciliated && $paymentReference === '') {
-                            $paymentReference = (string) $recentConciliation->reference;
+                    } else {
+                        $recentConciliation = self::findRecentSuccessfulBdvConciliation(
+                            $branchId,
+                            $paymentReference,
+                            $paymentVes,
+                        );
+                    }
+
+                    if ($paymentReference === '') {
+                        $resolvedReference = self::resolvePagoMovilPaymentReference(
+                            $branchId,
+                            $paymentVes,
+                            $paymentReference,
+                            $recentConciliation,
+                        );
+                        if ($resolvedReference !== '') {
+                            $paymentReference = $resolvedReference;
+                            self::posSaleRegisterTrace('pm_reference_resolved', [
+                                'reference_suffix' => strlen($resolvedReference) >= 4
+                                    ? substr($resolvedReference, -4)
+                                    : $resolvedReference,
+                            ]);
                         }
                     }
+
                     if (! $alreadyConciliated) {
                         self::logPosSaleBlocked('pago_movil_sin_conciliar', [
                             'payment_ves' => $paymentVes,
@@ -2163,8 +2184,12 @@ final class CashRegisterAction
     /**
      * @param  array<string, mixed>  $candidate
      */
-    private static function storeBdvConciliationRecord(array $candidate, Response $response, string $environment): void
-    {
+    private static function storeBdvConciliationRecord(
+        array $candidate,
+        Response $response,
+        string $environment,
+        ?string $resolvedReference = null,
+    ): void {
         $user = Auth::user();
         $branchId = $user?->branch_id;
 
@@ -2190,7 +2215,10 @@ final class CashRegisterAction
                 'payer_document' => (string) ($candidate['cedulaPagador'] ?? ''),
                 'payer_phone' => (string) ($candidate['telefonoPagador'] ?? ''),
                 'destination_phone' => (string) ($candidate['telefonoDestino'] ?? ''),
-                'reference' => (string) ($candidate['referencia'] ?? ''),
+                'reference' => $resolvedReference ?? self::extractBdvConciliationReference(
+                    $response,
+                    (string) ($candidate['referencia'] ?? ''),
+                ),
                 'payment_date' => (string) ($candidate['fechaPago'] ?? now()->toDateString()),
                 'amount' => (float) ($candidate['importe'] ?? 0),
                 'origin_bank' => (string) ($candidate['bancoOrigen'] ?? ''),
@@ -2728,12 +2756,14 @@ final class CashRegisterAction
                         'importe_bs' => $candidate['importe'],
                     ],
                 );
-                self::storeBdvConciliationRecord($candidate, $response, $environment);
+                $bdvReference = self::extractBdvConciliationReference(
+                    $response,
+                    (string) ($candidate['referencia'] ?? ''),
+                );
 
-                self::attemptAutoRegisterSaleAfterBdvConciliation($livewire, [
-                    'reference' => $candidate['referencia'],
-                    'bdv_pm_conciliated' => true,
-                ]);
+                self::storeBdvConciliationRecord($candidate, $response, $environment, $bdvReference);
+
+                self::attemptAutoRegisterSaleAfterBdvConciliation($livewire, $response, $candidate, $bdvReference);
             });
     }
 
@@ -2797,12 +2827,100 @@ final class CashRegisterAction
     }
 
     /**
+     * Referencia canónica devuelta por BDV (p. ej. 12 dígitos). El cajero suele ingresar solo 4–6 dígitos.
+     */
+    private static function extractBdvConciliationReference(Response $response, string $fallback): string
+    {
+        $decoded = $response->json();
+        if (is_array($decoded)) {
+            foreach (['data.referencia', 'data.reference', 'referencia', 'reference'] as $path) {
+                $value = data_get($decoded, $path);
+                if (is_scalar($value)) {
+                    $normalized = preg_replace('/\D+/', '', (string) $value) ?? '';
+                    if ($normalized !== '') {
+                        return $normalized;
+                    }
+                }
+            }
+        }
+
+        return preg_replace('/\D+/', '', trim($fallback)) ?? '';
+    }
+
+    private static function referenceFromConciliationBdv(ConciliationBdv $record): string
+    {
+        $fromJson = data_get($record->bdv_response, 'data.referencia');
+        if (is_scalar($fromJson)) {
+            $normalized = preg_replace('/\D+/', '', (string) $fromJson) ?? '';
+            if ($normalized !== '') {
+                return $normalized;
+            }
+        }
+
+        return preg_replace('/\D+/', '', trim((string) $record->reference)) ?? '';
+    }
+
+    private static function resolvePagoMovilPaymentReference(
+        int $branchId,
+        float $paymentVes,
+        string $partialReference = '',
+        ?ConciliationBdv $knownRecord = null,
+    ): string {
+        $record = $knownRecord
+            ?? self::findRecentSuccessfulBdvConciliation($branchId, $partialReference, $paymentVes);
+
+        if ($record instanceof ConciliationBdv) {
+            return self::referenceFromConciliationBdv($record);
+        }
+
+        return preg_replace('/\D+/', '', trim($partialReference)) ?? '';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function currentPosRegisterMountedFormData(BasePage $livewire): array
+    {
+        $mounted = $livewire->mountedActions ?? null;
+        if (! is_array($mounted)) {
+            return [];
+        }
+
+        foreach ($mounted as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+
+            if (($entry['name'] ?? '') !== self::REGISTER_ACTION_NAME) {
+                continue;
+            }
+
+            return is_array($entry['data'] ?? null) ? $entry['data'] : [];
+        }
+
+        return [];
+    }
+
+    /**
      * Tras BDV OK: actualiza la caja, cierra el modal de conciliación y dispara «Registrar venta» desde PHP.
      *
-     * @param  array<string, mixed>  $patch
+     * @param  array<string, mixed>  $candidate
      */
-    private static function attemptAutoRegisterSaleAfterBdvConciliation(BasePage $livewire, array $patch): void
-    {
+    private static function attemptAutoRegisterSaleAfterBdvConciliation(
+        BasePage $livewire,
+        Response $response,
+        array $candidate,
+        string $bdvReference,
+    ): void {
+        $reference = $bdvReference !== ''
+            ? $bdvReference
+            : self::extractBdvConciliationReference($response, (string) ($candidate['referencia'] ?? ''));
+
+        $patch = [
+            'reference' => $reference,
+            'bdv_pm_conciliated' => true,
+        ];
+
         if (! self::patchPosRegisterMountedData($livewire, $patch)) {
             Log::warning('pos.sale_register.patch_failed', [
                 'module' => 'pos_caja',
@@ -2822,11 +2940,13 @@ final class CashRegisterAction
             return;
         }
 
+        $registerData = array_merge(self::currentPosRegisterMountedFormData($livewire), $patch);
+
         self::posSaleRegisterTrace('bdv_ok_auto_register_start', [
-            'reference_suffix' => isset($patch['reference']) && strlen((string) $patch['reference']) >= 2
-                ? substr((string) $patch['reference'], -2)
-                : null,
-            'bdv_pm_conciliated' => $patch['bdv_pm_conciliated'] ?? null,
+            'reference_suffix' => strlen($reference) >= 4
+                ? substr($reference, -4)
+                : $reference,
+            'bdv_pm_conciliated' => true,
         ]);
 
         Notification::make()
@@ -2834,6 +2954,10 @@ final class CashRegisterAction
             ->body('Registrando la venta…')
             ->success()
             ->send();
+
+        $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, [
+            'client_id' => $registerData['client_id'] ?? null,
+        ]);
 
         $livewire->unmountAction();
 

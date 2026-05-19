@@ -59,6 +59,14 @@ $productionBaseResolved = $resolveBdvBaseUrl(
 return [
 
     /*
+     * Solo APP local (Herd/Valet): simula BDV OK. Ignorado si APP_ENV=production.
+     * En el servidor de producción use siempre pagos reales y POS_DEBUG_SALE_REGISTER para trazas.
+     */
+    'fake_ok_enabled' => env('APP_ENV') === 'production'
+        ? false
+        : filter_var(env('BDV_FAKE_OK_ENABLED', false), FILTER_VALIDATE_BOOL),
+
+    /*
      * Teléfono Pago Móvil del comercio (destino BDV). No se pide en el formulario de conciliación; definir en .env:
      * TEL=04242878918
      */
@@ -134,5 +142,20 @@ return [
             ],
         ],
     ],
+
+    /**
+     * Trazas detalladas en storage/logs al pulsar «Registrar venta» y tras conciliación BDV OK.
+     * En local siempre activo. En producción: POS_DEBUG_SALE_REGISTER=true (quitar al estabilizar).
+     */
+    'pos_debug_sale_register' => filter_var(env('POS_DEBUG_SALE_REGISTER', false), FILTER_VALIDATE_BOOL),
+
+    /**
+     * Siempre escribe en log los bloqueos de venta (reason) aunque POS_DEBUG esté apagado.
+     * Recomendado true en producción mientras se valida el flujo PM + caja.
+     */
+    'pos_log_sale_blocks' => filter_var(
+        env('POS_LOG_SALE_BLOCKS', env('APP_ENV') === 'production'),
+        FILTER_VALIDATE_BOOL
+    ),
 
 ];

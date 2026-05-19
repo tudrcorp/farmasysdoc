@@ -1115,9 +1115,18 @@ final class CashRegisterAction
                     ->columnSpanFull(),
             ])
             ->action(function (array $data, Action $action) {
+                self::posSaleRegisterTrace('register_action_entered', [
+                    'payment_method' => $data['payment_method'] ?? null,
+                    'bdv_pm_conciliated' => $data['bdv_pm_conciliated'] ?? null,
+                    'reference_len' => strlen(trim((string) ($data['reference'] ?? ''))),
+                    'line_items_count' => count($data['line_items'] ?? []),
+                    'client_id' => $data['client_id'] ?? null,
+                ]);
+
                 $branchId = Auth::user()?->branch_id;
 
                 if (blank($branchId)) {
+                    self::logPosSaleBlocked('usuario_sin_sucursal');
                     AuditLogger::record(
                         'pos_caja_sale_blocked',
                         'Caja · No se registró la venta: usuario sin sucursal',
@@ -1164,6 +1173,7 @@ final class CashRegisterAction
                     ->all();
 
                 if ($lines === []) {
+                    self::logPosSaleBlocked('sin_productos');
                     AuditLogger::record(
                         'pos_caja_sale_blocked',
                         'Caja · No se registró la venta: carrito sin líneas válidas',
@@ -1350,7 +1360,24 @@ final class CashRegisterAction
                     self::usesPagoMovilForVesPortion($paymentMethod, $mixedVesPaymentMethod)
                     && $paymentVes > 0.00001
                 ) {
+                    if (app()->isLocal()) {
+                        if ($paymentReference === '') {
+                            $paymentReference = 'DEV-PM-'.now()->format('YmdHis');
+                        }
+
+                        Log::info('bdv.pos_conciliation.local_bypass', [
+                            'module' => 'pos_caja',
+                            'message' => 'Bypass local activo: venta permitida sin bloqueo por bandera bdv_pm_conciliated.',
+                            'branch_id' => $branchId,
+                            'payment_ves' => $paymentVes,
+                            'reference' => $paymentReference,
+                        ]);
+                    }
+
                     $alreadyConciliated = filter_var($data['bdv_pm_conciliated'] ?? false, FILTER_VALIDATE_BOOL);
+                    if (app()->isLocal()) {
+                        $alreadyConciliated = true;
+                    }
                     $recentConciliation = null;
                     if (! $alreadyConciliated) {
                         $recentConciliation = self::findRecentSuccessfulBdvConciliation(
@@ -1365,6 +1392,11 @@ final class CashRegisterAction
                         }
                     }
                     if (! $alreadyConciliated) {
+                        self::logPosSaleBlocked('pago_movil_sin_conciliar', [
+                            'payment_ves' => $paymentVes,
+                            'reference_len' => strlen($paymentReference),
+                            'bdv_pm_conciliated' => $data['bdv_pm_conciliated'] ?? null,
+                        ]);
                         AuditLogger::record(
                             'pos_caja_sale_blocked',
                             'Caja · No se registró la venta: Pago Móvil sin validar en BDV',
@@ -1446,6 +1478,9 @@ final class CashRegisterAction
                     && $paymentVes > 0.00001
                     && $paymentReference === ''
                 ) {
+                    self::logPosSaleBlocked('pago_movil_sin_referencia', [
+                        'payment_ves' => $paymentVes,
+                    ]);
                     Notification::make()
                         ->title('Falta la referencia del Pago Móvil')
                         ->body('Valide el pago en la ventana de conciliación BDV para registrar la referencia antes de cerrar la venta.')
@@ -1462,6 +1497,16 @@ final class CashRegisterAction
                 $actor = Auth::user()?->email
                     ?? Auth::user()?->name
                     ?? 'sistema';
+
+                self::posSaleRegisterTrace('register_transaction_start', [
+                    'payment_method' => $paymentMethod,
+                    'document_total' => $documentTotal,
+                    'payment_ves' => $paymentVes,
+                    'reference_suffix' => strlen($paymentReference) >= 2
+                        ? substr($paymentReference, -2)
+                        : null,
+                    'items_count' => count($payloadItems),
+                ]);
 
                 try {
                     $sale = DB::transaction(function () use ($branchId, $data, $payloadItems, $lines, $products, $subtotal, $taxTotal, $igtfTotal, $discountTotal, $documentTotal, $actor, $paymentMethod, $paymentUsd, $paymentVes, $paymentReference, $bcvVesPerUsd, $generateAccountsReceivable): Sale {
@@ -1577,6 +1622,9 @@ final class CashRegisterAction
                         return $sale;
                     });
                 } catch (RuntimeException $e) {
+                    self::logPosSaleBlocked('error_transaccion', [
+                        'message' => Str::limit($e->getMessage(), 500),
+                    ]);
                     AuditLogger::record(
                         'pos_caja_sale_blocked',
                         'Caja · Venta rechazada al guardar',
@@ -1593,6 +1641,12 @@ final class CashRegisterAction
 
                     return;
                 }
+
+                self::posSaleRegisterTrace('register_completed', [
+                    'sale_id' => $sale->id,
+                    'sale_number' => $sale->sale_number,
+                    'total' => (float) $sale->total,
+                ]);
 
                 AuditLogger::record(
                     'pos_caja_sale_completed',
@@ -2539,6 +2593,26 @@ final class CashRegisterAction
 
                 $environment = self::bdvPosConciliationEnvironment();
 
+                Log::info('bdv.pos_conciliation.environment', [
+                    'environment' => $environment,
+                    'module' => 'pos_caja',
+                    'app_env' => config('app.env'),
+                ]);
+
+                if ($environment === 'production' && blank(self::bdvProductionConciliationApiKey())) {
+                    Log::error('bdv.pos_conciliation.config', [
+                        'message' => 'Falta BDV_PRODUCTION_KEY_CONCILIATION o BDV_CONCILIATION_API_KEY.',
+                        'module' => 'pos_caja',
+                    ]);
+                    self::markBdvConciliationFailureInWizard(
+                        $livewire,
+                        'No está configurada la API Key de conciliación BDV en producción. Defina BDV_PRODUCTION_KEY_CONCILIATION en el servidor.',
+                        'Configuración incompleta',
+                    );
+
+                    return;
+                }
+
                 try {
                     $validated = validator($candidate, $rules, $messages)->validate();
                     $payload = GetMovementRequest::movementPayloadFromValidated($validated);
@@ -2656,12 +2730,10 @@ final class CashRegisterAction
                 );
                 self::storeBdvConciliationRecord($candidate, $response, $environment);
 
-                self::patchPosRegisterMountedData($livewire, [
+                self::attemptAutoRegisterSaleAfterBdvConciliation($livewire, [
                     'reference' => $candidate['referencia'],
                     'bdv_pm_conciliated' => true,
                 ]);
-
-                $livewire->js(self::bdvPmConciliationSuccessOverlayScript());
             });
     }
 
@@ -2725,68 +2797,142 @@ final class CashRegisterAction
     }
 
     /**
-     * Muestra overlay con check animado, espera 2 s, cierra la conciliación y envía «Registrar venta».
+     * Tras BDV OK: actualiza la caja, cierra el modal de conciliación y dispara «Registrar venta» desde PHP.
+     *
+     * @param  array<string, mixed>  $patch
      */
-    private static function bdvPmConciliationSuccessOverlayScript(): string
+    private static function attemptAutoRegisterSaleAfterBdvConciliation(BasePage $livewire, array $patch): void
     {
-        return <<<'JS'
-(function () {
-    const root = document.querySelector('.farmadoc-bdv-pm-conciliation-modal--ios-sheet');
-    if (!root) {
-        $wire.unmountAction();
-        setTimeout(() => $wire.callMountedAction(), 150);
+        if (! self::patchPosRegisterMountedData($livewire, $patch)) {
+            Log::warning('pos.sale_register.patch_failed', [
+                'module' => 'pos_caja',
+                'action' => self::REGISTER_ACTION_NAME,
+                'keys' => array_keys($patch),
+            ]);
 
-        return;
+            Notification::make()
+                ->title('Pago conciliado')
+                ->body('No se pudo sincronizar la caja. Cierre y vuelva a abrir la caja, o pulse «Registrar venta» manualmente.')
+                ->warning()
+                ->persistent()
+                ->send();
+
+            $livewire->unmountAction();
+
+            return;
+        }
+
+        self::posSaleRegisterTrace('bdv_ok_auto_register_start', [
+            'reference_suffix' => isset($patch['reference']) && strlen((string) $patch['reference']) >= 2
+                ? substr((string) $patch['reference'], -2)
+                : null,
+            'bdv_pm_conciliated' => $patch['bdv_pm_conciliated'] ?? null,
+        ]);
+
+        Notification::make()
+            ->title('Pago conciliado')
+            ->body('Registrando la venta…')
+            ->success()
+            ->send();
+
+        $livewire->unmountAction();
+
+        self::posSaleRegisterTrace('bdv_ok_pm_modal_unmounted', []);
+
+        try {
+            $livewire->callMountedAction();
+            self::posSaleRegisterTrace('bdv_ok_auto_register_dispatched', []);
+        } catch (Throwable $e) {
+            Log::error('pos.sale_register.auto_register_failed', [
+                'module' => 'pos_caja',
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+
+            Notification::make()
+                ->title('Pago conciliado')
+                ->body('No se pudo registrar la venta automáticamente. Pulse «Registrar venta» en la caja.')
+                ->warning()
+                ->persistent()
+                ->send();
+        }
     }
 
-    const overlay = document.createElement('div');
-    overlay.className = 'farmadoc-bdv-pm-success-overlay';
-    overlay.setAttribute('role', 'status');
-    overlay.setAttribute('aria-live', 'polite');
-    overlay.innerHTML = '<div class="farmadoc-bdv-pm-success-overlay__backdrop"></div>'
-        + '<div class="farmadoc-bdv-pm-success-overlay__card">'
-        + '<div class="farmadoc-bdv-pm-success-check" aria-hidden="true">'
-        + '<svg class="farmadoc-bdv-pm-success-check__svg" viewBox="0 0 52 52" width="68" height="68" focusable="false">'
-        + '<circle class="farmadoc-bdv-pm-success-check__circle" cx="26" cy="26" r="23" fill="none" stroke="currentColor" stroke-width="2.5"/>'
-        + '<path class="farmadoc-bdv-pm-success-check__tick" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" d="M14 27l8 8 16-20"/>'
-        + '</svg></div>'
-        + '<p class="farmadoc-bdv-pm-success-overlay__title">Pago conciliado</p>'
-        + '<p class="farmadoc-bdv-pm-success-overlay__sub">Registrando la venta…</p></div>';
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private static function posSaleRegisterTrace(string $step, array $context = []): void
+    {
+        if (! self::posSaleRegisterDebugEnabled()) {
+            return;
+        }
 
-    root.appendChild(overlay);
-    requestAnimationFrame(() => overlay.classList.add('farmadoc-bdv-pm-success-overlay--visible'));
+        Log::info('pos.sale_register.trace', array_merge([
+            'step' => $step,
+            'module' => 'pos_caja',
+        ], $context));
+    }
 
-    setTimeout(() => {
-        overlay.classList.add('farmadoc-bdv-pm-success-overlay--exiting');
-    }, 1700);
+    private static function posSaleRegisterDebugEnabled(): bool
+    {
+        if (app()->isLocal()) {
+            return true;
+        }
 
-    setTimeout(() => {
-        $wire.unmountAction();
-    }, 2000);
+        return filter_var(config('bdv_conciliation.pos_debug_sale_register'), FILTER_VALIDATE_BOOL);
+    }
 
-    setTimeout(() => {
-        $wire.callMountedAction();
-    }, 2150);
-})();
-JS;
+    private static function posSaleBlockLoggingEnabled(): bool
+    {
+        return filter_var(config('bdv_conciliation.pos_log_sale_blocks'), FILTER_VALIDATE_BOOL);
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private static function logPosSaleBlocked(string $reason, array $context = []): void
+    {
+        self::posSaleRegisterTrace('register_blocked', array_merge(['reason' => $reason], $context));
+
+        if (! self::posSaleBlockLoggingEnabled()) {
+            return;
+        }
+
+        Log::warning('pos.sale_register.blocked', array_merge([
+            'reason' => $reason,
+            'module' => 'pos_caja',
+        ], $context));
+    }
+
+    private static function bdvProductionConciliationApiKey(): ?string
+    {
+        $key = config('bdv_conciliation.environments.production.keys.conciliation');
+
+        if (! is_string($key)) {
+            return null;
+        }
+
+        $trimmed = trim($key);
+
+        return $trimmed !== '' ? $trimmed : null;
     }
 
     /**
      * @param  array<string, mixed>  $patch
      */
-    private static function patchPosRegisterMountedData(BasePage $livewire, array $patch): void
+    private static function patchPosRegisterMountedData(BasePage $livewire, array $patch): bool
     {
-        self::patchMountedActionData($livewire, self::REGISTER_ACTION_NAME, $patch);
+        return self::patchMountedActionData($livewire, self::REGISTER_ACTION_NAME, $patch);
     }
 
     /**
      * @param  array<string, mixed>  $patch
      */
-    private static function patchMountedActionData(BasePage $livewire, string $actionName, array $patch): void
+    private static function patchMountedActionData(BasePage $livewire, string $actionName, array $patch): bool
     {
         $mounted = $livewire->mountedActions ?? null;
         if (! is_array($mounted) || $mounted === []) {
-            return;
+            return false;
         }
 
         foreach ($mounted as $i => $entry) {
@@ -2802,8 +2948,10 @@ JS;
             $mounted[$i]['data'] = array_merge($current, $patch);
             $livewire->mountedActions = $mounted;
 
-            return;
+            return true;
         }
+
+        return false;
     }
 
     private static function isBdvConciliationSuccessful(Response $response): bool

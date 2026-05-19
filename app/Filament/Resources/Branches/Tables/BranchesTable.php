@@ -66,7 +66,8 @@ class BranchesTable
                     ->searchable(query: function (Builder $query, string $search): void {
                         $query->where(function (Builder $q) use ($search): void {
                             $q->where('phone', 'like', "%{$search}%")
-                                ->orWhere('mobile_phone', 'like', "%{$search}%");
+                                ->orWhere('mobile_phone', 'like', "%{$search}%")
+                                ->orWhere('pm_conciliation_phone', 'like', "%{$search}%");
                         });
                     })
                     ->icon(Heroicon::Phone)
@@ -107,6 +108,9 @@ class BranchesTable
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('mobile_phone')
                     ->label('Celular / WhatsApp')
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('pm_conciliation_phone')
+                    ->label('Tel. conciliación BDV')
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('address')
                     ->label('Dirección')
@@ -188,7 +192,7 @@ class BranchesTable
 
     private static function formatPhones(Branch $branch): string
     {
-        $parts = array_filter([$branch->phone, $branch->mobile_phone]);
+        $parts = array_filter([$branch->phone, $branch->mobile_phone, $branch->pm_conciliation_phone]);
 
         return $parts ? implode(' · ', $parts) : '—';
     }

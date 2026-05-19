@@ -70,6 +70,11 @@ class BranchInfolist
                                     ->label('Celular / WhatsApp')
                                     ->placeholder('—')
                                     ->icon(Heroicon::DevicePhoneMobile),
+                                TextEntry::make('pm_conciliation_phone')
+                                    ->label('Teléfono conciliación Pago Móvil (BDV)')
+                                    ->placeholder('—')
+                                    ->icon(Heroicon::CreditCard)
+                                    ->copyable(),
                             ]),
                     ])
                     ->columns(1)

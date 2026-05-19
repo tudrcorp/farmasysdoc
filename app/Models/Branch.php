@@ -22,6 +22,7 @@ class Branch extends Model
         'email',
         'phone',
         'mobile_phone',
+        'pm_conciliation_phone',
         'address',
         'city',
         'state',

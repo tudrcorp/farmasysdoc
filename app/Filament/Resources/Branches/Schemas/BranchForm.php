@@ -116,6 +116,14 @@ class BranchForm
                                     ->placeholder('Ej. 300 123 4567')
                                     ->maxLength(40)
                                     ->prefixIcon(Heroicon::DevicePhoneMobile),
+                                TextInput::make('pm_conciliation_phone')
+                                    ->label('Teléfono conciliación Pago Móvil (BDV)')
+                                    ->tel()
+                                    ->placeholder('Ej. 0412 123 4567')
+                                    ->helperText('Número de la sucursal que se enviará como "Teléfono destino (comercio)" en la conciliación BDV.')
+                                    ->maxLength(40)
+                                    ->columnSpan(['default' => 1, 'sm' => 2, 'lg' => 3])
+                                    ->prefixIcon(Heroicon::CreditCard),
                             ]),
                     ])
                     ->columns(1)

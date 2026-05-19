@@ -27,11 +27,15 @@ final class OrderTotalsCalculator
         $qty = max(0.001, $quantity);
         $unitPriceEffective = $product->effectiveSaleUnitPrice();
         $partnerProfitPercentage = max(0.0, $partnerProfitPercentage);
-        if ($partnerProfitPercentage > 0) {
-            $unitPriceEffective *= (1 + ($partnerProfitPercentage / 100));
-        }
-        $unitPriceEffective = round($unitPriceEffective, 2);
         $discountAmount = $product->monetaryLineDiscountForQuantity($qty);
+
+        if ($partnerProfitPercentage > 0) {
+            $unitCost = max(0.0, (float) ($product->cost_price ?? 0));
+            $unitPriceEffective = $unitCost * (1 + ($partnerProfitPercentage / 100));
+            $discountAmount = 0.0;
+        }
+
+        $unitPriceEffective = round($unitPriceEffective, 2);
         $lineSubtotal = round($qty * $unitPriceEffective, 2);
 
         $rate = self::vatRatePercentForProduct($product);

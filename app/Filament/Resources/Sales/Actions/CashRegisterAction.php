@@ -8,7 +8,9 @@ use App\Enums\SaleStatus;
 use App\Enums\VenezuelanPagoMovilBank;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Http\Requests\BdvConciliation\GetMovementRequest;
+use App\Models\Branch;
 use App\Models\Client;
+use App\Models\ConciliationBdv;
 use App\Models\FarmaExpressCostStructure;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
@@ -2079,6 +2081,72 @@ final class CashRegisterAction
     }
 
     /**
+     * @param  array<string, mixed>  $candidate
+     */
+    private static function storeBdvConciliationRecord(array $candidate, Response $response, string $environment): void
+    {
+        $user = Auth::user();
+        $branchId = $user?->branch_id;
+
+        if (blank($branchId)) {
+            return;
+        }
+
+        try {
+            $responseData = $response->json();
+            if (! is_array($responseData)) {
+                $responseData = ['raw' => $response->body()];
+            }
+
+            $rawCode = $responseData['code'] ?? $responseData['codigo'] ?? null;
+            $bdvCode = is_scalar($rawCode) ? (string) $rawCode : null;
+            $bdvMessage = self::bdvConciliationFailureMessage($response);
+
+            ConciliationBdv::query()->create([
+                'branch_id' => (int) $branchId,
+                'user_id' => $user?->id,
+                'sale_id' => null,
+                'environment' => $environment,
+                'payer_document' => (string) ($candidate['cedulaPagador'] ?? ''),
+                'payer_phone' => (string) ($candidate['telefonoPagador'] ?? ''),
+                'destination_phone' => (string) ($candidate['telefonoDestino'] ?? ''),
+                'reference' => (string) ($candidate['referencia'] ?? ''),
+                'payment_date' => (string) ($candidate['fechaPago'] ?? now()->toDateString()),
+                'amount' => (float) ($candidate['importe'] ?? 0),
+                'origin_bank' => (string) ($candidate['bancoOrigen'] ?? ''),
+                'req_ced' => (bool) ($candidate['reqCed'] ?? false),
+                'bdv_http_status' => $response->status(),
+                'bdv_code' => $bdvCode,
+                'bdv_message' => $bdvMessage,
+                'bdv_payload' => $candidate,
+                'bdv_response' => $responseData,
+                'conciliated_at' => now(),
+                'created_by' => $user?->email ?? $user?->name ?? 'sistema',
+            ]);
+        } catch (Throwable $e) {
+            Log::error('bdv.pos_conciliation.persist_failed', [
+                'message' => $e->getMessage(),
+                'branch_id' => $branchId,
+            ]);
+        }
+    }
+
+    /**
+     * Teléfono destino (comercio) para conciliación BDV en caja, tomado de la sucursal del usuario actual.
+     */
+    private static function resolveBdvCommercePhoneForPosConciliation(): string
+    {
+        $branchId = Auth::user()?->branch_id;
+        if (blank($branchId)) {
+            return '';
+        }
+
+        return trim((string) Branch::query()
+            ->whereKey((int) $branchId)
+            ->value('pm_conciliation_phone'));
+    }
+
+    /**
      * Entorno getMovement para la caja: opcionalmente {@see config('bdv_conciliation.pos_conciliation_environment')};
      * si no aplica, igual que antes (solo producción Laravel → API producción).
      */
@@ -2361,14 +2429,15 @@ final class CashRegisterAction
                 $paymentVes = (float) ($action->getArguments()['payment_ves'] ?? 0);
                 $importe = self::normalizeBdvImporteForPosWizard($data['bdv_pm_importe'] ?? null, $paymentVes);
 
-                $telefonoComercio = trim((string) config('bdv_conciliation.commerce_mobile_phone', ''));
+                $telefonoComercio = self::resolveBdvCommercePhoneForPosConciliation();
                 if ($telefonoComercio === '') {
                     Log::warning('bdv.pos_conciliation.config', [
-                        'message' => 'Falta TEL (commerce_mobile_phone) para conciliación en caja.',
+                        'message' => 'Falta teléfono de conciliación BDV en la sucursal del cajero.',
+                        'branch_id' => Auth::user()?->branch_id,
                     ]);
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
-                        'Falta el teléfono Pago Móvil del comercio (variable TEL en el servidor). No se puede consultar a BDV hasta configurarlo.',
+                        'La sucursal no tiene configurado el teléfono de conciliación Pago Móvil (BDV). Pídale a un administrador que lo registre en Sucursales.',
                         'Configuración incompleta',
                     );
 
@@ -2378,11 +2447,12 @@ final class CashRegisterAction
                 $telefonoDestinoNorm = self::normalizeBdvTelefonoPagadorPayload($telefonoComercio);
                 if ($telefonoDestinoNorm === '') {
                     Log::warning('bdv.pos_conciliation.config', [
-                        'message' => 'TEL presente pero no normalizable a formato BDV (telefonoDestino vacío).',
+                        'message' => 'Teléfono de conciliación BDV de sucursal no normalizable (telefonoDestino vacío).',
+                        'branch_id' => Auth::user()?->branch_id,
                     ]);
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
-                        'El teléfono Pago Móvil del comercio (TEL) no tiene un formato válido. Use 04XX… o 58… como indica el manual BDV.',
+                        'El teléfono de conciliación Pago Móvil (BDV) de la sucursal no tiene formato válido. Use 04XX… o 58… según manual BDV.',
                         'Configuración incompleta',
                     );
 
@@ -2524,6 +2594,7 @@ final class CashRegisterAction
                         'importe_bs' => $candidate['importe'],
                     ],
                 );
+                self::storeBdvConciliationRecord($candidate, $response, $environment);
 
                 self::patchPosRegisterMountedData($livewire, [
                     'reference' => $candidate['referencia'],

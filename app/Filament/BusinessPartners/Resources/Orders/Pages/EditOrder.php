@@ -34,7 +34,10 @@ class EditOrder extends EditRecord
                 'product_id' => $i->product_id,
                 'quantity' => (float) $i->quantity,
             ])->all();
-            $data = array_merge($data, OrderTotalsCalculator::aggregateFromItemStates($itemStates));
+            $data = array_merge($data, OrderTotalsCalculator::aggregateFromItemStates(
+                $itemStates,
+                filled($record->partner_company_id) ? (int) $record->partner_company_id : null,
+            ));
         }
 
         return $data;

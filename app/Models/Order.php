@@ -271,10 +271,23 @@ class Order extends Model
     {
         $this->loadMissing('items');
 
-        $subtotal = round((float) $this->items->sum('line_subtotal'), 2);
+        $subtotal = round((float) $this->items->sum('line_total'), 2);
         $taxTotal = round((float) $this->items->sum('tax_amount'), 2);
         $discountTotal = round((float) $this->items->sum('discount_amount'), 2);
         $total = round((float) $this->items->sum('line_total'), 2);
+        $partnerOrderDiscountPercent = 0.0;
+
+        if (filled($this->partner_company_id)) {
+            $partnerOrderDiscountPercent = max(0.0, (float) PartnerCompany::query()
+                ->whereKey((int) $this->partner_company_id)
+                ->value('discount_percentage'));
+        }
+
+        if ($partnerOrderDiscountPercent > 0) {
+            $partnerOrderDiscountAmount = round($total * ($partnerOrderDiscountPercent / 100), 2);
+            $discountTotal = round($discountTotal + $partnerOrderDiscountAmount, 2);
+            $total = round(max(0.0, $total - $partnerOrderDiscountAmount), 2);
+        }
 
         $this->forceFill([
             'subtotal' => $subtotal,

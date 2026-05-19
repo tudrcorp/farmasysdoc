@@ -42,6 +42,9 @@ class PartnerCompany extends Model
         'date_created',
         'date_updated',
         'assigned_credit_limit',
+        'profit_percentage_a',
+        'profit_percentage_b',
+        'discount_percentage',
     ];
 
     /**
@@ -54,6 +57,9 @@ class PartnerCompany extends Model
             'date_created' => 'date',
             'date_updated' => 'date',
             'assigned_credit_limit' => 'decimal:2',
+            'profit_percentage_a' => 'decimal:6',
+            'profit_percentage_b' => 'decimal:6',
+            'discount_percentage' => 'decimal:6',
         ];
     }
 

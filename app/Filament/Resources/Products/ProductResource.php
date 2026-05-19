@@ -89,6 +89,25 @@ class ProductResource extends Resource
         return SaleResource::canAccess() || PurchaseResource::canAccess();
     }
 
+    public static function canEdit(Model $record): bool
+    {
+        if (! static::canViewAny()) {
+            return false;
+        }
+
+        $user = auth()->user();
+
+        if (! $user instanceof User) {
+            return false;
+        }
+
+        if ($user->isAdministrator()) {
+            return true;
+        }
+
+        return $user->canAccessFarmaadminMenuKey('products_edit');
+    }
+
     /**
      * La búsqueda global de productos la resuelve {@see FarmaadminGlobalSearchProvider}.
      */

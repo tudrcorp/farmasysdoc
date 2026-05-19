@@ -298,6 +298,8 @@ final class CashRegisterAction
             ->modalIcon(Heroicon::Banknotes)
             ->modalWidth(Width::SevenExtraLarge)
             ->modalSubmitActionLabel('Registrar venta')
+            ->closeModalByClickingAway(false)
+            ->closeModalByEscaping(false)
             ->modalCancelAction(fn (Action $action): Action => $action->color('danger'))
             ->registerModalActions([
                 self::makeCreditSaleConfirmation(),

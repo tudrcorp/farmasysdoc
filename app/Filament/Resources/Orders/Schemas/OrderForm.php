@@ -48,13 +48,15 @@ class OrderForm
                             ->label('Pedido para una compañía aliada')
                             ->helperText('Si está activado, el pedido se asocia solo al aliado (sin cliente del sistema). Si está desactivado, el pedido es para un cliente registrado (sin aliado en este paso).')
                             ->live()
-                            ->afterStateUpdated(function (Set $set, mixed $state): void {
+                            ->afterStateUpdated(function (Set $set, Get $get, mixed $state): void {
                                 if (filter_var($state, FILTER_VALIDATE_BOOLEAN)) {
                                     $set('client_id', null);
                                 } else {
                                     $set('partner_company_id', null);
                                     self::resetPartnerDeliveryFields($set);
                                 }
+
+                                self::applyComputedOrderTotals($set, $get);
                             })
                             ->visible(fn (): bool => Auth::user() instanceof User && Auth::user()->isAdministrator())
                             ->dehydrated(false)
@@ -138,11 +140,13 @@ class OrderForm
                                         ? (int) Auth::user()->partner_company_id
                                         : null)
                                     ->live()
-                                    ->afterStateUpdated(function (Set $set, mixed $state): void {
+                                    ->afterStateUpdated(function (Set $set, Get $get, mixed $state): void {
                                         $user = Auth::user();
                                         if ($user instanceof User && $user->isAdministrator() && blank($state)) {
                                             self::resetPartnerDeliveryFields($set);
                                         }
+
+                                        self::applyComputedOrderTotals($set, $get);
                                     })
                                     ->prefixIcon(Heroicon::BuildingOffice2),
                                 Select::make('status')
@@ -197,7 +201,9 @@ class OrderForm
                                         titleAttribute: 'name',
                                         modifyQueryUsing: fn (Builder $query): Builder => $query->where('is_active', true)->orderBy('name'),
                                     )
-                                    ->searchable(self::productSearchableColumnsForOrderForm())
+                                    ->searchable()
+                                    ->getSearchResultsUsing(fn (string $search): array => self::productSearchResultsForOrderSelect($search))
+                                    ->getOptionLabelUsing(fn (mixed $value): ?string => self::productOptionLabelForOrderSelectValue($value))
                                     ->getOptionLabelFromRecordUsing(fn (Product $record): string => self::formatProductOptionLabelForOrderSelect($record))
                                     ->native(false)
                                     ->live()
@@ -215,8 +221,8 @@ class OrderForm
                                     ->default(1)
                                     ->prefixIcon(Heroicon::Calculator),
                             ])
-                            ->mutateRelationshipDataBeforeCreateUsing(fn (array $data): array => self::enrichOrderItemData($data))
-                            ->mutateRelationshipDataBeforeSaveUsing(fn (array $data, Model $record): array => self::enrichOrderItemData($data))
+                            ->mutateRelationshipDataBeforeCreateUsing(fn (array $data, Get $get): array => self::enrichOrderItemData($data, self::partnerCompanyIdForRepeaterItem($get)))
+                            ->mutateRelationshipDataBeforeSaveUsing(fn (array $data, Model $record, Get $get): array => self::enrichOrderItemData($data, self::partnerCompanyIdForRepeaterItem($get)))
                             ->columnSpanFull(),
                         Fieldset::make('Totales del pedido')
                             ->columnSpanFull()
@@ -241,7 +247,7 @@ class OrderForm
                                             ->numeric()
                                             ->default(0.0)
                                             ->prefix('$')
-                                            ->helperText('Base imponible (tras descuento % del catálogo).'),
+                                            ->helperText('Subtotal con IVA incluido en productos que gravan IVA.'),
                                         TextInput::make('discount_total')
                                             ->label('Descuentos')
                                             ->disabled()
@@ -519,7 +525,7 @@ class OrderForm
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    private static function enrichOrderItemData(array $data): array
+    private static function enrichOrderItemData(array $data, ?int $partnerCompanyId = null): array
     {
         $product = Product::query()->find($data['product_id'] ?? null);
         if ($product === null) {
@@ -527,7 +533,15 @@ class OrderForm
         }
 
         $quantity = max(0.001, (float) ($data['quantity'] ?? 1));
-        $line = OrderTotalsCalculator::lineAmounts($product, $quantity);
+        $partnerProfitPercentage = 0.0;
+        if ($partnerCompanyId !== null && $partnerCompanyId > 0) {
+            $partner = PartnerCompany::query()->find($partnerCompanyId);
+            if ($partner instanceof PartnerCompany) {
+                $partnerProfitPercentage = max(0.0, (float) ($partner->profit_percentage_a ?? 0));
+            }
+        }
+
+        $line = OrderTotalsCalculator::lineAmounts($product, $quantity, $partnerProfitPercentage);
 
         return array_merge($data, $line, [
             'inventory_id' => null,
@@ -581,7 +595,58 @@ class OrderForm
             $joined = mb_substr($joined, 0, 69).'…';
         }
 
-        return $name.' · '.$joined;
+        return $name.' · '.$joined.' · $'.number_format($record->effectiveSaleUnitPrice(), 2, '.', ',');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function productSearchResultsForOrderSelect(string $search): array
+    {
+        $term = trim($search);
+        $query = Product::query()
+            ->where('is_active', true)
+            ->orderBy('name', 'asc');
+
+        if ($term !== '') {
+            $like = '%'.addcslashes($term, '%_\\').'%';
+            $ingredientLike = '%'.addcslashes(mb_strtolower($term), '%_\\').'%';
+            $query->where(function (Builder $w) use ($like, $ingredientLike): void {
+                $w->where('name', 'like', $like)
+                    ->orWhere('barcode', 'like', $like)
+                    ->orWhereRaw('LOWER(active_ingredient) LIKE ?', [$ingredientLike]);
+
+                if (SchemaFacade::hasColumn('products', 'sku')) {
+                    $w->orWhere('sku', 'like', $like);
+                }
+
+                if (SchemaFacade::hasColumn('products', 'slug')) {
+                    $w->orWhere('slug', 'like', $like);
+                }
+            });
+        }
+
+        return $query
+            ->limit($term === '' ? 25 : 40)
+            ->get()
+            ->mapWithKeys(fn (Product $product): array => [
+                (int) $product->id => self::formatProductOptionLabelForOrderSelect($product),
+            ])
+            ->all();
+    }
+
+    private static function productOptionLabelForOrderSelectValue(mixed $value): ?string
+    {
+        if (blank($value)) {
+            return null;
+        }
+
+        $product = Product::query()->find((int) $value);
+        if (! $product instanceof Product) {
+            return null;
+        }
+
+        return self::formatProductOptionLabelForOrderSelect($product);
     }
 
     private static function applyComputedOrderTotals(Set $set, Get $get): void
@@ -591,11 +656,29 @@ class OrderForm
             $items = [];
         }
 
-        $agg = OrderTotalsCalculator::aggregateFromItemStates($items);
+        $partnerCompanyId = filled($get('partner_company_id'))
+            ? (int) $get('partner_company_id')
+            : null;
+
+        $agg = OrderTotalsCalculator::aggregateFromItemStates($items, $partnerCompanyId);
         $set('subtotal', $agg['subtotal']);
         $set('tax_total', $agg['tax_total']);
         $set('discount_total', $agg['discount_total']);
         $set('total', $agg['total']);
+    }
+
+    private static function partnerCompanyIdForRepeaterItem(Get $get): ?int
+    {
+        $partnerCompanyId = $get('../../partner_company_id');
+        if (blank($partnerCompanyId)) {
+            $partnerCompanyId = $get('/data.partner_company_id', true);
+        }
+
+        if (blank($partnerCompanyId)) {
+            return null;
+        }
+
+        return (int) $partnerCompanyId;
     }
 
     private static function orderItemQuantityLabel(Get $get): string

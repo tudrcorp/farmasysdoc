@@ -2,6 +2,7 @@
 
 namespace App\Support\Orders;
 
+use App\Models\PartnerCompany;
 use App\Models\Product;
 use App\Support\Finance\DefaultVatRate;
 
@@ -21,10 +22,15 @@ final class OrderTotalsCalculator
      *     sku_snapshot: string|null,
      * }
      */
-    public static function lineAmounts(Product $product, float $quantity): array
+    public static function lineAmounts(Product $product, float $quantity, float $partnerProfitPercentage = 0.0): array
     {
         $qty = max(0.001, $quantity);
         $unitPriceEffective = $product->effectiveSaleUnitPrice();
+        $partnerProfitPercentage = max(0.0, $partnerProfitPercentage);
+        if ($partnerProfitPercentage > 0) {
+            $unitPriceEffective *= (1 + ($partnerProfitPercentage / 100));
+        }
+        $unitPriceEffective = round($unitPriceEffective, 2);
         $discountAmount = $product->monetaryLineDiscountForQuantity($qty);
         $lineSubtotal = round($qty * $unitPriceEffective, 2);
 
@@ -47,12 +53,22 @@ final class OrderTotalsCalculator
      * @param  array<int, array<string, mixed>>  $itemStates  Filas del repetidor (product_id, quantity).
      * @return array{subtotal: float, tax_total: float, discount_total: float, total: float}
      */
-    public static function aggregateFromItemStates(array $itemStates): array
+    public static function aggregateFromItemStates(array $itemStates, ?int $partnerCompanyId = null): array
     {
-        $subtotal = 0.0;
+        $subtotalNet = 0.0;
         $taxTotal = 0.0;
         $discountTotal = 0.0;
         $total = 0.0;
+        $partnerProfitPercentage = 0.0;
+        $partnerOrderDiscountPercentage = 0.0;
+
+        if ($partnerCompanyId !== null && $partnerCompanyId > 0) {
+            $partner = PartnerCompany::query()->find($partnerCompanyId);
+            if ($partner instanceof PartnerCompany) {
+                $partnerProfitPercentage = max(0.0, (float) ($partner->profit_percentage_a ?? 0));
+                $partnerOrderDiscountPercentage = max(0.0, (float) ($partner->discount_percentage ?? 0));
+            }
+        }
 
         foreach ($itemStates as $row) {
             $productId = $row['product_id'] ?? null;
@@ -66,15 +82,23 @@ final class OrderTotalsCalculator
             }
 
             $qty = max(0.001, (float) ($row['quantity'] ?? 1));
-            $line = self::lineAmounts($product, $qty);
-            $subtotal += $line['line_subtotal'];
+            $line = self::lineAmounts($product, $qty, $partnerProfitPercentage);
+            $subtotalNet += $line['line_subtotal'];
             $taxTotal += $line['tax_amount'];
             $discountTotal += $line['discount_amount'];
             $total += $line['line_total'];
         }
 
+        $partnerOrderDiscountAmount = $partnerOrderDiscountPercentage > 0
+            ? round($total * ($partnerOrderDiscountPercentage / 100), 2)
+            : 0.0;
+        $discountTotal += $partnerOrderDiscountAmount;
+        $total = max(0.0, $total - $partnerOrderDiscountAmount);
+
+        $subtotalWithVat = $subtotalNet + $taxTotal;
+
         return [
-            'subtotal' => round($subtotal, 2),
+            'subtotal' => round($subtotalWithVat, 2),
             'tax_total' => round($taxTotal, 2),
             'discount_total' => round($discountTotal, 2),
             'total' => round($total, 2),

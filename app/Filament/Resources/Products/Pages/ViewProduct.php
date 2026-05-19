@@ -234,7 +234,8 @@ class ViewProduct extends ViewRecord
             EditAction::make()
                 ->label('Editar Producto')
                 ->icon(Heroicon::Pencil)
-                ->color('primary'),
+                ->color('primary')
+                ->visible(fn (): bool => ProductResource::canEdit($this->record)),
         ];
     }
 }

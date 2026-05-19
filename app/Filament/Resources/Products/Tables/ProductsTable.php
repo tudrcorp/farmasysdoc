@@ -309,7 +309,8 @@ class ProductsTable
                     ->icon(Heroicon::Eye),
                 EditAction::make()
                     ->label('Editar')
-                    ->icon(Heroicon::PencilSquare),
+                    ->icon(Heroicon::PencilSquare)
+                    ->visible(fn (Product $record): bool => ProductResource::canEdit($record)),
             ])
             ->recordActionsColumnLabel('Acciones')
             ->toolbarActions([

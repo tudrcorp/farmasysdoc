@@ -300,6 +300,28 @@ class PartnerCompanyForm
                                         ? null
                                         : (float) $state)
                                     ->prefixIcon(Heroicon::Banknotes),
+                                TextInput::make('profit_percentage_a')
+                                    ->label('Ganancia % A')
+                                    ->helperText('Campo libre para porcentaje de ganancia del aliado.')
+                                    ->numeric()
+                                    ->suffix('%')
+                                    ->step('any')
+                                    ->nullable()
+                                    ->dehydrateStateUsing(fn (mixed $state): ?float => $state === '' || $state === null
+                                        ? null
+                                        : (float) $state)
+                                    ->prefixIcon(Heroicon::Calculator),
+                                TextInput::make('discount_percentage')
+                                    ->label('Descuento %')
+                                    ->helperText('Campo libre para porcentaje de descuento del aliado.')
+                                    ->numeric()
+                                    ->suffix('%')
+                                    ->step('any')
+                                    ->nullable()
+                                    ->dehydrateStateUsing(fn (mixed $state): ?float => $state === '' || $state === null
+                                        ? null
+                                        : (float) $state)
+                                    ->prefixIcon(Heroicon::Calculator),
                                 DatePicker::make('date_created')
                                     ->label('Fecha de creación del convenio')
                                     ->helperText('Fecha en que se formaliza o registra el convenio con el aliado.')

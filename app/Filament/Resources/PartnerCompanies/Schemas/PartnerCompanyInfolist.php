@@ -189,6 +189,20 @@ class PartnerCompanyInfolist
                             ->extraEntryWrapperAttributes([
                                 'class' => 'fi-partner-company-credit-entry',
                             ]),
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                        ])
+                            ->schema([
+                                TextEntry::make('profit_percentage_a')
+                                    ->label('Ganancia % A')
+                                    ->placeholder('—')
+                                    ->formatStateUsing(fn ($state): string => filled($state) ? ((string) $state).'%' : '—'),
+                                TextEntry::make('discount_percentage')
+                                    ->label('Descuento %')
+                                    ->placeholder('—')
+                                    ->formatStateUsing(fn ($state): string => filled($state) ? ((string) $state).'%' : '—'),
+                            ]),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

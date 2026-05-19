@@ -329,7 +329,7 @@ class PurchaseForm
                                 TableColumn::make('IVA'),
                                 TableColumn::make('Cant.'),
                                 TableColumn::make('Venc. (mm/AAAA)')->width('7rem'),
-                                TableColumn::make('Total'),
+                                TableColumn::make('Subtotal'),
                             ])
                             ->schema([
                                 Hidden::make('product_id')
@@ -354,8 +354,8 @@ class PurchaseForm
                                     ->label('Costo')
                                     ->numeric()
                                     ->minValue(0)
-                                    ->step(0.01)
-                                    ->rule('decimal:0,2')
+                                    ->step('any')
+                                    // ->rule('decimal:0,2')
                                     ->prefix(fn (Get $get): string => self::currencyPrefixForFormGet($get))
                                     ->default(0)
                                     ->required()
@@ -426,7 +426,7 @@ class PurchaseForm
                                         },
                                     ]),
                                 Placeholder::make('line_total_display')
-                                    ->label('Total')
+                                    ->label('Subtotal')
                                     ->content(fn (Get $get): string => self::formatPurchaseLineVisualTotal($get)),
                             ])
                             ->columnSpanFull(),
@@ -450,7 +450,8 @@ class PurchaseForm
                                     ->label('Subtotal')
                                     ->numeric()
                                     ->minValue(0)
-                                    ->step(0.01)
+                                    ->step('any')
+                                    // ->step(0.01)
                                     ->default(0.0)
                                     ->prefix(fn (Get $get): string => self::currencyPrefixForFormGet($get))
                                     ->disabled()
@@ -522,7 +523,6 @@ class PurchaseForm
                         Select::make('payment_status')
                             ->label('Estado del pago')
                             ->options(PurchasePaymentStatus::options())
-                            ->default(PurchasePaymentStatus::PAGADO_CONTADO)
                             ->required()
                             ->native(false)
                             ->helperText('Solo se admiten los estados definidos para auditoría y reportes.')
@@ -598,7 +598,7 @@ class PurchaseForm
         $vatPercent = self::purchaseLineVatPercentForProductId($get('product_id'));
         $set('line_vat_percent', round($vatPercent, 2));
 
-        $unitCost = round(max(0.0, (float) ($get('unit_cost') ?? 0)), 2);
+        $unitCost = max(0.0, (float) ($get('unit_cost') ?? 0));
         $set('unit_cost', $unitCost);
 
         $amounts = PurchaseDocumentTotals::lineAmounts([
@@ -617,11 +617,29 @@ class PurchaseForm
 
     public static function formatPurchaseLineVisualTotal(Get $get): string
     {
-        $qty = (float) ($get('quantity_ordered') ?? 0);
-        $cost = (float) ($get('unit_cost') ?? 0);
-        $total = round($qty * $cost, 2);
+        $quantityRaw = (string) ($get('quantity_ordered') ?? '0');
+        $unitCostRaw = (string) ($get('unit_cost') ?? '0');
+        $qty = max(0.0, (float) $quantityRaw);
+        $cost = max(0.0, (float) $unitCostRaw);
+        $total = $qty * $cost;
+        $decimals = self::decimalPlacesFromNumericInput($quantityRaw) + self::decimalPlacesFromNumericInput($unitCostRaw);
 
-        return self::currencyPrefixForFormGet($get).number_format($total, 2, '.', ',');
+        return self::currencyPrefixForFormGet($get).number_format($total, $decimals, '.', ',');
+    }
+
+    private static function decimalPlacesFromNumericInput(mixed $value): int
+    {
+        $stringValue = trim((string) $value);
+        if ($stringValue === '') {
+            return 0;
+        }
+
+        $normalized = str_replace(',', '.', $stringValue);
+        if (! str_contains($normalized, '.')) {
+            return 0;
+        }
+
+        return strlen(explode('.', $normalized, 2)[1]);
     }
 
     public static function currencyPrefixForFormGet(Get $get): string
@@ -657,10 +675,32 @@ class PurchaseForm
 
         $docDisc = (float) ($get('/data.document_discount_percent') ?? 0);
         $header = PurchaseDocumentTotals::documentHeaderWithDocumentDiscount($items, $docDisc);
+        $header['subtotal'] = self::purchaseLinesSubtotalWithoutRounding($items);
 
         foreach ($header as $key => $value) {
             $set('data.'.$key, $value, true);
         }
+    }
+
+    /**
+     * @param  array<int, mixed>  $items
+     */
+    private static function purchaseLinesSubtotalWithoutRounding(array $items): float
+    {
+        $subtotal = 0.0;
+
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $qty = max(0.0, (float) ($item['quantity_ordered'] ?? 0));
+            $cost = max(0.0, (float) ($item['unit_cost'] ?? 0));
+            $discountPercent = min(100.0, max(0.0, (float) ($item['line_discount_percent'] ?? 0)));
+            $subtotal += $qty * $cost * (1 - ($discountPercent / 100));
+        }
+
+        return $subtotal == 0.0 ? 0.0 : $subtotal;
     }
 
     private static function purchaseLinesSectionDescription(Get $get): HtmlString
@@ -741,7 +781,7 @@ class PurchaseForm
             $data['lot_expiration_month_year'] = null;
         }
 
-        $data['unit_cost'] = round(max(0.0, (float) ($data['unit_cost'] ?? 0)), 2);
+        $data['unit_cost'] = max(0.0, (float) ($data['unit_cost'] ?? 0));
 
         $computed = PurchaseDocumentTotals::lineAmounts($data);
         $data['line_subtotal'] = $computed['line_subtotal'];

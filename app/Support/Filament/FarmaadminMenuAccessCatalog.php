@@ -26,6 +26,7 @@ class FarmaadminMenuAccessCatalog
             'clients' => ['label' => 'Clientes', 'route_name_fragment' => 'resources.clients.', 'group' => 'Operaciones'],
             'partner_companies' => ['label' => 'Compañias aliadas', 'route_name_fragment' => 'resources.partner-companies.', 'group' => 'Aliados Comerciales'],
             'products' => ['label' => 'Productos', 'route_name_fragment' => 'resources.products.', 'group' => 'Inventario'],
+            'products_edit' => ['label' => 'Editar producto', 'route_name_fragment' => 'resources.products.edit', 'group' => 'Inventario'],
             'product_categories' => ['label' => 'Categorias de productos', 'route_name_fragment' => 'resources.product-categories.', 'group' => 'Inventario'],
             'inventories' => ['label' => 'Inventario', 'route_name_fragment' => 'resources.inventories.', 'group' => 'Inventario'],
             'inventory_movements' => ['label' => 'Movimientos de inventario', 'route_name_fragment' => 'resources.inventory-movements.', 'group' => 'Inventario'],

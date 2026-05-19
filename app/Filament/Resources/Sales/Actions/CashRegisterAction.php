@@ -1352,6 +1352,13 @@ final class CashRegisterAction
                 ) {
                     $alreadyConciliated = filter_var($data['bdv_pm_conciliated'] ?? false, FILTER_VALIDATE_BOOL);
                     if (! $alreadyConciliated) {
+                        $alreadyConciliated = self::hasRecentSuccessfulBdvConciliation(
+                            $branchId,
+                            $paymentReference,
+                            $paymentVes,
+                        );
+                    }
+                    if (! $alreadyConciliated) {
                         AuditLogger::record(
                             'pos_caja_sale_blocked',
                             'Caja · No se registró la venta: Pago Móvil sin validar en BDV',
@@ -2129,6 +2136,39 @@ final class CashRegisterAction
                 'branch_id' => $branchId,
             ]);
         }
+    }
+
+    private static function hasRecentSuccessfulBdvConciliation(int $branchId, string $reference, float $paymentVes): bool
+    {
+        if ($branchId <= 0) {
+            return false;
+        }
+
+        $normalizedReference = preg_replace('/\D+/', '', trim($reference)) ?? '';
+        if ($normalizedReference === '') {
+            return false;
+        }
+
+        $amount = round(max(0.0, $paymentVes), 2);
+
+        return ConciliationBdv::query()
+            ->where('branch_id', $branchId)
+            ->where('bdv_http_status', 200)
+            ->where('amount', $amount)
+            ->where('conciliated_at', '>=', now()->subMinutes(30))
+            ->where(function (Builder $query): void {
+                $query->whereIn('bdv_code', ['00', '01', '1000', '200'])
+                    ->orWhereNull('bdv_code');
+            })
+            ->where(function (Builder $query) use ($normalizedReference): void {
+                $query->where('reference', $normalizedReference)
+                    ->orWhere('reference', 'like', '%'.$normalizedReference)
+                    ->orWhereRaw(
+                        "JSON_UNQUOTE(JSON_EXTRACT(bdv_response, '$.data.referencia')) LIKE ?",
+                        ['%'.$normalizedReference],
+                    );
+            })
+            ->exists();
     }
 
     /**

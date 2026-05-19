@@ -1351,12 +1351,18 @@ final class CashRegisterAction
                     && $paymentVes > 0.00001
                 ) {
                     $alreadyConciliated = filter_var($data['bdv_pm_conciliated'] ?? false, FILTER_VALIDATE_BOOL);
+                    $recentConciliation = null;
                     if (! $alreadyConciliated) {
-                        $alreadyConciliated = self::hasRecentSuccessfulBdvConciliation(
+                        $recentConciliation = self::findRecentSuccessfulBdvConciliation(
                             $branchId,
                             $paymentReference,
                             $paymentVes,
                         );
+
+                        $alreadyConciliated = $recentConciliation instanceof ConciliationBdv;
+                        if ($alreadyConciliated && $paymentReference === '') {
+                            $paymentReference = (string) $recentConciliation->reference;
+                        }
                     }
                     if (! $alreadyConciliated) {
                         AuditLogger::record(
@@ -1372,6 +1378,19 @@ final class CashRegisterAction
                         $action->halt();
 
                         return;
+                    }
+
+                    if ($recentConciliation instanceof ConciliationBdv) {
+                        AuditLogger::record(
+                            'pos_caja_bdv_conciliation_reused',
+                            'Caja · Se reutilizó conciliación BDV reciente para continuar la venta',
+                            properties: [
+                                'module' => 'pos_caja',
+                                'conciliation_id' => (int) $recentConciliation->id,
+                                'reference' => (string) $recentConciliation->reference,
+                                'amount' => (float) $recentConciliation->amount,
+                            ],
+                        );
                     }
                 }
 
@@ -2138,20 +2157,15 @@ final class CashRegisterAction
         }
     }
 
-    private static function hasRecentSuccessfulBdvConciliation(int $branchId, string $reference, float $paymentVes): bool
+    private static function findRecentSuccessfulBdvConciliation(int $branchId, string $reference, float $paymentVes): ?ConciliationBdv
     {
         if ($branchId <= 0) {
-            return false;
+            return null;
         }
 
         $normalizedReference = preg_replace('/\D+/', '', trim($reference)) ?? '';
-        if ($normalizedReference === '') {
-            return false;
-        }
-
         $amount = round(max(0.0, $paymentVes), 2);
-
-        return ConciliationBdv::query()
+        $query = ConciliationBdv::query()
             ->where('branch_id', $branchId)
             ->where('bdv_http_status', 200)
             ->where('amount', $amount)
@@ -2159,16 +2173,22 @@ final class CashRegisterAction
             ->where(function (Builder $query): void {
                 $query->whereIn('bdv_code', ['00', '01', '1000', '200'])
                     ->orWhereNull('bdv_code');
-            })
-            ->where(function (Builder $query) use ($normalizedReference): void {
+            });
+
+        if ($normalizedReference !== '') {
+            $query->where(function (Builder $query) use ($normalizedReference): void {
                 $query->where('reference', $normalizedReference)
                     ->orWhere('reference', 'like', '%'.$normalizedReference)
                     ->orWhereRaw(
                         "JSON_UNQUOTE(JSON_EXTRACT(bdv_response, '$.data.referencia')) LIKE ?",
                         ['%'.$normalizedReference],
                     );
-            })
-            ->exists();
+            });
+        }
+
+        return $query
+            ->orderByDesc('conciliated_at')
+            ->first();
     }
 
     /**

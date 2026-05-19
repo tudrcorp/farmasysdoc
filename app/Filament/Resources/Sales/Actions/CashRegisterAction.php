@@ -2916,21 +2916,24 @@ final class CashRegisterAction
             ? $bdvReference
             : self::extractBdvConciliationReference($response, (string) ($candidate['referencia'] ?? ''));
 
-        $patch = [
+        $registerData = array_merge(self::currentPosRegisterMountedFormData($livewire), [
             'reference' => $reference,
             'bdv_pm_conciliated' => true,
-        ];
+        ]);
 
-        if (! self::patchPosRegisterMountedData($livewire, $patch)) {
-            Log::warning('pos.sale_register.patch_failed', [
+        $lineItems = collect($registerData['line_items'] ?? [])
+            ->filter(fn (mixed $row): bool => is_array($row) && filled($row['product_id'] ?? null))
+            ->count();
+
+        if ($lineItems === 0) {
+            Log::error('pos.sale_register.auto_register_empty_cart', [
                 'module' => 'pos_caja',
-                'action' => self::REGISTER_ACTION_NAME,
-                'keys' => array_keys($patch),
+                'reference_suffix' => strlen($reference) >= 4 ? substr($reference, -4) : $reference,
             ]);
 
             Notification::make()
                 ->title('Pago conciliado')
-                ->body('No se pudo sincronizar la caja. Cierre y vuelva a abrir la caja, o pulse «Registrar venta» manualmente.')
+                ->body('No se pudo registrar la venta: el carrito quedó vacío al cerrar la conciliación. Pulse «Registrar venta» en la caja.')
                 ->warning()
                 ->persistent()
                 ->send();
@@ -2940,13 +2943,12 @@ final class CashRegisterAction
             return;
         }
 
-        $registerData = array_merge(self::currentPosRegisterMountedFormData($livewire), $patch);
-
         self::posSaleRegisterTrace('bdv_ok_auto_register_start', [
             'reference_suffix' => strlen($reference) >= 4
                 ? substr($reference, -4)
                 : $reference,
             'bdv_pm_conciliated' => true,
+            'line_items_count' => $lineItems,
         ]);
 
         Notification::make()
@@ -2955,13 +2957,19 @@ final class CashRegisterAction
             ->success()
             ->send();
 
-        $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, [
-            'client_id' => $registerData['client_id'] ?? null,
-        ]);
-
+        // Cierra solo el modal de conciliación PM (la caja sigue en el stack).
         $livewire->unmountAction();
 
         self::posSaleRegisterTrace('bdv_ok_pm_modal_unmounted', []);
+
+        /*
+         * Igual que venta a crédito: replaceMountedAction con pos_data re-ejecuta mountUsing
+         * y hace fill() del formulario con referencia BDV + carrito antes de callMountedAction().
+         */
+        $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, [
+            'pos_data' => $registerData,
+            'client_id' => $registerData['client_id'] ?? null,
+        ]);
 
         try {
             $livewire->callMountedAction();

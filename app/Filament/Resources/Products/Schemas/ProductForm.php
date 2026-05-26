@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\Products\Schemas;
 
-use App\Models\ActiveIngredient;
+use App\Filament\Resources\Products\Support\ActiveIngredientSelectField;
 use App\Models\PresentationType;
 use App\Models\Product;
 use App\Models\Supplier;
@@ -193,18 +193,7 @@ class ProductForm
                     ->description('Datos para medicamentos: principio activo, registro sanitario y requisitos legales.')
                     ->icon(Heroicon::Beaker)
                     ->schema([
-                        Select::make('active_ingredient')
-                            ->label('Principio(s) activo(s)')
-                            ->placeholder('Seleccione uno o más principios activos')
-                            ->options(fn (): array => ActiveIngredient::query()
-                                ->orderBy('name')
-                                ->pluck('name', 'name')
-                                ->all())
-                            ->multiple()
-                            ->searchable()
-                            ->preload()
-                            ->native(false)
-                            ->columnSpanFull(),
+                        ActiveIngredientSelectField::make(),
                         Grid::make([
                             'default' => 1,
                             'sm' => 3,

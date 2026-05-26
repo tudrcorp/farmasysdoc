@@ -22,17 +22,32 @@ final class ProductTransferCompletionService
 {
     public const PAYMENT_METHOD_TRANSFER_SALE = 'traslado_sucursal';
 
+    public const MANAGER_OUTSIDE_DESTINATION_BRANCH_MESSAGE = 'No puede realizar labores de gerencia fuera de su sucursal.';
+
     public function userMayMarkCompleted(?User $user, ProductTransfer $transfer): bool
     {
         if (! $user instanceof User) {
             return false;
         }
 
-        if ($user->isAdministrator() || $user->isManager()) {
+        if ($user->isAdministrator()) {
             return true;
         }
 
+        if ($user->isManager()) {
+            return $this->managerDestinationBranchMatches($user, $transfer);
+        }
+
         return false;
+    }
+
+    public function managerDestinationBranchMatches(User $user, ProductTransfer $transfer): bool
+    {
+        $destinationBranchId = (int) $transfer->to_branch_id;
+        $allowedBranchIds = $user->restrictedBranchIdsForQueries();
+
+        return $allowedBranchIds !== []
+            && in_array($destinationBranchId, $allowedBranchIds, true);
     }
 
     /**
@@ -54,7 +69,9 @@ final class ProductTransferCompletionService
 
         if (! $this->userMayMarkCompleted($user, $transfer)) {
             throw ValidationException::withMessages([
-                'data.status' => 'Solo el personal de la sucursal destino o un administrador puede marcar el traslado como completado.',
+                'data.status' => $user->isManager()
+                    ? self::MANAGER_OUTSIDE_DESTINATION_BRANCH_MESSAGE
+                    : 'Solo el personal de la sucursal destino o un administrador puede marcar el traslado como completado.',
             ]);
         }
 

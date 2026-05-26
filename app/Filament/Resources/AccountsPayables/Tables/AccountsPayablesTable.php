@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AccountsPayables\Tables;
 
+use App\Filament\Resources\AccountsPayables\Support\AccountsPayableBulkPaymentFormSchema;
 use App\Filament\Resources\AccountsPayables\Support\AccountsPayablePaymentFormSchema;
 use App\Filament\Resources\Branches\BranchResource;
 use App\Models\AccountsPayable;
@@ -10,22 +11,18 @@ use App\Services\Finance\AccountsPayablePaymentRegistrar;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Finance\AccountsPayableBulkPaymentPayload;
 use App\Support\Finance\AccountsPayableStatus;
-use App\Support\Purchases\PurchaseHistoryPaymentForm;
-use App\Support\Purchases\PurchaseHistoryPaymentMethod;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\ViewAction;
-use Filament\Forms\Components\Hidden;
-use Filament\Forms\Components\ViewField;
 use Filament\Notifications\Notification;
 use Filament\Support\Enums\Width;
+use Filament\Support\Exceptions\Halt;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
@@ -118,6 +115,9 @@ class AccountsPayablesTable
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->checkIfRecordIsSelectableUsing(
+                fn (AccountsPayable $record): bool => $record->status === AccountsPayableStatus::POR_PAGAR,
+            )
             ->filters([
                 SelectFilter::make('status')
                     ->label('Estado')
@@ -193,55 +193,43 @@ class AccountsPayablesTable
             ->toolbarActions([
                 BulkActionGroup::make([
                     BulkAction::make('registerBulkPayment')
-                        ->label('Pago masivo')
+                        ->label('Pagar seleccionadas')
                         ->icon(Heroicon::Banknotes)
                         ->color('success')
                         ->modalWidth(Width::FiveExtraLarge)
-                        ->modalHeading('Registrar pago masivo')
-                        ->modalDescription('Se liquidará el principal pendiente en USD de cada fila seleccionada, usando la tasa BCV del día actual. La misma forma y referencia de pago se replicará en cada movimiento de histórico.')
+                        ->modalHeading('Pago masivo a proveedores')
+                        ->modalDescription('Revise el detalle de cada cuenta por pagar, los totales calculados con la tasa BCV del día y confirme los datos del pago. Solo aplica a cuentas en estado «Por pagar».')
+                        ->modalSubmitActionLabel('Confirmar pago masivo')
                         ->deselectRecordsAfterCompletion()
-                        ->fillForm(function (Collection $records): array {
+                        ->before(function (Collection $records): void {
                             $payload = AccountsPayableBulkPaymentPayload::fromSelection($records);
-
-                            if (! $payload->ok) {
-                                return [
-                                    '_bulk_error' => $payload->error,
-                                    '_lines_payload_json' => '[]',
-                                    '_total_usd' => 0,
-                                    '_total_ves' => 0,
-                                    '_bcv_rate' => $payload->rate,
-                                    'payment_method' => PurchaseHistoryPaymentMethod::TRANSFERENCIA,
-                                    'payment_form' => PurchaseHistoryPaymentForm::LIQUIDACION_TOTAL,
-                                    'paid_at' => now(),
-                                    'payment_reference' => '',
-                                    'notes' => null,
-                                ];
+                            if ($payload->ok) {
+                                return;
                             }
 
-                            return [
-                                '_bulk_error' => null,
-                                '_lines_payload_json' => json_encode($payload->lines, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
-                                '_total_usd' => $payload->totalUsd,
-                                '_total_ves' => $payload->totalVes,
-                                '_bcv_rate' => $payload->rate,
-                                'payment_method' => PurchaseHistoryPaymentMethod::TRANSFERENCIA,
-                                'payment_form' => PurchaseHistoryPaymentForm::LIQUIDACION_TOTAL,
-                                'paid_at' => now(),
-                                'payment_reference' => '',
-                                'notes' => null,
-                            ];
+                            Notification::make()
+                                ->title('No se puede continuar')
+                                ->body((string) $payload->error)
+                                ->danger()
+                                ->send();
+
+                            throw new Halt;
                         })
-                        ->schema(array_merge([
-                            Hidden::make('_bulk_error'),
-                            Hidden::make('_lines_payload_json'),
-                            Hidden::make('_total_usd'),
-                            Hidden::make('_total_ves'),
-                            Hidden::make('_bcv_rate'),
-                            ViewField::make('_bulk_summary')
-                                ->view('filament.accounts-payables.bulk-payment-summary')
-                                ->columnSpanFull(),
-                        ], AccountsPayablePaymentFormSchema::paymentFields(false)))
+                        ->fillForm(fn (Collection $records): array => AccountsPayableBulkPaymentFormSchema::fillFormStateFromPayload(
+                            AccountsPayableBulkPaymentPayload::fromSelection($records),
+                        ))
+                        ->schema(AccountsPayableBulkPaymentFormSchema::modalSchema())
                         ->action(function (Collection $records, array $data): void {
+                            if (filled($data['_bulk_error'] ?? null)) {
+                                Notification::make()
+                                    ->title('No se puede continuar')
+                                    ->body((string) $data['_bulk_error'])
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
+
                             $payload = AccountsPayableBulkPaymentPayload::fromSelection($records);
                             if (! $payload->ok) {
                                 Notification::make()
@@ -253,13 +241,13 @@ class AccountsPayablesTable
                                 return;
                             }
 
-                            $shared = Arr::only($data, [
-                                'payment_method',
-                                'payment_form',
-                                'paid_at',
-                                'payment_reference',
-                                'notes',
-                            ]);
+                            $shared = [
+                                'payment_method' => $data['payment_method'] ?? null,
+                                'payment_form' => $data['payment_form'] ?? null,
+                                'paid_at' => $data['paid_at'] ?? null,
+                                'payment_reference' => $data['payment_reference'] ?? null,
+                                'notes' => $data['notes'] ?? null,
+                            ];
 
                             AuditLogger::record(
                                 event: 'filament_accounts_payable_bulk_payment_submit',
@@ -275,7 +263,7 @@ class AccountsPayablesTable
                                 app(AccountsPayablePaymentRegistrar::class)->registerBulkFullSettlement($records, $shared);
                                 Notification::make()
                                     ->title('Pagos registrados')
-                                    ->body('Se actualizaron '.count($payload->lines).' cuenta(s) por pagar y el histórico de compras.')
+                                    ->body('Se actualizaron '.count($payload->selectedLines).' cuenta(s) por pagar y el histórico de compras.')
                                     ->success()
                                     ->send();
                             } catch (ValidationException $e) {

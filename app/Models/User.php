@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Support\Filament\FarmaadminMenuAccessCatalog;
+use App\Support\Sales\SalesBillingAccess;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
@@ -100,6 +101,25 @@ class User extends Authenticatable implements FilamentUser
     public function isCashier(): bool
     {
         return $this->hasRole('CAJERO');
+    }
+
+    /**
+     * Administrador, Gerencia y Coordinadores: listado y stats de ventas, sin caja ni alta directa.
+     */
+    public function hasSalesBillingRestrictedRole(): bool
+    {
+        foreach (SalesBillingAccess::ROLES_WITHOUT_BILLING as $role) {
+            if ($this->hasRole($role)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function canBillSales(): bool
+    {
+        return ! $this->hasSalesBillingRestrictedRole();
     }
 
     /**
@@ -321,6 +341,36 @@ class User extends Authenticatable implements FilamentUser
     public function canAccessFarmaadminMenuKey(string $menuKey): bool
     {
         return in_array($menuKey, $this->resolvedAllowedFarmaadminMenuItems(), true);
+    }
+
+    /**
+     * Anular ventas completadas: solo Administrador o Gerencia, con permiso asignado al rol.
+     */
+    public function canVoidSales(): bool
+    {
+        if (! $this->hasSalesVoidEligibleRole()) {
+            return false;
+        }
+
+        return $this->canAccessFarmaadminMenuKey('sales_void');
+    }
+
+    /**
+     * Roles que pueden recibir el permiso «Anular ventas» en la ficha de rol.
+     */
+    public function hasSalesVoidEligibleRole(): bool
+    {
+        return $this->isAdministrator() || $this->hasGerenciaRole() || $this->hasRole('GERENTE');
+    }
+
+    /**
+     * Si el permiso «Anular ventas» puede mostrarse al configurar un rol en el catálogo.
+     */
+    public static function roleNameMayAssignSalesVoidPermission(?string $roleName): bool
+    {
+        $normalized = mb_strtoupper(trim((string) $roleName));
+
+        return in_array($normalized, ['ADMINISTRADOR', 'GERENCIA', 'GERENTE'], true);
     }
 
     /**

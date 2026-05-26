@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Factura fiscal — {{ $sale->sale_number }}</title>
+    <title>{{ $documentTitle ?? 'Factura fiscal' }} — {{ $sale->sale_number }}</title>
     <style>
         :root {
             color-scheme: light;

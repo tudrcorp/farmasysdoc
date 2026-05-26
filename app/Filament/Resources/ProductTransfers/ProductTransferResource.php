@@ -252,8 +252,20 @@ class ProductTransferResource extends Resource
                     return;
                 }
 
+                $completionService = app(ProductTransferCompletionService::class);
+                if ($user->isManager() && ! $completionService->userMayMarkCompleted($user, $record)) {
+                    Notification::make()
+                        ->warning()
+                        ->title('Acción no permitida')
+                        ->body(ProductTransferCompletionService::MANAGER_OUTSIDE_DESTINATION_BRANCH_MESSAGE)
+                        ->send();
+                    $action->halt();
+
+                    return;
+                }
+
                 try {
-                    app(ProductTransferCompletionService::class)->complete(
+                    $completionService->complete(
                         $record->fresh([
                             'items' => fn ($q) => $q->orderBy('id'),
                             'items.product',
@@ -358,8 +370,20 @@ class ProductTransferResource extends Resource
                 }
 
                 if ($newStatus === ProductTransferStatus::Completed) {
+                    $completionService = app(ProductTransferCompletionService::class);
+                    if ($user->isManager() && ! $completionService->userMayMarkCompleted($user, $record)) {
+                        Notification::make()
+                            ->warning()
+                            ->title('Acción no permitida')
+                            ->body(ProductTransferCompletionService::MANAGER_OUTSIDE_DESTINATION_BRANCH_MESSAGE)
+                            ->send();
+                        $action->halt();
+
+                        return;
+                    }
+
                     try {
-                        app(ProductTransferCompletionService::class)->complete(
+                        $completionService->complete(
                             $record->fresh([
                                 'items' => fn ($query) => $query->orderBy('id'),
                                 'items.product',
@@ -466,11 +490,23 @@ class ProductTransferResource extends Resource
             ];
         }
 
-        return [
+        $options = [
             ProductTransferStatus::Pending->value => ProductTransferStatus::Pending->label(),
             ProductTransferStatus::InProgress->value => ProductTransferStatus::InProgress->label(),
             ProductTransferStatus::Completed->value => ProductTransferStatus::Completed->label(),
             ProductTransferStatus::Cancelled->value => ProductTransferStatus::Cancelled->label(),
         ];
+
+        $user = Auth::user();
+        if (
+            $user instanceof User
+            && $user->isManager()
+            && ! $user->isAdministrator()
+            && ! app(ProductTransferCompletionService::class)->userMayMarkCompleted($user, $record)
+        ) {
+            unset($options[ProductTransferStatus::Completed->value]);
+        }
+
+        return $options;
     }
 }

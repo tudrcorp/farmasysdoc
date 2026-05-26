@@ -92,4 +92,55 @@ final class FiscalReceiptController extends Controller
             'Content-Disposition' => 'inline; filename="factura-'.$sale->sale_number.'.txt"',
         ]);
     }
+
+    public function printCreditNote(Request $request, Sale $sale): View
+    {
+        abort_unless(Auth::check(), 403);
+        abort_unless(SaleResource::canView($sale), 403);
+
+        $sale->load(['branch', 'client', 'items']);
+
+        $formatter = app(ThermalFiscalReceiptFormatter::class);
+        $plain = $formatter->formatCreditNote($sale);
+
+        AuditLogger::record(
+            'sale_credit_note_viewed',
+            'Ventas · Vista de nota de crédito · '.$sale->sale_number,
+            Sale::class,
+            $sale->id,
+            $sale->sale_number,
+            ['module' => 'sales'],
+        );
+
+        return view('sales.fiscal-receipt-print', [
+            'sale' => $sale,
+            'plain' => $plain,
+            'documentTitle' => 'Nota de crédito',
+            'saleViewUrl' => SaleResource::getUrl('view', ['record' => $sale]),
+            'salesIndexUrl' => SaleResource::getUrl('index'),
+        ]);
+    }
+
+    public function showCreditNote(Request $request, Sale $sale): Response
+    {
+        abort_unless(Auth::check(), 403);
+        abort_unless(SaleResource::canView($sale), 403);
+
+        $sale->load(['branch', 'client', 'items']);
+
+        $formatter = app(ThermalFiscalReceiptFormatter::class);
+        $plain = $formatter->formatCreditNote($sale);
+
+        if ($request->query('format') === 'escpos') {
+            return response($formatter->wrapEscPos($plain), 200, [
+                'Content-Type' => 'application/octet-stream',
+                'Content-Disposition' => 'attachment; filename="nota-credito-'.$sale->sale_number.'.bin"',
+            ]);
+        }
+
+        return response($plain, 200, [
+            'Content-Type' => 'text/plain; charset=UTF-8',
+            'Content-Disposition' => 'inline; filename="nota-credito-'.$sale->sale_number.'.txt"',
+        ]);
+    }
 }

@@ -10,6 +10,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 
@@ -78,6 +79,7 @@ class RolForm
                                     ->dehydrateStateUsing(fn (?string $state): string => mb_strtoupper(trim((string) $state)))
                                     ->placeholder('Ej. VENTAS, CAJA, MARKETING')
                                     ->helperText('Se recomienda usar un nombre corto, único y en mayúsculas.')
+                                    ->live(onBlur: true)
                                     ->columnSpan(1),
                                 Toggle::make('is_active')
                                     ->label('Rol activo')
@@ -115,8 +117,10 @@ class RolForm
             $allowed = User::defaultAllowedMenuItems();
         }
 
+        $roleName = (string) ($data['name'] ?? '');
+
         foreach (self::GROUP_STATE_PATHS as $statePath => $group) {
-            $groupKeys = array_keys(self::assignableOptionsForGroup($group));
+            $groupKeys = array_keys(self::assignableOptionsForGroup($group, $roleName));
             $data[$statePath] = array_values(array_intersect($allowed, $groupKeys));
         }
 
@@ -162,12 +166,6 @@ class RolForm
         $cards = [];
 
         foreach (self::GROUP_STATE_PATHS as $statePath => $group) {
-            $options = self::assignableOptionsForGroup($group);
-
-            if ($options === []) {
-                continue;
-            }
-
             $meta = self::GROUP_META[$group] ?? null;
 
             $cards[] = Section::make($group)
@@ -176,7 +174,10 @@ class RolForm
                 ->schema([
                     CheckboxList::make($statePath)
                         ->label('Módulos permitidos')
-                        ->options($options)
+                        ->options(fn (Get $get): array => self::assignableOptionsForGroup(
+                            $group,
+                            (string) ($get('name') ?? ''),
+                        ))
                         ->columns(1)
                         ->bulkToggleable()
                         ->gridDirection('row')
@@ -199,11 +200,15 @@ class RolForm
     /**
      * @return array<string, string>
      */
-    private static function assignableOptionsForGroup(string $group): array
+    private static function assignableOptionsForGroup(string $group, ?string $roleName = null): array
     {
         $options = FarmaadminMenuAccessCatalog::optionsForGroup($group);
 
         unset($options['dashboard']);
+
+        if (! User::roleNameMayAssignSalesVoidPermission($roleName)) {
+            unset($options['sales_void']);
+        }
 
         return $options;
     }

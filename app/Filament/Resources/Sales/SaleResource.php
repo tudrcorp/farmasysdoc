@@ -13,12 +13,15 @@ use App\Filament\Resources\Sales\Tables\SalesTable;
 use App\Models\Sale;
 use App\Models\User;
 use App\Support\Filament\BranchAuthScope;
+use App\Support\Filament\FarmaadminDeliveryUserAccess;
+use App\Support\Sales\SalesBillingAccess;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class SaleResource extends Resource
 {
@@ -55,6 +58,32 @@ class SaleResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return BranchAuthScope::applyToSalesQuery(parent::getEloquentQuery());
+    }
+
+    public static function canCreate(): bool
+    {
+        if (! SalesBillingAccess::userCanBill(auth()->user())) {
+            return false;
+        }
+
+        if (FarmaadminDeliveryUserAccess::denies(static::class)) {
+            return false;
+        }
+
+        if (! static::canAccessCurrentMenuItem()) {
+            return false;
+        }
+
+        return static::getCreateAuthorizationResponse()->allowed();
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        if (! SalesBillingAccess::userCanBill(auth()->user())) {
+            return false;
+        }
+
+        return parent::canEdit($record);
     }
 
     public static function getRelations(): array

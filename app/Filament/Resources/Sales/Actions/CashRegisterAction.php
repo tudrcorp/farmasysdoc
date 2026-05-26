@@ -28,6 +28,7 @@ use App\Services\Dolar\DolarApiEstadoService;
 use App\Services\Finance\AccountsReceivableFromSaleRegistrar;
 use App\Support\Finance\DefaultIgtfRate;
 use App\Support\Finance\DefaultVatRate;
+use App\Support\Sales\SalesBillingAccess;
 use DateTimeInterface;
 use Filament\Actions\Action;
 use Filament\Actions\Contracts\HasActions;
@@ -41,6 +42,8 @@ use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Pages\BasePage;
+use Filament\Schemas\Components\Actions as SchemaActions;
+use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -74,9 +77,6 @@ use Throwable;
 
 final class CashRegisterAction
 {
-    /** Nombre Livewire/Filament de {@see self::makeClientGate()} (accesos directos, query `abrir=caja`, etc.). */
-    public const CLIENT_GATE_ACTION_NAME = 'posClientGate';
-
     public const REGISTER_ACTION_NAME = 'posRegister';
 
     public const PAGO_MOVIL_CONCILIATION_ACTION_NAME = 'posPagoMovilConciliation';
@@ -87,214 +87,17 @@ final class CashRegisterAction
     public const EFECTIVO_USD_POST_SALE_CHANGE_ACTION_NAME = 'posEfectivoUsdPostSaleChange';
 
     /**
-     * Primer paso: buscar cliente (nombre o documento). Al elegir uno se abre la caja; «Continuar» sin elegir = mostrador.
-     */
-    public static function makeClientGate(): Action
-    {
-        return Action::make(self::CLIENT_GATE_ACTION_NAME)
-            ->label('Caja')
-            ->icon(Heroicon::Cube)
-            ->color('primary')
-            ->modalHeading('Cliente de la venta')
-            ->modalDescription('Busque por nombre o documento; al elegir un cliente se abre el carrito. Si no aparece en la lista, complete abajo nombre, cédula y teléfono y pulse Continuar o Enter para registrarlo y pasar a los productos. «Continuar» con todo vacío = mostrador.')
-            ->modalIcon(Heroicon::User)
-            ->modalWidth(Width::Large)
-            ->modalSubmitActionLabel('Continuar')
-            ->modalCancelAction(fn (Action $action): Action => $action->color('gray'))
-            ->extraAttributes([
-                'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
-            ])
-            ->mountUsing(function (Action $action, ?Schema $schema): void {
-                $schema?->fill([
-                    'client_id' => null,
-                    'quick_client_name' => null,
-                    'quick_client_document' => null,
-                    'quick_client_phone' => null,
-                ]);
-
-                $livewire = $action->getLivewire();
-                if ($livewire instanceof LivewireComponent) {
-                    $livewire->js(self::mountPosClientGateFocusSelectJs());
-                }
-            })
-            ->schema([
-                Grid::make(1)
-                    ->schema([
-                        Select::make('client_id')
-                            ->label('Cliente')
-                            ->placeholder('Nombre o documento de identidad…')
-                            ->extraAttributes([
-                                'class' => 'farmadoc-pos-client-gate-select',
-                            ])
-                            ->live()
-                            ->searchable()
-                            ->searchDebounce(100)
-                            ->getSearchResultsUsing(fn (string $search): array => self::posClientSearchResults($search))
-                            ->getOptionLabelUsing(fn ($value): ?string => self::posClientOptionLabel($value))
-                            ->afterStateUpdated(function (mixed $state, Select $component): void {
-                                if (blank($state)) {
-                                    return;
-                                }
-
-                                $clientId = (int) $state;
-                                $pickedLabel = Client::query()->whereKey($clientId)->value('name');
-                                AuditLogger::record(
-                                    'pos_caja_client_picked_from_catalog',
-                                    'Caja · Cliente elegido desde catálogo',
-                                    Client::class,
-                                    $clientId,
-                                    filled($pickedLabel) ? (string) $pickedLabel : null,
-                                    ['module' => 'pos_caja', 'via' => 'busqueda_instantanea'],
-                                );
-
-                                $livewire = $component->getLivewire();
-                                if (! is_object($livewire) || ! method_exists($livewire, 'replaceMountedAction')) {
-                                    return;
-                                }
-
-                                $livewire->replaceMountedAction('posRegister', [
-                                    'client_id' => $clientId,
-                                ]);
-                            })
-                            ->native(false)
-                            ->prefixIcon(Heroicon::User)
-                            ->columnSpanFull(),
-                        Section::make('Cliente nuevo')
-                            ->description('Visible mientras no haya cliente seleccionado arriba. Registra en el catálogo y abre la caja.')
-                            ->icon(Heroicon::UserPlus)
-                            ->iconColor('gray')
-                            ->visible(fn (Get $get): bool => blank($get('client_id')))
-                            ->extraAttributes([
-                                'class' => 'farmadoc-pos-client-quick-register',
-                            ])
-                            ->schema([
-                                TextInput::make('quick_client_name')
-                                    ->label('Nombre completo')
-                                    ->maxLength(255)
-                                    ->columnSpanFull(),
-                                TextInput::make('quick_client_document')
-                                    ->label('Cédula / documento')
-                                    ->maxLength(120)
-                                    ->columnSpan(['default' => 1, 'sm' => 1]),
-                                TextInput::make('quick_client_phone')
-                                    ->label('Teléfono')
-                                    ->tel()
-                                    ->maxLength(120)
-                                    ->columnSpan(['default' => 1, 'sm' => 1]),
-                            ])
-                            ->columns(['default' => 1, 'sm' => 2])
-                            ->columnSpanFull(),
-                    ])
-                    ->columnSpanFull(),
-            ])
-            ->action(function (array $data, Action $action): void {
-                $livewire = $action->getLivewire();
-                if (! is_object($livewire) || ! method_exists($livewire, 'replaceMountedAction')) {
-                    return;
-                }
-
-                $cid = $data['client_id'] ?? null;
-                if (filled($cid)) {
-                    $clientId = (int) $cid;
-                    $pickedLabel = Client::query()->whereKey($clientId)->value('name');
-                    AuditLogger::record(
-                        'pos_caja_client_picked_from_catalog',
-                        'Caja · Cliente elegido desde catálogo',
-                        Client::class,
-                        $clientId,
-                        filled($pickedLabel) ? (string) $pickedLabel : null,
-                        ['module' => 'pos_caja', 'via' => 'continuar_modal'],
-                    );
-                    $livewire->replaceMountedAction('posRegister', [
-                        'client_id' => $clientId,
-                    ]);
-
-                    return;
-                }
-
-                $quickName = trim((string) ($data['quick_client_name'] ?? ''));
-                $quickDoc = trim((string) ($data['quick_client_document'] ?? ''));
-                $quickPhone = trim((string) ($data['quick_client_phone'] ?? ''));
-
-                $anyQuick = $quickName !== '' || $quickDoc !== '' || $quickPhone !== '';
-                if ($anyQuick) {
-                    if ($quickName === '' || $quickDoc === '' || $quickPhone === '') {
-                        Notification::make()
-                            ->title('Datos incompletos')
-                            ->body('Para registrar un cliente nuevo complete los tres campos (nombre, cédula y teléfono), o déjelos vacíos y use «Continuar» para mostrador.')
-                            ->danger()
-                            ->send();
-
-                        return;
-                    }
-
-                    $existing = Client::query()
-                        ->where('document_number', $quickDoc)
-                        ->first();
-                    if ($existing instanceof Client) {
-                        Notification::make()
-                            ->title('Cliente ya registrado')
-                            ->body('Ya existe un cliente con ese documento; se abrirá la venta con ese registro.')
-                            ->success()
-                            ->send();
-                        $docDigits = preg_replace('/\D+/', '', $quickDoc) ?? '';
-                        AuditLogger::record(
-                            'pos_caja_quick_client_existing_doc',
-                            'Caja · Registro rápido: documento ya existente; se usa cliente registrado',
-                            Client::class,
-                            $existing->id,
-                            $existing->name,
-                            [
-                                'module' => 'pos_caja',
-                                'document_last4' => strlen($docDigits) >= 4 ? substr($docDigits, -4) : null,
-                            ],
-                        );
-                        $livewire->replaceMountedAction('posRegister', [
-                            'client_id' => $existing->id,
-                        ]);
-
-                        return;
-                    }
-
-                    $client = self::createClientFromPosQuickForm($quickName, $quickDoc, $quickPhone);
-                    AuditLogger::record(
-                        'pos_caja_quick_client_created',
-                        'Caja · Cliente nuevo desde registro rápido',
-                        Client::class,
-                        $client->id,
-                        $client->name,
-                        ['module' => 'pos_caja'],
-                    );
-                    Notification::make()
-                        ->title('Cliente registrado')
-                        ->body('Se guardó el cliente y puede cargar productos.')
-                        ->success()
-                        ->send();
-                    $livewire->replaceMountedAction('posRegister', [
-                        'client_id' => $client->id,
-                    ]);
-
-                    return;
-                }
-
-                AuditLogger::record(
-                    'pos_caja_walk_in',
-                    'Caja · Inicio de venta mostrador (sin cliente)',
-                    properties: ['module' => 'pos_caja'],
-                );
-                $livewire->replaceMountedAction('posRegister', [
-                    'client_id' => null,
-                ]);
-            });
-    }
-
-    /**
-     * Caja registradora (carrito, cobro). Se abre desde {@see makeClientGate()} con el cliente en argumentos.
+     * Abre la caja registradora (cliente, productos y cobro en un solo modal).
      */
     public static function makeRegister(): Action
     {
         return Action::make(self::REGISTER_ACTION_NAME)
-            ->label('Caja registradora')
+            ->label('Caja')
+            ->icon(Heroicon::Cube)
+            ->color('primary')
+            ->extraAttributes([
+                'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
+            ])
             ->modalHeading('Caja registradora')
             ->modalDescription('Cargue productos, revise totales y confirme el cobro.')
             ->modalIcon(Heroicon::Banknotes)
@@ -303,13 +106,11 @@ final class CashRegisterAction
             ->closeModalByClickingAway(false)
             ->closeModalByEscaping(false)
             ->modalCancelAction(fn (Action $action): Action => $action->color('danger'))
+            ->visible(fn (): bool => SalesBillingAccess::userCanBill(Auth::user()))
             ->registerModalActions([
                 self::makeCreditSaleConfirmation(),
                 self::makePagoMovilConciliation(),
                 self::makeEfectivoUsdPostSaleChange(),
-            ])
-            ->extraAttributes([
-                'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
             ])
             ->mountUsing(function (Action $action, ?Schema $schema): void {
                 $args = $action->getArguments();
@@ -337,7 +138,11 @@ final class CashRegisterAction
                 $livewire = $action->getLivewire();
                 if ($livewire instanceof LivewireComponent) {
                     $livewire->js(self::mountPosBarcodeAutoAdvanceJs());
-                    $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: true));
+                    if (filled($clientId)) {
+                        $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: true));
+                    } else {
+                        $livewire->js(self::mountPosRegisterFocusClientSelectJs());
+                    }
                 }
             })
             ->schema([
@@ -356,42 +161,11 @@ final class CashRegisterAction
                                 'class' => 'farmadoc-pos-cart-section',
                             ])
                             ->schema([
-                                Hidden::make('client_id'),
+                                ...self::posRegisterClientSchema(),
                                 Hidden::make('bdv_pm_conciliated')
                                     ->default(false),
                                 Hidden::make('credit_sale_confirmed')
                                     ->default(false),
-                                TextEntry::make('pos_client_summary')
-                                    ->label('Cliente')
-                                    ->state(function (Get $get): string {
-                                        $id = $get('client_id');
-                                        if (! filled($id)) {
-                                            return 'Mostrador / sin cliente';
-                                        }
-
-                                        $client = Client::query()
-                                            ->select(['id', 'name', 'document_number'])
-                                            ->find((int) $id);
-
-                                        if (! $client) {
-                                            return 'Cliente #'.(int) $id;
-                                        }
-
-                                        $doc = filled($client->document_number)
-                                            ? ' · Doc. '.$client->document_number
-                                            : '';
-
-                                        return $client->name.$doc;
-                                    })
-                                    ->weight(FontWeight::SemiBold)
-                                    ->size(TextSize::Large)
-                                    ->dehydrated(false)
-                                    ->icon(Heroicon::User)
-                                    ->iconColor('primary')
-                                    ->extraAttributes([
-                                        'class' => 'rounded-xl bg-primary-500/10 px-3 py-2 text-primary-700 dark:bg-primary-500/15 dark:text-primary-100',
-                                    ])
-                                    ->columnSpanFull(),
                                 Select::make('pos_sale_transfer_id')
                                     ->label('Buscador de Traslados de Venta (codigo del traslado)')
                                     ->placeholder('Ej. TV-260002 o parte del código')
@@ -1115,6 +889,16 @@ final class CashRegisterAction
                     ->columnSpanFull(),
             ])
             ->action(function (array $data, Action $action) {
+                if (! SalesBillingAccess::userCanBill(Auth::user())) {
+                    Notification::make()
+                        ->title('Caja no disponible')
+                        ->body('Su rol no puede registrar ventas en caja.')
+                        ->warning()
+                        ->send();
+
+                    return;
+                }
+
                 self::posSaleRegisterTrace('register_action_entered', [
                     'payment_method' => $data['payment_method'] ?? null,
                     'bdv_pm_conciliated' => $data['bdv_pm_conciliated'] ?? null,
@@ -4600,6 +4384,256 @@ final class CashRegisterAction
     }
 
     /**
+     * Cliente en la modal de caja: búsqueda, resumen o registro rápido.
+     *
+     * @return array<int, Component|\Filament\Forms\Components\Component>
+     */
+    private static function posRegisterClientSchema(): array
+    {
+        return [
+            Select::make('client_id')
+                ->label('Cliente')
+                ->placeholder('Nombre o documento de identidad…')
+                ->helperText('Vacío = mostrador. Busque un cliente o regístrelo abajo si no existe.')
+                ->extraAttributes([
+                    'class' => 'farmadoc-pos-register-client-select',
+                ])
+                ->visible(fn (Get $get): bool => blank($get('client_id')))
+                ->live()
+                ->searchable()
+                ->searchDebounce(100)
+                ->nullable()
+                ->getSearchResultsUsing(fn (string $search): array => self::posClientSearchResults($search))
+                ->getOptionLabelUsing(fn ($value): ?string => self::posClientOptionLabel($value))
+                ->afterStateUpdated(function (mixed $state, Set $set): void {
+                    self::clearPosQuickClientFields($set);
+
+                    if (blank($state)) {
+                        self::recordPosWalkIn();
+
+                        return;
+                    }
+
+                    self::recordPosClientPickedFromCatalog((int) $state, 'busqueda_caja');
+                })
+                ->native(false)
+                ->prefixIcon(Heroicon::User)
+                ->columnSpanFull(),
+            Grid::make([
+                'default' => 1,
+                'sm' => 12,
+            ])
+                ->visible(fn (Get $get): bool => filled($get('client_id')))
+                ->extraAttributes([
+                    'class' => 'farmadoc-pos-client-selected-row items-center gap-2',
+                ])
+                ->schema([
+                    TextEntry::make('pos_client_summary')
+                        ->label('Cliente')
+                        ->state(fn (Get $get): string => self::posClientSummaryLabel($get('client_id')))
+                        ->weight(FontWeight::SemiBold)
+                        ->size(TextSize::Large)
+                        ->dehydrated(false)
+                        ->icon(Heroicon::User)
+                        ->iconColor('primary')
+                        ->extraAttributes([
+                            'class' => 'rounded-xl bg-primary-500/10 px-3 py-2 text-primary-700 dark:bg-primary-500/15 dark:text-primary-100',
+                        ])
+                        ->columnSpan(['default' => 1, 'sm' => 11]),
+                    SchemaActions::make([
+                        Action::make('clearPosClient')
+                            ->label('Cambiar cliente')
+                            ->icon(Heroicon::PencilSquare)
+                            ->iconButton()
+                            ->color('gray')
+                            ->tooltip('Elegir otro cliente')
+                            ->action(function (Set $set, $livewire): void {
+                                self::clearPosClientSelection($set, $livewire);
+                            }),
+                    ])
+                        ->alignment(Alignment::End)
+                        ->columnSpan(['default' => 1, 'sm' => 1]),
+                ])
+                ->columnSpanFull(),
+            Section::make('Cliente nuevo')
+                ->description('Si no aparece en el buscador, complete los datos y pulse «Registrar cliente».')
+                ->icon(Heroicon::UserPlus)
+                ->iconColor('gray')
+                ->visible(fn (Get $get): bool => blank($get('client_id')))
+                ->extraAttributes([
+                    'class' => 'farmadoc-pos-client-quick-register',
+                ])
+                ->schema([
+                    TextInput::make('quick_client_name')
+                        ->label('Nombre completo')
+                        ->maxLength(255)
+                        ->dehydrated(false)
+                        ->columnSpanFull(),
+                    TextInput::make('quick_client_document')
+                        ->label('Cédula / documento')
+                        ->maxLength(120)
+                        ->dehydrated(false)
+                        ->columnSpan(['default' => 1, 'sm' => 1]),
+                    TextInput::make('quick_client_phone')
+                        ->label('Teléfono')
+                        ->tel()
+                        ->maxLength(120)
+                        ->dehydrated(false)
+                        ->suffixAction(
+                            Action::make('registerQuickClientFromPos')
+                                ->label('Registrar cliente')
+                                ->icon(Heroicon::UserPlus)
+                                ->color('primary')
+                                ->action(function (Get $get, Set $set): void {
+                                    self::applyQuickClientRegistrationInRegister($get, $set);
+                                }),
+                            isInline: false,
+                        )
+                        ->columnSpan(['default' => 1, 'sm' => 1]),
+                ])
+                ->columns(['default' => 1, 'sm' => 2])
+                ->columnSpanFull(),
+        ];
+    }
+
+    private static function posClientSummaryLabel(mixed $clientId): string
+    {
+        if (! filled($clientId)) {
+            return 'Mostrador / sin cliente';
+        }
+
+        $client = Client::query()
+            ->select(['id', 'name', 'document_number'])
+            ->find((int) $clientId);
+
+        if (! $client instanceof Client) {
+            return 'Cliente #'.(int) $clientId;
+        }
+
+        $doc = filled($client->document_number)
+            ? ' · Doc. '.$client->document_number
+            : '';
+
+        return $client->name.$doc;
+    }
+
+    private static function clearPosQuickClientFields(Set $set): void
+    {
+        $set('quick_client_name', null);
+        $set('quick_client_document', null);
+        $set('quick_client_phone', null);
+    }
+
+    private static function clearPosClientSelection(Set $set, mixed $livewire = null): void
+    {
+        $set('client_id', null);
+        self::clearPosQuickClientFields($set);
+
+        if ($livewire instanceof LivewireComponent) {
+            $livewire->js(self::mountPosRegisterFocusClientSelectJs());
+        }
+    }
+
+    private static function recordPosClientPickedFromCatalog(int $clientId, string $via): void
+    {
+        $pickedLabel = Client::query()->whereKey($clientId)->value('name');
+        AuditLogger::record(
+            'pos_caja_client_picked_from_catalog',
+            'Caja · Cliente elegido desde catálogo',
+            Client::class,
+            $clientId,
+            filled($pickedLabel) ? (string) $pickedLabel : null,
+            ['module' => 'pos_caja', 'via' => $via],
+        );
+    }
+
+    private static function recordPosWalkIn(): void
+    {
+        AuditLogger::record(
+            'pos_caja_walk_in',
+            'Caja · Venta mostrador (sin cliente)',
+            properties: ['module' => 'pos_caja'],
+        );
+    }
+
+    private static function applyQuickClientRegistrationInRegister(Get $get, Set $set): void
+    {
+        if (filled($get('client_id'))) {
+            return;
+        }
+
+        $quickName = trim((string) ($get('quick_client_name') ?? ''));
+        $quickDoc = trim((string) ($get('quick_client_document') ?? ''));
+        $quickPhone = trim((string) ($get('quick_client_phone') ?? ''));
+
+        $anyQuick = $quickName !== '' || $quickDoc !== '' || $quickPhone !== '';
+        if (! $anyQuick) {
+            Notification::make()
+                ->title('Datos incompletos')
+                ->body('Indique nombre, cédula y teléfono para registrar el cliente, o deje el buscador vacío para mostrador.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        if ($quickName === '' || $quickDoc === '' || $quickPhone === '') {
+            Notification::make()
+                ->title('Datos incompletos')
+                ->body('Complete los tres campos (nombre, cédula y teléfono) para registrar el cliente nuevo.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $existing = Client::query()
+            ->where('document_number', $quickDoc)
+            ->first();
+
+        if ($existing instanceof Client) {
+            Notification::make()
+                ->title('Cliente ya registrado')
+                ->body('Ya existe un cliente con ese documento; se usará ese registro en la venta.')
+                ->success()
+                ->send();
+            $docDigits = preg_replace('/\D+/', '', $quickDoc) ?? '';
+            AuditLogger::record(
+                'pos_caja_quick_client_existing_doc',
+                'Caja · Registro rápido: documento ya existente; se usa cliente registrado',
+                Client::class,
+                $existing->id,
+                $existing->name,
+                [
+                    'module' => 'pos_caja',
+                    'document_last4' => strlen($docDigits) >= 4 ? substr($docDigits, -4) : null,
+                ],
+            );
+            $set('client_id', $existing->id);
+            self::clearPosQuickClientFields($set);
+
+            return;
+        }
+
+        $client = self::createClientFromPosQuickForm($quickName, $quickDoc, $quickPhone);
+        AuditLogger::record(
+            'pos_caja_quick_client_created',
+            'Caja · Cliente nuevo desde registro rápido',
+            Client::class,
+            $client->id,
+            $client->name,
+            ['module' => 'pos_caja'],
+        );
+        Notification::make()
+            ->title('Cliente registrado')
+            ->body('Puede continuar cargando productos en la venta.')
+            ->success()
+            ->send();
+        $set('client_id', $client->id);
+        self::clearPosQuickClientFields($set);
+    }
+
+    /**
      * Estado inicial del formulario de caja (modal).
      *
      * @return array<string, mixed>
@@ -4608,6 +4642,9 @@ final class CashRegisterAction
     {
         return array_merge([
             'client_id' => null,
+            'quick_client_name' => null,
+            'quick_client_document' => null,
+            'quick_client_phone' => null,
             'pos_sale_transfer_id' => null,
             'pos_product_search' => null,
             'payment_method' => 'punto_venta_ves',
@@ -4961,13 +4998,13 @@ final class CashRegisterAction
     }
 
     /**
-     * Modal «Cliente»: abre el select y enfoca la búsqueda al montar.
+     * Al abrir la caja sin cliente: enfoca el buscador de cliente en la sección Venta.
      */
-    private static function mountPosClientGateFocusSelectJs(): string
+    private static function mountPosRegisterFocusClientSelectJs(): string
     {
         return <<<'JS'
             setTimeout(() => {
-                const wrap = document.querySelector('.farmadoc-pos-client-gate-select');
+                const wrap = document.querySelector('.farmadoc-pos-register-client-select');
                 if (! wrap) {
                     return;
                 }

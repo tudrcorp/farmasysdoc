@@ -12,12 +12,12 @@ use Illuminate\Support\Collection;
 final class AccountsPayableBulkPaymentPayload
 {
     /**
-     * @param  list<array{id: int, purchase_number: string, supplier_name: string, supplier_invoice_number: string, usd: float, ves: float}>  $lines
+     * @param  list<array<string, mixed>>  $selectedLines
      */
     private function __construct(
         public readonly bool $ok,
         public readonly ?string $error,
-        public readonly array $lines,
+        public readonly array $selectedLines,
         public readonly float $totalUsd,
         public readonly float $totalVes,
         public readonly float $rate,
@@ -57,7 +57,7 @@ final class AccountsPayableBulkPaymentPayload
                 );
             }
 
-            $record->loadMissing('purchase');
+            $record->loadMissing(['purchase', 'branch']);
             $usd = round((float) ($record->remaining_principal_usd ?? $record->purchase_total_usd), 2);
             if ($usd <= 0) {
                 return new self(
@@ -71,14 +71,7 @@ final class AccountsPayableBulkPaymentPayload
             }
 
             $ves = round($usd * $rate, 2);
-            $lines[] = [
-                'id' => (int) $record->getKey(),
-                'purchase_number' => (string) ($record->purchase?->purchase_number ?? '—'),
-                'supplier_name' => (string) $record->supplier_name,
-                'supplier_invoice_number' => (string) $record->supplier_invoice_number,
-                'usd' => $usd,
-                'ves' => $ves,
-            ];
+            $lines[] = self::lineStateForRepeater($record, $usd, $ves);
             $totalUsd += $usd;
             $totalVes += $ves;
         }
@@ -91,5 +84,42 @@ final class AccountsPayableBulkPaymentPayload
         $totalVes = round($totalVes, 2);
 
         return new self(true, null, $lines, $totalUsd, $totalVes, $rate);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function lineStateForRepeater(AccountsPayable $record, float $usd, float $ves): array
+    {
+        $supplier = trim((string) $record->supplier_name);
+        $invoice = trim((string) $record->supplier_invoice_number);
+        $rif = trim((string) ($record->supplier_tax_id ?? ''));
+
+        $supplierInvoiceLine = $supplier;
+        if ($invoice !== '') {
+            $supplierInvoiceLine .= ' · Nº '.$invoice;
+        }
+        if ($rif !== '') {
+            $supplierInvoiceLine .= ' · '.$rif;
+        }
+
+        return [
+            'accounts_payable_id' => (int) $record->getKey(),
+            'supplier_invoice_line' => $supplierInvoiceLine,
+            'purchase_number' => (string) ($record->purchase?->purchase_number ?? '—'),
+            'due_at_label' => $record->due_at?->format('d/m/Y') ?? '—',
+            'amount_usd_label' => self::formatUsd($usd),
+            'amount_ves_label' => self::formatBs($ves),
+        ];
+    }
+
+    private static function formatUsd(float $amount): string
+    {
+        return number_format($amount, 2, ',', '.').' USD';
+    }
+
+    private static function formatBs(float $amount): string
+    {
+        return 'Bs '.number_format($amount, 2, ',', '.');
     }
 }

@@ -31,6 +31,8 @@ final class AuditLogEventPresentation
             'pos_caja_credit_confirmed' => 'Caja: confirmaci'.chr(0xC3).chr(0xB3).'n venta a cr'.chr(0xC3).chr(0xA9).'dito / CxC',
             'pos_caja_sale_completed' => 'Caja: venta registrada',
             'pos_caja_sale_blocked' => 'Caja: venta no registrada (bloqueo o validaci'.chr(0xC3).chr(0xB3).'n)',
+            'sale_voided' => 'Venta anulada',
+            'sale_credit_note_viewed' => 'Ventas: vista nota de cr'.chr(0xC3).chr(0xA9).'dito',
             'pos_caja_bdv_conciliation_ok' => 'Caja: Pago M'.chr(0xC3).chr(0xB3).'vil conciliado con BDV',
             'pos_caja_bdv_conciliation_failed' => 'Caja: Pago M'.chr(0xC3).chr(0xB3).'vil no conciliado (BDV)',
             'pos_caja_bdv_modal_abandoned' => 'Caja: conciliaci'.chr(0xC3).chr(0xB3).'n BDV cerrada '.chr(0xC2).chr(0xB7).' cambio de m'.chr(0xC3).chr(0xA9).'todo',
@@ -43,6 +45,7 @@ final class AuditLogEventPresentation
             'sale_transfer_completed' => 'Traslado de venta: completado',
             'sale_transfer_admin_status_changed' => 'Traslado de venta: cambio de estatus (admin/gerencia)',
             'sale_transfer_deleted' => 'Traslado de venta: eliminado',
+            'inventory_adjustment_applied' => 'Inventario: ajuste aplicado',
         ];
     }
 
@@ -77,6 +80,8 @@ final class AuditLogEventPresentation
             'pos_caja_credit_confirmed' => 'warning',
             'pos_caja_sale_completed' => 'success',
             'pos_caja_sale_blocked' => 'danger',
+            'sale_voided' => 'danger',
+            'sale_credit_note_viewed' => 'gray',
             'pos_caja_bdv_conciliation_ok' => 'success',
             'pos_caja_bdv_conciliation_failed' => 'danger',
             'pos_caja_bdv_modal_abandoned' => 'warning',
@@ -89,6 +94,7 @@ final class AuditLogEventPresentation
             'sale_transfer_completed' => 'success',
             'sale_transfer_admin_status_changed' => 'warning',
             'sale_transfer_deleted' => 'danger',
+            'inventory_adjustment_applied' => 'warning',
             default => 'gray',
         };
     }

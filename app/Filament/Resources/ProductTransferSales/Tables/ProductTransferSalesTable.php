@@ -11,6 +11,7 @@ use App\Models\ProductTransfer;
 use App\Models\User;
 use App\Support\Audit\ProductTransferSaleAuditLogger;
 use App\Support\Filament\BranchAuthScope;
+use App\Support\Sales\SalesBillingAccess;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -59,14 +60,25 @@ class ProductTransferSalesTable
                     ->icon(Heroicon::Hashtag)
                     ->iconColor('gray')
                     ->placeholder('—')
-                    ->url(fn (ProductTransfer $record): ?string => ProductTransferStatus::isInProgressValue($record->status)
-                        ? SaleResource::getUrl('index', [
+                    ->url(function (ProductTransfer $record): ?string {
+                        if (! ProductTransferStatus::isInProgressValue($record->status)) {
+                            return null;
+                        }
+
+                        $user = Auth::user();
+                        if (! $user instanceof User || ! SalesBillingAccess::userCanBill($user)) {
+                            return null;
+                        }
+
+                        return SaleResource::getUrl('index', [
                             'abrir' => 'caja',
                             'traslado_venta' => $record->id,
-                        ], isAbsolute: false)
-                        : null)
+                        ], isAbsolute: false);
+                    })
                     ->tooltip(fn (ProductTransfer $record): string => ProductTransferStatus::isInProgressValue($record->status)
-                        ? 'Abrir caja con este traslado precargado'
+                        ? (SalesBillingAccess::userCanBill(Auth::user())
+                            ? 'Abrir caja con este traslado precargado'
+                            : 'Traslado en proceso (solo consulta de ventas para su rol)')
                         : 'Identificador único del traslado'),
                 TextColumn::make('sale.sale_number')
                     ->label('Venta')

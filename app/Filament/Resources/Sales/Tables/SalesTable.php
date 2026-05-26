@@ -8,6 +8,8 @@ use App\Filament\Resources\Clients\ClientResource;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Models\Client;
 use App\Models\Sale;
+use App\Models\User;
+use App\Services\Sales\SaleVoidService;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Filament\SaleEffectiveDateScope;
 use App\Support\Filament\SaleIosBreakdownHtml;
@@ -19,6 +21,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
@@ -27,6 +30,9 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Js;
+use Illuminate\Validation\ValidationException;
 
 class SalesTable
 {
@@ -309,18 +315,61 @@ class SalesTable
                         ->label('Ver venta')
                         ->icon(Heroicon::Eye),
                     Action::make('printFiscalReceipt')
-                        ->label(fn (Sale $record): string => $record->payment_method === 'credito_cliente'
-                            ? 'Nota de entrega'
-                            : 'Factura fiscal')
+                        ->label(fn (Sale $record): string => $record->status === SaleStatus::Cancelled
+                            ? 'Nota de crédito'
+                            : ($record->payment_method === 'credito_cliente'
+                                ? 'Nota de entrega'
+                                : 'Factura fiscal'))
                         ->icon(Heroicon::Printer)
                         ->color('gray')
-                        ->tooltip(fn (Sale $record): string => $record->payment_method === 'credito_cliente'
-                            ? 'Documento de entrega para ventas a crédito'
-                            : 'Ticket térmico (texto/ESC-POS) — prueba de impresión')
-                        ->url(fn (Sale $record): string => $record->payment_method === 'credito_cliente'
-                            ? route('sales.delivery-note.print', $record)
-                            : route('sales.fiscal-receipt', $record))
+                        ->tooltip(fn (Sale $record): string => $record->status === SaleStatus::Cancelled
+                            ? 'Reimprimir nota de crédito de la anulación'
+                            : ($record->payment_method === 'credito_cliente'
+                                ? 'Documento de entrega para ventas a crédito'
+                                : 'Ticket térmico (texto/ESC-POS) — prueba de impresión'))
+                        ->url(fn (Sale $record): string => match (true) {
+                            $record->status === SaleStatus::Cancelled => route('sales.credit-note.print', $record),
+                            $record->payment_method === 'credito_cliente' => route('sales.delivery-note.print', $record),
+                            default => route('sales.fiscal-receipt', $record),
+                        })
                         ->openUrlInNewTab(),
+                    Action::make('voidSale')
+                        ->label('Anular venta')
+                        ->icon(Heroicon::XCircle)
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Anular venta')
+                        ->modalDescription(fn (Sale $record): string => 'Se revertirá el inventario de los productos de la venta '.$record->sale_number
+                            .', la venta quedará como «Cancelada» y se abrirá la impresión de la nota de crédito fiscal.')
+                        ->modalSubmitActionLabel('Sí, anular venta')
+                        ->visible(fn (Sale $record): bool => $record->status === SaleStatus::Completed
+                            && Auth::user() instanceof User
+                            && Auth::user()->canVoidSales())
+                        ->action(function (Sale $record, Action $action): void {
+                            try {
+                                $sale = app(SaleVoidService::class)->void($record, Auth::user());
+                            } catch (ValidationException $e) {
+                                Notification::make()
+                                    ->title('No se pudo anular la venta')
+                                    ->body(collect($e->errors())->flatten()->implode(' '))
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
+
+                            $printUrl = route('sales.credit-note.print', $sale);
+
+                            $action->getLivewire()->js(
+                                'window.open('.Js::from($printUrl).', "_blank")'
+                            );
+
+                            Notification::make()
+                                ->title('Venta anulada')
+                                ->body('Inventario restaurado. Se abrió la nota de crédito para imprimir.')
+                                ->success()
+                                ->send();
+                        }),
                 ]),
             ])
             ->recordActionsColumnLabel('Acciones')

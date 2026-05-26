@@ -6,6 +6,7 @@ use App\Filament\Resources\Sales\Actions\CashRegisterAction;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Filament\Resources\Sales\Widgets\StatsListSaleByPaymentMethod;
 use App\Filament\Resources\Sales\Widgets\StatsListSaleOverview;
+use App\Support\Sales\SalesBillingAccess;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
@@ -38,6 +39,16 @@ class ListSales extends ListRecords
         );
 
         if (request()->query('abrir') === 'caja' && SaleResource::canViewAny()) {
+            if (! SalesBillingAccess::userCanBill(Auth::user())) {
+                Notification::make()
+                    ->title('Caja no disponible')
+                    ->body('Su rol solo puede consultar el listado y las estadísticas de ventas, no registrar ventas en caja.')
+                    ->warning()
+                    ->send();
+
+                return;
+            }
+
             $saleTransferId = (int) request()->integer('traslado_venta');
             $prefillFromTransfer = $saleTransferId > 0
                 ? CashRegisterAction::prefillArgsFromSaleTransferId($saleTransferId)
@@ -51,21 +62,18 @@ class ListSales extends ListRecords
                     ->send();
             }
 
-            $actionName = is_array($prefillFromTransfer)
-                ? CashRegisterAction::REGISTER_ACTION_NAME
-                : CashRegisterAction::CLIENT_GATE_ACTION_NAME;
+            $actionName = CashRegisterAction::REGISTER_ACTION_NAME;
             $actionArgs = is_array($prefillFromTransfer) ? $prefillFromTransfer : [];
 
             /*
-             * Diferir al siguiente tick: las acciones de cabecera (incl. makeClientGate) deben estar
-             * registradas en caché antes de mountAction, igual que al pulsar el botón «Caja».
+             * Diferir al siguiente tick: la acción de caja debe estar registrada antes de mountAction.
              */
             $this->js(
                 'setTimeout(() => $wire.mountAction('
-                    . Js::from($actionName)
-                    . ', '
-                    . Js::from($actionArgs)
-                    . '), 80)'
+                    .Js::from($actionName)
+                    .', '
+                    .Js::from($actionArgs)
+                    .'), 80)'
             );
         }
     }
@@ -91,34 +99,28 @@ class ListSales extends ListRecords
     }
 
     /**
-     * Registra la acción de caja (carrito) en caché sin mostrarla en la cabecera.
-     * No usar ->hidden() en esa acción: en Filament las acciones ocultas se tratan como deshabilitadas
-     * y no se pueden montar con replaceMountedAction / mountAction.
-     */
-    public function cacheInteractsWithHeaderActions(): void
-    {
-        parent::cacheInteractsWithHeaderActions();
-
-        $this->cacheAction(CashRegisterAction::makeRegister());
-    }
-
-    /**
      * @return array<Action>
      */
     protected function getHeaderActions(): array
     {
-        return [
-            CreateAction::make()
+        $actions = [];
+
+        if (SaleResource::canCreate()) {
+            $actions[] = CreateAction::make()
                 ->label('Registrar Venta Directa')
                 ->icon(Heroicon::Plus)
                 ->color('primary')
                 ->extraAttributes([
                     'class' => 'farmadoc-ios-action farmadoc-ios-action--primary',
-                ]),
-            CashRegisterAction::makeClientGate(),
+                ]);
+            $actions[] = CashRegisterAction::makeRegister();
+        }
+
+        return [
+            ...$actions,
             Action::make('toggleSalesStatsVisibility')
-                ->label(fn(): string => $this->showSalesStats ? 'Ocultar Stats' : 'Mostrar Stats')
-                ->icon(fn(): Heroicon => $this->showSalesStats ? Heroicon::EyeSlash : Heroicon::Eye)
+                ->label(fn (): string => $this->showSalesStats ? 'Ocultar Stats' : 'Mostrar Stats')
+                ->icon(fn (): Heroicon => $this->showSalesStats ? Heroicon::EyeSlash : Heroicon::Eye)
                 ->color('gray')
                 ->extraAttributes([
                     'class' => 'farmadoc-ios-action',
@@ -178,7 +180,7 @@ class ListSales extends ListRecords
                         ]
                     );
 
-                    $this->js('window.open(' . Js::from($url) . ', "_blank")');
+                    $this->js('window.open('.Js::from($url).', "_blank")');
 
                     Notification::make()
                         ->title('Descarga iniciada')
@@ -194,7 +196,7 @@ class ListSales extends ListRecords
         $userId = Auth::id();
 
         return is_int($userId)
-            ? 'filament.sales.list.show_stats.user.' . $userId
+            ? 'filament.sales.list.show_stats.user.'.$userId
             : 'filament.sales.list.show_stats.guest';
     }
 }

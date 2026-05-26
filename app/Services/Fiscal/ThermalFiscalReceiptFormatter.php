@@ -100,6 +100,92 @@ final class ThermalFiscalReceiptFormatter
     }
 
     /**
+     * Nota de crédito fiscal (anulación de factura). Referencia la factura original y el total operado.
+     */
+    public function formatCreditNote(Sale $sale): string
+    {
+        $width = max(24, min(48, (int) config('fiscal.thermal_line_width', 42)));
+        $rate = $this->resolveVesUsdRate($sale);
+        $branch = $sale->branch;
+        $client = $sale->client;
+        $soldAt = $sale->sold_at ?? $sale->created_at;
+        $invoiceNumber = $this->invoiceNumber($sale);
+        $totalBs = $this->toBs((float) $sale->total, $rate);
+        $controlSerial = trim((string) config('fiscal.printer_serial', ''));
+
+        $lines = [];
+
+        $lines[] = $this->centerHeader('SENIAT', $width);
+        $lines[] = $this->centerHeaderRow('RIF:', (string) ($branch?->tax_id ?? '—'), $width);
+        $lines[] = $this->centerHeader((string) ($branch?->legal_name ?? $branch?->name ?? 'RAZÓN SOCIAL'), $width);
+        $lines = array_merge($lines, $this->wrapUpperCentered((string) ($branch?->address ?? ''), $width));
+        if (filled($branch?->city) || filled($branch?->state)) {
+            $lines[] = $this->centerHeader(trim(implode(' ', array_filter([$branch?->city, $branch?->state]))), $width);
+        }
+
+        $lines[] = $this->leftRow('#FAC:', $invoiceNumber);
+        $lines[] = $this->leftRow('FECHA FAC:', $soldAt?->format('d/m/Y') ?? now()->format('d/m/Y'));
+        $lines[] = $this->leftRow('#CONTROL/SERIAL IF:', $controlSerial);
+        $lines[] = $this->leftRow('RIF/CI:', Str::upper($this->clientDocument($client)));
+        $lines[] = $this->leftRow('R.S.:', Str::upper((string) ($client?->name ?? 'MOSTRADOR')));
+        $lines[] = $this->leftRow('DIRECCION:', Str::upper((string) ($client?->address ?? '')));
+        $lines[] = $this->leftRow('REF. INTERNA:', '');
+        $lines[] = $this->row('TOT. OPER. FAC. ASC.', $this->bs($totalBs), $width);
+        $lines[] = '';
+        $lines[] = $this->centerHeader('NOTA DE CREDITO', $width);
+        $lines[] = '';
+        $lines[] = str_repeat('-', $width);
+
+        foreach ($sale->items as $index => $item) {
+            $lines = array_merge($lines, $this->formatItemLines($item, $index + 1, $rate, $width));
+            $lines[] = str_repeat('-', $width);
+        }
+
+        $subtotalUsd = (float) $sale->subtotal;
+        $discountUsd = (float) $sale->discount_total;
+        $taxUsd = (float) $sale->tax_total;
+        $igtfUsd = (float) ($sale->igtf_total ?? 0);
+
+        $subtotalBs = $this->toBs($subtotalUsd, $rate);
+        $discountBs = $this->toBs($discountUsd, $rate);
+        $taxBs = $this->toBs($taxUsd, $rate);
+        $igtfBs = $this->toBs($igtfUsd, $rate);
+
+        $taxPercent = $this->dominantTaxPercent($sale);
+        $taxTag = $this->taxTagLabel($taxPercent);
+
+        $lines[] = $this->row('SUBTTL', $this->bs($subtotalBs), $width);
+        if ($discountUsd > 0.00001) {
+            $lines[] = $this->row('DESCUENTO', $this->bs($discountBs), $width);
+        }
+        $lines[] = str_repeat('-', $width);
+        $netMerchUsd = max(0.0, round($subtotalUsd - $discountUsd, 2));
+        $netMerchBs = $this->toBs($netMerchUsd, $rate);
+        $lines[] = $this->row('BASE NETA', $this->bs($netMerchBs), $width);
+        if ($taxUsd > 0.00001) {
+            $lines[] = $this->row('IVA '.$taxTag, $this->bs($taxBs), $width);
+        }
+        if ($igtfUsd > 0.00001) {
+            $invoiceBeforeIgtf = max(0.0, $netMerchUsd + $taxUsd);
+            $igtfPct = $invoiceBeforeIgtf > 0.00001
+                ? round($igtfUsd / $invoiceBeforeIgtf * 100, 2)
+                : 0.0;
+            $igtfTag = 'G '.rtrim(rtrim(number_format($igtfPct, 2, ',', '.'), '0'), ',').'%';
+            $lines[] = $this->row('IGTF '.$igtfTag, $this->bs($igtfBs), $width);
+        }
+        $lines[] = str_repeat('-', $width);
+        $lines[] = $this->row('TOTAL', $this->bs($totalBs), $width);
+        $bcvStored = (float) ($sale->bcv_ves_per_usd ?? 0);
+        if ($bcvStored > 0) {
+            $lines[] = $this->leftRow('TASA BCV:', '1 USD = Bs '.number_format($bcvStored, 6, ',', '.'));
+        }
+        $lines[] = '';
+        $lines[] = $this->row((string) config('fiscal.mh_footer', 'MH'), $controlSerial, $width);
+
+        return implode("\n", $lines)."\n";
+    }
+
+    /**
      * Envuelve el texto en comandos ESC/POS mínimos (inicializar + corte). UTF-8 puede requerir
      * conversión a CP850 según modelo; pruebe en su hardware.
      */

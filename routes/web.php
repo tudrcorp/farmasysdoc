@@ -46,6 +46,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('sales/{sale}/fiscal-receipt/print', [FiscalReceiptController::class, 'print'])
         ->name('sales.fiscal-receipt.print');
 
+    Route::get('sales/{sale}/credit-note', [FiscalReceiptController::class, 'showCreditNote'])
+        ->name('sales.credit-note');
+
+    Route::get('sales/{sale}/credit-note/print', [FiscalReceiptController::class, 'printCreditNote'])
+        ->name('sales.credit-note.print');
+
     Route::get('sales/{sale}/delivery-note/print', [FiscalReceiptController::class, 'printDeliveryNote'])
         ->name('sales.delivery-note.print');
 

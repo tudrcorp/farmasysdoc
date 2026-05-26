@@ -112,7 +112,7 @@ final class AuditLogIosDetailHtml
         $e = strtolower(trim($event));
 
         $level = match ($e) {
-            'login_failed', 'deleted' => 'critical',
+            'login_failed', 'deleted', 'sale_voided', 'purchase_annulled' => 'critical',
             'login', 'logout', 'created' => 'high',
             'updated', 'http_request' => 'attention',
             'page_view' => 'routine',
@@ -146,6 +146,8 @@ final class AuditLogIosDetailHtml
         $hint = match ($e) {
             'login_failed' => 'Posible acceso no autorizado: verifique correo intentado, IP y cabeceras.',
             'deleted' => 'Eliminación de datos: confirme autorización y copias de respaldo según política.',
+            'sale_voided' => 'Anulación de venta: inventario devuelto y venta marcada como cancelada. Verifique nota de crédito fiscal.',
+            'purchase_annulled' => 'Compra anulada: inventario y registros derivados revertidos.',
             'login' => 'Inicio de sesión correcto: correlacione con IP y horario de turnos.',
             'logout' => 'Cierre de sesión: útil para cadena de custodia de la sesión.',
             'created' => 'Alta de datos: valide usuario y payload frente a procedimiento operativo.',

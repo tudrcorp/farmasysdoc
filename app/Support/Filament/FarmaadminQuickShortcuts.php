@@ -11,6 +11,7 @@ use App\Filament\Resources\ProductTransferSales\ProductTransferSaleResource;
 use App\Filament\Resources\Purchases\PurchaseResource;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Models\User;
+use App\Support\Sales\SalesBillingAccess;
 use Illuminate\Contracts\Auth\Authenticatable;
 
 /**
@@ -34,13 +35,15 @@ final class FarmaadminQuickShortcuts
 
         if (SaleResource::canViewAny()) {
             $base = SaleResource::getUrl(panel: $panel, isAbsolute: false);
-            $items[] = [
-                'id' => 'caja',
-                'label' => 'Caja',
-                'hint' => 'Cliente y carrito',
-                'href' => $base.'?'.http_build_query(['abrir' => 'caja']),
-                'force_full_page' => true,
-            ];
+            if (SalesBillingAccess::userCanBill($user)) {
+                $items[] = [
+                    'id' => 'caja',
+                    'label' => 'Caja',
+                    'hint' => 'Cliente y carrito',
+                    'href' => $base.'?'.http_build_query(['abrir' => 'caja']),
+                    'force_full_page' => true,
+                ];
+            }
             $items[] = [
                 'id' => 'ventas',
                 'label' => 'Ventas',

@@ -8,6 +8,8 @@ final class UserRoleLabels
     {
         return match (strtoupper((string) $role)) {
             'ADMINISTRADOR' => 'Administrador',
+            'COORDINADORES' => 'Coordinadores',
+            'GERENCIA' => 'Gerencia',
             'MARKETING' => 'Marketing',
             'DELIVERY' => 'Entregas',
             default => (string) $role,

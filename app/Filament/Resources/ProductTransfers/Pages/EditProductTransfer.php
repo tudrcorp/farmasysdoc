@@ -6,6 +6,7 @@ use App\Enums\ProductTransferStatus;
 use App\Filament\Resources\ProductTransfers\ProductTransferResource;
 use App\Filament\Resources\ProductTransfers\Schemas\ProductTransferForm;
 use App\Models\ProductTransfer;
+use App\Models\User;
 use App\Services\Inventory\ProductTransferCompletionService;
 use App\Support\ProductTransferStockValidator;
 use Filament\Actions\DeleteAction;
@@ -41,10 +42,15 @@ class EditProductTransfer extends EditRecord
         }
 
         if ($willComplete) {
+            $actor = auth()->user();
             $svc = app(ProductTransferCompletionService::class);
-            if (! $svc->userMayMarkCompleted(auth()->user(), $record)) {
+            if (! $actor instanceof User || ! $svc->userMayMarkCompleted($actor, $record)) {
+                $message = $actor instanceof User && $actor->isManager()
+                    ? ProductTransferCompletionService::MANAGER_OUTSIDE_DESTINATION_BRANCH_MESSAGE
+                    : 'Solo el personal de la sucursal destino o un administrador puede completar el traslado.';
+
                 throw ValidationException::withMessages([
-                    'data.status' => 'Solo el personal de la sucursal destino o un administrador puede completar el traslado.',
+                    'data.status' => $message,
                 ]);
             }
         }

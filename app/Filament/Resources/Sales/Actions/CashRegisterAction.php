@@ -899,6 +899,8 @@ final class CashRegisterAction
                     return;
                 }
 
+                $data['client_id'] = self::resolvePosClientIdFromRegisterData($data, $action);
+
                 self::posSaleRegisterTrace('register_action_entered', [
                     'payment_method' => $data['payment_method'] ?? null,
                     'bdv_pm_conciliated' => $data['bdv_pm_conciliated'] ?? null,
@@ -4391,7 +4393,8 @@ final class CashRegisterAction
     private static function posRegisterClientSchema(): array
     {
         return [
-            Select::make('client_id')
+            Hidden::make('client_id'),
+            Select::make('pos_client_picker')
                 ->label('Cliente')
                 ->placeholder('Nombre o documento de identidad…')
                 ->helperText('Vacío = mostrador. Busque un cliente o regístrelo abajo si no existe.')
@@ -4399,6 +4402,7 @@ final class CashRegisterAction
                     'class' => 'farmadoc-pos-register-client-select',
                 ])
                 ->visible(fn (Get $get): bool => blank($get('client_id')))
+                ->dehydrated(false)
                 ->live()
                 ->searchable()
                 ->searchDebounce(100)
@@ -4409,11 +4413,13 @@ final class CashRegisterAction
                     self::clearPosQuickClientFields($set);
 
                     if (blank($state)) {
+                        $set('client_id', null);
                         self::recordPosWalkIn();
 
                         return;
                     }
 
+                    $set('client_id', (int) $state);
                     self::recordPosClientPickedFromCatalog((int) $state, 'busqueda_caja');
                 })
                 ->native(false)
@@ -4527,6 +4533,7 @@ final class CashRegisterAction
     private static function clearPosClientSelection(Set $set, mixed $livewire = null): void
     {
         $set('client_id', null);
+        $set('pos_client_picker', null);
         self::clearPosQuickClientFields($set);
 
         if ($livewire instanceof LivewireComponent) {
@@ -4638,10 +4645,39 @@ final class CashRegisterAction
      *
      * @return array<string, mixed>
      */
+    /**
+     * El buscador de cliente no se deshidrata al ocultarse; el ID vive en client_id (Hidden).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function resolvePosClientIdFromRegisterData(array $data, ?Action $action = null): ?int
+    {
+        if (filled($data['client_id'] ?? null)) {
+            return (int) $data['client_id'];
+        }
+
+        if (! $action instanceof Action) {
+            return null;
+        }
+
+        $livewire = $action->getLivewire();
+        if (! $livewire instanceof BasePage) {
+            return null;
+        }
+
+        $mounted = self::currentPosRegisterMountedFormData($livewire);
+        if (filled($mounted['client_id'] ?? null)) {
+            return (int) $mounted['client_id'];
+        }
+
+        return null;
+    }
+
     private static function defaultPosFormState(): array
     {
         return array_merge([
             'client_id' => null,
+            'pos_client_picker' => null,
             'quick_client_name' => null,
             'quick_client_document' => null,
             'quick_client_phone' => null,

@@ -3,11 +3,14 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\SaleStatus;
+use App\Filament\Widgets\Concerns\InteractsWithDashboardBranchFilter;
 use App\Filament\Widgets\Support\BrandChartPalette;
 use App\Filament\Widgets\Support\IosSalesTrendChartStyle;
 use App\Models\Branch;
 use App\Models\Sale;
 use App\Models\User;
+use App\Services\Dashboard\BranchSalesDayPaymentMethodChartDataService;
+use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Filament\Facades\Filament;
 use Filament\Widgets\ChartWidget;
@@ -17,24 +20,132 @@ use Illuminate\Support\Str;
 
 class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
 {
+    use InteractsWithDashboardBranchFilter;
+
     /**
      * @var view-string
      */
-    protected string $view = 'filament.widgets.ios-sales-chart';
+    protected string $view = 'filament.widgets.ios-sales-branch-days-chart';
 
     protected static ?int $sort = -1;
 
-    protected ?string $heading = 'Ventas por día (mes actual · sucursales visibles)';
-
-    protected ?string $description = 'Comparativo diario del mes actual por sucursal según alcance del usuario (gerencia o administrador).';
+    protected ?string $heading = 'Ventas por día (sucursales visibles)';
 
     protected ?string $maxHeight = '320px';
 
     protected string $color = 'success';
 
-    protected function getType(): string
+    public ?string $drillDownDate = null;
+
+    /**
+     * @var array<string, mixed>|null
+     */
+    private ?array $cachedDrillDownPayload = null;
+
+    public function mount(): void
     {
-        return 'bar';
+        if ($this->filter === null || $this->filter === '') {
+            $this->filter = now()->format('Y-m');
+        }
+
+        parent::mount();
+    }
+
+    public function updatedFilter(?string $value): void
+    {
+        $this->drillDownDate = null;
+        $this->cachedData = null;
+        $this->cachedDrillDownPayload = null;
+    }
+
+    public function drillIntoDay(int $dayIndex): void
+    {
+        if (! $this->isDayOverviewMode()) {
+            return;
+        }
+
+        $dayKeys = $this->dayKeysForSelectedMonth();
+        if (! isset($dayKeys[$dayIndex])) {
+            return;
+        }
+
+        $dateKey = $dayKeys[$dayIndex];
+        if ($this->totalAmountForDay($dateKey) <= 0.0) {
+            return;
+        }
+
+        $this->drillDownDate = $dateKey;
+        $this->cachedData = null;
+        $this->cachedDrillDownPayload = null;
+    }
+
+    public function backToDayOverview(): void
+    {
+        $this->drillDownDate = null;
+        $this->cachedData = null;
+        $this->cachedDrillDownPayload = null;
+    }
+
+    public function isDayOverviewMode(): bool
+    {
+        return $this->drillDownDate === null || $this->drillDownDate === '';
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function getDrillDownBranches(): array
+    {
+        return $this->drillDownPayload()['branches'] ?? [];
+    }
+
+    public function getDrillDownBcvRateFormatted(): ?string
+    {
+        $rate = $this->drillDownPayload()['bcv_rate'] ?? null;
+
+        if (! is_numeric($rate) || (float) $rate <= 0.0) {
+            return null;
+        }
+
+        return number_format((float) $rate, 6, ',', '.').' Bs/USD';
+    }
+
+    public function getHeading(): string|Htmlable|null
+    {
+        if (! $this->isDayOverviewMode()) {
+            $date = Carbon::parse($this->drillDownDate)->locale('es');
+
+            return 'Cobro por método de pago · '.$date->translatedFormat('d \d\e F Y');
+        }
+
+        return $this->heading;
+    }
+
+    public function getDescription(): string|Htmlable|null
+    {
+        if (! $this->isDayOverviewMode()) {
+            $payload = $this->drillDownPayload();
+            $parts = [
+                count($payload['branches'] ?? []).' sucursales',
+                'Total del día: '.$this->formatUsd((float) ($payload['total_day_usd'] ?? 0.0)),
+            ];
+
+            $bcv = $this->getDrillDownBcvRateFormatted();
+            if ($bcv !== null) {
+                $parts[] = 'Tasa BCV: '.$bcv;
+            } else {
+                $parts[] = 'Tasa BCV: no disponible para esta fecha';
+            }
+
+            return implode(' · ', $parts).$this->dashboardBranchFilterSuffix();
+        }
+
+        $month = $this->selectedMonth();
+        $monthLabel = ucfirst($month->locale('es')->translatedFormat('F Y'));
+
+        return $monthLabel.' · Total: '.$this->formatUsd($this->totalAmountForMonth($month))
+            .' · Pulsa un día con ventas para ver el detalle por método de pago'
+            .$this->dashboardBranchFilterSuffix();
     }
 
     public function getColumnSpan(): int|string|array
@@ -48,11 +159,25 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
         return 1;
     }
 
-    public function getDescription(): string|Htmlable|null
+    /**
+     * @return array<string, string>|null
+     */
+    protected function getFilters(): ?array
     {
-        $currentMonth = now()->locale('es')->translatedFormat('F Y');
+        $filters = [];
 
-        return ucfirst($currentMonth).' · Total: '.$this->formatUsd($this->totalCurrentMonthAmount());
+        for ($offset = 0; $offset < 24; $offset++) {
+            $month = now()->startOfMonth()->subMonths($offset);
+            $key = $month->format('Y-m');
+            $filters[$key] = ucfirst($month->locale('es')->translatedFormat('F Y'));
+        }
+
+        return $filters;
+    }
+
+    protected function getType(): string
+    {
+        return 'bar';
     }
 
     /**
@@ -60,9 +185,77 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
      */
     protected function getData(): array
     {
-        $branchIds = $this->resolvedBranchIdsForCurrentUser();
-        $monthStart = now()->startOfMonth();
-        $monthEnd = now()->endOfMonth();
+        if (! $this->isDayOverviewMode()) {
+            return $this->drillDownChartData();
+        }
+
+        return $this->dayOverviewChartData();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function getOptions(): array
+    {
+        $base = array_replace_recursive(
+            IosSalesTrendChartStyle::verticalChartOptions(),
+            [
+                'animation' => [
+                    'duration' => 560,
+                    'easing' => 'easeInOutCubic',
+                ],
+                'animations' => [
+                    'numbers' => [
+                        'duration' => 560,
+                        'easing' => 'easeInOutCubic',
+                    ],
+                ],
+            ],
+        );
+
+        return $base;
+    }
+
+    protected function getMaxHeight(): ?string
+    {
+        if (! $this->isDayOverviewMode()) {
+            $methodCount = count($this->getCachedData()['labels'] ?? []);
+            $height = max(320, min(460, 240 + ($methodCount * 22)));
+
+            return $height.'px';
+        }
+
+        return $this->maxHeight;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function drillDownPayload(): array
+    {
+        if ($this->cachedDrillDownPayload !== null) {
+            return $this->cachedDrillDownPayload;
+        }
+
+        if ($this->isDayOverviewMode()) {
+            return $this->cachedDrillDownPayload = [];
+        }
+
+        return $this->cachedDrillDownPayload = app(BranchSalesDayPaymentMethodChartDataService::class)
+            ->chartForDay(
+                $this->resolvedBranchIdsForCurrentUser(),
+                Carbon::parse($this->drillDownDate),
+            );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dayOverviewChartData(): array
+    {
+        $branchIds = $this->dashboardBranchIdsForCharts();
+        $monthStart = $this->selectedMonth();
+        $monthEnd = $monthStart->copy()->endOfMonth();
 
         if ($branchIds === []) {
             return [
@@ -128,9 +321,43 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
     /**
      * @return array<string, mixed>
      */
-    protected function getOptions(): array
+    private function drillDownChartData(): array
     {
-        return IosSalesTrendChartStyle::verticalChartOptions();
+        $payload = $this->drillDownPayload();
+        $labels = $payload['labels'] ?? [];
+        $branches = $payload['branches'] ?? [];
+
+        if ($labels === [] || $branches === []) {
+            return [
+                'datasets' => [],
+                'labels' => [],
+            ];
+        }
+
+        $fills = BrandChartPalette::barFills(count($branches));
+        $hovers = BrandChartPalette::barHovers(count($branches));
+        $borders = BrandChartPalette::barBorderColors(count($branches));
+
+        $datasets = [];
+        foreach ($branches as $index => $branch) {
+            $datasets[] = [
+                'label' => $branch['branch_name'],
+                'data' => $branch['chart_values'],
+                'backgroundColor' => $fills[$index] ?? 'rgba(16, 185, 129, 0.82)',
+                'hoverBackgroundColor' => $hovers[$index] ?? 'rgba(16, 185, 129, 0.96)',
+                'borderColor' => $borders[$index] ?? 'rgba(255, 255, 255, 0.28)',
+                'hoverBorderColor' => 'rgba(255, 255, 255, 0.55)',
+                'borderWidth' => 1,
+                'hoverBorderWidth' => 2,
+                'borderRadius' => 8,
+                'borderSkipped' => false,
+            ];
+        }
+
+        return [
+            'datasets' => $datasets,
+            'labels' => $labels,
+        ];
     }
 
     /**
@@ -138,31 +365,31 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
      */
     private function resolvedBranchIdsForCurrentUser(): array
     {
-        $user = Filament::auth()->user();
-        if (! $user instanceof User) {
-            return [];
+        return $this->dashboardBranchIdsForCharts();
+    }
+
+    private function selectedMonth(): CarbonInterface
+    {
+        $filter = $this->filter ?? now()->format('Y-m');
+
+        if (is_string($filter) && preg_match('/^(\d{4})-(\d{2})$/', $filter, $matches) === 1) {
+            $year = (int) $matches[1];
+            $month = (int) $matches[2];
+
+            if ($month >= 1 && $month <= 12) {
+                return now()->setDate($year, $month, 1)->startOfMonth();
+            }
         }
 
-        if ($user->isAdministrator()) {
-            return Branch::query()
-                ->where('is_active', true)
-                ->pluck('id')
-                ->map(static fn (mixed $id): int => (int) $id)
-                ->unique()
-                ->values()
-                ->all();
-        }
+        return now()->startOfMonth();
+    }
 
-        if (! $user->hasGerenciaRole()) {
-            return [];
-        }
-
-        $ids = $user->restrictedBranchIdsForQueries();
-
-        return array_values(array_unique(array_filter(array_map(
-            static fn (mixed $id): int => (int) $id,
-            $ids,
-        ))));
+    /**
+     * @return list<string>
+     */
+    private function dayKeysForSelectedMonth(): array
+    {
+        return $this->dayKeys($this->selectedMonth());
     }
 
     /**
@@ -200,9 +427,9 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
         };
     }
 
-    private function totalCurrentMonthAmount(): float
+    private function totalAmountForMonth(CarbonInterface $monthStart): float
     {
-        $branchIds = $this->resolvedBranchIdsForCurrentUser();
+        $branchIds = $this->dashboardBranchIdsForCharts();
         if ($branchIds === []) {
             return 0.0;
         }
@@ -211,7 +438,24 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
             ->where('status', SaleStatus::Completed)
             ->whereNotNull('sold_at')
             ->whereIn('branch_id', $branchIds)
-            ->whereBetween('sold_at', [now()->startOfMonth(), now()->endOfMonth()])
+            ->whereBetween('sold_at', [$monthStart->copy()->startOfDay(), $monthStart->copy()->endOfMonth()->endOfDay()])
+            ->sum('total'), 2);
+    }
+
+    private function totalAmountForDay(string $dateKey): float
+    {
+        $branchIds = $this->dashboardBranchIdsForCharts();
+        if ($branchIds === []) {
+            return 0.0;
+        }
+
+        $day = Carbon::parse($dateKey);
+
+        return round((float) Sale::query()
+            ->where('status', SaleStatus::Completed)
+            ->whereNotNull('sold_at')
+            ->whereIn('branch_id', $branchIds)
+            ->whereBetween('sold_at', [$day->copy()->startOfDay(), $day->copy()->endOfDay()])
             ->sum('total'), 2);
     }
 

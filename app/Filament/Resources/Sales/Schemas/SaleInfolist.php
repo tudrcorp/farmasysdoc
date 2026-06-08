@@ -7,6 +7,7 @@ use App\Filament\Resources\AccountsReceivables\AccountsReceivableResource;
 use App\Filament\Resources\Branches\BranchResource;
 use App\Filament\Resources\Clients\ClientResource;
 use App\Models\Sale;
+use App\Support\Sales\PosPaymentMethodOptions;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
@@ -130,9 +131,14 @@ class SaleInfolist
                             ->schema([
                                 TextEntry::make('payment_method')
                                     ->label('Medio de pago')
-                                    ->formatStateUsing(fn (?string $state): string => self::formatPaymentMethod($state))
+                                    ->formatStateUsing(fn (Sale $record): string => self::formatPaymentMethodCellForRecord($record))
+                                    ->html()
                                     ->placeholder('—')
-                                    ->icon(Heroicon::CreditCard),
+                                    ->icon(fn (Sale $record): ?Heroicon => PosPaymentMethodOptions::isCachea(
+                                        PosPaymentMethodOptions::effectiveSalePaymentMethod($record)
+                                    )
+                                        ? null
+                                        : Heroicon::CreditCard),
                                 TextEntry::make('payment_usd')
                                     ->label('Pago USD')
                                     ->money('USD')
@@ -277,6 +283,24 @@ class SaleInfolist
             ]);
     }
 
+    private static function formatPaymentMethodCellForRecord(Sale $record): string
+    {
+        return self::formatPaymentMethodCell(PosPaymentMethodOptions::effectiveSalePaymentMethod($record));
+    }
+
+    private static function formatPaymentMethodCell(?string $value): string
+    {
+        if (blank($value)) {
+            return '—';
+        }
+
+        if (PosPaymentMethodOptions::isCachea($value)) {
+            return PosPaymentMethodOptions::cacheaTableBadgeHtml();
+        }
+
+        return e(self::formatPaymentMethod($value));
+    }
+
     private static function formatPaymentMethod(?string $value): string
     {
         if (blank($value)) {
@@ -290,6 +314,7 @@ class SaleInfolist
             'efectivo_ves' => 'Efectivo VES',
             'transfer_ves' => 'Transferencia VES',
             'zelle' => 'Zelle',
+            'cachea' => 'Cachea',
             'pago_movil' => 'Pago Movil',
             'mixed' => 'Pago Multiple',
             'credito_cliente' => 'Crédito · cuenta por cobrar',

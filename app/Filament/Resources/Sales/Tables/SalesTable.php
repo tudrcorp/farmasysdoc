@@ -14,6 +14,7 @@ use App\Support\Filament\BranchAuthScope;
 use App\Support\Filament\SaleEffectiveDateScope;
 use App\Support\Filament\SaleIosBreakdownHtml;
 use App\Support\Filament\SlideoverModalScrollFix;
+use App\Support\Sales\PosPaymentMethodOptions;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
@@ -40,7 +41,7 @@ class SalesTable
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => BranchAuthScope::applyToSalesQuery($query)
-                ->with(['branch', 'client', 'items'])
+                ->with(['branch', 'client', 'items', 'conciliationCachea'])
                 ->withCount('items'))
             ->columns([
                 TextColumn::make('sale_number')
@@ -175,10 +176,15 @@ class SalesTable
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('payment_method')
                     ->label('Medio de pago')
-                    ->formatStateUsing(fn (?string $state): string => self::formatPaymentMethodLabel($state))
+                    ->formatStateUsing(fn (Sale $record): string => self::formatPaymentMethodCellForRecord($record))
+                    ->html()
                     ->searchable()
                     ->placeholder('—')
-                    ->icon(Heroicon::CreditCard)
+                    ->icon(fn (Sale $record): ?Heroicon => PosPaymentMethodOptions::isCachea(
+                        PosPaymentMethodOptions::effectiveSalePaymentMethod($record)
+                    )
+                        ? null
+                        : Heroicon::CreditCard)
                     ->iconColor('gray')
                     ->toggleable(),
                 TextColumn::make('payment_usd')
@@ -381,6 +387,24 @@ class SalesTable
             ]);
     }
 
+    private static function formatPaymentMethodCellForRecord(Sale $record): string
+    {
+        return self::formatPaymentMethodCell(PosPaymentMethodOptions::effectiveSalePaymentMethod($record));
+    }
+
+    private static function formatPaymentMethodCell(?string $value): string
+    {
+        if (blank($value)) {
+            return '—';
+        }
+
+        if (PosPaymentMethodOptions::isCachea($value)) {
+            return PosPaymentMethodOptions::cacheaTableBadgeHtml();
+        }
+
+        return e(self::formatPaymentMethodLabel($value));
+    }
+
     private static function formatPaymentMethodLabel(?string $value): string
     {
         if (blank($value)) {
@@ -394,6 +418,7 @@ class SalesTable
             'efectivo_ves' => 'Efectivo VES',
             'transfer_ves' => 'Transferencia VES',
             'zelle' => 'Zelle',
+            'cachea' => 'Cachea',
             'pago_movil' => 'Pago Movil',
             'mixed' => 'Pago Multiple',
             'credito_cliente' => 'Crédito · cuenta por cobrar',

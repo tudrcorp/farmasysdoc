@@ -241,6 +241,30 @@ html.fi.dark .fi-sidebar-close-overlay {
     color: rgb(250 250 250);
 }
 
+/*
+ * Cachea en sidebar: el logo sustituye el icono vectorial.
+ * El padding/fondo circular del ítem activo desalinea imágenes raster.
+ */
+.fi-sidebar .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/cachea"] {
+    display: block;
+    flex-shrink: 0;
+    padding: 0 !important;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: transparent !important;
+    box-shadow: none !important;
+    filter: none;
+    object-fit: cover;
+}
+
+.fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/cachea"],
+.dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/cachea"] {
+    margin-inline-end: 0.125rem;
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
 /* Grupo de navegación con ítem activo: cabecera alineada visualmente */
 .fi-sidebar .fi-sidebar-group.fi-active > .fi-sidebar-group-btn .fi-sidebar-group-label {
     font-weight: 600;
@@ -2936,6 +2960,386 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
 
 .farmadoc-pos-summary-stack .farmadoc-pos-payment-section .fi-section-content {
     gap: 0.625rem;
+}
+
+.farmadoc-cachea-page-heading {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    min-width: 0;
+}
+
+.farmadoc-cachea-page-heading__icon {
+    display: block;
+    width: 1.75rem;
+    height: 1.75rem;
+    flex-shrink: 0;
+    border-radius: 0.375rem;
+    object-fit: cover;
+}
+
+.farmadoc-cachea-page-heading__title {
+    display: block;
+    line-height: 1.2;
+}
+
+.farmadoc-cachea-conciliation-sale {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.farmadoc-cachea-conciliation-sale__link {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+
+.farmadoc-cachea-conciliation-sale__link:hover {
+    color: var(--color-primary-600);
+}
+
+.dark .farmadoc-cachea-conciliation-sale__link:hover {
+    color: var(--color-primary-400);
+}
+
+.farmadoc-cachea-conciliation-stats.fi-wi-stats-overview .fi-section {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.farmadoc-cachea-conciliation-stats .fi-section-header-heading {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.farmadoc-cachea-conciliation-stats .fi-section-header-description {
+    font-size: 0.8125rem;
+    opacity: 0.82;
+}
+
+.farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    min-height: 7.5rem;
+    border-radius: 1.05rem !important;
+    border: 1px solid rgb(255 255 255 / 0.52) !important;
+    padding: 0.9rem 1rem 0.85rem !important;
+    transition:
+        transform 0.28s cubic-bezier(0.25, 0.1, 0.25, 1),
+        border-color 0.28s ease,
+        box-shadow 0.28s ease !important;
+    backdrop-filter: blur(20px) saturate(1.28);
+    -webkit-backdrop-filter: blur(20px) saturate(1.28);
+    background:
+        radial-gradient(ellipse 100% 75% at 100% 0%, rgb(255 255 255 / 0.65), transparent 48%),
+        linear-gradient(165deg, rgb(255 255 255 / 0.82) 0%, rgb(248 250 252 / 0.72) 100%) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.72) inset,
+        0 1px 2px rgb(15 23 42 / 0.05),
+        0 14px 36px -12px rgb(15 23 42 / 0.1) !important;
+}
+
+.farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: radial-gradient(ellipse 52% 42% at 86% 10%, rgb(255 255 255 / 0.55), transparent 62%);
+    mix-blend-mode: soft-light;
+    opacity: 0.9;
+}
+
+.farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(to top, rgb(15 23 42 / 0.05) 0%, transparent 42%);
+}
+
+.farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat:hover {
+    transform: translateY(-2px);
+    border-color: rgb(252 228 34 / 0.45) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.85) inset,
+        0 4px 12px rgb(15 23 42 / 0.06),
+        0 22px 44px -14px rgb(15 23 42 / 0.14) !important;
+}
+
+.farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    min-height: 5.75rem;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 0.35rem;
+}
+
+.farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat-label {
+    font-size: 0.8125rem !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em;
+    color: rgb(63 63 70) !important;
+}
+
+.farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat-value {
+    font-size: clamp(1.5rem, 3vw, 1.9rem) !important;
+    font-weight: 700 !important;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.04em !important;
+    line-height: 1.1 !important;
+    color: rgb(24 24 27) !important;
+}
+
+.farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat-description {
+    font-size: 0.75rem !important;
+    line-height: 1.35;
+}
+
+.farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat-icon {
+    position: absolute;
+    top: 0.85rem;
+    right: 0.85rem;
+    z-index: 3;
+    opacity: 0.45;
+    color: rgb(82 82 91) !important;
+}
+
+.farmadoc-cachea-conciliation-stats .farmadoc-cachea-stat-tone-ops.fi-wi-stats-overview-stat {
+    background:
+        radial-gradient(ellipse 92% 68% at 96% 4%, rgb(24 172 178 / 0.42), transparent 52%),
+        radial-gradient(ellipse 70% 55% at 0% 100%, rgb(24 172 178 / 0.18), transparent 55%),
+        linear-gradient(162deg, rgb(255 255 255 / 0.88) 0%, rgb(24 172 178 / 0.1) 52%, rgb(204 241 243 / 0.42) 100%) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.78) inset,
+        0 1px 2px rgb(24 172 178 / 0.08),
+        0 16px 40px -12px rgb(24 172 178 / 0.16) !important;
+}
+
+.farmadoc-cachea-conciliation-stats .farmadoc-cachea-stat-tone-sales.fi-wi-stats-overview-stat {
+    background:
+        radial-gradient(ellipse 88% 58% at 94% 4%, rgb(228 228 231 / 0.55), transparent 54%),
+        linear-gradient(162deg, rgb(255 255 255 / 0.9) 0%, rgb(244 244 245 / 0.82) 100%) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.78) inset,
+        0 1px 2px rgb(15 23 42 / 0.05),
+        0 16px 40px -12px rgb(15 23 42 / 0.08) !important;
+}
+
+.farmadoc-cachea-conciliation-stats .farmadoc-cachea-stat-tone-paid.fi-wi-stats-overview-stat {
+    background:
+        radial-gradient(ellipse 92% 62% at 96% 0%, rgb(252 228 34 / 0.52), transparent 52%),
+        radial-gradient(ellipse 68% 50% at 4% 96%, rgb(252 228 34 / 0.22), transparent 54%),
+        linear-gradient(162deg, rgb(255 255 255 / 0.88) 0%, rgb(252 228 34 / 0.12) 50%, rgb(254 249 195 / 0.55) 100%) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.78) inset,
+        0 1px 2px rgb(252 228 34 / 0.12),
+        0 16px 40px -12px rgb(252 228 34 / 0.18) !important;
+}
+
+.farmadoc-cachea-conciliation-stats .farmadoc-cachea-stat-tone-paid .fi-wi-stats-overview-stat-content::before {
+    content: '';
+    position: absolute;
+    right: -0.35rem;
+    top: 50%;
+    z-index: 0;
+    width: 5.5rem;
+    height: 5.5rem;
+    transform: translateY(-55%);
+    border-radius: 0.75rem;
+    opacity: 0.1;
+    pointer-events: none;
+    background: url('/images/logos/cachea.jpg') center / contain no-repeat;
+}
+
+.farmadoc-cachea-conciliation-stats .farmadoc-cachea-stat-tone-remainder.fi-wi-stats-overview-stat {
+    background:
+        radial-gradient(ellipse 90% 60% at 96% 0%, rgb(234 179 8 / 0.42), transparent 52%),
+        radial-gradient(ellipse 68% 50% at 4% 96%, rgb(234 179 8 / 0.18), transparent 54%),
+        linear-gradient(162deg, rgb(255 255 255 / 0.88) 0%, rgb(234 179 8 / 0.1) 50%, rgb(254 243 199 / 0.5) 100%) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.78) inset,
+        0 1px 2px rgb(234 179 8 / 0.1),
+        0 16px 40px -12px rgb(234 179 8 / 0.16) !important;
+}
+
+.farmadoc-cachea-conciliation-stats .farmadoc-cachea-stat-tone-remainder .fi-wi-stats-overview-stat-value {
+    color: rgb(161 98 7) !important;
+}
+
+.farmadoc-cachea-conciliation-stats .farmadoc-cachea-stat-tone-paid .fi-wi-stats-overview-stat-value {
+    color: rgb(21 128 61) !important;
+}
+
+.dark .farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat {
+    border-color: rgb(255 255 255 / 0.14) !important;
+    background:
+        radial-gradient(ellipse 90% 55% at 90% 0%, rgb(255 255 255 / 0.08), transparent 50%),
+        linear-gradient(165deg, rgb(39 39 42 / 0.82) 0%, rgb(24 24 27 / 0.88) 100%) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.06) inset,
+        0 12px 36px -14px rgb(0 0 0 / 0.55) !important;
+}
+
+.dark .farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat::before {
+    mix-blend-mode: normal;
+    background: radial-gradient(ellipse 55% 45% at 88% 8%, rgb(255 255 255 / 0.14), transparent 62%);
+}
+
+.dark .farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat::after {
+    background: linear-gradient(to top, rgb(0 0 0 / 0.22) 0%, transparent 46%);
+}
+
+.dark .farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat:hover {
+    border-color: rgb(252 228 34 / 0.35) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.1) inset,
+        0 16px 40px -14px rgb(0 0 0 / 0.45) !important;
+}
+
+.dark .farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat-label {
+    color: rgb(212 212 216) !important;
+    opacity: 0.92;
+}
+
+.dark .farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat-value {
+    color: rgb(244 244 245) !important;
+}
+
+.dark .farmadoc-cachea-conciliation-stats .fi-wi-stats-overview-stat-icon {
+    opacity: 0.55;
+    color: rgb(212 212 216) !important;
+}
+
+.dark .farmadoc-cachea-conciliation-stats .farmadoc-cachea-stat-tone-ops.fi-wi-stats-overview-stat {
+    background:
+        radial-gradient(ellipse 90% 60% at 96% 0%, rgb(24 172 178 / 0.28), transparent 52%),
+        linear-gradient(155deg, rgb(39 39 42 / 0.92) 0%, rgb(20 60 62 / 0.55) 100%) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.08) inset,
+        0 0 0 1px rgb(24 172 178 / 0.18),
+        0 14px 36px -14px rgb(0 0 0 / 0.5) !important;
+}
+
+.dark .farmadoc-cachea-conciliation-stats .farmadoc-cachea-stat-tone-sales.fi-wi-stats-overview-stat {
+    background:
+        radial-gradient(ellipse 88% 58% at 94% 4%, rgb(255 255 255 / 0.08), transparent 54%),
+        linear-gradient(155deg, rgb(39 39 42 / 0.94) 0%, rgb(30 30 33 / 0.88) 100%) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.07) inset,
+        0 0 0 1px rgb(255 255 255 / 0.08),
+        0 14px 36px -14px rgb(0 0 0 / 0.48) !important;
+}
+
+.dark .farmadoc-cachea-conciliation-stats .farmadoc-cachea-stat-tone-paid.fi-wi-stats-overview-stat {
+    background:
+        radial-gradient(ellipse 92% 62% at 96% 0%, rgb(252 228 34 / 0.35), transparent 52%),
+        linear-gradient(155deg, rgb(39 39 42 / 0.92) 0%, rgb(58 50 18 / 0.62) 100%) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.1) inset,
+        0 0 0 1px rgb(252 228 34 / 0.28),
+        0 16px 40px -14px rgb(252 228 34 / 0.12) !important;
+}
+
+.dark .farmadoc-cachea-conciliation-stats .farmadoc-cachea-stat-tone-paid .fi-wi-stats-overview-stat-content::before {
+    opacity: 0.14;
+}
+
+.dark .farmadoc-cachea-conciliation-stats .farmadoc-cachea-stat-tone-remainder.fi-wi-stats-overview-stat {
+    background:
+        radial-gradient(ellipse 90% 60% at 96% 0%, rgb(234 179 8 / 0.28), transparent 52%),
+        linear-gradient(155deg, rgb(39 39 42 / 0.92) 0%, rgb(58 44 12 / 0.58) 100%) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.08) inset,
+        0 0 0 1px rgb(234 179 8 / 0.24),
+        0 16px 40px -14px rgb(234 179 8 / 0.1) !important;
+}
+
+.dark .farmadoc-cachea-conciliation-stats .farmadoc-cachea-stat-tone-remainder .fi-wi-stats-overview-stat-value {
+    color: rgb(250 204 21) !important;
+}
+
+.dark .farmadoc-cachea-conciliation-stats .farmadoc-cachea-stat-tone-paid .fi-wi-stats-overview-stat-value {
+    color: rgb(134 239 172) !important;
+}
+
+.farmadoc-sales-cachea-payment {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+}
+
+.farmadoc-sales-cachea-payment__icon {
+    display: block;
+    width: 1.125rem;
+    height: 1.125rem;
+    flex-shrink: 0;
+    border-radius: 0.2rem;
+    object-fit: contain;
+}
+
+.farmadoc-sales-cachea-payment__label {
+    display: block;
+    font-size: inherit;
+    font-weight: 600;
+    line-height: 1.25;
+    color: inherit;
+}
+
+.farmadoc-pos-cachea-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.farmadoc-pos-cachea-toggle-label__icon {
+    display: block;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+    border-radius: 0.25rem;
+    object-fit: contain;
+}
+
+.farmadoc-pos-cachea-toggle-label__text {
+    display: block;
+    line-height: 1.25;
+}
+
+.farmadoc-pos-payment-section .farmadoc-pos-payment-toggle-row.fi-fo-field {
+    gap: 0;
+}
+
+.farmadoc-pos-payment-section .farmadoc-pos-payment-toggle-row .fi-fo-field-label-col {
+    align-items: center;
+}
+
+.farmadoc-pos-payment-section .farmadoc-pos-payment-toggle-row .fi-fo-field-label-ctn,
+.farmadoc-pos-payment-section .farmadoc-pos-payment-toggle-row .fi-fo-field-label {
+    align-items: center;
+}
+
+.farmadoc-pos-payment-section .farmadoc-pos-payment-toggle-row .fi-fo-field-label > .fi-toggle {
+    margin-block: 0;
+}
+
+.farmadoc-pos-payment-section .farmadoc-pos-payment-toggle-row .fi-fo-field-label-content {
+    display: flex;
+    align-items: center;
+    min-height: 1.25rem;
 }
 
 /* Misma altura: «Total a cobrar» y «Formas de pago» cuando comparten fila (legacy grid) */
@@ -7227,6 +7631,378 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
         0 0 40px -20px rgb(56 189 248 / 0.12);
 }
 
+/* Ventas por día — filtro de mes, drill-down y transiciones */
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 9999px;
+    border: 1px solid rgb(14 148 154 / 0.28);
+    background: rgb(255 255 255 / 0.55);
+    color: rgb(14 116 144);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    transition:
+        transform 0.22s cubic-bezier(0.25, 0.1, 0.25, 1),
+        background-color 0.22s ease,
+        border-color 0.22s ease,
+        box-shadow 0.22s ease;
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__back-btn:hover {
+    transform: translateX(-1px);
+    border-color: rgb(14 148 154 / 0.42);
+    background: rgb(255 255 255 / 0.78);
+    box-shadow: 0 6px 16px -10px rgb(14 148 154 / 0.45);
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__back-btn:disabled {
+    opacity: 0.55;
+    cursor: wait;
+    transform: none;
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__back-icon {
+    width: 0.875rem;
+    height: 0.875rem;
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__filter--compact {
+    min-width: 8.5rem;
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__stage {
+    position: relative;
+    width: 100%;
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__stage--loading .fi-ios-sales-branch-days-chart__chart-shell {
+    opacity: 0.72;
+    pointer-events: none;
+    transform: scale(0.992);
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__chart-shell {
+    position: relative;
+    transition:
+        opacity 0.32s cubic-bezier(0.25, 0.1, 0.25, 1),
+        transform 0.32s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__canvas--enter {
+    animation: fi-ios-sales-branch-days-chart-enter 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fi-ios-sales-branch-days-chart-enter {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.985);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__loader {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.85rem;
+    background: rgb(255 255 255 / 0.35);
+    backdrop-filter: blur(4px);
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__loader-icon {
+    width: 1.75rem;
+    height: 1.75rem;
+    color: rgb(14 148 154);
+}
+
+.dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__back-btn {
+    border-color: rgb(56 189 248 / 0.22);
+    background: rgb(39 39 42 / 0.55);
+    color: rgb(186 230 253);
+}
+
+.dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__back-btn:hover {
+    border-color: rgb(56 189 248 / 0.38);
+    background: rgb(39 39 42 / 0.72);
+}
+
+.dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__loader {
+    background: rgb(24 24 27 / 0.45);
+}
+
+.dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__loader-icon {
+    color: rgb(125 211 252);
+}
+
+/* Fallas de existencia — drill-down sucursal → productos */
+.fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 9999px;
+    border: 1px solid rgb(239 68 68 / 0.28);
+    background: rgb(255 255 255 / 0.55);
+    color: rgb(185 28 28);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    transition:
+        transform 0.22s cubic-bezier(0.25, 0.1, 0.25, 1),
+        background-color 0.22s ease,
+        border-color 0.22s ease,
+        box-shadow 0.22s ease;
+}
+
+.fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__back-btn:hover {
+    transform: translateX(-1px);
+    border-color: rgb(239 68 68 / 0.42);
+    background: rgb(255 255 255 / 0.78);
+    box-shadow: 0 6px 16px -10px rgb(239 68 68 / 0.45);
+}
+
+.fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__back-btn:disabled {
+    opacity: 0.55;
+    cursor: wait;
+    transform: none;
+}
+
+.fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__back-icon {
+    width: 0.875rem;
+    height: 0.875rem;
+}
+
+.fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__stage {
+    position: relative;
+    width: 100%;
+}
+
+.fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__stage--loading .fi-ios-inventory-failures-chart__chart-shell {
+    opacity: 0.68;
+    pointer-events: none;
+    transform: scale(0.992);
+    filter: blur(0.4px);
+}
+
+.fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__chart-shell {
+    position: relative;
+    transition:
+        opacity 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+        transform 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+        filter 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__chart-shell--overview {
+    transform-origin: center top;
+}
+
+.fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__chart-shell--drill {
+    transform-origin: center top;
+}
+
+.fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__canvas--enter {
+    animation: fi-ios-inventory-failures-chart-enter 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.fi-farmaadmin-ios-inventory-failures-chart .fi-wi-chart-canvas-ctn {
+    min-height: 260px;
+}
+
+@keyframes fi-ios-inventory-failures-chart-enter {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.982);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__loader {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.85rem;
+    background: rgb(255 255 255 / 0.38);
+    backdrop-filter: blur(5px);
+    transition: opacity 0.24s ease;
+}
+
+.fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__loader-icon {
+    width: 1.75rem;
+    height: 1.75rem;
+    color: rgb(239 68 68);
+}
+
+.dark .fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__back-btn {
+    border-color: rgb(248 113 113 / 0.24);
+    background: rgb(39 39 42 / 0.55);
+    color: rgb(254 202 202);
+}
+
+.dark .fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__back-btn:hover {
+    border-color: rgb(248 113 113 / 0.38);
+    background: rgb(39 39 42 / 0.72);
+}
+
+.dark .fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__loader {
+    background: rgb(24 24 27 / 0.48);
+}
+
+.dark .fi-farmaadmin-ios-inventory-failures-chart .fi-ios-inventory-failures-chart__loader-icon {
+    color: rgb(252 165 165);
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown {
+    margin-top: 0.85rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: 0.85rem;
+    border: 1px solid rgb(14 148 154 / 0.16);
+    background: rgb(255 255 255 / 0.42);
+    backdrop-filter: blur(8px);
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__bcv {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0 0 0.65rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: rgb(14 116 144);
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__bcv-icon {
+    width: 0.9rem;
+    height: 0.9rem;
+    flex-shrink: 0;
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__list {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__branches {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__branch {
+    padding-top: 0.15rem;
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__branch-header {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: rgb(15 118 110);
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__branch-name {
+    flex: 1;
+    min-width: 0;
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__branch-total {
+    font-variant-numeric: tabular-nums;
+    color: rgb(51 65 85);
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__empty {
+    margin: 0;
+    padding-left: 1rem;
+    font-size: 0.625rem;
+    color: rgb(100 116 139);
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding-left: 1rem;
+    font-size: 0.625rem;
+    line-height: 1.35;
+    color: rgb(51 65 85);
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__swatch {
+    width: 0.55rem;
+    height: 0.55rem;
+    margin-top: 0.2rem;
+    border-radius: 0.2rem;
+    background: var(--payment-swatch);
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.35) inset;
+    flex-shrink: 0;
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__label {
+    font-weight: 500;
+}
+
+.dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown {
+    border-color: rgb(56 189 248 / 0.14);
+    background: rgb(24 24 27 / 0.42);
+}
+
+.dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__bcv {
+    color: rgb(186 230 253);
+}
+
+.dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__branch-header {
+    color: rgb(153 246 228);
+}
+
+.dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__branch-total,
+.dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__item {
+    color: rgb(226 232 240);
+}
+
+.dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__empty {
+    color: rgb(148 163 184);
+}
+
 /*
  * Widget de cuenta (sidebar Farmaadmin) — glass iOS translúcido, misma línea que marketing hub.
  */
@@ -7349,9 +8125,84 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
     position: relative;
     z-index: 2;
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.85rem 1rem;
+    padding: 0.75rem 0.95rem 0.8rem;
+}
+
+.fi-farmaadmin-account-widget__identity {
+    display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.65rem 0.85rem 0.7rem;
+    min-width: 0;
+    flex: 1 1 14rem;
+}
+
+.fi-farmaadmin-account-widget--switching {
+    pointer-events: none;
+}
+
+.fi-farmaadmin-account-widget--switching .fi-farmaadmin-account-widget__shell {
+    opacity: 0.88;
+    transform: scale(0.995);
+}
+
+.fi-farmaadmin-account-widget__branches {
+    flex: 0 1 auto;
+    min-width: min(100%, 15.5rem);
+    max-width: 100%;
+}
+
+.fi-farmaadmin-account-widget__branch-select {
+    width: 100%;
+    min-width: 13.5rem;
+}
+
+.fi-farmaadmin-account-widget__branch-select.fi-input-wrp {
+    border-radius: 0.75rem;
+    border-color: rgb(14 148 154 / 0.22);
+    background: rgb(255 255 255 / 0.55);
+    backdrop-filter: blur(8px);
+    transition:
+        border-color 0.22s ease,
+        box-shadow 0.22s ease,
+        background-color 0.22s ease;
+}
+
+.fi-farmaadmin-account-widget__branch-select.fi-input-wrp:focus-within {
+    border-color: rgb(14 148 154 / 0.45);
+    box-shadow: 0 0 0 3px rgb(14 148 154 / 0.12);
+}
+
+.fi-farmaadmin-account-widget__branch-select-label {
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgb(113 113 122);
+    white-space: nowrap;
+}
+
+.fi-farmaadmin-account-widget__branch-select select {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.dark .fi-farmaadmin-account-widget__branch-select.fi-input-wrp {
+    border-color: rgb(56 189 248 / 0.2);
+    background: rgb(39 39 42 / 0.55);
+}
+
+.dark .fi-farmaadmin-account-widget__branch-select.fi-input-wrp:focus-within {
+    border-color: rgb(56 189 248 / 0.38);
+    box-shadow: 0 0 0 3px rgb(56 189 248 / 0.1);
+}
+
+.dark .fi-farmaadmin-account-widget__branch-select-label {
+    color: rgb(161 161 170);
 }
 
 .fi-farmaadmin-account-widget__avatar {

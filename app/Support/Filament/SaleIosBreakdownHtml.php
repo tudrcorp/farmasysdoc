@@ -5,6 +5,7 @@ namespace App\Support\Filament;
 use App\Enums\SaleStatus;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Support\Sales\PosPaymentMethodOptions;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\HtmlString;
 
@@ -96,7 +97,9 @@ final class SaleIosBreakdownHtml
             'Cobro registrado',
             'Montos y datos tal como se cerró el pago; pueden incluir VES aunque el ticket totalice en USD.',
             self::dlRows([
-                ['Medio de pago', e(self::paymentMethodLabel($sale->payment_method))],
+                ['Medio de pago', PosPaymentMethodOptions::isCachea(PosPaymentMethodOptions::effectiveSalePaymentMethod($sale))
+                    ? PosPaymentMethodOptions::cacheaTableBadgeHtml()
+                    : e(self::paymentMethodLabel(PosPaymentMethodOptions::effectiveSalePaymentMethod($sale)))],
                 ['Estado del cobro', e(self::paymentStatusLabel($sale->payment_status))],
                 ['Monto cobrado en USD', e(self::moneyUsd((string) $sale->payment_usd))],
                 ['Monto cobrado en VES', e(self::fmtBs((float) $sale->payment_ves))],
@@ -275,6 +278,7 @@ final class SaleIosBreakdownHtml
             'punto_venta_ves' => 'Punto de venta',
             'transfer_ves' => 'Transferencia VES',
             'zelle' => 'Zelle',
+            'cachea' => 'Cachea',
             'pago_movil' => 'Pago móvil',
             'mixed' => 'Pago mixto',
             'transfer_usd' => 'Transferencias USD',

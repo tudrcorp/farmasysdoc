@@ -179,6 +179,7 @@ final class CashRegisterCloseReportBuilder
             'efectivo_ves' => 'Efectivo VES',
             'transfer_ves' => 'Transferencia VES',
             'zelle' => 'Zelle',
+            'cachea' => 'Cachea',
             'pago_movil' => 'Pago Movil',
             'mixed' => 'Pago Multiple',
             'transfer_usd' => 'Transferencias USD',

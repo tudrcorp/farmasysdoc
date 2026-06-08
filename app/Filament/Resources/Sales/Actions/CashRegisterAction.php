@@ -26,8 +26,13 @@ use App\Services\BdvConciliation\BdvConciliationClient;
 use App\Services\Dolar\DolarApiDolaresService;
 use App\Services\Dolar\DolarApiEstadoService;
 use App\Services\Finance\AccountsReceivableFromSaleRegistrar;
+use App\Services\Inventory\PosInventoryStockFailureRegistrar;
+use App\Services\Sales\CacheaConciliationRegistrar;
+use App\Support\Cash\PhysicalCashBoxBillingGate;
 use App\Support\Finance\DefaultIgtfRate;
 use App\Support\Finance\DefaultVatRate;
+use App\Support\Sales\CacheaPosPaymentSupport;
+use App\Support\Sales\PosPaymentMethodOptions;
 use App\Support\Sales\SalesBillingAccess;
 use DateTimeInterface;
 use Filament\Actions\Action;
@@ -86,6 +91,8 @@ final class CashRegisterAction
     /** Modal posterior a la venta: vueltos en efectivo USD y movimiento en caja física. */
     public const EFECTIVO_USD_POST_SALE_CHANGE_ACTION_NAME = 'posEfectivoUsdPostSaleChange';
 
+    public const MIXED_EFECTIVO_VES_VUELTO_KIND = 'mixed_efectivo_ves_vuelto';
+
     /**
      * Abre la caja registradora (cliente, productos y cobro en un solo modal).
      */
@@ -106,7 +113,7 @@ final class CashRegisterAction
             ->closeModalByClickingAway(false)
             ->closeModalByEscaping(false)
             ->modalCancelAction(fn (Action $action): Action => $action->color('danger'))
-            ->visible(fn (): bool => SalesBillingAccess::userCanBill(Auth::user()))
+            ->visible(fn (): bool => PhysicalCashBoxBillingGate::userMayUseCashRegister(Auth::user()))
             ->registerModalActions([
                 self::makeCreditSaleConfirmation(),
                 self::makePagoMovilConciliation(),
@@ -362,7 +369,7 @@ final class CashRegisterAction
                                                     : 'Producto #'.$newProductId;
                                                 $availableForSelectedProduct = self::posAvailableQuantity((int) $branchId, $newProductId);
                                                 if ($availableForSelectedProduct !== null && $availableForSelectedProduct <= 0.0001) {
-                                                    self::notifyPosStockZero($selectedProductLabel);
+                                                    self::notifyPosStockZero((int) $branchId, $newProductId, $selectedProductLabel);
                                                     $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
                                                     $set("{$lineItemsPath}.{$currentItemKey}.quantity", 1, isAbsolute: true);
 
@@ -611,30 +618,172 @@ final class CashRegisterAction
                                         'class' => 'farmadoc-pos-payment-section',
                                     ])
                                     ->schema([
-                                        Select::make('payment_method')
-                                            ->label('Cobro')
-                                            ->options([
-                                                'efectivo_usd' => 'Efectivo USD',
-                                                'efectivo_ves' => 'Efectivo VES',
-                                                'punto_venta_ves' => 'Punto de Venta',
-                                                'transfer_ves' => 'Transferencia VES',
-                                                'zelle' => 'Zelle',
-                                                'pago_movil' => 'Pago Movil',
-                                                'mixed' => 'Pago Multiple',
-                                                'credito_cliente' => 'Crédito · cuenta por cobrar',
+                                        Toggle::make('pay_with_cachea')
+                                            ->label(PosPaymentMethodOptions::cacheaToggleLabel())
+                                            ->default(false)
+                                            ->inline(true)
+                                            ->live()
+                                            ->dehydrated(true)
+                                            ->disabled(fn (Get $get): bool => filter_var($get('generate_accounts_receivable') ?? false, FILTER_VALIDATE_BOOLEAN))
+                                            ->afterStateUpdated(function (mixed $state, Set $set, Get $get): void {
+                                                if (filter_var($state, FILTER_VALIDATE_BOOLEAN)) {
+                                                    $set('payment_method', PosPaymentMethodOptions::CACHEA);
+                                                    $set('generate_accounts_receivable', false);
+                                                    $set('bdv_pm_conciliated', false);
+                                                    $set('cachea_complement_payment_method', 'efectivo_usd');
+
+                                                    return;
+                                                }
+
+                                                $set('cachea_paid_amount', null);
+                                                $set('cachea_complement_payment_method', 'efectivo_usd');
+
+                                                if (($get('payment_method') ?? '') === PosPaymentMethodOptions::CACHEA) {
+                                                    $set('payment_method', 'punto_venta_ves');
+                                                }
+                                            })
+                                            ->columnSpanFull()
+                                            ->extraFieldWrapperAttributes([
+                                                'class' => 'farmadoc-pos-payment-toggle-row rounded-xl border border-zinc-300/60 bg-zinc-50/30 px-3 py-2.5 dark:border-white/20 dark:bg-white/5',
+                                            ]),
+                                        TextInput::make('cachea_paid_amount')
+                                            ->label('Monto pagado con Cachea')
+                                            ->helperText('Indique el monto que el cliente pagó por Cachea (USD).')
+                                            ->numeric()
+                                            ->minValue(0.01)
+                                            ->step(0.01)
+                                            ->prefix('$')
+                                            ->live(debounce: 300)
+                                            ->markAsRequired(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN))
+                                            ->rules(fn (Get $get): array => [
+                                                Rule::requiredIf(fn (): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)),
+                                                'numeric',
+                                                'min:0.01',
                                             ])
-                                            ->default('punto_venta_ves')
+                                            ->validationMessages([
+                                                'required' => 'Indique el monto pagado con Cachea.',
+                                                'min' => 'El monto Cachea debe ser mayor a cero.',
+                                            ])
+                                            ->dehydrated(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN))
+                                            ->visible(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)),
+                                        Select::make('cachea_complement_payment_method')
+                                            ->label('Forma de pago del resto')
+                                            ->helperText('Aplica al saldo pendiente después del pago Cachea.')
+                                            ->options(CacheaPosPaymentSupport::complementOptions())
+                                            ->default('efectivo_usd')
                                             ->required()
                                             ->live()
+                                            ->native(false)
+                                            ->dehydrated(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN))
+                                            ->visible(function (Get $get): bool {
+                                                if (! filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                                                    return false;
+                                                }
+
+                                                $total = self::computeSaleTotal($get);
+
+                                                return CacheaPosPaymentSupport::remainder(
+                                                    $total,
+                                                    CacheaPosPaymentSupport::paidAmountFromGet($get),
+                                                ) > 0.00001;
+                                            })
+                                            ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
+                                                if (! filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                                                    return;
+                                                }
+
+                                                $set('bdv_pm_conciliated', false);
+
+                                                if ((string) $state !== 'pago_movil') {
+                                                    return;
+                                                }
+
+                                                $total = self::computeSaleTotal($get);
+                                                $paymentVes = CacheaPosPaymentSupport::breakdown(
+                                                    $total,
+                                                    [
+                                                        'cachea_paid_amount' => $get('cachea_paid_amount'),
+                                                        'cachea_complement_payment_method' => $state,
+                                                    ],
+                                                    self::effectiveVesUsdRate($get),
+                                                )['payment_ves'];
+
+                                                if ($paymentVes <= 0.00001) {
+                                                    return;
+                                                }
+
+                                                $livewire = $component->getLivewire();
+                                                if (! $livewire instanceof HasActions) {
+                                                    return;
+                                                }
+
+                                                $reference = trim((string) ($get('reference') ?? ''));
+                                                $livewire->mountAction(self::PAGO_MOVIL_CONCILIATION_ACTION_NAME, [
+                                                    'pos_data' => self::posFormSnapshotFromGet($get),
+                                                    'payment_ves' => $paymentVes,
+                                                ]);
+                                            }),
+                                        TextEntry::make('cachea_remainder_preview')
+                                            ->label('Resto · pendiente Cachea')
+                                            ->state(function (Get $get): string {
+                                                $total = self::computeSaleTotal($get);
+                                                $remainder = CacheaPosPaymentSupport::remainder(
+                                                    $total,
+                                                    CacheaPosPaymentSupport::paidAmountFromGet($get),
+                                                );
+
+                                                return self::formatMoney($remainder);
+                                            })
+                                            ->helperText('Diferencia entre el total de la venta y el monto Cachea registrado.')
+                                            ->dehydrated(false)
+                                            ->visible(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)),
+                                        Toggle::make('generate_accounts_receivable')
+                                            ->label('Vender a Credito')
+                                            ->default(false)
+                                            ->inline(true)
+                                            ->live()
+                                            ->disabled(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN))
+                                            ->afterStateUpdated(function (mixed $state, Set $set, Get $get): void {
+                                                if (filter_var($state, FILTER_VALIDATE_BOOLEAN)) {
+                                                    $set('payment_method', 'credito_cliente');
+                                                    $set('pay_with_cachea', false);
+                                                    $set('bdv_pm_conciliated', false);
+
+                                                    return;
+                                                }
+
+                                                if (($get('payment_method') ?? '') === 'credito_cliente') {
+                                                    $set('payment_method', 'punto_venta_ves');
+                                                }
+                                            })
+                                            ->columnSpanFull()
+                                            ->extraFieldWrapperAttributes([
+                                                'class' => 'farmadoc-pos-payment-toggle-row rounded-xl border border-zinc-300/60 bg-zinc-50/30 px-3 py-2.5 dark:border-white/20 dark:bg-white/5',
+                                            ]),
+                                        Select::make('payment_method')
+                                            ->label('Cobro')
+                                            ->options(PosPaymentMethodOptions::posCobroOptions())
+                                            ->getOptionLabelUsing(fn (?string $value): ?string => PosPaymentMethodOptions::posCobroOptionLabel($value))
+                                            ->default('punto_venta_ves')
+                                            ->required()
+                                            ->dehydrated(true)
+                                            ->live()
+                                            ->disabled(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)
+                                                || filter_var($get('generate_accounts_receivable') ?? false, FILTER_VALIDATE_BOOLEAN))
                                             ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
                                                 if ($state === 'credito_cliente') {
                                                     $set('generate_accounts_receivable', true);
+                                                    $set('pay_with_cachea', false);
                                                     $set('bdv_pm_conciliated', false);
 
                                                     return;
                                                 }
 
                                                 $set('generate_accounts_receivable', false);
+
+                                                if ($state !== PosPaymentMethodOptions::CACHEA) {
+                                                    $set('pay_with_cachea', false);
+                                                }
 
                                                 if (
                                                     $state === 'pago_movil'
@@ -666,27 +815,6 @@ final class CashRegisterAction
                                             })
                                             ->native(false)
                                             ->prefixIcon(Heroicon::CreditCard),
-                                        Toggle::make('generate_accounts_receivable')
-                                            ->label('Vender a Credito')
-                                            ->default(false)
-                                            ->inline(true)
-                                            ->live()
-                                            ->afterStateUpdated(function (mixed $state, Set $set, Get $get): void {
-                                                if (filter_var($state, FILTER_VALIDATE_BOOLEAN)) {
-                                                    $set('payment_method', 'credito_cliente');
-                                                    $set('bdv_pm_conciliated', false);
-
-                                                    return;
-                                                }
-
-                                                if (($get('payment_method') ?? '') === 'credito_cliente') {
-                                                    $set('payment_method', 'punto_venta_ves');
-                                                }
-                                            })
-                                            ->columnSpanFull()
-                                            ->extraFieldWrapperAttributes([
-                                                'class' => 'rounded-xl border border-zinc-300/60 bg-zinc-50/30 px-3 py-2 dark:border-white/20 dark:bg-white/5',
-                                            ]),
                                         TextInput::make('card_last4')
                                             ->label('Últimos 4 dígitos de la tarjeta')
                                             ->helperText('recibe 4 digitos')
@@ -695,6 +823,17 @@ final class CashRegisterAction
                                             ->markAsRequired(function (Get $get): bool {
                                                 if ($get('payment_method') === 'punto_venta_ves') {
                                                     return true;
+                                                }
+
+                                                if ($get('payment_method') === PosPaymentMethodOptions::CACHEA) {
+                                                    return CacheaPosPaymentSupport::usesPointOfSaleComplement(
+                                                        PosPaymentMethodOptions::CACHEA,
+                                                        [
+                                                            'cachea_paid_amount' => $get('cachea_paid_amount'),
+                                                            'cachea_complement_payment_method' => $get('cachea_complement_payment_method'),
+                                                        ],
+                                                        self::computeSaleTotal($get),
+                                                    );
                                                 }
 
                                                 if ($get('payment_method') !== 'mixed') {
@@ -708,6 +847,17 @@ final class CashRegisterAction
                                                 Rule::requiredIf(function () use ($get): bool {
                                                     if ($get('payment_method') === 'punto_venta_ves') {
                                                         return true;
+                                                    }
+
+                                                    if ($get('payment_method') === PosPaymentMethodOptions::CACHEA) {
+                                                        return CacheaPosPaymentSupport::usesPointOfSaleComplement(
+                                                            PosPaymentMethodOptions::CACHEA,
+                                                            [
+                                                                'cachea_paid_amount' => $get('cachea_paid_amount'),
+                                                                'cachea_complement_payment_method' => $get('cachea_complement_payment_method'),
+                                                            ],
+                                                            self::computeSaleTotal($get),
+                                                        );
                                                     }
 
                                                     if ($get('payment_method') !== 'mixed') {
@@ -728,6 +878,17 @@ final class CashRegisterAction
                                             ->visible(function (Get $get): bool {
                                                 if ($get('payment_method') === 'punto_venta_ves') {
                                                     return true;
+                                                }
+
+                                                if ($get('payment_method') === PosPaymentMethodOptions::CACHEA) {
+                                                    return CacheaPosPaymentSupport::usesPointOfSaleComplement(
+                                                        PosPaymentMethodOptions::CACHEA,
+                                                        [
+                                                            'cachea_paid_amount' => $get('cachea_paid_amount'),
+                                                            'cachea_complement_payment_method' => $get('cachea_complement_payment_method'),
+                                                        ],
+                                                        self::computeSaleTotal($get),
+                                                    );
                                                 }
 
                                                 if ($get('payment_method') !== 'mixed') {
@@ -782,6 +943,7 @@ final class CashRegisterAction
                                                 'punto_venta_ves' => 'Punto de Venta',
                                                 'transfer_ves' => 'Transferencia VES',
                                                 'pago_movil' => 'Pago Movil',
+                                                'efectivo_ves' => 'Efectivo VES',
                                             ])
                                             ->default('punto_venta_ves')
                                             ->required()
@@ -789,6 +951,10 @@ final class CashRegisterAction
                                             ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
                                                 if ($get('payment_method') !== 'mixed') {
                                                     return;
+                                                }
+
+                                                if ((string) $state !== 'efectivo_ves') {
+                                                    $set('mixed_ves_cash_received', null);
                                                 }
 
                                                 $set('bdv_pm_conciliated', false);
@@ -819,6 +985,58 @@ final class CashRegisterAction
                                             })
                                             ->native(false)
                                             ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'),
+                                        TextInput::make('mixed_ves_cash_received')
+                                            ->label('Bolívares recibidos (cliente)')
+                                            ->helperText(fn (Get $get): string => 'Mínimo a recibir: '
+                                                .self::formatBolivaresReferenceFromVes(self::computePaymentBreakdownForForm($get)['payment_ves'])
+                                                .' (parte en bolívares del pago mixto).')
+                                            ->numeric()
+                                            ->minValue(0.01)
+                                            ->step(0.01)
+                                            ->prefix('Bs')
+                                            ->live(debounce: 300)
+                                            ->markAsRequired(function (Get $get): bool {
+                                                if ($get('payment_method') !== 'mixed') {
+                                                    return false;
+                                                }
+
+                                                if (self::selectedMixedVesPaymentMethodFromGet($get) !== 'efectivo_ves') {
+                                                    return false;
+                                                }
+
+                                                return self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
+                                            })
+                                            ->rules(fn (Get $get): array => [
+                                                Rule::requiredIf(function () use ($get): bool {
+                                                    if ($get('payment_method') !== 'mixed') {
+                                                        return false;
+                                                    }
+
+                                                    return self::selectedMixedVesPaymentMethodFromGet($get) === 'efectivo_ves'
+                                                        && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
+                                                }),
+                                            ])
+                                            ->validationMessages([
+                                                'required' => 'Indique los bolívares que recibe del cliente.',
+                                            ])
+                                            ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'
+                                                && self::selectedMixedVesPaymentMethodFromGet($get) === 'efectivo_ves'
+                                                && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001),
+                                        TextEntry::make('mixed_ves_change_preview')
+                                            ->label('Vuelto en bolívares')
+                                            ->state(function (Get $get): string {
+                                                $due = self::computePaymentBreakdownForForm($get)['payment_ves'];
+                                                $received = round((float) ($get('mixed_ves_cash_received') ?? 0), 2);
+                                                if ($received <= 0.00001) {
+                                                    return '—';
+                                                }
+
+                                                return self::formatBolivaresReferenceFromVes(max(0.0, round($received - $due, 2)));
+                                            })
+                                            ->dehydrated(false)
+                                            ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'
+                                                && self::selectedMixedVesPaymentMethodFromGet($get) === 'efectivo_ves'
+                                                && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001),
                                         Grid::make([
                                             'default' => 2,
                                         ])
@@ -835,53 +1053,16 @@ final class CashRegisterAction
                                             ->columnSpanFull(),
                                         TextInput::make('reference')
                                             ->label('Referencia de pago')
-                                            ->helperText('Obligatoria para transferencia VES, Zelle y pagos mixtos con parte en bolívares. En Pago Móvil la referencia se indica en la ventana de conciliación BDV.')
+                                            ->helperText('Obligatoria para transferencia VES, Zelle, complemento Cachea o pagos mixtos con parte en bolívares. En Pago Móvil la referencia se indica en la ventana de conciliación BDV.')
                                             ->maxLength(255)
-                                            ->markAsRequired(function (Get $get): bool {
-                                                $method = (string) ($get('payment_method') ?? '');
-
-                                                if (in_array($method, ['transfer_ves', 'zelle'], true)) {
-                                                    return true;
-                                                }
-
-                                                if ($method === 'mixed') {
-                                                    return self::selectedMixedVesPaymentMethodFromGet($get) === 'transfer_ves'
-                                                        && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
-                                                }
-
-                                                return false;
-                                            })
+                                            ->markAsRequired(fn (Get $get): bool => self::posRequiresPaymentReference($get))
                                             ->rules(fn (Get $get): array => [
-                                                Rule::requiredIf(function () use ($get): bool {
-                                                    $method = (string) ($get('payment_method') ?? '');
-
-                                                    if (in_array($method, ['transfer_ves', 'zelle'], true)) {
-                                                        return true;
-                                                    }
-
-                                                    if ($method === 'mixed') {
-                                                        return self::selectedMixedVesPaymentMethodFromGet($get) === 'transfer_ves'
-                                                            && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
-                                                    }
-
-                                                    return false;
-                                                }),
+                                                Rule::requiredIf(fn (): bool => self::posRequiresPaymentReference($get)),
                                             ])
                                             ->validationMessages([
-                                                'required' => 'Debe indicar una referencia de pago para transferencia VES, Zelle o la parte en bolívares del pago mixto.',
+                                                'required' => 'Debe indicar una referencia de pago para transferencia VES, Zelle, complemento Cachea o la parte en bolívares del pago mixto.',
                                             ])
-                                            ->visible(function (Get $get): bool {
-                                                if (in_array($get('payment_method'), ['transfer_ves', 'zelle'], true)) {
-                                                    return true;
-                                                }
-
-                                                if ($get('payment_method') !== 'mixed') {
-                                                    return false;
-                                                }
-
-                                                return self::selectedMixedVesPaymentMethodFromGet($get) === 'transfer_ves'
-                                                    && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
-                                            }),
+                                            ->visible(fn (Get $get): bool => self::posRequiresPaymentReference($get)),
                                     ]),
                             ])
                             ->columnSpan(['lg' => 4]),
@@ -889,6 +1070,16 @@ final class CashRegisterAction
                     ->columnSpanFull(),
             ])
             ->action(function (array $data, Action $action) {
+                if (! PhysicalCashBoxBillingGate::userMayUseCashRegister(Auth::user())) {
+                    Notification::make()
+                        ->title('Caja no disponible')
+                        ->body('Debe abrir la caja física antes de registrar ventas en caja.')
+                        ->warning()
+                        ->send();
+
+                    return;
+                }
+
                 if (! SalesBillingAccess::userCanBill(Auth::user())) {
                     Notification::make()
                         ->title('Caja no disponible')
@@ -900,9 +1091,12 @@ final class CashRegisterAction
                 }
 
                 $data['client_id'] = self::resolvePosClientIdFromRegisterData($data, $action);
+                $data = self::enrichPosRegisterCacheaData($data, $action);
 
                 self::posSaleRegisterTrace('register_action_entered', [
-                    'payment_method' => $data['payment_method'] ?? null,
+                    'payment_method' => PosPaymentMethodOptions::resolveFromPosRegisterData($data),
+                    'pay_with_cachea' => $data['pay_with_cachea'] ?? null,
+                    'cachea_paid_amount' => $data['cachea_paid_amount'] ?? null,
                     'bdv_pm_conciliated' => $data['bdv_pm_conciliated'] ?? null,
                     'reference_len' => strlen(trim((string) ($data['reference'] ?? ''))),
                     'line_items_count' => count($data['line_items'] ?? []),
@@ -926,7 +1120,7 @@ final class CashRegisterAction
                     return;
                 }
 
-                $paymentMethod = (string) ($data['payment_method'] ?? '');
+                $paymentMethod = PosPaymentMethodOptions::resolveFromPosRegisterData($data);
                 $mixedVesPaymentMethod = self::selectedMixedVesPaymentMethodFromData($data);
                 $paymentReference = trim((string) ($data['reference'] ?? ''));
                 $cardLast4 = trim((string) ($data['card_last4'] ?? ''));
@@ -1121,9 +1315,46 @@ final class CashRegisterAction
                 }
 
                 $vesUsdRate = self::effectiveVesUsdRateFromData($data);
+                $cacheaBreakdown = null;
+
+                if ($paymentMethod === PosPaymentMethodOptions::CACHEA
+                    || CacheaPosPaymentSupport::isCacheaPayment($paymentMethod, $data['pay_with_cachea'] ?? false)) {
+                    $paymentMethod = PosPaymentMethodOptions::CACHEA;
+
+                    $cacheaPaid = CacheaPosPaymentSupport::paidAmountFromData($data);
+                    if ($cacheaPaid <= 0.00001) {
+                        Notification::make()
+                            ->title('Indique el monto Cachea')
+                            ->body('Debe registrar el monto pagado por el cliente con Cachea.')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+
+                    if ($cacheaPaid > $documentTotal + 0.02) {
+                        Notification::make()
+                            ->title('Monto Cachea inválido')
+                            ->body('El monto pagado con Cachea no puede superar el total de la venta ('.self::formatMoney($documentTotal).').')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+
+                    $cacheaBreakdown = CacheaPosPaymentSupport::breakdown($documentTotal, $data, $vesUsdRate);
+                }
 
                 $requiresVesUsdRate = self::requiresVesConversion($paymentMethod, $documentTotal, (float) ($data['mixed_usd_paid'] ?? 0))
                     || ($paymentMethod === 'efectivo_usd' && $documentTotal > 0.00001);
+
+                if ($cacheaBreakdown !== null && $cacheaBreakdown['remainder'] > 0.00001) {
+                    $requiresVesUsdRate = $requiresVesUsdRate || in_array(
+                        $cacheaBreakdown['complement_payment_method'],
+                        ['transfer_ves', 'pago_movil', 'efectivo_ves', 'punto_venta_ves'],
+                        true,
+                    );
+                }
 
                 if ($documentTotal > 0 && $requiresVesUsdRate && $vesUsdRate <= 0) {
                     Notification::make()
@@ -1135,15 +1366,23 @@ final class CashRegisterAction
                     return;
                 }
 
-                [$paymentUsd, $paymentVes] = self::resolvePaymentAmounts(
-                    $documentTotal,
-                    $paymentMethod,
-                    mixedUsdPaid: (float) ($data['mixed_usd_paid'] ?? 0),
-                    vesUsdRate: $vesUsdRate
-                );
+                if ($cacheaBreakdown !== null) {
+                    $paymentUsd = $cacheaBreakdown['payment_usd'];
+                    $paymentVes = $cacheaBreakdown['payment_ves'];
+                } else {
+                    [$paymentUsd, $paymentVes] = self::resolvePaymentAmounts(
+                        $documentTotal,
+                        $paymentMethod,
+                        mixedUsdPaid: (float) ($data['mixed_usd_paid'] ?? 0),
+                        vesUsdRate: $vesUsdRate
+                    );
+                }
 
                 if (
-                    self::usesPagoMovilForVesPortion($paymentMethod, $mixedVesPaymentMethod)
+                    (
+                        self::usesPagoMovilForVesPortion($paymentMethod, $mixedVesPaymentMethod)
+                        || CacheaPosPaymentSupport::usesPagoMovilComplement($paymentMethod, $data, $documentTotal)
+                    )
                     && $paymentVes > 0.00001
                 ) {
                     if (app()->isLocal()) {
@@ -1234,7 +1473,10 @@ final class CashRegisterAction
                 }
 
                 if (
-                    self::usesPointOfSaleForVesPortion($paymentMethod, $mixedVesPaymentMethod)
+                    (
+                        self::usesPointOfSaleForVesPortion($paymentMethod, $mixedVesPaymentMethod)
+                        || CacheaPosPaymentSupport::usesPointOfSaleComplement($paymentMethod, $data, $documentTotal)
+                    )
                     && $paymentVes > 0.00001
                     && ! preg_match('/^\d{4}$/', $cardLast4)
                 ) {
@@ -1256,6 +1498,11 @@ final class CashRegisterAction
                 if ($paymentMethod === 'punto_venta_ves') {
                     $paymentReference = 'POS ****'.$cardLast4;
                 } elseif (
+                    $paymentMethod === PosPaymentMethodOptions::CACHEA
+                    && CacheaPosPaymentSupport::usesPointOfSaleComplement($paymentMethod, $data, $documentTotal)
+                ) {
+                    $paymentReference = 'CACHEA POS ****'.$cardLast4;
+                } elseif (
                     $paymentMethod === 'mixed'
                     && $mixedVesPaymentMethod === 'punto_venta_ves'
                     && $paymentVes > 0.00001
@@ -1263,7 +1510,8 @@ final class CashRegisterAction
                     $paymentReference = 'MIXTO POS ****'.$cardLast4;
                 }
 
-                $shouldRequireReference = in_array($paymentMethod, ['transfer_ves', 'zelle'], true)
+                $shouldRequireReference = PosPaymentMethodOptions::requiresPaymentReference($paymentMethod)
+                    || CacheaPosPaymentSupport::complementRequiresReference($paymentMethod, $data, $documentTotal)
                     || (
                         $paymentMethod === 'mixed'
                         && $mixedVesPaymentMethod === 'transfer_ves'
@@ -1273,7 +1521,7 @@ final class CashRegisterAction
                 if ($shouldRequireReference && $paymentReference === '') {
                     Notification::make()
                         ->title('Indique la referencia de pago')
-                        ->body('La referencia es obligatoria para transferencia VES, Zelle o la parte en bolívares del pago mixto.')
+                        ->body('La referencia es obligatoria para transferencia VES, Zelle, complemento Cachea o la parte en bolívares del pago mixto.')
                         ->danger()
                         ->send();
 
@@ -1295,6 +1543,25 @@ final class CashRegisterAction
                         ->send();
 
                     return;
+                }
+
+                if (
+                    $paymentMethod === 'mixed'
+                    && $mixedVesPaymentMethod === 'efectivo_ves'
+                    && $paymentVes > 0.00001
+                ) {
+                    $receivedVes = round((float) ($data['mixed_ves_cash_received'] ?? 0), 2);
+                    if ($receivedVes + 0.02 < $paymentVes) {
+                        Notification::make()
+                            ->title('Bolívares recibidos insuficientes')
+                            ->body('El cliente debe entregar al menos '
+                                .self::formatBolivaresReferenceFromVes($paymentVes)
+                                .'. Recibido: '.self::formatBolivaresReferenceFromVes($receivedVes).'.')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
                 }
 
                 $bcvVesPerUsd = ($vesUsdRate > 0.0 && ($paymentVes > 0.00001 || $paymentMethod === 'efectivo_usd'))
@@ -1426,6 +1693,27 @@ final class CashRegisterAction
                             AccountsReceivableFromSaleRegistrar::register($sale, $actor);
                         }
 
+                        if ($paymentMethod === PosPaymentMethodOptions::CACHEA) {
+                            CacheaConciliationRegistrar::registerFromPosSale(
+                                $sale,
+                                $data,
+                                (float) ($bcvVesPerUsd ?? 0.0),
+                                $paymentReference !== '' ? $paymentReference : null,
+                            );
+                        }
+
+                        $user = Auth::user();
+                        if ($user instanceof User) {
+                            self::recordMixedEfectivoVesPhysicalCashBoxMovementIfNeeded(
+                                sale: $sale,
+                                user: $user,
+                                data: $data,
+                                paymentMethod: $paymentMethod,
+                                paymentVes: round($paymentVes, 2),
+                                actor: $actor,
+                            );
+                        }
+
                         return $sale;
                     });
                 } catch (RuntimeException $e) {
@@ -1469,12 +1757,28 @@ final class CashRegisterAction
                         'client_id' => $sale->client_id,
                         'cuenta_por_cobrar' => $sale->payment_method === 'credito_cliente'
                             && $generateAccountsReceivable,
+                        'cachea_resto' => $sale->payment_method === PosPaymentMethodOptions::CACHEA
+                            && is_array($cacheaBreakdown)
+                            ? $cacheaBreakdown['remainder']
+                            : null,
                     ],
                 );
 
                 $saleSuccessBody = 'Total '.self::formatMoney($documentTotal).' · '.$sale->sale_number;
                 if ($sale->payment_method === 'credito_cliente') {
                     $saleSuccessBody .= ' · Cuenta por cobrar creada.';
+                }
+                if ($sale->payment_method === PosPaymentMethodOptions::CACHEA) {
+                    $conciliation = $sale->conciliationCachea;
+                    if ($conciliation !== null) {
+                        $saleSuccessBody .= ' · Resto Cachea '.self::formatMoney((float) $conciliation->remainder).'.';
+                    }
+                }
+                if (PhysicalCashBoxMovement::query()
+                    ->where('sale_id', $sale->id)
+                    ->where('kind', self::MIXED_EFECTIVO_VES_VUELTO_KIND)
+                    ->exists()) {
+                    $saleSuccessBody .= ' · Vuelto VES registrado en caja física.';
                 }
 
                 Notification::make()
@@ -2181,6 +2485,9 @@ final class CashRegisterAction
                             'payment_method' => 'punto_venta_ves',
                             'bdv_pm_conciliated' => false,
                             'generate_accounts_receivable' => false,
+                            'pay_with_cachea' => false,
+                            'cachea_paid_amount' => null,
+                            'cachea_complement_payment_method' => 'efectivo_usd',
                         ]);
                     });
             })
@@ -2337,6 +2644,9 @@ final class CashRegisterAction
                                     'payment_method' => 'punto_venta_ves',
                                     'bdv_pm_conciliated' => false,
                                     'generate_accounts_receivable' => false,
+                                    'pay_with_cachea' => false,
+                                    'cachea_paid_amount' => null,
+                                    'cachea_complement_payment_method' => 'efectivo_usd',
                                 ]);
                             }),
                     ]),
@@ -3359,6 +3669,106 @@ final class CashRegisterAction
     }
 
     /**
+     * Registra en caja física el vuelto en bolívares de un pago mixto con efectivo VES.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function recordMixedEfectivoVesPhysicalCashBoxMovementIfNeeded(
+        Sale $sale,
+        User $user,
+        array $data,
+        string $paymentMethod,
+        float $paymentVes,
+        string $actor,
+    ): void {
+        if ($paymentMethod !== 'mixed' || self::selectedMixedVesPaymentMethodFromData($data) !== 'efectivo_ves') {
+            return;
+        }
+
+        if ($paymentVes <= 0.00001 || ! SchemaFacade::hasTable('cajas_fisicas_movimientos')) {
+            return;
+        }
+
+        if (PhysicalCashBoxMovement::query()->where('sale_id', $sale->id)->exists()) {
+            return;
+        }
+
+        $receivedVes = round((float) ($data['mixed_ves_cash_received'] ?? 0), 2);
+        $changeVes = round(max(0.0, $receivedVes - $paymentVes), 2);
+
+        if ($changeVes <= 0.00001) {
+            return;
+        }
+
+        $boxDefaults = [
+            'amount_usd' => 0,
+            'amount_ves' => 0,
+        ];
+        if (SchemaFacade::hasColumn('cajas_fisicas', 'is_open')) {
+            $boxDefaults['is_open'] = false;
+        }
+
+        $box = PhysicalCashBox::query()->firstOrCreate(
+            ['user_id' => $user->id],
+            $boxDefaults,
+        );
+
+        $bcv = $sale->bcv_ves_per_usd !== null ? (float) $sale->bcv_ves_per_usd : null;
+        $documentTotalUsd = (float) $sale->total;
+
+        $meta = [
+            'ves_cash_received' => $receivedVes,
+            'ves_payment_due' => round($paymentVes, 2),
+            'change_ves' => $changeVes,
+            'payment_method' => 'mixed',
+            'mixed_ves_payment_method' => 'efectivo_ves',
+            'payment_usd' => (float) $sale->payment_usd,
+            'payment_ves' => round($paymentVes, 2),
+        ];
+
+        PhysicalCashBoxMovement::query()->create([
+            'physical_cash_box_id' => $box->id,
+            'sale_id' => $sale->id,
+            'kind' => self::MIXED_EFECTIVO_VES_VUELTO_KIND,
+            'client_bill_usd' => 0,
+            'document_total_usd' => round($documentTotalUsd, 2),
+            'change_on_bill_usd' => 0,
+            'change_on_bill_ves' => $changeVes,
+            'drawer_out_usd' => 0,
+            'final_change_usd' => 0,
+            'final_change_ves' => $changeVes,
+            'bcv_ves_per_usd' => $bcv !== null && $bcv > 0 ? round($bcv, 6) : null,
+            'meta' => $meta,
+            'created_by' => $actor,
+        ]);
+
+        self::applyEfectivoVesChangeOutFromPhysicalCashBox($box, $changeVes);
+
+        AuditLogger::record(
+            'pos_mixed_efectivo_ves_caja_change_recorded',
+            'Caja · Vuelto VES (pago mixto) registrado en caja física · '.$sale->sale_number,
+            Sale::class,
+            $sale->id,
+            $sale->sale_number,
+            [
+                'module' => 'pos_caja',
+                'sale_id' => $sale->id,
+                'change_ves' => $changeVes,
+                'ves_cash_received' => $receivedVes,
+            ],
+        );
+    }
+
+    private static function applyEfectivoVesChangeOutFromPhysicalCashBox(PhysicalCashBox $box, float $changeVes): void
+    {
+        $vesDelta = -1 * round(max(0.0, $changeVes), 2);
+
+        $box->forceFill([
+            'amount_ves' => round((float) $box->amount_ves + $vesDelta, 2),
+        ])->save();
+    }
+
+    /**
      * @return array{0: float, 1: float}
      */
     private static function resolvePaymentAmounts(float $documentTotalUsd, string $paymentMethod, float $mixedUsdPaid = 0, float $vesUsdRate = 0): array
@@ -3380,7 +3790,7 @@ final class CashRegisterAction
     private static function isUsdOnlyPaymentMethod(string $paymentMethod): bool
     {
         return match ($paymentMethod) {
-            'transfer_ves', 'pago_movil', 'efectivo_ves', 'punto_venta_ves', 'mixed', 'credito_cliente' => false,
+            'transfer_ves', 'pago_movil', 'efectivo_ves', 'punto_venta_ves', 'mixed', 'credito_cliente', 'cachea' => false,
             default => true,
         };
     }
@@ -3559,8 +3969,21 @@ final class CashRegisterAction
     {
         $paymentMethod = (string) ($get('payment_method') ?? 'punto_venta_ves');
         $total = self::computeSaleTotal($get);
-        $mixedUsdPaid = (float) ($get('mixed_usd_paid') ?? 0);
         $rate = self::effectiveVesUsdRate($get);
+
+        if ($paymentMethod === PosPaymentMethodOptions::CACHEA) {
+            $breakdown = CacheaPosPaymentSupport::breakdown($total, [
+                'cachea_paid_amount' => $get('cachea_paid_amount'),
+                'cachea_complement_payment_method' => $get('cachea_complement_payment_method'),
+            ], $rate);
+
+            return [
+                'payment_usd' => $breakdown['payment_usd'],
+                'payment_ves' => $breakdown['payment_ves'],
+            ];
+        }
+
+        $mixedUsdPaid = (float) ($get('mixed_usd_paid') ?? 0);
         [$paymentUsd, $paymentVes] = self::resolvePaymentAmounts($total, $paymentMethod, $mixedUsdPaid, $rate);
 
         return [
@@ -3573,7 +3996,7 @@ final class CashRegisterAction
     {
         $method = (string) ($get('mixed_ves_payment_method') ?? 'punto_venta_ves');
 
-        return in_array($method, ['transfer_ves', 'pago_movil', 'punto_venta_ves'], true)
+        return in_array($method, ['transfer_ves', 'pago_movil', 'punto_venta_ves', 'efectivo_ves'], true)
             ? $method
             : 'punto_venta_ves';
     }
@@ -3585,7 +4008,7 @@ final class CashRegisterAction
     {
         $method = (string) ($data['mixed_ves_payment_method'] ?? 'punto_venta_ves');
 
-        return in_array($method, ['transfer_ves', 'pago_movil', 'punto_venta_ves'], true)
+        return in_array($method, ['transfer_ves', 'pago_movil', 'punto_venta_ves', 'efectivo_ves'], true)
             ? $method
             : 'punto_venta_ves';
     }
@@ -3865,13 +4288,37 @@ final class CashRegisterAction
         return round((float) $inventory->quantity - (float) $inventory->reserved_quantity, 3);
     }
 
-    private static function notifyPosStockZero(string $productLabel): void
+    private static function notifyPosStockZero(int $branchId, int $productId, string $productLabel): void
     {
         Notification::make()
             ->title('Producto sin existencia')
             ->body('El producto "'.$productLabel.'" tiene existencia 0. Escanee otro producto para continuar.')
             ->warning()
             ->send();
+
+        self::registerPosStockFailureAfterNotification($branchId, $productId);
+    }
+
+    private static function registerPosStockFailureAfterNotification(int $branchId, int $productId): void
+    {
+        $user = Auth::user();
+        if (! $user instanceof User || $branchId <= 0 || $productId <= 0) {
+            return;
+        }
+
+        $product = self::posProduct($productId);
+        if (! $product instanceof Product) {
+            $product = Product::query()->find($productId);
+        }
+
+        if (! $product instanceof Product) {
+            return;
+        }
+
+        $available = self::posAvailableQuantity($branchId, $productId);
+        $quantity = $available !== null ? max(0.0, $available) : 0.0;
+
+        PosInventoryStockFailureRegistrar::register($branchId, $product, $user, $quantity);
     }
 
     private static function notifyPosQuantityExceedsStock(string $productLabel, float $requestedQuantity, float $availableQuantity): void
@@ -4292,7 +4739,7 @@ final class CashRegisterAction
 
         $available = self::posAvailableQuantity($branchId, $productId);
         if ($available !== null && $available <= 0.0001) {
-            self::notifyPosStockZero($productLabel);
+            self::notifyPosStockZero($branchId, $productId, $productLabel);
 
             return;
         }
@@ -4646,6 +5093,55 @@ final class CashRegisterAction
      * @return array<string, mixed>
      */
     /**
+     * Campos Cachea pueden perderse al deshidratar controles deshabilitados u ocultos;
+     * normaliza flags y recupera montos desde el formulario montado en Livewire.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private static function enrichPosRegisterCacheaData(array $data, Action $action): array
+    {
+        $payWithCachea = filter_var($data['pay_with_cachea'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if ($payWithCachea) {
+            $data['payment_method'] = PosPaymentMethodOptions::CACHEA;
+        }
+
+        if (! $payWithCachea && PosPaymentMethodOptions::isCachea($data['payment_method'] ?? null)) {
+            $data['pay_with_cachea'] = true;
+        }
+
+        if (! CacheaPosPaymentSupport::isCacheaPayment(
+            (string) ($data['payment_method'] ?? ''),
+            $data['pay_with_cachea'] ?? false,
+        )) {
+            return $data;
+        }
+
+        $livewire = $action->getLivewire();
+        if (! $livewire instanceof BasePage) {
+            return $data;
+        }
+
+        $mounted = self::currentPosRegisterMountedFormData($livewire);
+
+        if (blank($data['cachea_paid_amount'] ?? null) && filled($mounted['cachea_paid_amount'] ?? null)) {
+            $data['cachea_paid_amount'] = $mounted['cachea_paid_amount'];
+        }
+
+        if (blank($data['cachea_complement_payment_method'] ?? null) && filled($mounted['cachea_complement_payment_method'] ?? null)) {
+            $data['cachea_complement_payment_method'] = $mounted['cachea_complement_payment_method'];
+        }
+
+        if (blank($data['pay_with_cachea'] ?? null) && filter_var($mounted['pay_with_cachea'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            $data['pay_with_cachea'] = true;
+            $data['payment_method'] = PosPaymentMethodOptions::CACHEA;
+        }
+
+        return $data;
+    }
+
+    /**
      * El buscador de cliente no se deshidrata al ocultarse; el ID vive en client_id (Hidden).
      *
      * @param  array<string, mixed>  $data
@@ -4673,6 +5169,50 @@ final class CashRegisterAction
         return null;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private static function posFormSnapshotFromGet(Get $get): array
+    {
+        return [
+            'reference' => trim((string) ($get('reference') ?? '')),
+            'client_id' => filled($get('client_id')) ? (int) $get('client_id') : null,
+            'generate_accounts_receivable' => false,
+            'pay_with_cachea' => true,
+            'payment_method' => PosPaymentMethodOptions::CACHEA,
+            'cachea_paid_amount' => $get('cachea_paid_amount'),
+            'cachea_complement_payment_method' => $get('cachea_complement_payment_method'),
+            'bdv_pm_conciliated' => $get('bdv_pm_conciliated'),
+        ];
+    }
+
+    private static function posRequiresPaymentReference(Get $get): bool
+    {
+        $method = (string) ($get('payment_method') ?? '');
+
+        if (PosPaymentMethodOptions::requiresPaymentReference($method)) {
+            return true;
+        }
+
+        if ($method === PosPaymentMethodOptions::CACHEA) {
+            return CacheaPosPaymentSupport::complementRequiresReference(
+                $method,
+                [
+                    'cachea_paid_amount' => $get('cachea_paid_amount'),
+                    'cachea_complement_payment_method' => $get('cachea_complement_payment_method'),
+                ],
+                self::computeSaleTotal($get),
+            );
+        }
+
+        if ($method !== 'mixed') {
+            return false;
+        }
+
+        return self::selectedMixedVesPaymentMethodFromGet($get) === 'transfer_ves'
+            && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
+    }
+
     private static function defaultPosFormState(): array
     {
         return array_merge([
@@ -4685,7 +5225,11 @@ final class CashRegisterAction
             'pos_product_search' => null,
             'payment_method' => 'punto_venta_ves',
             'mixed_ves_payment_method' => 'punto_venta_ves',
+            'mixed_ves_cash_received' => null,
             'generate_accounts_receivable' => false,
+            'pay_with_cachea' => false,
+            'cachea_paid_amount' => null,
+            'cachea_complement_payment_method' => 'efectivo_usd',
             'bdv_pm_conciliated' => false,
             'card_last4' => null,
             'mixed_usd_paid' => null,

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Widgets\Concerns\InteractsWithDashboardBranchFilter;
 use App\Filament\Widgets\Support\IosSalesTrendChartStyle;
 use App\Services\Dashboard\SalesChartDataService;
 use Carbon\Carbon;
@@ -9,6 +10,8 @@ use Filament\Widgets\ChartWidget;
 
 class SalesChart extends ChartWidget
 {
+    use InteractsWithDashboardBranchFilter;
+
     /**
      * @var view-string
      */
@@ -21,6 +24,11 @@ class SalesChart extends ChartWidget
     protected ?string $heading = 'Ventas por periodo';
 
     protected ?string $description = 'Meses del año en curso.';
+
+    public function getDescription(): ?string
+    {
+        return 'Meses del año en curso.'.$this->dashboardBranchFilterSuffix();
+    }
 
     protected ?string $maxHeight = '320px';
 

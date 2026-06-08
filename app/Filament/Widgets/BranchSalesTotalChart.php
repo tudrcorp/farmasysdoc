@@ -3,11 +3,12 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\SaleStatus;
+use App\Filament\Widgets\Concerns\InteractsWithDashboardBranchFilter;
 use App\Filament\Widgets\Support\IosSalesTrendChartStyle;
 use App\Models\Branch;
 use App\Models\Sale;
 use App\Models\User;
-use App\Support\Filament\BranchAuthScope;
+use App\Support\Filament\DashboardBranchFilter;
 use Carbon\CarbonInterface;
 use Filament\Facades\Filament;
 use Filament\Widgets\ChartWidget;
@@ -17,6 +18,8 @@ use Illuminate\Support\Str;
 
 class BranchSalesTotalChart extends ChartWidget
 {
+    use InteractsWithDashboardBranchFilter;
+
     /**
      * @var view-string
      */
@@ -67,7 +70,8 @@ class BranchSalesTotalChart extends ChartWidget
     {
         $total = $this->totalForSelectedFilter();
 
-        return 'Período: '.$this->selectedFilterLabel().' · Total: '.$this->formatUsd($total);
+        return 'Período: '.$this->selectedFilterLabel().' · Total: '.$this->formatUsd($total)
+            .$this->dashboardBranchFilterSuffix();
     }
 
     /**
@@ -95,8 +99,13 @@ class BranchSalesTotalChart extends ChartWidget
             ->whereNotNull('branch_id')
             ->whereNotNull('sold_at');
 
-        BranchAuthScope::applyToSalesQuery($query);
+        DashboardBranchFilter::applyToSalesQuery($query);
         $this->applyPeriodFilter($query);
+
+        $branchIds = $this->dashboardBranchIdsForCharts();
+        if ($branchIds !== []) {
+            $query->whereIn('branch_id', $branchIds);
+        }
 
         $rows = $query
             ->selectRaw('branch_id, SUM(total) as total_sales')
@@ -247,8 +256,13 @@ class BranchSalesTotalChart extends ChartWidget
             ->where('status', SaleStatus::Completed)
             ->whereNotNull('sold_at');
 
-        BranchAuthScope::applyToSalesQuery($query);
+        DashboardBranchFilter::applyToSalesQuery($query);
         $this->applyPeriodFilter($query);
+
+        $branchIds = $this->dashboardBranchIdsForCharts();
+        if ($branchIds !== []) {
+            $query->whereIn('branch_id', $branchIds);
+        }
 
         return round((float) $query->sum('total'), 2);
     }

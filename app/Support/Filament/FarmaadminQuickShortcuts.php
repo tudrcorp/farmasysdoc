@@ -11,7 +11,7 @@ use App\Filament\Resources\ProductTransferSales\ProductTransferSaleResource;
 use App\Filament\Resources\Purchases\PurchaseResource;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Models\User;
-use App\Support\Sales\SalesBillingAccess;
+use App\Support\Cash\PhysicalCashBoxBillingGate;
 use Illuminate\Contracts\Auth\Authenticatable;
 
 /**
@@ -35,7 +35,7 @@ final class FarmaadminQuickShortcuts
 
         if (SaleResource::canViewAny()) {
             $base = SaleResource::getUrl(panel: $panel, isAbsolute: false);
-            if (SalesBillingAccess::userCanBill($user)) {
+            if (PhysicalCashBoxBillingGate::userMayUseCashRegister($user)) {
                 $items[] = [
                     'id' => 'caja',
                     'label' => 'Caja',

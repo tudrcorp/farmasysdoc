@@ -122,22 +122,62 @@
                         Al iniciar su turno, declare cuánto efectivo tiene en la caja física (vueltos) en cada moneda.
                     </x-slot>
 
-                    <div class="grid gap-6 sm:grid-cols-2">
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium text-gray-950 dark:text-white" for="openUsd">Monto inicial USD</label>
-                            <input
-                                id="openUsd"
-                                type="text"
-                                inputmode="decimal"
-                                wire:model="openUsd"
-                                class="fi-input block w-full rounded-lg border border-gray-950/10 bg-white px-3 py-2 text-sm text-gray-950 shadow-sm ring-1 ring-gray-950/5 transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-white/10 dark:bg-white/5 dark:text-white dark:ring-white/10 dark:focus:border-primary-400"
-                                autocomplete="off"
-                            />
+                    <div class="space-y-6">
+                        <div class="space-y-4">
+                            <div>
+                                <h4 class="text-sm font-semibold text-gray-950 dark:text-white">Efectivo USD — conteo por denominación</h4>
+                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                    Indique cuántos billetes hay en caja por cada denominación. El total se calcula automáticamente.
+                                </p>
+                            </div>
+
+                            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                @foreach ($this->openUsdBillBreakdown() as $row)
+                                    <div @class([
+                                        'rounded-xl border p-3',
+                                        'border-gray-950/10 bg-white dark:border-white/10 dark:bg-white/5',
+                                    ])>
+                                        <label
+                                            class="text-sm font-medium text-gray-950 dark:text-white"
+                                            for="openUsdBill{{ $row['denomination'] }}"
+                                        >
+                                            US${{ $row['denomination'] }}
+                                        </label>
+                                        <input
+                                            id="openUsdBill{{ $row['denomination'] }}"
+                                            type="number"
+                                            min="0"
+                                            step="1"
+                                            inputmode="numeric"
+                                            wire:model.live="openUsdBillCounts.{{ $row['denomination'] }}"
+                                            class="fi-input mt-2 block w-full rounded-lg border border-gray-950/10 bg-white px-3 py-2 text-sm text-gray-950 shadow-sm ring-1 ring-gray-950/5 transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-white/10 dark:bg-white/5 dark:text-white dark:ring-white/10 dark:focus:border-primary-400"
+                                            autocomplete="off"
+                                        />
+                                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            Subtotal: US$ {{ number_format($row['subtotal'], 2) }}
+                                        </p>
+                                        @error('openUsdBillCounts.'.$row['denomination'])
+                                            <p class="mt-1 text-sm text-danger-600 dark:text-danger-400">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+                                @endforeach
+                            </div>
+
+                            <div class="rounded-xl border border-primary-500/20 bg-primary-500/5 px-4 py-3 dark:border-primary-400/20 dark:bg-primary-400/10">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Total apertura USD</span>
+                                    <span class="text-lg font-semibold text-primary-600 dark:text-primary-400">
+                                        US$ {{ number_format((float) $openUsd, 2) }}
+                                    </span>
+                                </div>
+                            </div>
+
                             @error('openUsd')
                                 <p class="text-sm text-danger-600 dark:text-danger-400">{{ $message }}</p>
                             @enderror
                         </div>
-                        <div class="space-y-2">
+
+                        <div class="space-y-2 sm:max-w-md">
                             <label class="text-sm font-medium text-gray-950 dark:text-white" for="openVes">Monto inicial VES</label>
                             <input
                                 id="openVes"
@@ -197,7 +237,7 @@
                 </div>
             </x-filament::section>
 
-            <form wire:submit.prevent="closeCashBox" class="space-y-6">
+            <div class="space-y-6">
                 <x-filament::section>
                     <x-slot name="heading">Cierre de caja</x-slot>
                     <x-slot name="description">
@@ -237,11 +277,13 @@
                 </x-filament::section>
 
                 <div class="flex flex-wrap gap-2">
-                    <x-filament::button type="submit" color="gray">
+                    <x-filament::button color="gray" wire:click="mountAction('closePhysicalCashBox')">
                         Cerrar caja física
                     </x-filament::button>
                 </div>
-            </form>
+            </div>
+
+            <x-filament-actions::modals />
         @endif
 
         <x-filament::section>

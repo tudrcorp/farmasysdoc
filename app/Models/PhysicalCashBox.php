@@ -29,6 +29,8 @@ class PhysicalCashBox extends Model
         'is_open',
         'opened_at',
         'closed_at',
+        'close_usd_cash_photo_path',
+        'close_pos_receipt_photo_path',
     ];
 
     /**

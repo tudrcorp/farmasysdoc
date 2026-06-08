@@ -86,7 +86,7 @@ final class SystemReportsCsvExporter
 
     private function streamVentas(User $user, Carbon $from, Carbon $to): StreamedResponse
     {
-        $q = Sale::query()->with(['branch:id,name', 'client:id,legal_name,trade_name'])
+        $q = Sale::query()->with(['branch:id,name', 'client:id,name'])
             ->whereBetween('sold_at', [$from, $to]);
         BranchAuthScope::applyToSalesQuery($q);
         $sales = $q->orderByDesc('sold_at')->get();

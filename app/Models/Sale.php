@@ -96,6 +96,14 @@ class Sale extends Model
     }
 
     /**
+     * @return HasOne<ConciliationCachea, $this>
+     */
+    public function conciliationCachea(): HasOne
+    {
+        return $this->hasOne(ConciliationCachea::class);
+    }
+
+    /**
      * Movimientos de caja física vinculados a la venta (vueltos en USD, etc.).
      *
      * @return HasMany<PhysicalCashBoxMovement, $this>

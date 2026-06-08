@@ -5,10 +5,17 @@ namespace App\Filament\Pages;
 use App\Models\PhysicalCashBox;
 use App\Models\PhysicalCashBoxMovement;
 use App\Models\User;
+use App\Support\Cash\CashierShiftLock;
+use App\Support\Cash\UsdBillDenominationCalculator;
 use BackedEnum;
+use Filament\Actions\Action;
+use Filament\Actions\Concerns\InteractsWithActions;
+use Filament\Actions\Contracts\HasActions;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Auth;
@@ -18,8 +25,10 @@ use UnitEnum;
 /**
  * Apertura y cierre de la caja física (efectivo para vueltos), solo para rol CAJERO.
  */
-final class CashierPhysicalCashBoxPage extends Page
+final class CashierPhysicalCashBoxPage extends Page implements HasActions
 {
+    use InteractsWithActions;
+
     /**
      * Registrada solo vía `pages()` del panel Farmaadmin (no por descubrimiento automático), para evitar duplicados en el menú.
      */
@@ -36,6 +45,13 @@ final class CashierPhysicalCashBoxPage extends Page
     protected string $view = 'filament.pages.cashier-physical-cash-box';
 
     public string $openUsd = '0';
+
+    /**
+     * Cantidad de billetes por denominación USD al abrir caja.
+     *
+     * @var array<string, string>
+     */
+    public array $openUsdBillCounts = [];
 
     public string $openVes = '0';
 
@@ -126,6 +142,7 @@ final class CashierPhysicalCashBoxPage extends Page
         }
 
         $this->isCashierView = true;
+        $this->resetOpenUsdBillCounts();
         $box = $this->resolveBox();
         $this->syncInputsFromBox($box);
         $this->syncPublicBoxState($box);
@@ -187,14 +204,23 @@ final class CashierPhysicalCashBoxPage extends Page
 
         $this->openUsd = str_replace(',', '.', (string) $this->openUsd);
         $this->openVes = str_replace(',', '.', (string) $this->openVes);
+        $this->syncOpenUsdFromBillCounts();
 
-        $this->validate([
+        $billCountRules = [];
+        $billCountMessages = [];
+        foreach (UsdBillDenominationCalculator::denominations() as $denomination) {
+            $billCountRules['openUsdBillCounts.'.$denomination] = ['nullable', 'integer', 'min:0', 'max:9999'];
+            $billCountMessages['openUsdBillCounts.'.$denomination.'.integer'] = 'La cantidad de billetes US$'.$denomination.' debe ser un número entero.';
+            $billCountMessages['openUsdBillCounts.'.$denomination.'.min'] = 'La cantidad de billetes US$'.$denomination.' no puede ser negativa.';
+        }
+
+        $this->validate(array_merge([
             'openUsd' => ['required', 'numeric', 'min:0'],
             'openVes' => ['required', 'numeric', 'min:0'],
-        ], [
-            'openUsd.required' => 'Indique el monto inicial en USD.',
+        ], $billCountRules), array_merge([
+            'openUsd.required' => 'Indique al menos una denominación en USD o confirme el total calculado.',
             'openVes.required' => 'Indique el monto inicial en VES.',
-        ]);
+        ], $billCountMessages));
 
         $usd = round((float) str_replace(',', '.', $this->openUsd), 2);
         $ves = round((float) str_replace(',', '.', $this->openVes), 2);
@@ -206,8 +232,12 @@ final class CashierPhysicalCashBoxPage extends Page
                 'is_open' => true,
                 'opened_at' => now(),
                 'closed_at' => null,
+                'close_usd_cash_photo_path' => null,
+                'close_pos_receipt_photo_path' => null,
             ])->save();
         });
+
+        CashierShiftLock::clear($user);
 
         $fresh = $box->fresh();
         $this->syncInputsFromBox($fresh);
@@ -222,7 +252,61 @@ final class CashierPhysicalCashBoxPage extends Page
             ->send();
     }
 
-    public function closeCashBox(): void
+    public function closePhysicalCashBoxAction(): Action
+    {
+        return Action::make('closePhysicalCashBox')
+            ->label('Cerrar caja física')
+            ->color('gray')
+            ->modalHeading('Confirmar cierre de caja física')
+            ->modalDescription(fn (): string => 'Adjunte la foto del efectivo USD en caja y el comprobante de cierre del punto de venta. Al confirmar, se cerrará su turno y no podrá ingresar al sistema hasta las '
+                .CashierShiftLock::dailyUnlockTimeLabel()
+                .' del día siguiente (salvo que un administrador habilite su acceso antes).')
+            ->modalIcon(Heroicon::Camera)
+            ->modalWidth(Width::TwoExtraLarge)
+            ->modalSubmitActionLabel('Confirmar cierre')
+            ->closeModalByClickingAway(false)
+            ->schema([
+                FileUpload::make('close_usd_cash_photo')
+                    ->label('Foto del efectivo USD en caja')
+                    ->helperText('Tome una foto clara de los billetes en dólares que quedan en la caja física.')
+                    ->disk('local')
+                    ->directory('physical-cash-box/closures/usd-cash')
+                    ->visibility('private')
+                    ->image()
+                    ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
+                    ->maxSize(5120)
+                    ->required(),
+                FileUpload::make('close_pos_receipt_photo')
+                    ->label('Foto del cierre del punto de venta')
+                    ->helperText('Adjunte la captura o foto del reporte de cierre del POS.')
+                    ->disk('local')
+                    ->directory('physical-cash-box/closures/pos-receipt')
+                    ->visibility('private')
+                    ->image()
+                    ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
+                    ->maxSize(5120)
+                    ->required(),
+            ])
+            ->action(function (array $data): void {
+                $this->finalizePhysicalCashBoxClose(
+                    usdCashPhotoPath: $this->normalizeUploadedPhotoPath($data['close_usd_cash_photo'] ?? null),
+                    posReceiptPhotoPath: $this->normalizeUploadedPhotoPath($data['close_pos_receipt_photo'] ?? null),
+                );
+            });
+    }
+
+    private function normalizeUploadedPhotoPath(mixed $value): string
+    {
+        if (is_array($value)) {
+            $first = reset($value);
+
+            return is_string($first) ? trim($first) : '';
+        }
+
+        return is_string($value) ? trim($value) : '';
+    }
+
+    private function finalizePhysicalCashBoxClose(string $usdCashPhotoPath, string $posReceiptPhotoPath): void
     {
         $user = Auth::user();
         if (! $user instanceof User || ! $user->isCashier()) {
@@ -235,6 +319,16 @@ final class CashierPhysicalCashBoxPage extends Page
                 ->title('La caja no está abierta')
                 ->body('Abra la caja primero con los montos iniciales del turno.')
                 ->warning()
+                ->send();
+
+            return;
+        }
+
+        if ($usdCashPhotoPath === '' || $posReceiptPhotoPath === '') {
+            Notification::make()
+                ->title('Faltan las fotos de cierre')
+                ->body('Debe adjuntar la foto del efectivo USD y la del cierre del punto de venta.')
+                ->danger()
                 ->send();
 
             return;
@@ -254,26 +348,27 @@ final class CashierPhysicalCashBoxPage extends Page
         $usd = round((float) str_replace(',', '.', $this->closeUsd), 2);
         $ves = round((float) str_replace(',', '.', $this->closeVes), 2);
 
-        DB::transaction(function () use ($box, $usd, $ves): void {
+        DB::transaction(function () use ($box, $usd, $ves, $usdCashPhotoPath, $posReceiptPhotoPath): void {
             $box->forceFill([
                 'amount_usd' => $usd,
                 'amount_ves' => $ves,
                 'is_open' => false,
                 'closed_at' => now(),
+                'close_usd_cash_photo_path' => $usdCashPhotoPath,
+                'close_pos_receipt_photo_path' => $posReceiptPhotoPath,
             ])->save();
         });
 
-        $fresh = $box->fresh();
-        $this->syncInputsFromBox($fresh);
-        $this->syncPublicBoxState($fresh);
-        $this->syncCashierRecentMovements($fresh);
-        $this->syncCloseReconciliation();
+        CashierShiftLock::lockAfterShiftClose($user);
 
-        Notification::make()
-            ->title('Caja cerrada')
-            ->body('Cierre registrado. Montos declarados: USD '.number_format($usd, 2).' · VES '.number_format($ves, 2, ',', '.').'.')
-            ->success()
-            ->send();
+        $unlockLabel = CashierShiftLock::dailyUnlockTimeLabel();
+        $successMessage = 'Caja física cerrada correctamente. Podrá ingresar nuevamente a las '.$unlockLabel.' o cuando un administrador habilite su acceso.';
+        session()->flash('cashier_physical_close_success', $successMessage);
+
+        Auth::guard(Filament::getAuthGuard())->logout();
+        session()->regenerate();
+
+        $this->redirect(Filament::getLoginUrl(), navigate: false);
     }
 
     private function syncPublicBoxState(PhysicalCashBox $box): void
@@ -314,6 +409,22 @@ final class CashierPhysicalCashBoxPage extends Page
         $this->syncCloseReconciliation();
     }
 
+    public function updatedOpenUsdBillCounts(mixed $value, string $key): void
+    {
+        $this->openUsdBillCounts[$key] = (string) UsdBillDenominationCalculator::normalizeQuantity(
+            $this->openUsdBillCounts[$key] ?? 0,
+        );
+        $this->syncOpenUsdFromBillCounts();
+    }
+
+    /**
+     * @return list<array{denomination: int, quantity: int, subtotal: float}>
+     */
+    public function openUsdBillBreakdown(): array
+    {
+        return UsdBillDenominationCalculator::breakdownFromCounts($this->openUsdBillCounts);
+    }
+
     public function updatedCloseUsd(mixed $value): void
     {
         $this->closeUsd = (string) $value;
@@ -348,14 +459,29 @@ final class CashierPhysicalCashBoxPage extends Page
         if ($box->is_open) {
             $this->closeUsd = (string) $box->amount_usd;
             $this->closeVes = (string) $box->amount_ves;
-            $this->openUsd = '0';
+            $this->resetOpenUsdBillCounts();
             $this->openVes = '0';
         } else {
-            $this->openUsd = '0';
+            $this->resetOpenUsdBillCounts();
             $this->openVes = '0';
             $this->closeUsd = (string) $box->amount_usd;
             $this->closeVes = (string) $box->amount_ves;
         }
+    }
+
+    private function resetOpenUsdBillCounts(): void
+    {
+        foreach (UsdBillDenominationCalculator::denominations() as $denomination) {
+            $this->openUsdBillCounts[(string) $denomination] = '0';
+        }
+
+        $this->syncOpenUsdFromBillCounts();
+    }
+
+    private function syncOpenUsdFromBillCounts(): void
+    {
+        $total = UsdBillDenominationCalculator::totalFromCounts($this->openUsdBillCounts);
+        $this->openUsd = number_format($total, 2, '.', '');
     }
 
     private function syncCashierRecentMovements(PhysicalCashBox $box): void

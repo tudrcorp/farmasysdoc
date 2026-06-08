@@ -6,6 +6,7 @@ use App\Filament\Resources\Sales\Actions\CashRegisterAction;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Filament\Resources\Sales\Widgets\StatsListSaleByPaymentMethod;
 use App\Filament\Resources\Sales\Widgets\StatsListSaleOverview;
+use App\Support\Cash\PhysicalCashBoxBillingGate;
 use App\Support\Sales\SalesBillingAccess;
 use Carbon\Carbon;
 use Filament\Actions\Action;
@@ -39,6 +40,16 @@ class ListSales extends ListRecords
         );
 
         if (request()->query('abrir') === 'caja' && SaleResource::canViewAny()) {
+            if (! PhysicalCashBoxBillingGate::userMayUseCashRegister(Auth::user())) {
+                Notification::make()
+                    ->title('Caja no disponible')
+                    ->body('Debe abrir la caja física antes de usar la caja registradora.')
+                    ->warning()
+                    ->send();
+
+                return;
+            }
+
             if (! SalesBillingAccess::userCanBill(Auth::user())) {
                 Notification::make()
                     ->title('Caja no disponible')

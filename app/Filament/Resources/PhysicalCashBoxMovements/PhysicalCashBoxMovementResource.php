@@ -148,7 +148,20 @@ class PhysicalCashBoxMovementResource extends Resource
                 TextEntry::make('physicalCashBox.user.name')
                     ->label('Cajero'),
                 TextEntry::make('kind')
-                    ->label('Tipo'),
+                    ->label('Tipo')
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'efectivo_usd_vuelto' => 'Vuelto efectivo USD',
+                        'mixed_efectivo_ves_vuelto' => 'Vuelto efectivo VES (pago mixto)',
+                        default => (string) ($state ?? '—'),
+                    }),
+                TextEntry::make('meta.ves_cash_received')
+                    ->label('Bolívares recibidos (cliente)')
+                    ->numeric(decimalPlaces: 2)
+                    ->visible(fn (?PhysicalCashBoxMovement $record): bool => $record?->kind === 'mixed_efectivo_ves_vuelto'),
+                TextEntry::make('meta.ves_payment_due')
+                    ->label('Parte VES del pago')
+                    ->numeric(decimalPlaces: 2)
+                    ->visible(fn (?PhysicalCashBoxMovement $record): bool => $record?->kind === 'mixed_efectivo_ves_vuelto'),
                 TextEntry::make('client_bill_usd')
                     ->label('Billete cliente (USD)')
                     ->numeric(decimalPlaces: 2),
@@ -189,6 +202,14 @@ class PhysicalCashBoxMovementResource extends Resource
     {
         return $table
             ->columns([
+                TextColumn::make('kind')
+                    ->label('Tipo')
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'efectivo_usd_vuelto' => 'Vuelto USD',
+                        'mixed_efectivo_ves_vuelto' => 'Vuelto VES mixto',
+                        default => (string) ($state ?? '—'),
+                    })
+                    ->toggleable(),
                 TextColumn::make('created_at')
                     ->label('Fecha')
                     ->dateTime('d/m/Y H:i')
@@ -269,7 +290,7 @@ class PhysicalCashBoxMovementResource extends Resource
                 ViewAction::make(),
             ])
             ->emptyStateHeading('Sin movimientos')
-            ->emptyStateDescription('Los vueltos en efectivo USD registrados desde la caja aparecerán aquí.');
+            ->emptyStateDescription('Los vueltos en efectivo (USD o VES) registrados desde la caja aparecerán aquí.');
     }
 
     public static function getPages(): array

@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\SaleStatus;
+use App\Filament\Widgets\Concerns\InteractsWithDashboardBranchFilter;
 use App\Filament\Widgets\Support\BrandChartPalette;
 use App\Filament\Widgets\Support\IosSalesTrendChartStyle;
 use App\Models\Branch;
@@ -16,6 +17,8 @@ use Illuminate\Support\Str;
 
 class ManagementBranchSalesByMonthChart extends ChartWidget
 {
+    use InteractsWithDashboardBranchFilter;
+
     /**
      * @var view-string
      */
@@ -46,7 +49,7 @@ class ManagementBranchSalesByMonthChart extends ChartWidget
         $year = (int) now()->year;
         $total = $this->totalYearAmount($year);
 
-        return 'Año '.$year.' · Total: '.$this->formatUsd($total);
+        return 'Año '.$year.' · Total: '.$this->formatUsd($total).$this->dashboardBranchFilterSuffix();
     }
 
     /**
@@ -54,7 +57,7 @@ class ManagementBranchSalesByMonthChart extends ChartWidget
      */
     protected function getData(): array
     {
-        $branchIds = $this->resolvedBranchIdsForManager();
+        $branchIds = $this->dashboardBranchIdsForCharts();
         if ($branchIds === []) {
             return [
                 'datasets' => [],
@@ -130,24 +133,6 @@ class ManagementBranchSalesByMonthChart extends ChartWidget
     }
 
     /**
-     * @return list<int>
-     */
-    private function resolvedBranchIdsForManager(): array
-    {
-        $user = Filament::auth()->user();
-        if (! $user instanceof User || ! $user->hasGerenciaRole()) {
-            return [];
-        }
-
-        $ids = $user->restrictedBranchIdsForQueries();
-
-        return array_values(array_unique(array_filter(array_map(
-            static fn (mixed $id): int => (int) $id,
-            $ids,
-        ))));
-    }
-
-    /**
      * @return list<string>
      */
     private function monthLabels(): array
@@ -178,7 +163,7 @@ class ManagementBranchSalesByMonthChart extends ChartWidget
 
     private function totalYearAmount(int $year): float
     {
-        $branchIds = $this->resolvedBranchIdsForManager();
+        $branchIds = $this->dashboardBranchIdsForCharts();
         if ($branchIds === []) {
             return 0.0;
         }

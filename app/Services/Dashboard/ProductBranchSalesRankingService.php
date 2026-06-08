@@ -5,7 +5,7 @@ namespace App\Services\Dashboard;
 use App\Enums\SaleStatus;
 use App\Models\Product;
 use App\Models\SaleItem;
-use App\Support\Filament\BranchAuthScope;
+use App\Support\Filament\DashboardBranchFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -40,7 +40,7 @@ final class ProductBranchSalesRankingService
         $base = SaleItem::query()
             ->whereHas('sale', function (Builder $sale): void {
                 $sale->where('status', SaleStatus::Completed);
-                BranchAuthScope::applyToSalesQuery($sale);
+                DashboardBranchFilter::applyToSalesQuery($sale);
             });
 
         $countExpr = 'COUNT(DISTINCT sale_items.sale_id)';

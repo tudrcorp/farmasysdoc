@@ -3,8 +3,9 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\SaleStatus;
+use App\Filament\Widgets\Concerns\InteractsWithDashboardBranchFilter;
 use App\Models\Sale;
-use App\Support\Filament\BranchAuthScope;
+use App\Support\Filament\DashboardBranchFilter;
 use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -12,6 +13,8 @@ use Illuminate\Support\Number;
 
 class StatsGeneralOverview extends StatsOverviewWidget
 {
+    use InteractsWithDashboardBranchFilter;
+
     /**
      * @var view-string
      */
@@ -28,6 +31,12 @@ class StatsGeneralOverview extends StatsOverviewWidget
 
     protected ?string $description = 'Ventas completadas · alcance por sucursal (rol cajero: solo ventas propias)';
 
+    public function getDescription(): ?string
+    {
+        return 'Ventas completadas · alcance por sucursal (rol cajero: solo ventas propias).'
+            .$this->dashboardBranchFilterSuffix();
+    }
+
     /**
      * @return array<Stat>
      */
@@ -36,7 +45,7 @@ class StatsGeneralOverview extends StatsOverviewWidget
         $query = Sale::query()
             ->where('status', SaleStatus::Completed);
 
-        BranchAuthScope::applyToSalesQuery($query);
+        DashboardBranchFilter::applyToSalesQuery($query);
 
         $totalUsd = (float) (clone $query)->sum('payment_usd');
         $totalVes = (float) (clone $query)->sum('payment_ves');

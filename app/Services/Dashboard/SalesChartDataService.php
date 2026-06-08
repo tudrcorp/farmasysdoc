@@ -5,6 +5,7 @@ namespace App\Services\Dashboard;
 use App\Enums\SaleStatus;
 use App\Models\Sale;
 use App\Support\Filament\BranchAuthScope;
+use App\Support\Filament\DashboardBranchFilter;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -102,6 +103,11 @@ final class SalesChartDataService
             ->whereNotNull('sold_at');
 
         BranchAuthScope::applyToSalesQuery($query);
+
+        $selectedBranchId = DashboardBranchFilter::selectedBranchId();
+        if ($selectedBranchId !== null) {
+            $query->where($query->qualifyColumn('branch_id'), $selectedBranchId);
+        }
 
         return $query;
     }

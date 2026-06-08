@@ -11,10 +11,12 @@ use App\Filament\Pages\Auth\PasswordReset\ResetPassword;
 use App\Filament\Pages\Auth\Register;
 use App\Filament\Pages\CashierPhysicalCashBoxPage;
 use App\Filament\Pages\FarmaadminDashboard;
+use App\Filament\Pages\ManageCashierShiftAccessPage;
 use App\Filament\Pages\Marketing\MarketingHubPage;
 use App\Filament\Resources\Deliveries\DeliveryResource;
 use App\Filament\Widgets\FarmaadminAccountWidget;
 use App\Http\Middleware\AuditFarmaadminHttpActivity;
+use App\Http\Middleware\EnsureCashierShiftNotLocked;
 use App\Http\Middleware\EnsureFarmaadminMenuAccess;
 use App\Models\User;
 use App\Support\Filament\FarmaadminDeliveryUserAccess;
@@ -83,6 +85,7 @@ class FarmaadminPanelProvider extends PanelProvider
             ->pages([
                 MarketingHubPage::class,
                 CashierPhysicalCashBoxPage::class,
+                ManageCashierShiftAccessPage::class,
             ])
             ->homeUrl(function (): string {
                 if (FarmaadminDeliveryUserAccess::isRestrictedDeliveryUser()) {
@@ -135,6 +138,7 @@ class FarmaadminPanelProvider extends PanelProvider
             )
             ->authMiddleware([
                 Authenticate::class,
+                EnsureCashierShiftNotLocked::class,
                 EnsureFarmaadminMenuAccess::class,
                 AuditFarmaadminHttpActivity::class,
             ]);

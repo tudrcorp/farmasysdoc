@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Support\Cash\CashierShiftLock;
 use App\Support\Filament\FarmaadminMenuAccessCatalog;
 use App\Support\Sales\SalesBillingAccess;
 use Database\Factories\UserFactory;
@@ -39,6 +40,7 @@ class User extends Authenticatable implements FilamentUser
     {
         return [
             'email_verified_at' => 'datetime',
+            'cashier_shift_locked_until' => 'datetime',
             'password' => 'hashed',
             'roles' => 'array',
             'partner_user_is_active' => 'boolean',
@@ -59,6 +61,10 @@ class User extends Authenticatable implements FilamentUser
 
     public function canAccessPanel(Panel $panel): bool
     {
+        if ($this->isCashier() && CashierShiftLock::isLocked($this)) {
+            return false;
+        }
+
         if ($this->isPartnerCompanyUser() && ! $this->isAdministrator() && ! ($this->partner_user_is_active ?? true)) {
             return false;
         }

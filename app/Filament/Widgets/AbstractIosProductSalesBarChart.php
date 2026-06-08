@@ -2,12 +2,16 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Widgets\Concerns\InteractsWithDashboardBranchFilter;
 use App\Filament\Widgets\Support\BrandChartPalette;
 use App\Filament\Widgets\Support\IosProductSalesChartStyle;
 use Filament\Widgets\ChartWidget;
+use Illuminate\Contracts\Support\Htmlable;
 
 abstract class AbstractIosProductSalesBarChart extends ChartWidget
 {
+    use InteractsWithDashboardBranchFilter;
+
     /**
      * @var view-string
      */
@@ -92,5 +96,12 @@ abstract class AbstractIosProductSalesBarChart extends ChartWidget
             IosProductSalesChartStyle::iosChartOptions(true),
             IosProductSalesChartStyle::horizontalScaleConfig(),
         );
+    }
+
+    public function getDescription(): string|Htmlable|null
+    {
+        $base = $this->description ?? '';
+
+        return $base.$this->dashboardBranchFilterSuffix();
     }
 }

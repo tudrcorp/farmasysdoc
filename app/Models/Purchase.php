@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\PurchaseEntryCurrency;
 use App\Enums\PurchaseStatus;
+use App\Services\Inventory\InventoryLotBalanceSyncService;
 use App\Support\Purchases\LotExpirationMonthYear;
 use App\Support\Purchases\PurchaseDocumentTotals;
 use Database\Factories\PurchaseFactory;
@@ -228,6 +229,8 @@ class Purchase extends Model
                 ],
             );
         }
+
+        app(InventoryLotBalanceSyncService::class)->ensureBalancesForPurchase($this);
     }
 
     /**

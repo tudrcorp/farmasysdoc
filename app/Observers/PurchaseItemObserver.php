@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Models\PurchaseItem;
+use App\Services\Inventory\InventoryLotBalanceSyncService;
 use App\Services\Inventory\PurchaseItemInventoryReceiptService;
 use Illuminate\Support\Facades\Auth;
 
@@ -10,6 +11,7 @@ final class PurchaseItemObserver
 {
     public function __construct(
         private readonly PurchaseItemInventoryReceiptService $receiptService,
+        private readonly InventoryLotBalanceSyncService $lotBalanceSyncService,
     ) {}
 
     public function saved(PurchaseItem $purchaseItem): void
@@ -33,6 +35,7 @@ final class PurchaseItemObserver
 
             if (abs($delta) >= 0.0001) {
                 $this->receiptService->applyQuantityDelta($purchaseItem, $delta, Auth::user());
+                $this->lotBalanceSyncService->applyQuantityDelta($purchaseItem, $delta);
             }
         }
 
@@ -50,5 +53,6 @@ final class PurchaseItemObserver
         }
 
         $this->receiptService->applyQuantityDelta($purchaseItem, -1 * $qty, Auth::user());
+        $this->lotBalanceSyncService->applyQuantityDelta($purchaseItem, -1 * $qty);
     }
 }

@@ -242,7 +242,9 @@ class ProductTransferResource extends Resource
             ->modalIcon(Heroicon::CheckCircle)
             ->modalIconColor('success')
             ->modalHeading(fn (ProductTransfer $record): string => '¿Completar el traslado '.$record->code.'?')
-            ->modalDescription('Confirme que la mercancía llegó a su sucursal. Se descontará el stock en origen, se registrará la entrada en destino y se generará la venta interna a costo en la sucursal emisora. Esta operación no se puede deshacer.')
+            ->modalDescription(fn (ProductTransfer $record): string => ProductTransferSaleAuditLogger::isSaleTransfer($record)
+                ? 'Confirme que la mercancía llegó a su sucursal. Se descontará el stock únicamente en la sucursal origen (emisora) y se generará la venta interna a costo allí. No se registrará entrada de inventario en destino. Esta operación no se puede deshacer.'
+                : 'Confirme que la mercancía llegó a su sucursal. Se descontará el stock en origen, se registrará la entrada en destino y se generará la venta interna a costo en la sucursal emisora. Esta operación no se puede deshacer.')
             ->modalSubmitActionLabel('Sí, completar')
             ->successNotificationTitle('Traslado completado')
             ->visible(fn (ProductTransfer $record): bool => self::shouldShowMarkCompletedAction($record))

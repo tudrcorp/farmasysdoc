@@ -6,6 +6,8 @@ use App\Filament\Resources\Sales\SaleResource;
 use App\Models\Sale;
 use App\Services\Audit\AuditLogger;
 use App\Services\Fiscal\ThermalFiscalReceiptFormatter;
+use App\Services\Fiscal\ThermalFiscalReceiptImageGenerator;
+use App\Support\Notifications\WhatsAppLink;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
@@ -62,12 +64,31 @@ final class FiscalReceiptController extends Controller
         $formatter = app(ThermalFiscalReceiptFormatter::class);
         $plain = $formatter->format($sale);
 
-        return view('sales.fiscal-receipt-print', [
+        return view('sales.fiscal-receipt-print', array_merge([
             'sale' => $sale,
             'plain' => $plain,
             'saleViewUrl' => SaleResource::getUrl('view', ['record' => $sale]),
             'salesIndexUrl' => SaleResource::getUrl('index'),
-        ]);
+        ], $this->whatsappShareViewData(
+            $sale,
+            'sales.fiscal-receipt.whatsapp-image',
+            'factura',
+        )));
+    }
+
+    public function fiscalReceiptWhatsappImage(Request $request, Sale $sale): Response
+    {
+        abort_unless(Auth::check(), 403);
+        abort_unless(SaleResource::canView($sale), 403);
+
+        $sale->load(['branch', 'client', 'items']);
+
+        $formatter = app(ThermalFiscalReceiptFormatter::class);
+        $jpeg = app(ThermalFiscalReceiptImageGenerator::class)->generateJpeg(
+            $formatter->format($sale),
+        );
+
+        return $this->jpegResponse($jpeg, 'factura-'.$sale->sale_number.'.jpg');
     }
 
     public function show(Request $request, Sale $sale): Response
@@ -112,13 +133,32 @@ final class FiscalReceiptController extends Controller
             ['module' => 'sales'],
         );
 
-        return view('sales.fiscal-receipt-print', [
+        return view('sales.fiscal-receipt-print', array_merge([
             'sale' => $sale,
             'plain' => $plain,
             'documentTitle' => 'Nota de crédito',
             'saleViewUrl' => SaleResource::getUrl('view', ['record' => $sale]),
             'salesIndexUrl' => SaleResource::getUrl('index'),
-        ]);
+        ], $this->whatsappShareViewData(
+            $sale,
+            'sales.credit-note.whatsapp-image',
+            'nota-credito',
+        )));
+    }
+
+    public function creditNoteWhatsappImage(Request $request, Sale $sale): Response
+    {
+        abort_unless(Auth::check(), 403);
+        abort_unless(SaleResource::canView($sale), 403);
+
+        $sale->load(['branch', 'client', 'items']);
+
+        $formatter = app(ThermalFiscalReceiptFormatter::class);
+        $jpeg = app(ThermalFiscalReceiptImageGenerator::class)->generateJpeg(
+            $formatter->formatCreditNote($sale),
+        );
+
+        return $this->jpegResponse($jpeg, 'nota-credito-'.$sale->sale_number.'.jpg');
     }
 
     public function showCreditNote(Request $request, Sale $sale): Response
@@ -141,6 +181,41 @@ final class FiscalReceiptController extends Controller
         return response($plain, 200, [
             'Content-Type' => 'text/plain; charset=UTF-8',
             'Content-Disposition' => 'inline; filename="nota-credito-'.$sale->sale_number.'.txt"',
+        ]);
+    }
+
+    /**
+     * @return array{
+     *     whatsappPhoneDigits: ?string,
+     *     whatsappImageUrl: ?string,
+     *     whatsappImageFilename: ?string
+     * }
+     */
+    private function whatsappShareViewData(Sale $sale, string $imageRouteName, string $downloadBaseName): array
+    {
+        $phoneDigits = WhatsAppLink::normalizePhoneDigits($sale->client?->phone);
+
+        if ($phoneDigits === null) {
+            return [
+                'whatsappPhoneDigits' => null,
+                'whatsappImageUrl' => null,
+                'whatsappImageFilename' => null,
+            ];
+        }
+
+        return [
+            'whatsappPhoneDigits' => $phoneDigits,
+            'whatsappImageUrl' => route($imageRouteName, $sale),
+            'whatsappImageFilename' => $downloadBaseName.'-'.$sale->sale_number.'.jpg',
+        ];
+    }
+
+    private function jpegResponse(string $jpeg, string $filename): Response
+    {
+        return response($jpeg, 200, [
+            'Content-Type' => 'image/jpeg',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            'Cache-Control' => 'private, max-age=300',
         ]);
     }
 }

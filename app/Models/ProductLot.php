@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Lote asociado a una línea de compra: producto, factura del proveedor y vencimiento mm/YYYY.
@@ -43,5 +44,13 @@ class ProductLot extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * @return HasOne<InventoryLotBalance, $this>
+     */
+    public function inventoryLotBalance(): HasOne
+    {
+        return $this->hasOne(InventoryLotBalance::class);
     }
 }

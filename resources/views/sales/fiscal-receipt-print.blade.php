@@ -47,10 +47,22 @@
             color: #fafafa;
         }
 
-        .farmadoc-print-toolbar a.secondary {
+        .farmadoc-print-toolbar a.secondary,
+        .farmadoc-print-toolbar button.secondary {
             background: #f4f4f5;
             color: #18181b;
             border: 1px solid #d4d4d8;
+        }
+
+        .farmadoc-print-toolbar button.secondary {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.4rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            cursor: pointer;
+            font: inherit;
         }
 
         .farmadoc-print-hint {
@@ -100,7 +112,15 @@
         </span>
         <a href="{{ $saleViewUrl }}" class="primary">Ver venta</a>
         <a href="{{ $salesIndexUrl }}" class="secondary">Listado de ventas</a>
-        <button type="button" class="secondary" style="cursor: pointer; font: inherit;" onclick="window.print()">
+        @if(filled($whatsappImageUrl ?? null))
+            <button
+                type="button"
+                class="secondary"
+                id="farmadoc-whatsapp-share-btn"
+                title="Genera una imagen JPG de la factura y la comparte por WhatsApp al teléfono del cliente"
+            >Enviar por WhatsApp</button>
+        @endif
+        <button type="button" class="secondary" onclick="window.print()">
             Imprimir de nuevo
         </button>
     </div>
@@ -113,6 +133,64 @@
                 window.print();
             }, 200);
         });
+
+        @if(filled($whatsappImageUrl ?? null))
+        (function () {
+            var shareButton = document.getElementById('farmadoc-whatsapp-share-btn');
+            if (!shareButton) {
+                return;
+            }
+
+            var imageUrl = @json($whatsappImageUrl);
+            var phoneDigits = @json($whatsappPhoneDigits);
+            var imageFilename = @json($whatsappImageFilename);
+            var shareTitle = @json(($documentTitle ?? 'Factura fiscal').' — '.$sale->sale_number);
+
+            shareButton.addEventListener('click', function () {
+                shareButton.disabled = true;
+
+                fetch(imageUrl, { credentials: 'same-origin' })
+                    .then(function (response) {
+                        if (!response.ok) {
+                            throw new Error('No se pudo generar la imagen de la factura.');
+                        }
+
+                        return response.blob();
+                    })
+                    .then(function (blob) {
+                        var file = new File([blob], imageFilename, { type: 'image/jpeg' });
+                        var waChatUrl = phoneDigits ? 'https://wa.me/' + phoneDigits : null;
+
+                        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                            return navigator.share({
+                                files: [file],
+                                title: shareTitle,
+                                text: 'Su factura fiscal',
+                            });
+                        }
+
+                        var downloadLink = document.createElement('a');
+                        downloadLink.href = URL.createObjectURL(blob);
+                        downloadLink.download = imageFilename;
+                        document.body.appendChild(downloadLink);
+                        downloadLink.click();
+                        downloadLink.remove();
+
+                        if (waChatUrl) {
+                            window.open(waChatUrl, '_blank', 'noopener,noreferrer');
+                        }
+
+                        window.alert('Se descargó la imagen JPG. En WhatsApp, adjunte el archivo descargado al chat del cliente.');
+                    })
+                    .catch(function (error) {
+                        window.alert(error && error.message ? error.message : 'No se pudo preparar la imagen para WhatsApp.');
+                    })
+                    .finally(function () {
+                        shareButton.disabled = false;
+                    });
+            });
+        })();
+        @endif
     </script>
 </body>
 </html>

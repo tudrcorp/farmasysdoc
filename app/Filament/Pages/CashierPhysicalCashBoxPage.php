@@ -6,6 +6,7 @@ use App\Models\PhysicalCashBox;
 use App\Models\PhysicalCashBoxMovement;
 use App\Models\User;
 use App\Support\Cash\CashierShiftLock;
+use App\Support\Cash\NotifyAdministratorsOnPhysicalCashBoxClose;
 use App\Support\Cash\UsdBillDenominationCalculator;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -20,6 +21,8 @@ use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 use UnitEnum;
 
 /**
@@ -347,17 +350,34 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
 
         $usd = round((float) str_replace(',', '.', $this->closeUsd), 2);
         $ves = round((float) str_replace(',', '.', $this->closeVes), 2);
+        $openedAt = $box->opened_at ?? now();
+        $closedAt = now();
 
-        DB::transaction(function () use ($box, $usd, $ves, $usdCashPhotoPath, $posReceiptPhotoPath): void {
+        DB::transaction(function () use ($box, $usd, $ves, $usdCashPhotoPath, $posReceiptPhotoPath, $closedAt): void {
             $box->forceFill([
                 'amount_usd' => $usd,
                 'amount_ves' => $ves,
                 'is_open' => false,
-                'closed_at' => now(),
+                'closed_at' => $closedAt,
                 'close_usd_cash_photo_path' => $usdCashPhotoPath,
                 'close_pos_receipt_photo_path' => $posReceiptPhotoPath,
             ])->save();
         });
+
+        try {
+            app(NotifyAdministratorsOnPhysicalCashBoxClose::class)->notify(
+                cashier: $user,
+                physicalCashBox: $box->fresh() ?? $box,
+                openedAt: $openedAt,
+                closedAt: $closedAt,
+            );
+        } catch (Throwable $exception) {
+            Log::warning('No se pudo enviar WhatsApp de cierre de caja física', [
+                'cashier_id' => $user->getKey(),
+                'physical_cash_box_id' => $box->getKey(),
+                'error' => $exception->getMessage(),
+            ]);
+        }
 
         CashierShiftLock::lockAfterShiftClose($user);
 

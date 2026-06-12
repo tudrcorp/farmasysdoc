@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Sales\Actions;
 
-use App\Enums\InventoryMovementType;
 use App\Enums\ProductTransferStatus;
 use App\Enums\SaleStatus;
 use App\Enums\VenezuelanPagoMovilBank;
@@ -13,7 +12,6 @@ use App\Models\Client;
 use App\Models\ConciliationBdv;
 use App\Models\FarmaExpressCostStructure;
 use App\Models\Inventory;
-use App\Models\InventoryMovement;
 use App\Models\PhysicalCashBox;
 use App\Models\PhysicalCashBoxMovement;
 use App\Models\Product;
@@ -26,12 +24,19 @@ use App\Services\BdvConciliation\BdvConciliationClient;
 use App\Services\Dolar\DolarApiDolaresService;
 use App\Services\Dolar\DolarApiEstadoService;
 use App\Services\Finance\AccountsReceivableFromSaleRegistrar;
+use App\Services\Inventory\FefoLotBalanceQueryService;
+use App\Services\Inventory\FefoLotSaleDispatchService;
+use App\Services\Inventory\FefoPosAlertSaleLinker;
+use App\Services\Inventory\PosFefoAlertLogRegistrar;
 use App\Services\Inventory\PosInventoryStockFailureRegistrar;
 use App\Services\Sales\CacheaConciliationRegistrar;
 use App\Support\Cash\PhysicalCashBoxBillingGate;
 use App\Support\Finance\DefaultIgtfRate;
 use App\Support\Finance\DefaultVatRate;
+use App\Support\Inventory\InventoryQuantityFormat;
+use App\Support\Inventory\NearExpiryLotAlert;
 use App\Support\Sales\CacheaPosPaymentSupport;
+use App\Support\Sales\MixedPosPaymentSupport;
 use App\Support\Sales\PosPaymentMethodOptions;
 use App\Support\Sales\SalesBillingAccess;
 use DateTimeInterface;
@@ -39,6 +44,7 @@ use Filament\Actions\Action;
 use Filament\Actions\Contracts\HasActions;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
@@ -271,13 +277,18 @@ final class CashRegisterAction
                                                 : $product->name)
                                             : 'Producto';
                                         $branchId = Auth::user()?->branch_id;
+                                        $fefoBadgeHtml = '';
                                         if ($product instanceof Product && filled($branchId)) {
                                             $title .= self::posProductBolivaresAndBranchStockSuffix((int) $branchId, $product, $get);
+                                            $fefoAlert = self::posNearExpiryLotAlert((int) $branchId, (int) $product->id);
+                                            if ($fefoAlert instanceof NearExpiryLotAlert) {
+                                                $fefoBadgeHtml = ' '.$fefoAlert->badgeHtml();
+                                            }
                                         }
                                         $total = self::formatMoney(self::computeLineTotalFromRowState($state, $get));
 
                                         return new HtmlString(
-                                            e($title).' · <span class="farmadoc-pos-repeater-item-total">'.$total.'</span>'
+                                            e($title).$fefoBadgeHtml.' · <span class="farmadoc-pos-repeater-item-total">'.$total.'</span>'
                                         );
                                     })
                                     ->extraAttributes([
@@ -289,171 +300,197 @@ final class CashRegisterAction
                                         TableColumn::make('Cantidad'),
                                     ])
                                     ->schema([
-                                        Select::make('product_id')
-                                            ->label('Producto')
-                                            ->searchable()
-                                            ->searchDebounce(200)
-                                            ->disabled(fn (): bool => blank(Auth::user()?->branch_id))
-                                            ->getSearchResultsUsing(function (string $search, Get $get): array {
-                                                $branchId = Auth::user()?->branch_id;
-                                                if (blank($branchId)) {
-                                                    return [];
-                                                }
+                                        Grid::make(1)
+                                            ->schema([
+                                                Select::make('product_id')
+                                                    ->label('Producto')
+                                                    ->searchable()
+                                                    ->searchDebounce(200)
+                                                    ->disabled(fn (): bool => blank(Auth::user()?->branch_id))
+                                                    ->getSearchResultsUsing(function (string $search, Get $get): array {
+                                                        $branchId = Auth::user()?->branch_id;
+                                                        if (blank($branchId)) {
+                                                            return [];
+                                                        }
 
-                                                return self::searchInventoryProductsForBranch((int) $branchId, $search, $get);
-                                            })
-                                            ->getOptionLabelUsing(function ($value, Get $get): ?string {
-                                                if (blank($value)) {
-                                                    return null;
-                                                }
+                                                        return self::searchInventoryProductsForBranch((int) $branchId, $search, $get);
+                                                    })
+                                                    ->getOptionLabelUsing(function ($value, Get $get): ?string {
+                                                        if (blank($value)) {
+                                                            return null;
+                                                        }
 
-                                                $branchId = Auth::user()?->branch_id;
-                                                if (blank($branchId)) {
-                                                    return null;
-                                                }
+                                                        $branchId = Auth::user()?->branch_id;
+                                                        if (blank($branchId)) {
+                                                            return null;
+                                                        }
 
-                                                $id = (int) $value;
+                                                        $id = (int) $value;
 
-                                                return self::buildPosSearchOptionLabelFromCatalog((int) $branchId, $id, $get)
-                                                    ?? ('Producto #'.$id);
-                                            })
-                                            ->afterStateUpdated(function (
-                                                mixed $state,
-                                                mixed $old,
-                                                Set $set,
-                                                Get $get,
-                                                $livewire,
-                                                Select $component,
-                                            ): void {
-                                                if (blank($state) || filled($old)) {
-                                                    return;
-                                                }
+                                                        return self::buildPosSearchOptionLabelFromCatalog((int) $branchId, $id, $get)
+                                                            ?? ('Producto #'.$id);
+                                                    })
+                                                    ->afterStateUpdated(function (
+                                                        mixed $state,
+                                                        mixed $old,
+                                                        Set $set,
+                                                        Get $get,
+                                                        $livewire,
+                                                        Select $component,
+                                                    ): void {
+                                                        if (blank($state) || filled($old)) {
+                                                            return;
+                                                        }
 
-                                                $fieldPath = $component->getStatePath();
-                                                if (! is_string($fieldPath) || ! Str::endsWith($fieldPath, '.product_id')) {
-                                                    return;
-                                                }
+                                                        $fieldPath = $component->getStatePath();
+                                                        if (! is_string($fieldPath) || ! Str::endsWith($fieldPath, '.product_id')) {
+                                                            return;
+                                                        }
 
-                                                /*
+                                                        /*
                                                          * El Select está en el ítem del repeater; un solo «..» devuelve la fila
                                                          * {product_id, quantity}, no todo line_items. Usamos la ruta absoluta.
                                                          */
-                                                $itemContainerPath = Str::beforeLast($fieldPath, '.');
-                                                $lineItemsPath = Str::beforeLast($itemContainerPath, '.');
-                                                $currentItemKey = Str::afterLast($itemContainerPath, '.');
+                                                        $itemContainerPath = Str::beforeLast($fieldPath, '.');
+                                                        $lineItemsPath = Str::beforeLast($itemContainerPath, '.');
+                                                        $currentItemKey = Str::afterLast($itemContainerPath, '.');
 
-                                                $lineItems = $get($lineItemsPath, isAbsolute: true);
-                                                if (! is_array($lineItems) || $lineItems === []) {
-                                                    return;
-                                                }
-
-                                                $branchId = Auth::user()?->branch_id;
-                                                if (blank($branchId)) {
-                                                    return;
-                                                }
-
-                                                $keys = array_keys($lineItems);
-                                                $lastKey = $keys[array_key_last($keys)];
-
-                                                if ((string) $currentItemKey !== (string) $lastKey) {
-                                                    return;
-                                                }
-
-                                                $keysList = array_values($keys);
-                                                $newProductId = (int) $state;
-                                                self::warmPosDataForBranch((int) $branchId, [$newProductId]);
-
-                                                $selectedProduct = self::posProduct($newProductId);
-                                                $selectedProductLabel = $selectedProduct instanceof Product
-                                                    ? $selectedProduct->name
-                                                    : 'Producto #'.$newProductId;
-                                                $availableForSelectedProduct = self::posAvailableQuantity((int) $branchId, $newProductId);
-                                                if ($availableForSelectedProduct !== null && $availableForSelectedProduct <= 0.0001) {
-                                                    self::notifyPosStockZero((int) $branchId, $newProductId, $selectedProductLabel);
-                                                    $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
-                                                    $set("{$lineItemsPath}.{$currentItemKey}.quantity", 1, isAbsolute: true);
-
-                                                    if ($livewire instanceof LivewireComponent) {
-                                                        $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
-                                                    }
-
-                                                    return;
-                                                }
-
-                                                $mergeTargetKey = null;
-                                                foreach ($keysList as $k) {
-                                                    if ((string) $k === (string) $currentItemKey) {
-                                                        continue;
-                                                    }
-
-                                                    $row = $lineItems[$k] ?? null;
-                                                    if (is_array($row) && filled($row['product_id'] ?? null)
-                                                        && (int) $row['product_id'] === $newProductId) {
-                                                        $mergeTargetKey = $k;
-                                                        break;
-                                                    }
-                                                }
-
-                                                if ($mergeTargetKey !== null) {
-                                                    $targetRow = $lineItems[$mergeTargetKey] ?? [];
-                                                    $targetQty = is_array($targetRow)
-                                                        ? (float) ($targetRow['quantity'] ?? 1)
-                                                        : 1.0;
-                                                    $currRow = $lineItems[$currentItemKey] ?? [];
-                                                    $currQty = is_array($currRow)
-                                                        ? (float) ($currRow['quantity'] ?? 1)
-                                                        : 1.0;
-                                                    $mergedQty = round(
-                                                        max(0.001, $targetQty + max(0.001, $currQty)),
-                                                        3,
-                                                    );
-
-                                                    if ($availableForSelectedProduct !== null && $mergedQty > ($availableForSelectedProduct + 0.0001)) {
-                                                        self::notifyPosQuantityExceedsStock(
-                                                            $selectedProductLabel,
-                                                            $mergedQty,
-                                                            $availableForSelectedProduct,
-                                                        );
-                                                        $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
-                                                        $set("{$lineItemsPath}.{$currentItemKey}.quantity", 1, isAbsolute: true);
-
-                                                        if ($livewire instanceof LivewireComponent) {
-                                                            $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
+                                                        $lineItems = $get($lineItemsPath, isAbsolute: true);
+                                                        if (! is_array($lineItems) || $lineItems === []) {
+                                                            return;
                                                         }
 
-                                                        return;
-                                                    }
+                                                        $branchId = Auth::user()?->branch_id;
+                                                        if (blank($branchId)) {
+                                                            return;
+                                                        }
 
-                                                    $set("{$lineItemsPath}.{$mergeTargetKey}.quantity", $mergedQty, isAbsolute: true);
-                                                    $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
-                                                    $set("{$lineItemsPath}.{$currentItemKey}.quantity", 1, isAbsolute: true);
+                                                        $keys = array_keys($lineItems);
+                                                        $lastKey = $keys[array_key_last($keys)];
 
-                                                    if ($livewire instanceof LivewireComponent) {
-                                                        $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
-                                                    }
+                                                        if ((string) $currentItemKey !== (string) $lastKey) {
+                                                            return;
+                                                        }
 
-                                                    return;
-                                                }
+                                                        $keysList = array_values($keys);
+                                                        $newProductId = (int) $state;
+                                                        self::warmPosDataForBranch((int) $branchId, [$newProductId]);
 
-                                                /*
+                                                        $selectedProduct = self::posProduct($newProductId);
+                                                        $selectedProductLabel = $selectedProduct instanceof Product
+                                                            ? $selectedProduct->name
+                                                            : 'Producto #'.$newProductId;
+                                                        $availableForSelectedProduct = self::posAvailableQuantity((int) $branchId, $newProductId);
+                                                        if ($availableForSelectedProduct !== null && $availableForSelectedProduct <= 0.0001) {
+                                                            self::notifyPosStockZero((int) $branchId, $newProductId, $selectedProductLabel);
+                                                            $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
+                                                            $set("{$lineItemsPath}.{$currentItemKey}.quantity", 1, isAbsolute: true);
+
+                                                            if ($livewire instanceof LivewireComponent) {
+                                                                $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
+                                                            }
+
+                                                            return;
+                                                        }
+
+                                                        self::notifyPosNearExpiryLotIfNeeded(
+                                                            (int) $branchId,
+                                                            $newProductId,
+                                                            $selectedProductLabel,
+                                                        );
+
+                                                        $mergeTargetKey = null;
+                                                        foreach ($keysList as $k) {
+                                                            if ((string) $k === (string) $currentItemKey) {
+                                                                continue;
+                                                            }
+
+                                                            $row = $lineItems[$k] ?? null;
+                                                            if (is_array($row) && filled($row['product_id'] ?? null)
+                                                                && (int) $row['product_id'] === $newProductId) {
+                                                                $mergeTargetKey = $k;
+                                                                break;
+                                                            }
+                                                        }
+
+                                                        if ($mergeTargetKey !== null) {
+                                                            $targetRow = $lineItems[$mergeTargetKey] ?? [];
+                                                            $targetQty = is_array($targetRow)
+                                                                ? (float) ($targetRow['quantity'] ?? 1)
+                                                                : 1.0;
+                                                            $currRow = $lineItems[$currentItemKey] ?? [];
+                                                            $currQty = is_array($currRow)
+                                                                ? (float) ($currRow['quantity'] ?? 1)
+                                                                : 1.0;
+                                                            $mergedQty = round(
+                                                                max(0.001, $targetQty + max(0.001, $currQty)),
+                                                                3,
+                                                            );
+
+                                                            if ($availableForSelectedProduct !== null && $mergedQty > ($availableForSelectedProduct + 0.0001)) {
+                                                                self::notifyPosQuantityExceedsStock(
+                                                                    $selectedProductLabel,
+                                                                    $mergedQty,
+                                                                    $availableForSelectedProduct,
+                                                                );
+                                                                $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
+                                                                $set("{$lineItemsPath}.{$currentItemKey}.quantity", 1, isAbsolute: true);
+
+                                                                if ($livewire instanceof LivewireComponent) {
+                                                                    $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
+                                                                }
+
+                                                                return;
+                                                            }
+
+                                                            $set("{$lineItemsPath}.{$mergeTargetKey}.quantity", $mergedQty, isAbsolute: true);
+                                                            $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
+                                                            $set("{$lineItemsPath}.{$currentItemKey}.quantity", 1, isAbsolute: true);
+
+                                                            if ($livewire instanceof LivewireComponent) {
+                                                                $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
+                                                            }
+
+                                                            return;
+                                                        }
+
+                                                        /*
                                                  * Solo añadir una fila nueva con Set puntual (data_set). No reemplazar
                                                  * todo line_items: evita estado desincronizado y remount del Select
                                                  * que borra la búsqueda / valor en la primera interacción.
                                                  */
-                                                $newKey = (string) Str::uuid();
-                                                $set("{$lineItemsPath}.{$newKey}", [
-                                                    'product_id' => null,
-                                                    'quantity' => 1,
-                                                ], isAbsolute: true);
+                                                        $newKey = (string) Str::uuid();
+                                                        $set("{$lineItemsPath}.{$newKey}", [
+                                                            'product_id' => null,
+                                                            'quantity' => 1,
+                                                        ], isAbsolute: true);
 
-                                                if (! $livewire instanceof LivewireComponent) {
-                                                    return;
-                                                }
+                                                        if (! $livewire instanceof LivewireComponent) {
+                                                            return;
+                                                        }
 
-                                                $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
-                                            })
-                                            ->live()
-                                            ->native(false),
+                                                        $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
+                                                    })
+                                                    ->live()
+                                                    ->native(false),
+                                                Placeholder::make('fefo_alert_banner')
+                                                    ->hiddenLabel()
+                                                    ->content(function (Get $get): HtmlString {
+                                                        $branchId = Auth::user()?->branch_id;
+                                                        $productId = $get('product_id');
+                                                        if (blank($branchId) || blank($productId)) {
+                                                            return new HtmlString('');
+                                                        }
+
+                                                        $alert = self::posNearExpiryLotAlert((int) $branchId, (int) $productId);
+                                                        if (! $alert instanceof NearExpiryLotAlert) {
+                                                            return new HtmlString('');
+                                                        }
+
+                                                        return new HtmlString($alert->bannerHtml());
+                                                    })
+                                                    ->visible(fn (Get $get): bool => filled($get('product_id'))),
+                                            ]),
                                         TextInput::make('quantity')
                                             ->label('Cantidad')
                                             ->numeric()
@@ -478,16 +515,25 @@ final class CashRegisterAction
 
                                                 $requestedQuantity = max(0.0, (float) $state);
                                                 $available = self::posAvailableQuantity((int) $branchId, $pid);
-                                                if ($available === null || $requestedQuantity <= ($available + 0.0001)) {
+                                                if ($available !== null && $requestedQuantity > ($available + 0.0001)) {
+                                                    $product = self::posProduct($pid);
+                                                    self::notifyPosQuantityExceedsStock(
+                                                        $product instanceof Product ? $product->name : 'Producto #'.$pid,
+                                                        $requestedQuantity,
+                                                        $available,
+                                                    );
+
                                                     return;
                                                 }
 
                                                 $product = self::posProduct($pid);
-                                                self::notifyPosQuantityExceedsStock(
-                                                    $product instanceof Product ? $product->name : 'Producto #'.$pid,
-                                                    $requestedQuantity,
-                                                    $available,
-                                                );
+                                                if ($product instanceof Product) {
+                                                    self::notifyPosNearExpiryLotIfNeeded(
+                                                        (int) $branchId,
+                                                        $pid,
+                                                        $product->name,
+                                                    );
+                                                }
                                             })
                                             ->inlinePrefix()
                                             ->inlineSuffix()
@@ -781,18 +827,29 @@ final class CashRegisterAction
 
                                                 $set('generate_accounts_receivable', false);
 
+                                                if ($state === 'mixed') {
+                                                    $set('mixed_use_usd_portion', true);
+                                                    $set('mixed_use_ves_portion', false);
+                                                }
+
                                                 if ($state !== PosPaymentMethodOptions::CACHEA) {
                                                     $set('pay_with_cachea', false);
                                                 }
 
                                                 if (
                                                     $state === 'pago_movil'
-                                                    || ($state === 'mixed' && self::selectedMixedVesPaymentMethodFromGet($get) === 'pago_movil')
+                                                    || ($state === 'mixed' && self::mixedPaymentUsesPagoMovilFromGet($get))
                                                 ) {
                                                     $set('bdv_pm_conciliated', false);
                                                     $livewire = $component->getLivewire();
                                                     if ($livewire instanceof HasActions) {
-                                                        $paymentVes = self::computePaymentBreakdownForForm($get)['payment_ves'];
+                                                        $paymentVes = $state === 'mixed'
+                                                            ? MixedPosPaymentSupport::pagoMovilVesAmount(
+                                                                self::mixedFormDataFromGet($get),
+                                                                self::computeSaleTotal($get),
+                                                                self::effectiveVesUsdRate($get),
+                                                            )
+                                                            : self::computePaymentBreakdownForForm($get)['payment_ves'];
                                                         if ($paymentVes <= 0.00001) {
                                                             return;
                                                         }
@@ -840,8 +897,7 @@ final class CashRegisterAction
                                                     return false;
                                                 }
 
-                                                return self::selectedMixedVesPaymentMethodFromGet($get) === 'punto_venta_ves'
-                                                    && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
+                                                return self::mixedPaymentUsesPointOfSaleFromGet($get);
                                             })
                                             ->rules(fn (Get $get): array => [
                                                 Rule::requiredIf(function () use ($get): bool {
@@ -864,8 +920,7 @@ final class CashRegisterAction
                                                         return false;
                                                     }
 
-                                                    return self::selectedMixedVesPaymentMethodFromGet($get) === 'punto_venta_ves'
-                                                        && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
+                                                    return self::mixedPaymentUsesPointOfSaleFromGet($get);
                                                 }),
                                                 'regex:/^\d{4}$/',
                                             ])
@@ -895,61 +950,71 @@ final class CashRegisterAction
                                                     return false;
                                                 }
 
-                                                return self::selectedMixedVesPaymentMethodFromGet($get) === 'punto_venta_ves'
-                                                    && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
+                                                return self::mixedPaymentUsesPointOfSaleFromGet($get);
                                             }),
+                                        Toggle::make('mixed_use_usd_portion')
+                                            ->label('Parte del pago en US$')
+                                            ->helperText('Combine dólares con el saldo en bolívares.')
+                                            ->default(true)
+                                            ->inline(true)
+                                            ->live()
+                                            ->dehydrated(true)
+                                            ->visible(fn (Get $get): bool => ($get('payment_method') ?? '') === 'mixed')
+                                            ->afterStateUpdated(function (mixed $state, Set $set): void {
+                                                if (filter_var($state, FILTER_VALIDATE_BOOLEAN)) {
+                                                    $set('mixed_use_ves_portion', false);
+                                                    $set('mixed_ves_split_amount_1', null);
+                                                    $set('mixed_ves_split_cash_received_1', null);
+                                                    $set('mixed_ves_split_cash_received_2', null);
+                                                }
+                                            })
+                                            ->columnSpanFull()
+                                            ->extraFieldWrapperAttributes([
+                                                'class' => 'farmadoc-pos-payment-toggle-row rounded-xl border border-zinc-300/60 bg-zinc-50/30 px-3 py-2.5 dark:border-white/20 dark:bg-white/5',
+                                            ]),
+                                        Toggle::make('mixed_use_ves_portion')
+                                            ->label('Parte del pago en VES (Bs.)')
+                                            ->helperText('Divida el total entre dos métodos de pago en bolívares.')
+                                            ->default(false)
+                                            ->inline(true)
+                                            ->live()
+                                            ->dehydrated(true)
+                                            ->visible(fn (Get $get): bool => ($get('payment_method') ?? '') === 'mixed')
+                                            ->afterStateUpdated(function (mixed $state, Set $set): void {
+                                                if (filter_var($state, FILTER_VALIDATE_BOOLEAN)) {
+                                                    $set('mixed_use_usd_portion', false);
+                                                    $set('mixed_usd_paid', null);
+                                                    $set('mixed_ves_cash_received', null);
+                                                }
+                                            })
+                                            ->columnSpanFull()
+                                            ->extraFieldWrapperAttributes([
+                                                'class' => 'farmadoc-pos-payment-toggle-row rounded-xl border border-zinc-300/60 bg-zinc-50/30 px-3 py-2.5 dark:border-white/20 dark:bg-white/5',
+                                            ]),
                                         TextInput::make('mixed_usd_paid')
-                                            ->label('Pago en USD (usuario)')
+                                            ->label('Pago en USD')
                                             ->numeric()
-                                            ->minValue(0)
+                                            ->minValue(0.01)
                                             ->step(0.01)
                                             ->prefix('$')
                                             ->live(debounce: 300)
                                             ->afterStateUpdated(function (mixed $state, Set $set, Get $get, TextInput $component): void {
-                                                if ($get('payment_method') !== 'mixed') {
+                                                if (! self::isMixedUsdModeFromGet($get)) {
                                                     return;
                                                 }
 
                                                 $set('bdv_pm_conciliated', false);
-
-                                                if (self::selectedMixedVesPaymentMethodFromGet($get) !== 'pago_movil') {
-                                                    return;
-                                                }
-
-                                                $livewire = $component->getLivewire();
-                                                if (! $livewire instanceof HasActions) {
-                                                    return;
-                                                }
-
-                                                $paymentVes = self::computePaymentBreakdownForForm($get)['payment_ves'];
-                                                if ($paymentVes <= 0.00001) {
-                                                    return;
-                                                }
-
-                                                $reference = trim((string) ($get('reference') ?? ''));
-                                                $livewire->mountAction(self::PAGO_MOVIL_CONCILIATION_ACTION_NAME, [
-                                                    'pos_data' => [
-                                                        'reference' => $reference,
-                                                        'client_id' => filled($get('client_id')) ? (int) $get('client_id') : null,
-                                                        'generate_accounts_receivable' => false,
-                                                    ],
-                                                    'payment_ves' => $paymentVes,
-                                                ]);
+                                                self::mountMixedPagoMovilConciliationFromGet($get, $component);
                                             })
-                                            ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'),
+                                            ->visible(fn (Get $get): bool => self::isMixedUsdModeFromGet($get)),
                                         Select::make('mixed_ves_payment_method')
-                                            ->label('Tipo de pago en VES')
-                                            ->options([
-                                                'punto_venta_ves' => 'Punto de Venta',
-                                                'transfer_ves' => 'Transferencia VES',
-                                                'pago_movil' => 'Pago Movil',
-                                                'efectivo_ves' => 'Efectivo VES',
-                                            ])
+                                            ->label('Forma de pago del resto en VES')
+                                            ->options(MixedPosPaymentSupport::vesMethodOptions())
                                             ->default('punto_venta_ves')
                                             ->required()
                                             ->live()
                                             ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
-                                                if ($get('payment_method') !== 'mixed') {
+                                                if (! self::isMixedUsdModeFromGet($get)) {
                                                     return;
                                                 }
 
@@ -958,72 +1023,36 @@ final class CashRegisterAction
                                                 }
 
                                                 $set('bdv_pm_conciliated', false);
-
-                                                if ((string) $state !== 'pago_movil') {
-                                                    return;
-                                                }
-
-                                                $livewire = $component->getLivewire();
-                                                if (! $livewire instanceof HasActions) {
-                                                    return;
-                                                }
-
-                                                $paymentVes = self::computePaymentBreakdownForForm($get)['payment_ves'];
-                                                if ($paymentVes <= 0.00001) {
-                                                    return;
-                                                }
-
-                                                $reference = trim((string) ($get('reference') ?? ''));
-                                                $livewire->mountAction(self::PAGO_MOVIL_CONCILIATION_ACTION_NAME, [
-                                                    'pos_data' => [
-                                                        'reference' => $reference,
-                                                        'client_id' => filled($get('client_id')) ? (int) $get('client_id') : null,
-                                                        'generate_accounts_receivable' => false,
-                                                    ],
-                                                    'payment_ves' => $paymentVes,
-                                                ]);
+                                                self::mountMixedPagoMovilConciliationFromGet($get, $component);
                                             })
                                             ->native(false)
-                                            ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'),
+                                            ->visible(fn (Get $get): bool => self::isMixedUsdModeFromGet($get)),
                                         TextInput::make('mixed_ves_cash_received')
-                                            ->label('Bolívares recibidos (cliente)')
+                                            ->label('Bolívares recibidos en efectivo (cliente)')
                                             ->helperText(fn (Get $get): string => 'Mínimo a recibir: '
                                                 .self::formatBolivaresReferenceFromVes(self::computePaymentBreakdownForForm($get)['payment_ves'])
-                                                .' (parte en bolívares del pago mixto).')
+                                                .'. El neto ingresa a la caja física en Bs.')
                                             ->numeric()
                                             ->minValue(0.01)
                                             ->step(0.01)
                                             ->prefix('Bs')
                                             ->live(debounce: 300)
-                                            ->markAsRequired(function (Get $get): bool {
-                                                if ($get('payment_method') !== 'mixed') {
-                                                    return false;
-                                                }
-
-                                                if (self::selectedMixedVesPaymentMethodFromGet($get) !== 'efectivo_ves') {
-                                                    return false;
-                                                }
-
-                                                return self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
-                                            })
+                                            ->markAsRequired(fn (Get $get): bool => self::isMixedUsdModeFromGet($get)
+                                                && MixedPosPaymentSupport::selectedUsdModeVesMethod(self::mixedFormDataFromGet($get)) === 'efectivo_ves'
+                                                && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001)
                                             ->rules(fn (Get $get): array => [
-                                                Rule::requiredIf(function () use ($get): bool {
-                                                    if ($get('payment_method') !== 'mixed') {
-                                                        return false;
-                                                    }
-
-                                                    return self::selectedMixedVesPaymentMethodFromGet($get) === 'efectivo_ves'
-                                                        && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
-                                                }),
+                                                Rule::requiredIf(fn (): bool => self::isMixedUsdModeFromGet($get)
+                                                    && MixedPosPaymentSupport::selectedUsdModeVesMethod(self::mixedFormDataFromGet($get)) === 'efectivo_ves'
+                                                    && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001),
                                             ])
                                             ->validationMessages([
-                                                'required' => 'Indique los bolívares que recibe del cliente.',
+                                                'required' => 'Indique los bolívares en efectivo que recibe del cliente.',
                                             ])
-                                            ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'
-                                                && self::selectedMixedVesPaymentMethodFromGet($get) === 'efectivo_ves'
+                                            ->visible(fn (Get $get): bool => self::isMixedUsdModeFromGet($get)
+                                                && MixedPosPaymentSupport::selectedUsdModeVesMethod(self::mixedFormDataFromGet($get)) === 'efectivo_ves'
                                                 && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001),
                                         TextEntry::make('mixed_ves_change_preview')
-                                            ->label('Vuelto en bolívares')
+                                            ->label('Vuelto en bolívares (efectivo VES)')
                                             ->state(function (Get $get): string {
                                                 $due = self::computePaymentBreakdownForForm($get)['payment_ves'];
                                                 $received = round((float) ($get('mixed_ves_cash_received') ?? 0), 2);
@@ -1034,9 +1063,104 @@ final class CashRegisterAction
                                                 return self::formatBolivaresReferenceFromVes(max(0.0, round($received - $due, 2)));
                                             })
                                             ->dehydrated(false)
-                                            ->visible(fn (Get $get): bool => $get('payment_method') === 'mixed'
-                                                && self::selectedMixedVesPaymentMethodFromGet($get) === 'efectivo_ves'
+                                            ->visible(fn (Get $get): bool => self::isMixedUsdModeFromGet($get)
+                                                && MixedPosPaymentSupport::selectedUsdModeVesMethod(self::mixedFormDataFromGet($get)) === 'efectivo_ves'
                                                 && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001),
+                                        Select::make('mixed_ves_split_method_1')
+                                            ->label('Primer pago en VES')
+                                            ->options(MixedPosPaymentSupport::vesMethodOptions())
+                                            ->default('punto_venta_ves')
+                                            ->required()
+                                            ->live()
+                                            ->native(false)
+                                            ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
+                                                if (! self::isMixedVesModeFromGet($get)) {
+                                                    return;
+                                                }
+
+                                                if ((string) $state !== 'efectivo_ves') {
+                                                    $set('mixed_ves_split_cash_received_1', null);
+                                                }
+
+                                                $set('bdv_pm_conciliated', false);
+                                                self::mountMixedPagoMovilConciliationFromGet($get, $component);
+                                            })
+                                            ->visible(fn (Get $get): bool => self::isMixedVesModeFromGet($get)),
+                                        TextInput::make('mixed_ves_split_amount_1')
+                                            ->label('Monto del primer pago (Bs.)')
+                                            ->numeric()
+                                            ->minValue(0.01)
+                                            ->step(0.01)
+                                            ->prefix('Bs')
+                                            ->live(debounce: 300)
+                                            ->afterStateUpdated(function (mixed $state, Set $set, Get $get, TextInput $component): void {
+                                                if (! self::isMixedVesModeFromGet($get)) {
+                                                    return;
+                                                }
+
+                                                $set('bdv_pm_conciliated', false);
+                                                self::mountMixedPagoMovilConciliationFromGet($get, $component);
+                                            })
+                                            ->visible(fn (Get $get): bool => self::isMixedVesModeFromGet($get)),
+                                        TextInput::make('mixed_ves_split_cash_received_1')
+                                            ->label('Efectivo recibido — primer pago (Bs.)')
+                                            ->helperText(fn (Get $get): string => 'Mínimo: '
+                                                .self::formatBolivaresReferenceFromVes((float) ($get('mixed_ves_split_amount_1') ?? 0))
+                                                .'. Aumenta la caja física en Bs.')
+                                            ->numeric()
+                                            ->minValue(0.01)
+                                            ->step(0.01)
+                                            ->prefix('Bs')
+                                            ->live(debounce: 300)
+                                            ->visible(fn (Get $get): bool => self::isMixedVesModeFromGet($get)
+                                                && ($get('mixed_ves_split_method_1') ?? '') === 'efectivo_ves'
+                                                && (float) ($get('mixed_ves_split_amount_1') ?? 0) > 0.00001),
+                                        Select::make('mixed_ves_split_method_2')
+                                            ->label('Segundo pago en VES')
+                                            ->options(MixedPosPaymentSupport::vesMethodOptions())
+                                            ->default('transfer_ves')
+                                            ->required()
+                                            ->live()
+                                            ->native(false)
+                                            ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
+                                                if (! self::isMixedVesModeFromGet($get)) {
+                                                    return;
+                                                }
+
+                                                if ((string) $state !== 'efectivo_ves') {
+                                                    $set('mixed_ves_split_cash_received_2', null);
+                                                }
+
+                                                $set('bdv_pm_conciliated', false);
+                                                self::mountMixedPagoMovilConciliationFromGet($get, $component);
+                                            })
+                                            ->visible(fn (Get $get): bool => self::isMixedVesModeFromGet($get)),
+                                        TextEntry::make('mixed_ves_split_amount_2_preview')
+                                            ->label('Monto del segundo pago (Bs.)')
+                                            ->state(function (Get $get): string {
+                                                $totalVes = self::computePaymentBreakdownForForm($get)['payment_ves'];
+                                                $first = round((float) ($get('mixed_ves_split_amount_1') ?? 0), 2);
+
+                                                return self::formatBolivaresReferenceFromVes(max(0.0, round($totalVes - $first, 2)));
+                                            })
+                                            ->dehydrated(false)
+                                            ->visible(fn (Get $get): bool => self::isMixedVesModeFromGet($get)),
+                                        TextInput::make('mixed_ves_split_cash_received_2')
+                                            ->label('Efectivo recibido — segundo pago (Bs.)')
+                                            ->helperText(function (Get $get): string {
+                                                $totalVes = self::computePaymentBreakdownForForm($get)['payment_ves'];
+                                                $due = max(0.0, round($totalVes - (float) ($get('mixed_ves_split_amount_1') ?? 0), 2));
+
+                                                return 'Mínimo: '.self::formatBolivaresReferenceFromVes($due).'. Aumenta la caja física en Bs.';
+                                            })
+                                            ->numeric()
+                                            ->minValue(0.01)
+                                            ->step(0.01)
+                                            ->prefix('Bs')
+                                            ->live(debounce: 300)
+                                            ->visible(fn (Get $get): bool => self::isMixedVesModeFromGet($get)
+                                                && ($get('mixed_ves_split_method_2') ?? '') === 'efectivo_ves'
+                                                && self::mixedVesSplitSecondAmountFromGet($get) > 0.00001),
                                         Grid::make([
                                             'default' => 2,
                                         ])
@@ -1345,7 +1469,26 @@ final class CashRegisterAction
                     $cacheaBreakdown = CacheaPosPaymentSupport::breakdown($documentTotal, $data, $vesUsdRate);
                 }
 
-                $requiresVesUsdRate = self::requiresVesConversion($paymentMethod, $documentTotal, (float) ($data['mixed_usd_paid'] ?? 0))
+                if ($paymentMethod === 'mixed') {
+                    $mixedValidation = MixedPosPaymentSupport::validateBeforeRegister(
+                        $data,
+                        $documentTotal,
+                        $vesUsdRate,
+                    );
+                    if (! $mixedValidation['valid']) {
+                        Notification::make()
+                            ->title('Pago múltiple incompleto')
+                            ->body($mixedValidation['message'] ?? 'Revise los montos y métodos del pago múltiple.')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+                }
+
+                $requiresVesUsdRate = ($paymentMethod === 'mixed'
+                    ? MixedPosPaymentSupport::requiresVesConversion($documentTotal, $data)
+                    : self::requiresVesConversion($paymentMethod, $documentTotal, (float) ($data['mixed_usd_paid'] ?? 0)))
                     || ($paymentMethod === 'efectivo_usd' && $documentTotal > 0.00001);
 
                 if ($cacheaBreakdown !== null && $cacheaBreakdown['remainder'] > 0.00001) {
@@ -1370,20 +1513,30 @@ final class CashRegisterAction
                     $paymentUsd = $cacheaBreakdown['payment_usd'];
                     $paymentVes = $cacheaBreakdown['payment_ves'];
                 } else {
-                    [$paymentUsd, $paymentVes] = self::resolvePaymentAmounts(
-                        $documentTotal,
-                        $paymentMethod,
-                        mixedUsdPaid: (float) ($data['mixed_usd_paid'] ?? 0),
-                        vesUsdRate: $vesUsdRate
-                    );
+                    if ($paymentMethod === 'mixed') {
+                        $mixedBreakdown = MixedPosPaymentSupport::breakdown($documentTotal, $vesUsdRate, $data);
+                        $paymentUsd = (float) ($mixedBreakdown['payment_usd'] ?? 0.0);
+                        $paymentVes = (float) ($mixedBreakdown['payment_ves'] ?? 0.0);
+                    } else {
+                        [$paymentUsd, $paymentVes] = self::resolvePaymentAmounts(
+                            $documentTotal,
+                            $paymentMethod,
+                            mixedUsdPaid: (float) ($data['mixed_usd_paid'] ?? 0),
+                            vesUsdRate: $vesUsdRate
+                        );
+                    }
                 }
+
+                $pagoMovilVesAmount = $paymentMethod === 'mixed'
+                    ? MixedPosPaymentSupport::pagoMovilVesAmount($data, $documentTotal, $vesUsdRate)
+                    : $paymentVes;
 
                 if (
                     (
-                        self::usesPagoMovilForVesPortion($paymentMethod, $mixedVesPaymentMethod)
+                        self::usesPagoMovilForVesPortion($paymentMethod, $mixedVesPaymentMethod, $data, $documentTotal, $vesUsdRate)
                         || CacheaPosPaymentSupport::usesPagoMovilComplement($paymentMethod, $data, $documentTotal)
                     )
-                    && $paymentVes > 0.00001
+                    && $pagoMovilVesAmount > 0.00001
                 ) {
                     if (app()->isLocal()) {
                         if ($paymentReference === '') {
@@ -1394,7 +1547,7 @@ final class CashRegisterAction
                             'module' => 'pos_caja',
                             'message' => 'Bypass local activo: venta permitida sin bloqueo por bandera bdv_pm_conciliated.',
                             'branch_id' => $branchId,
-                            'payment_ves' => $paymentVes,
+                            'payment_ves' => $pagoMovilVesAmount,
                             'reference' => $paymentReference,
                         ]);
                     }
@@ -1408,7 +1561,7 @@ final class CashRegisterAction
                         $recentConciliation = self::findRecentSuccessfulBdvConciliation(
                             $branchId,
                             $paymentReference,
-                            $paymentVes,
+                            $pagoMovilVesAmount,
                         );
 
                         $alreadyConciliated = $recentConciliation instanceof ConciliationBdv;
@@ -1416,14 +1569,14 @@ final class CashRegisterAction
                         $recentConciliation = self::findRecentSuccessfulBdvConciliation(
                             $branchId,
                             $paymentReference,
-                            $paymentVes,
+                            $pagoMovilVesAmount,
                         );
                     }
 
                     if ($paymentReference === '') {
                         $resolvedReference = self::resolvePagoMovilPaymentReference(
                             $branchId,
-                            $paymentVes,
+                            $pagoMovilVesAmount,
                             $paymentReference,
                             $recentConciliation,
                         );
@@ -1439,7 +1592,7 @@ final class CashRegisterAction
 
                     if (! $alreadyConciliated) {
                         self::logPosSaleBlocked('pago_movil_sin_conciliar', [
-                            'payment_ves' => $paymentVes,
+                            'payment_ves' => $pagoMovilVesAmount,
                             'reference_len' => strlen($paymentReference),
                             'bdv_pm_conciliated' => $data['bdv_pm_conciliated'] ?? null,
                         ]);
@@ -1474,7 +1627,7 @@ final class CashRegisterAction
 
                 if (
                     (
-                        self::usesPointOfSaleForVesPortion($paymentMethod, $mixedVesPaymentMethod)
+                        self::usesPointOfSaleForVesPortion($paymentMethod, $mixedVesPaymentMethod, $data, $documentTotal, $vesUsdRate)
                         || CacheaPosPaymentSupport::usesPointOfSaleComplement($paymentMethod, $data, $documentTotal)
                     )
                     && $paymentVes > 0.00001
@@ -1504,8 +1657,7 @@ final class CashRegisterAction
                     $paymentReference = 'CACHEA POS ****'.$cardLast4;
                 } elseif (
                     $paymentMethod === 'mixed'
-                    && $mixedVesPaymentMethod === 'punto_venta_ves'
-                    && $paymentVes > 0.00001
+                    && MixedPosPaymentSupport::vesPortionUsesPointOfSale($data, $documentTotal, $vesUsdRate)
                 ) {
                     $paymentReference = 'MIXTO POS ****'.$cardLast4;
                 }
@@ -1514,8 +1666,7 @@ final class CashRegisterAction
                     || CacheaPosPaymentSupport::complementRequiresReference($paymentMethod, $data, $documentTotal)
                     || (
                         $paymentMethod === 'mixed'
-                        && $mixedVesPaymentMethod === 'transfer_ves'
-                        && $paymentVes > 0
+                        && MixedPosPaymentSupport::requiresPaymentReference($data, $documentTotal, $vesUsdRate)
                     );
 
                 if ($shouldRequireReference && $paymentReference === '') {
@@ -1529,12 +1680,12 @@ final class CashRegisterAction
                 }
 
                 if (
-                    self::usesPagoMovilForVesPortion($paymentMethod, $mixedVesPaymentMethod)
-                    && $paymentVes > 0.00001
+                    self::usesPagoMovilForVesPortion($paymentMethod, $mixedVesPaymentMethod, $data, $documentTotal, $vesUsdRate)
+                    && $pagoMovilVesAmount > 0.00001
                     && $paymentReference === ''
                 ) {
                     self::logPosSaleBlocked('pago_movil_sin_referencia', [
-                        'payment_ves' => $paymentVes,
+                        'payment_ves' => $pagoMovilVesAmount,
                     ]);
                     Notification::make()
                         ->title('Falta la referencia del Pago Móvil')
@@ -1543,25 +1694,6 @@ final class CashRegisterAction
                         ->send();
 
                     return;
-                }
-
-                if (
-                    $paymentMethod === 'mixed'
-                    && $mixedVesPaymentMethod === 'efectivo_ves'
-                    && $paymentVes > 0.00001
-                ) {
-                    $receivedVes = round((float) ($data['mixed_ves_cash_received'] ?? 0), 2);
-                    if ($receivedVes + 0.02 < $paymentVes) {
-                        Notification::make()
-                            ->title('Bolívares recibidos insuficientes')
-                            ->body('El cliente debe entregar al menos '
-                                .self::formatBolivaresReferenceFromVes($paymentVes)
-                                .'. Recibido: '.self::formatBolivaresReferenceFromVes($receivedVes).'.')
-                            ->danger()
-                            ->send();
-
-                        return;
-                    }
                 }
 
                 $bcvVesPerUsd = ($vesUsdRate > 0.0 && ($paymentVes > 0.00001 || $paymentMethod === 'efectivo_usd'))
@@ -1583,7 +1715,7 @@ final class CashRegisterAction
                 ]);
 
                 try {
-                    $sale = DB::transaction(function () use ($branchId, $data, $payloadItems, $lines, $products, $subtotal, $taxTotal, $igtfTotal, $discountTotal, $documentTotal, $actor, $paymentMethod, $paymentUsd, $paymentVes, $paymentReference, $bcvVesPerUsd, $generateAccountsReceivable): Sale {
+                    $sale = DB::transaction(function () use ($branchId, $data, $payloadItems, $lines, $products, $subtotal, $taxTotal, $igtfTotal, $discountTotal, $documentTotal, $actor, $paymentMethod, $paymentUsd, $paymentVes, $paymentReference, $bcvVesPerUsd, $generateAccountsReceivable, $vesUsdRate): Sale {
                         $qtyByProduct = [];
                         foreach ($lines as $row) {
                             $pid = (int) $row['product_id'];
@@ -1610,7 +1742,7 @@ final class CashRegisterAction
                             $available = (float) $inventory->quantity - (float) $inventory->reserved_quantity;
                             if (! $inventory->allow_negative_stock && $available + 0.0001 < $totalQty) {
                                 throw new RuntimeException(
-                                    'Stock insuficiente para '.$productName.'. Disponible: '.number_format($available, 3, '.', '').'.'
+                                    'Stock insuficiente para '.$productName.'. Disponible: '.InventoryQuantityFormat::displayDot($available).'.'
                                 );
                             }
                         }
@@ -1633,9 +1765,7 @@ final class CashRegisterAction
                             'payment_status' => $paymentMethod === 'credito_cliente'
                                 ? 'pendiente'
                                 : 'paid',
-                            'notes' => $generateAccountsReceivable && $paymentMethod === 'credito_cliente'
-                                ? 'Venta a crédito · cuenta por cobrar registrada desde caja.'
-                                : null,
+                            'notes' => self::resolvePosSaleNotes($paymentMethod, $generateAccountsReceivable, $data, $documentTotal, $vesUsdRate),
                             'sold_at' => now(),
                             'created_by' => $actor,
                             'updated_by' => $actor,
@@ -1676,17 +1806,14 @@ final class CashRegisterAction
                             $inventory->updated_by = $actor;
                             $inventory->save();
 
-                            InventoryMovement::query()->create([
-                                'product_id' => $productId,
-                                'inventory_id' => $inventory->id,
-                                'movement_type' => InventoryMovementType::Sale,
-                                'quantity' => -1 * abs($qty),
-                                'unit_cost' => (float) ($products->get($productId)?->cost_price ?? 0),
-                                'reference_type' => Sale::class,
-                                'reference_id' => $sale->id,
-                                'notes' => 'Venta '.$sale->sale_number,
-                                'created_by' => $actor,
-                            ]);
+                            app(FefoLotSaleDispatchService::class)->dispatchForSaleLine(
+                                (int) $branchId,
+                                $product,
+                                $qty,
+                                $inventory,
+                                $sale,
+                                $actor,
+                            );
                         }
 
                         if ($paymentMethod === 'credito_cliente' && $generateAccountsReceivable) {
@@ -1709,8 +1836,14 @@ final class CashRegisterAction
                                 user: $user,
                                 data: $data,
                                 paymentMethod: $paymentMethod,
-                                paymentVes: round($paymentVes, 2),
                                 actor: $actor,
+                            );
+
+                            app(FefoPosAlertSaleLinker::class)->linkSale(
+                                $sale,
+                                (int) $branchId,
+                                (int) $user->id,
+                                $qtyByProduct,
                             );
                         }
 
@@ -1778,7 +1911,7 @@ final class CashRegisterAction
                     ->where('sale_id', $sale->id)
                     ->where('kind', self::MIXED_EFECTIVO_VES_VUELTO_KIND)
                     ->exists()) {
-                    $saleSuccessBody .= ' · Vuelto VES registrado en caja física.';
+                    $saleSuccessBody .= ' · Efectivo VES registrado en caja física.';
                 }
 
                 Notification::make()
@@ -3371,7 +3504,7 @@ final class CashRegisterAction
         if ($branchQty <= 0.0001) {
             $label .= ' · Cant. 0';
         } else {
-            $label .= ' · Cant. '.number_format($branchQty, 2, ',', '.');
+            $label .= ' · Cant. '.InventoryQuantityFormat::display($branchQty);
         }
 
         return $label;
@@ -3477,7 +3610,7 @@ final class CashRegisterAction
         if ($qty <= 0.0001) {
             $segments[] = 'Cant. 0';
         } else {
-            $segments[] = 'Cant. '.number_format($qty, 2, ',', '.');
+            $segments[] = 'Cant. '.InventoryQuantityFormat::display($qty);
         }
 
         return $segments === [] ? '' : (' · '.implode(' · ', $segments));
@@ -3669,7 +3802,7 @@ final class CashRegisterAction
     }
 
     /**
-     * Registra en caja física el vuelto en bolívares de un pago mixto con efectivo VES.
+     * Registra en caja física el neto en bolívares recibido en efectivo (pago mixto).
      *
      * @param  array<string, mixed>  $data
      */
@@ -3678,14 +3811,21 @@ final class CashRegisterAction
         User $user,
         array $data,
         string $paymentMethod,
-        float $paymentVes,
         string $actor,
     ): void {
-        if ($paymentMethod !== 'mixed' || self::selectedMixedVesPaymentMethodFromData($data) !== 'efectivo_ves') {
+        if ($paymentMethod !== 'mixed') {
             return;
         }
 
-        if ($paymentVes <= 0.00001 || ! SchemaFacade::hasTable('cajas_fisicas_movimientos')) {
+        if (! SchemaFacade::hasTable('cajas_fisicas_movimientos')) {
+            return;
+        }
+
+        $documentTotalUsd = (float) $sale->total;
+        $vesUsdRate = $sale->bcv_ves_per_usd !== null ? (float) $sale->bcv_ves_per_usd : 0.0;
+        $cashLines = MixedPosPaymentSupport::efectivoVesCashLines($data, $documentTotalUsd, $vesUsdRate);
+
+        if ($cashLines === []) {
             return;
         }
 
@@ -3693,10 +3833,32 @@ final class CashRegisterAction
             return;
         }
 
-        $receivedVes = round((float) ($data['mixed_ves_cash_received'] ?? 0), 2);
-        $changeVes = round(max(0.0, $receivedVes - $paymentVes), 2);
+        $totalDue = 0.0;
+        $totalReceived = 0.0;
+        $totalChange = 0.0;
+        $linesMeta = [];
 
-        if ($changeVes <= 0.00001) {
+        foreach ($cashLines as $line) {
+            $due = round((float) $line['amount_due'], 2);
+            $received = round((float) $line['cash_received'], 2);
+            $change = round(max(0.0, $received - $due), 2);
+            $totalDue += $due;
+            $totalReceived += $received;
+            $totalChange += $change;
+            $linesMeta[] = [
+                'slot' => $line['slot'],
+                'amount_due' => $due,
+                'cash_received' => $received,
+                'change_ves' => $change,
+            ];
+        }
+
+        $totalDue = round($totalDue, 2);
+        $totalReceived = round($totalReceived, 2);
+        $totalChange = round($totalChange, 2);
+        $netVes = round($totalReceived - $totalChange, 2);
+
+        if ($netVes <= 0.00001) {
             return;
         }
 
@@ -3714,16 +3876,17 @@ final class CashRegisterAction
         );
 
         $bcv = $sale->bcv_ves_per_usd !== null ? (float) $sale->bcv_ves_per_usd : null;
-        $documentTotalUsd = (float) $sale->total;
 
         $meta = [
-            'ves_cash_received' => $receivedVes,
-            'ves_payment_due' => round($paymentVes, 2),
-            'change_ves' => $changeVes,
             'payment_method' => 'mixed',
-            'mixed_ves_payment_method' => 'efectivo_ves',
+            'mixed_mode' => MixedPosPaymentSupport::resolveMode($data),
+            'ves_cash_lines' => $linesMeta,
+            'ves_cash_received_total' => $totalReceived,
+            'ves_payment_due_total' => $totalDue,
+            'change_ves_total' => $totalChange,
+            'net_ves_to_drawer' => $netVes,
             'payment_usd' => (float) $sale->payment_usd,
-            'payment_ves' => round($paymentVes, 2),
+            'payment_ves' => (float) $sale->payment_ves,
         ];
 
         PhysicalCashBoxMovement::query()->create([
@@ -3733,35 +3896,36 @@ final class CashRegisterAction
             'client_bill_usd' => 0,
             'document_total_usd' => round($documentTotalUsd, 2),
             'change_on_bill_usd' => 0,
-            'change_on_bill_ves' => $changeVes,
+            'change_on_bill_ves' => $totalChange,
             'drawer_out_usd' => 0,
             'final_change_usd' => 0,
-            'final_change_ves' => $changeVes,
+            'final_change_ves' => $totalChange,
             'bcv_ves_per_usd' => $bcv !== null && $bcv > 0 ? round($bcv, 6) : null,
             'meta' => $meta,
             'created_by' => $actor,
         ]);
 
-        self::applyEfectivoVesChangeOutFromPhysicalCashBox($box, $changeVes);
+        self::applyEfectivoVesNetToPhysicalCashBox($box, $netVes);
 
         AuditLogger::record(
             'pos_mixed_efectivo_ves_caja_change_recorded',
-            'Caja · Vuelto VES (pago mixto) registrado en caja física · '.$sale->sale_number,
+            'Caja · Efectivo VES (pago mixto) registrado en caja física · '.$sale->sale_number,
             Sale::class,
             $sale->id,
             $sale->sale_number,
             [
                 'module' => 'pos_caja',
                 'sale_id' => $sale->id,
-                'change_ves' => $changeVes,
-                'ves_cash_received' => $receivedVes,
+                'net_ves_to_drawer' => $netVes,
+                'change_ves_total' => $totalChange,
+                'ves_cash_received_total' => $totalReceived,
             ],
         );
     }
 
-    private static function applyEfectivoVesChangeOutFromPhysicalCashBox(PhysicalCashBox $box, float $changeVes): void
+    private static function applyEfectivoVesNetToPhysicalCashBox(PhysicalCashBox $box, float $netVes): void
     {
-        $vesDelta = -1 * round(max(0.0, $changeVes), 2);
+        $vesDelta = round(max(0.0, $netVes), 2);
 
         $box->forceFill([
             'amount_ves' => round((float) $box->amount_ves + $vesDelta, 2),
@@ -3983,6 +4147,15 @@ final class CashRegisterAction
             ];
         }
 
+        if ($paymentMethod === 'mixed') {
+            $breakdown = MixedPosPaymentSupport::breakdown($total, $rate, self::mixedFormDataFromGet($get));
+
+            return [
+                'payment_usd' => (float) ($breakdown['payment_usd'] ?? 0.0),
+                'payment_ves' => (float) ($breakdown['payment_ves'] ?? 0.0),
+            ];
+        }
+
         $mixedUsdPaid = (float) ($get('mixed_usd_paid') ?? 0);
         [$paymentUsd, $paymentVes] = self::resolvePaymentAmounts($total, $paymentMethod, $mixedUsdPaid, $rate);
 
@@ -3992,13 +4165,126 @@ final class CashRegisterAction
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mixedFormDataFromGet(Get $get): array
+    {
+        return [
+            'mixed_use_usd_portion' => $get('mixed_use_usd_portion'),
+            'mixed_use_ves_portion' => $get('mixed_use_ves_portion'),
+            'mixed_usd_paid' => $get('mixed_usd_paid'),
+            'mixed_ves_payment_method' => $get('mixed_ves_payment_method'),
+            'mixed_ves_cash_received' => $get('mixed_ves_cash_received'),
+            'mixed_ves_split_method_1' => $get('mixed_ves_split_method_1'),
+            'mixed_ves_split_method_2' => $get('mixed_ves_split_method_2'),
+            'mixed_ves_split_amount_1' => $get('mixed_ves_split_amount_1'),
+            'mixed_ves_split_cash_received_1' => $get('mixed_ves_split_cash_received_1'),
+            'mixed_ves_split_cash_received_2' => $get('mixed_ves_split_cash_received_2'),
+        ];
+    }
+
+    private static function isMixedUsdModeFromGet(Get $get): bool
+    {
+        return ($get('payment_method') ?? '') === 'mixed'
+            && MixedPosPaymentSupport::isUsdMode(self::mixedFormDataFromGet($get));
+    }
+
+    private static function isMixedVesModeFromGet(Get $get): bool
+    {
+        return ($get('payment_method') ?? '') === 'mixed'
+            && MixedPosPaymentSupport::isVesMode(self::mixedFormDataFromGet($get));
+    }
+
+    private static function mixedVesSplitSecondAmountFromGet(Get $get): float
+    {
+        $totalVes = self::computePaymentBreakdownForForm($get)['payment_ves'];
+        $first = round((float) ($get('mixed_ves_split_amount_1') ?? 0), 2);
+
+        return max(0.0, round($totalVes - $first, 2));
+    }
+
+    private static function mixedPaymentUsesPagoMovilFromGet(Get $get): bool
+    {
+        if (($get('payment_method') ?? '') !== 'mixed') {
+            return false;
+        }
+
+        return MixedPosPaymentSupport::vesPortionUsesPagoMovil(
+            self::mixedFormDataFromGet($get),
+            self::computeSaleTotal($get),
+            self::effectiveVesUsdRate($get),
+        );
+    }
+
+    private static function mixedPaymentUsesPointOfSaleFromGet(Get $get): bool
+    {
+        if (($get('payment_method') ?? '') !== 'mixed') {
+            return false;
+        }
+
+        return MixedPosPaymentSupport::vesPortionUsesPointOfSale(
+            self::mixedFormDataFromGet($get),
+            self::computeSaleTotal($get),
+            self::effectiveVesUsdRate($get),
+        );
+    }
+
+    private static function mountMixedPagoMovilConciliationFromGet(Get $get, Component $component): void
+    {
+        if (! self::mixedPaymentUsesPagoMovilFromGet($get)) {
+            return;
+        }
+
+        $livewire = $component->getLivewire();
+        if (! $livewire instanceof HasActions) {
+            return;
+        }
+
+        $paymentVes = MixedPosPaymentSupport::pagoMovilVesAmount(
+            self::mixedFormDataFromGet($get),
+            self::computeSaleTotal($get),
+            self::effectiveVesUsdRate($get),
+        );
+        if ($paymentVes <= 0.00001) {
+            return;
+        }
+
+        $reference = trim((string) ($get('reference') ?? ''));
+        $livewire->mountAction(self::PAGO_MOVIL_CONCILIATION_ACTION_NAME, [
+            'pos_data' => [
+                'reference' => $reference,
+                'client_id' => filled($get('client_id')) ? (int) $get('client_id') : null,
+                'generate_accounts_receivable' => false,
+            ],
+            'payment_ves' => $paymentVes,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private static function resolvePosSaleNotes(
+        string $paymentMethod,
+        bool $generateAccountsReceivable,
+        array $data,
+        float $documentTotal,
+        float $vesUsdRate,
+    ): ?string {
+        if ($generateAccountsReceivable && $paymentMethod === 'credito_cliente') {
+            return 'Venta a crédito · cuenta por cobrar registrada desde caja.';
+        }
+
+        if ($paymentMethod !== 'mixed') {
+            return null;
+        }
+
+        return MixedPosPaymentSupport::buildSaleNotesSuffix($data, $documentTotal, $vesUsdRate);
+    }
+
     private static function selectedMixedVesPaymentMethodFromGet(Get $get): string
     {
-        $method = (string) ($get('mixed_ves_payment_method') ?? 'punto_venta_ves');
-
-        return in_array($method, ['transfer_ves', 'pago_movil', 'punto_venta_ves', 'efectivo_ves'], true)
-            ? $method
-            : 'punto_venta_ves';
+        return MixedPosPaymentSupport::selectedUsdModeVesMethod(self::mixedFormDataFromGet($get));
     }
 
     /**
@@ -4006,23 +4292,49 @@ final class CashRegisterAction
      */
     private static function selectedMixedVesPaymentMethodFromData(array $data): string
     {
-        $method = (string) ($data['mixed_ves_payment_method'] ?? 'punto_venta_ves');
-
-        return in_array($method, ['transfer_ves', 'pago_movil', 'punto_venta_ves', 'efectivo_ves'], true)
-            ? $method
-            : 'punto_venta_ves';
+        return MixedPosPaymentSupport::selectedUsdModeVesMethod($data);
     }
 
-    private static function usesPagoMovilForVesPortion(string $paymentMethod, string $mixedVesPaymentMethod): bool
-    {
-        return $paymentMethod === 'pago_movil'
-            || ($paymentMethod === 'mixed' && $mixedVesPaymentMethod === 'pago_movil');
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private static function usesPagoMovilForVesPortion(
+        string $paymentMethod,
+        string $mixedVesPaymentMethod,
+        array $data = [],
+        float $documentTotal = 0.0,
+        float $vesUsdRate = 0.0,
+    ): bool {
+        if ($paymentMethod === 'pago_movil') {
+            return true;
+        }
+
+        if ($paymentMethod !== 'mixed') {
+            return false;
+        }
+
+        return MixedPosPaymentSupport::vesPortionUsesPagoMovil($data, $documentTotal, $vesUsdRate);
     }
 
-    private static function usesPointOfSaleForVesPortion(string $paymentMethod, string $mixedVesPaymentMethod): bool
-    {
-        return $paymentMethod === 'punto_venta_ves'
-            || ($paymentMethod === 'mixed' && $mixedVesPaymentMethod === 'punto_venta_ves');
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private static function usesPointOfSaleForVesPortion(
+        string $paymentMethod,
+        string $mixedVesPaymentMethod,
+        array $data = [],
+        float $documentTotal = 0.0,
+        float $vesUsdRate = 0.0,
+    ): bool {
+        if ($paymentMethod === 'punto_venta_ves') {
+            return true;
+        }
+
+        if ($paymentMethod !== 'mixed') {
+            return false;
+        }
+
+        return MixedPosPaymentSupport::vesPortionUsesPointOfSale($data, $documentTotal, $vesUsdRate);
     }
 
     /**
@@ -4132,6 +4444,9 @@ final class CashRegisterAction
                 'applies_vat',
                 'product_category_id',
             ];
+            if (SchemaFacade::hasColumn('products', 'requires_expiry_on_purchase')) {
+                $select[] = 'requires_expiry_on_purchase';
+            }
             if (SchemaFacade::hasColumn('products', 'express_branch_prices')) {
                 $select[] = 'express_branch_prices';
             }
@@ -4182,6 +4497,85 @@ final class CashRegisterAction
             }
 
             request()->attributes->set($invKey, $invMap);
+        }
+
+        self::warmPosFefoAlertsForBranch($branchId, $ids);
+    }
+
+    /**
+     * @param  list<int>  $productIds
+     */
+    private static function warmPosFefoAlertsForBranch(int $branchId, array $productIds): void
+    {
+        if ($branchId <= 0 || $productIds === [] || ! config('inventory.fefo_pos_alerts_enabled', true)) {
+            return;
+        }
+
+        $cacheKey = 'cash_register.fefo_alerts.'.$branchId;
+        /** @var array<int, NearExpiryLotAlert|null> $alertMap */
+        $alertMap = request()->attributes->get($cacheKey, []);
+        if (! is_array($alertMap)) {
+            $alertMap = [];
+        }
+
+        $missing = array_values(array_diff($productIds, array_keys($alertMap)));
+        if ($missing === []) {
+            return;
+        }
+
+        $fetched = app(FefoLotBalanceQueryService::class)->nearExpiryAlertsForProducts($branchId, $missing);
+
+        foreach ($missing as $pid) {
+            $alertMap[$pid] = $fetched[$pid] ?? null;
+        }
+
+        request()->attributes->set($cacheKey, $alertMap);
+    }
+
+    private static function posNearExpiryLotAlert(int $branchId, int $productId): ?NearExpiryLotAlert
+    {
+        if ($branchId <= 0 || $productId <= 0) {
+            return null;
+        }
+
+        self::warmPosFefoAlertsForBranch($branchId, [$productId]);
+
+        $cacheKey = 'cash_register.fefo_alerts.'.$branchId;
+        /** @var array<int, NearExpiryLotAlert|null>|null $map */
+        $map = request()->attributes->get($cacheKey);
+
+        if (! is_array($map) || ! array_key_exists($productId, $map)) {
+            return null;
+        }
+
+        $alert = $map[$productId];
+
+        return $alert instanceof NearExpiryLotAlert ? $alert : null;
+    }
+
+    private static function notifyPosNearExpiryLotIfNeeded(int $branchId, int $productId, string $productLabel): void
+    {
+        $alert = self::posNearExpiryLotAlert($branchId, $productId);
+        if (! $alert instanceof NearExpiryLotAlert) {
+            return;
+        }
+
+        $notification = Notification::make()
+            ->title($alert->notificationTitle())
+            ->body($alert->notificationBodyHtml($productLabel));
+
+        if ($alert->isCritical()) {
+            $notification->danger()->persistent();
+        } else {
+            $notification->warning()->persistent();
+        }
+
+        $notification->send();
+
+        $user = Auth::user();
+        $product = self::posProduct($productId);
+        if ($user instanceof User && $product instanceof Product) {
+            PosFefoAlertLogRegistrar::register($branchId, $user, $product, $alert);
         }
     }
 
@@ -4326,8 +4720,8 @@ final class CashRegisterAction
         Notification::make()
             ->title('Cantidad mayor a la existencia')
             ->body(
-                'Para "'.$productLabel.'" solicitó '.number_format($requestedQuantity, 3, '.', '').
-                ' y solo hay '.number_format($availableQuantity, 3, '.', '').' disponibles.'
+                'Para "'.$productLabel.'" solicitó '.InventoryQuantityFormat::displayDot($requestedQuantity).
+                ' y solo hay '.InventoryQuantityFormat::displayDot($availableQuantity).' disponibles.'
             )
             ->warning()
             ->send();
@@ -5209,8 +5603,11 @@ final class CashRegisterAction
             return false;
         }
 
-        return self::selectedMixedVesPaymentMethodFromGet($get) === 'transfer_ves'
-            && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
+        return MixedPosPaymentSupport::requiresPaymentReference(
+            self::mixedFormDataFromGet($get),
+            self::computeSaleTotal($get),
+            self::effectiveVesUsdRate($get),
+        );
     }
 
     private static function defaultPosFormState(): array
@@ -5224,8 +5621,15 @@ final class CashRegisterAction
             'pos_sale_transfer_id' => null,
             'pos_product_search' => null,
             'payment_method' => 'punto_venta_ves',
+            'mixed_use_usd_portion' => true,
+            'mixed_use_ves_portion' => false,
             'mixed_ves_payment_method' => 'punto_venta_ves',
             'mixed_ves_cash_received' => null,
+            'mixed_ves_split_method_1' => 'punto_venta_ves',
+            'mixed_ves_split_method_2' => 'transfer_ves',
+            'mixed_ves_split_amount_1' => null,
+            'mixed_ves_split_cash_received_1' => null,
+            'mixed_ves_split_cash_received_2' => null,
             'generate_accounts_receivable' => false,
             'pay_with_cachea' => false,
             'cachea_paid_amount' => null,

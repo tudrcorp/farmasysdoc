@@ -380,7 +380,7 @@
                         <tr>
                             <td>{{ $item->product_name_snapshot ?? '—' }}</td>
                             <td class="center">{{ $item->sku_snapshot ?? '—' }}</td>
-                            <td class="num">{{ number_format((float) $item->quantity, 3, ',', '.') }}</td>
+                            <td class="num">{{ \App\Support\Inventory\InventoryQuantityFormat::display($item->quantity) }}</td>
                             <td class="num">{{ number_format((float) $item->unit_price, 2, ',', '.') }}</td>
                             <td class="num">{{ number_format((float) $item->discount_amount, 2, ',', '.') }}</td>
                             <td class="num">{{ number_format((float) $item->line_subtotal, 2, ',', '.') }}</td>

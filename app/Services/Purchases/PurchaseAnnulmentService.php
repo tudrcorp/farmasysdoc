@@ -12,6 +12,7 @@ use App\Models\PurchaseHistory;
 use App\Models\PurchaseItem;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
+use App\Services\Inventory\InventoryLotBalanceSyncService;
 use App\Services\Inventory\PurchaseItemInventoryReceiptService;
 use App\Support\Finance\AccountsPayableStatus;
 use App\Support\Inventory\InventoryAdjustmentReason;
@@ -23,6 +24,7 @@ final class PurchaseAnnulmentService
 {
     public function __construct(
         private readonly PurchaseItemInventoryReceiptService $receiptService,
+        private readonly InventoryLotBalanceSyncService $lotBalanceSyncService,
         private readonly NotifyAdministratorsPurchaseCancellationRequested $notifyAdministratorsPurchaseCancellationRequested,
     ) {}
 
@@ -119,6 +121,8 @@ final class PurchaseAnnulmentService
                     'created_by' => $actorLabel,
                 ]);
             }
+
+            $this->lotBalanceSyncService->deleteBalancesForPurchase($purchase);
 
             ProductLot::query()->where('purchase_id', $purchase->getKey())->delete();
 

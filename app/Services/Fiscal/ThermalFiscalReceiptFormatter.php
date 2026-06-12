@@ -248,28 +248,22 @@ final class ThermalFiscalReceiptFormatter
         $name = Str::upper((string) ($item->product_name_snapshot ?? 'PRODUCTO'));
         $tag = ((float) $item->tax_amount > 0.00001) ? 'G' : 'E';
         $desc = $code.'/'.$name.' ('.$tag.')';
-        $wrapped = $this->wrapUpper($desc, $width);
-        $lineTotalBs = $this->toBs((float) $item->line_total, $rate);
-        $priceStr = $this->bs($lineTotalBs);
-
-        if ($wrapped === []) {
-            return [$this->row('', $priceStr, $width)];
-        }
-
-        if (count($wrapped) === 1) {
-            return [$this->row($wrapped[0], $priceStr, $width)];
-        }
+        $priceStr = $this->bs($this->toBs((float) $item->line_total, $rate));
+        $lastLineMax = max(1, $width - mb_strlen($priceStr) - 1);
+        $wrapped = $this->wrapUpperForPriceRow($desc, $width, $lastLineMax);
 
         $out = [];
+        $lastIndex = count($wrapped) - 1;
+
         foreach ($wrapped as $i => $line) {
-            if ($i === count($wrapped) - 1) {
+            if ($i === $lastIndex) {
                 $out[] = $this->row($line, $priceStr, $width);
             } else {
-                $out[] = $line;
+                $out[] = $this->clipLine($line, $width);
             }
         }
 
-        return $out;
+        return $out !== [] ? $out : [$this->row('', $priceStr, $width)];
     }
 
     private function dominantTaxPercent(Sale $sale): float
@@ -391,12 +385,88 @@ final class ThermalFiscalReceiptFormatter
     {
         $left = trim($left);
         $right = trim($right);
-        $space = $width - mb_strlen($left) - mb_strlen($right);
-        if ($space >= 1) {
-            return $left.str_repeat(' ', $space).$right;
+        $rightLen = mb_strlen($right);
+
+        if ($rightLen >= $width) {
+            return mb_substr($right, 0, $width);
         }
 
-        return $left.' '.$right;
+        $maxLeft = max(0, $width - $rightLen - 1);
+        if (mb_strlen($left) > $maxLeft) {
+            $left = mb_substr($left, 0, $maxLeft);
+        }
+
+        $space = $width - mb_strlen($left) - $rightLen;
+
+        return $left.($space >= 1 ? str_repeat(' ', $space) : ' ').$right;
+    }
+
+    private function clipLine(string $line, int $width): string
+    {
+        $line = trim($line);
+
+        if (mb_strlen($line) <= $width) {
+            return $line;
+        }
+
+        return mb_substr($line, 0, $width);
+    }
+
+    /**
+     * Envuelve texto reservando espacio en la última línea para un importe alineado a la derecha.
+     *
+     * @return list<string>
+     */
+    private function wrapUpperForPriceRow(string $text, int $fullWidth, int $lastLineMax): array
+    {
+        $text = Str::upper(trim($text));
+        if ($text === '') {
+            return [''];
+        }
+
+        $lastLineMax = max(1, min($lastLineMax, $fullWidth));
+
+        if (mb_strlen($text) <= $lastLineMax) {
+            return [$text];
+        }
+
+        [$lastLine, $prefix] = $this->splitLastSegment($text, $lastLineMax);
+
+        if ($prefix === '') {
+            return [$lastLine];
+        }
+
+        return array_merge($this->wrapUpper($prefix, $fullWidth), [$lastLine]);
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function splitLastSegment(string $text, int $maxWidth): array
+    {
+        $text = trim($text);
+        if (mb_strlen($text) <= $maxWidth) {
+            return [$text, ''];
+        }
+
+        $windowStart = max(0, mb_strlen($text) - $maxWidth);
+        $window = mb_substr($text, $windowStart);
+        $lastSpace = mb_strrpos($window, ' ');
+
+        if ($lastSpace !== false && $lastSpace > 0) {
+            $splitAt = $windowStart + $lastSpace;
+            $lastLine = trim(mb_substr($text, $splitAt));
+            $prefix = trim(mb_substr($text, 0, $splitAt));
+
+            if ($lastLine !== '' && mb_strlen($lastLine) <= $maxWidth) {
+                return [$lastLine, $prefix];
+            }
+        }
+
+        $lastLine = mb_substr($text, -$maxWidth);
+        $prefix = trim(mb_substr($text, 0, mb_strlen($text) - $maxWidth));
+
+        return [$lastLine, $prefix];
     }
 
     /**

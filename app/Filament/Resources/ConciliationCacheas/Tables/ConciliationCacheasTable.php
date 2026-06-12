@@ -34,17 +34,7 @@ class ConciliationCacheasTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(function (Builder $query): Builder {
-                $query = BranchAuthScope::apply($query)
-                    ->with(['branch', 'user', 'sale']);
-
-                $user = Auth::user();
-                if (! ($user instanceof User && $user->isAdministrator())) {
-                    $query->pendingCollection();
-                }
-
-                return $query;
-            })
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['branch', 'user', 'sale']))
             ->columns([
                 TextColumn::make('sale_number')
                     ->label('Venta')

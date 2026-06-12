@@ -2,10 +2,14 @@
 
 namespace App\Filament\Resources\ProductTransferSales\Pages;
 
+use App\Filament\Resources\ProductTransfers\ProductTransferResource;
 use App\Filament\Resources\ProductTransferSales\ProductTransferSaleResource;
+use App\Filament\Resources\Sales\SaleResource;
 use App\Models\ProductTransfer;
 use App\Support\Audit\ProductTransferSaleAuditLogger;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Support\Icons\Heroicon;
 
 class ViewProductTransferSale extends ViewRecord
 {
@@ -23,6 +27,23 @@ class ViewProductTransferSale extends ViewRecord
 
     protected function getHeaderActions(): array
     {
-        return [];
+        return [
+            Action::make('openTransferSale')
+                ->label('Ver venta interna por traslado')
+                ->icon(Heroicon::Banknotes)
+                ->color('gray')
+                ->url(function (): ?string {
+                    $record = $this->getRecord();
+                    if (! $record instanceof ProductTransfer || $record->sale_id === null) {
+                        return null;
+                    }
+
+                    return SaleResource::getUrl('view', ['record' => $record->sale_id], isAbsolute: false);
+                })
+                ->visible(fn (): bool => $this->getRecord() instanceof ProductTransfer
+                    && $this->getRecord()->sale_id !== null),
+            ProductTransferResource::markCompletedAction(),
+            ProductTransferResource::adminChangeStatusAction(),
+        ];
     }
 }

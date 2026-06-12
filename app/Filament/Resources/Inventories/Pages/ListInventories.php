@@ -253,8 +253,8 @@ class ListInventories extends ListRecords
 
         $summary = [
             'total_items' => $totalItems,
-            'total_quantity' => self::formatNumberForReport((float) ((clone $query)->sum('quantity')), 3),
-            'total_available' => self::formatNumberForReport((float) ((clone $query)->sum(DB::raw($availableExpression))), 3),
+            'total_quantity' => self::formatNumberForReport((float) ((clone $query)->sum('quantity')), 0),
+            'total_available' => self::formatNumberForReport((float) ((clone $query)->sum(DB::raw($availableExpression))), 0),
             'avg_cost_price' => self::formatNumberForReport((float) ((clone $query)->avg('cost_price'))),
             'avg_final_price' => self::formatNumberForReport((float) ((clone $query)->avg('final_price_with_vat'))),
             'low_stock_count' => (clone $query)->whereRaw('quantity <= COALESCE(reorder_point, minimum_stock, 0)')->count(),
@@ -390,8 +390,8 @@ class ListInventories extends ListRecords
             'active_ingredient' => is_array($inventory->active_ingredient)
                 ? implode(', ', array_values(array_filter($inventory->active_ingredient, fn (mixed $value): bool => is_string($value) && filled($value))))
                 : '',
-            'quantity' => self::formatNumberForReport((float) $inventory->quantity, 3),
-            'available_quantity' => self::formatNumberForReport((float) $inventory->available_quantity, 3),
+            'quantity' => self::formatNumberForReport((float) $inventory->quantity, 0),
+            'available_quantity' => self::formatNumberForReport((float) $inventory->available_quantity, 0),
             'cost_price' => self::formatNumberForReport((float) $inventory->cost_price),
             'final_price_without_vat' => self::formatNumberForReport((float) $inventory->final_price_without_vat),
             'final_price_with_vat' => self::formatNumberForReport((float) $inventory->final_price_with_vat),

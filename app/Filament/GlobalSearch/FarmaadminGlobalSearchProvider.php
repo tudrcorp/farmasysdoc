@@ -13,6 +13,7 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Services\Dolar\DolarApiDolaresService;
 use App\Support\Finance\DefaultVatRate;
+use App\Support\Inventory\InventoryQuantityFormat;
 use Carbon\Carbon;
 use Filament\GlobalSearch\GlobalSearchResult;
 use Filament\GlobalSearch\GlobalSearchResults;
@@ -500,9 +501,7 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
 
     private function formatQuantity(float $quantity): string
     {
-        $formatted = rtrim(rtrim(number_format($quantity, 3, '.', ','), '0'), '.');
-
-        return $formatted !== '' ? $formatted : '0';
+        return InventoryQuantityFormat::display($quantity);
     }
 
     private function formatActiveIngredient(mixed $value): string

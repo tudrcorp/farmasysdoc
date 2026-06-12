@@ -213,7 +213,7 @@
                         <div class="line">
                             #{{ $line->line_number }}
                             · {{ $line->product_name_snapshot ?: 'Producto' }}
-                            · {{ number_format((float) $line->quantity_ordered, 3, ',', '.') }} u
+                            · {{ \App\Support\Inventory\InventoryQuantityFormat::display($line->quantity_ordered) }} u
                         </div>
                     @endforeach
                 </div>

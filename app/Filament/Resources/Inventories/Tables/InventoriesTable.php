@@ -7,6 +7,7 @@ use App\Filament\Resources\Inventories\InventoryResource;
 use App\Models\Branch;
 use App\Models\Inventory;
 use App\Support\Filament\BranchAuthScope;
+use App\Support\Inventory\InventoryQuantityFormat;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -82,14 +83,14 @@ class InventoriesTable
                     ->color(fn (Inventory $record): string => self::stockHealthColor($record)),
                 TextColumn::make('quantity')
                     ->label('Existencias')
-                    ->numeric()
+                    ->formatStateUsing(fn (mixed $state): string => InventoryQuantityFormat::display($state))
                     ->sortable()
                     ->alignEnd()
                     ->weight('medium'),
                 TextColumn::make('available_quantity')
                     ->label('Disponible')
                     ->state(fn (Inventory $record): float => (float) $record->available_quantity)
-                    ->numeric(decimalPlaces: 3)
+                    ->formatStateUsing(fn (mixed $state): string => InventoryQuantityFormat::display($state))
                     ->sortable()
                     ->alignEnd()
                     ->weight('medium'),
@@ -137,7 +138,7 @@ class InventoriesTable
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('reserved_quantity')
                     ->label('Reservado')
-                    ->numeric()
+                    ->formatStateUsing(fn (mixed $state): string => InventoryQuantityFormat::display($state))
                     ->sortable()
                     ->alignEnd()
                     ->toggleable(),

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Inventories\Schemas;
 
 use App\Models\Inventory;
+use App\Support\Inventory\InventoryQuantityFormat;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
@@ -75,17 +76,17 @@ class InventoryInfolist
                             ->schema([
                                 TextEntry::make('quantity')
                                     ->label('Existencias actuales')
-                                    ->numeric(decimalPlaces: 0)
+                                    ->formatStateUsing(fn (mixed $state): string => InventoryQuantityFormat::display($state))
                                     ->icon(Heroicon::SquaresPlus),
                                 TextEntry::make('reserved_quantity')
                                     ->label('Cantidad reservada')
-                                    ->numeric(decimalPlaces: 0)
+                                    ->formatStateUsing(fn (mixed $state): string => InventoryQuantityFormat::display($state))
                                     ->icon(Heroicon::LockClosed),
                             ]),
                         TextEntry::make('available_for_sale')
                             ->label('Disponible para venta')
                             ->helperText('Existencias menos reservado; respeta la política de saldo negativo.')
-                            ->getStateUsing(fn (Inventory $record): string => number_format($record->available_quantity, 3, ',', '.'))
+                            ->getStateUsing(fn (Inventory $record): string => InventoryQuantityFormat::display($record->available_quantity))
                             ->icon(Heroicon::ShoppingCart),
                         IconEntry::make('allow_negative_stock')
                             ->label('Permitir saldo negativo')

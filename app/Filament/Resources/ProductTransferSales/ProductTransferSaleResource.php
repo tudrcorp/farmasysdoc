@@ -71,10 +71,11 @@ class ProductTransferSaleResource extends Resource
     }
 
     /**
-     * Listado: solo traslados de venta emitidos desde sucursales permitidas al usuario.
+     * Listado: traslados de venta donde la sucursal del usuario es origen o destino.
      *
-     * Administrador y delivery: todos. GERENCIA: orígenes en sucursales del pivote.
-     * Resto: solo donde {@see ProductTransfer::from_branch_id} es la sucursal del usuario.
+     * Administrador y delivery: todos. GERENCIA: origen o destino en sucursales del pivote.
+     * Resto (p. ej. cajero): traslados emitidos desde su sucursal o recibidos en ella
+     * (incluye «En proceso» hacia su sucursal para completar la venta en caja).
      *
      * @return Builder<ProductTransfer>
      */
@@ -92,14 +93,15 @@ class ProductTransferSaleResource extends Resource
             return $query;
         }
 
-        $originBranchIds = $user->restrictedBranchIdsForQueries();
-        if ($originBranchIds === []) {
+        $branchIds = $user->restrictedBranchIdsForQueries();
+        if ($branchIds === []) {
             return $query->whereRaw('1 = 0');
         }
 
-        return count($originBranchIds) === 1
-            ? $query->where('from_branch_id', $originBranchIds[0])
-            : $query->whereIn('from_branch_id', $originBranchIds);
+        return $query->where(function (Builder $q) use ($branchIds): void {
+            $q->whereIn('to_branch_id', $branchIds)
+                ->orWhereIn('from_branch_id', $branchIds);
+        });
     }
 
     public static function canView(Model $record): bool
@@ -121,10 +123,16 @@ class ProductTransferSaleResource extends Resource
             return true;
         }
 
-        $originBranchIds = $user->restrictedBranchIdsForQueries();
+        $branchIds = $user->restrictedBranchIdsForQueries();
+        if ($branchIds === []) {
+            return false;
+        }
 
-        return $originBranchIds !== []
-            && in_array((int) $record->from_branch_id, $originBranchIds, true);
+        $toBranchId = (int) $record->to_branch_id;
+        $fromBranchId = (int) $record->from_branch_id;
+
+        return in_array($toBranchId, $branchIds, true)
+            || in_array($fromBranchId, $branchIds, true);
     }
 
     public static function canCreate(): bool

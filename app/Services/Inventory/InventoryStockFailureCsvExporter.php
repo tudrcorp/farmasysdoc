@@ -3,6 +3,7 @@
 namespace App\Services\Inventory;
 
 use App\Models\InventoryStockFailure;
+use App\Support\Inventory\InventoryQuantityFormat;
 use Illuminate\Database\Eloquent\Builder;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -56,7 +57,7 @@ class InventoryStockFailureCsvExporter
                             (string) ($record->branch?->name ?? ''),
                             (string) $record->product_name,
                             (string) $record->product_code,
-                            number_format((float) $record->quantity, 3, ',', ''),
+                            InventoryQuantityFormat::display($record->quantity),
                             (string) ($record->user?->name ?? ''),
                             (string) ($record->user?->email ?? ''),
                         ], ';');

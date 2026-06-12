@@ -47,4 +47,15 @@ return [
         FILTER_VALIDATE_BOOL
     ),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Imagen JPG para WhatsApp (factura fiscal)
+    |--------------------------------------------------------------------------
+    */
+    'thermal_receipt_font' => base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSansMono.ttf'),
+
+    'whatsapp_image_font_size' => (int) env('FISCAL_WHATSAPP_IMAGE_FONT_SIZE', 14),
+
+    'whatsapp_image_padding' => (int) env('FISCAL_WHATSAPP_IMAGE_PADDING', 18),
+
 ];

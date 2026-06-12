@@ -24,6 +24,10 @@ final class ProductTransferCompletionService
 
     public const MANAGER_OUTSIDE_DESTINATION_BRANCH_MESSAGE = 'No puede realizar labores de gerencia fuera de su sucursal.';
 
+    public function __construct(
+        private readonly FefoLotTransferDispatchService $fefoLotTransferDispatchService,
+    ) {}
+
     public function userMayMarkCompleted(?User $user, ProductTransfer $transfer): bool
     {
         if (! $user instanceof User) {
@@ -107,6 +111,7 @@ final class ProductTransferCompletionService
             $actor = self::actorLabel($user);
             $fromBranchId = (int) $locked->from_branch_id;
             $toBranchId = (int) $locked->to_branch_id;
+            $creditDestinationInventory = ! ProductTransferSaleAuditLogger::isSaleTransfer($locked);
 
             $subtotal = 0.0;
             $saleLines = [];
@@ -152,46 +157,65 @@ final class ProductTransferCompletionService
                 $fromInv->updated_by = $actor;
                 $fromInv->save();
 
-                InventoryMovement::query()->create([
-                    'product_id' => $product->id,
-                    'inventory_id' => $fromInv->id,
-                    'movement_type' => InventoryMovementType::Transfer,
-                    'quantity' => -1 * abs($qty),
-                    'unit_cost' => $unitCost,
-                    'reference_type' => ProductTransfer::class,
-                    'reference_id' => $locked->id,
-                    'notes' => 'Salida traslado '.$locked->code,
-                    'created_by' => $actor,
-                ]);
+                $toInv = null;
+                if ($creditDestinationInventory) {
+                    $toInv = Inventory::query()->firstOrNew([
+                        'branch_id' => $toBranchId,
+                        'product_id' => $product->id,
+                    ]);
 
-                $toInv = Inventory::query()->firstOrNew([
-                    'branch_id' => $toBranchId,
-                    'product_id' => $product->id,
-                ]);
+                    if (! $toInv->exists) {
+                        $toInv->quantity = 0;
+                        $toInv->reserved_quantity = 0;
+                        $toInv->allow_negative_stock = false;
+                        $toInv->created_by = $actor;
+                    }
 
-                if (! $toInv->exists) {
-                    $toInv->quantity = 0;
-                    $toInv->reserved_quantity = 0;
-                    $toInv->allow_negative_stock = false;
-                    $toInv->created_by = $actor;
+                    $toInv->updated_by = $actor;
+                    $toInv->quantity = round((float) $toInv->quantity + $qty, 3);
+                    $toInv->last_movement_at = now();
+                    $toInv->save();
                 }
 
-                $toInv->updated_by = $actor;
-                $toInv->quantity = round((float) $toInv->quantity + $qty, 3);
-                $toInv->last_movement_at = now();
-                $toInv->save();
+                if ($product->requires_expiry_on_purchase) {
+                    $this->fefoLotTransferDispatchService->dispatchForTransferLine(
+                        $fromBranchId,
+                        $toBranchId,
+                        $product,
+                        $qty,
+                        $fromInv,
+                        $toInv,
+                        $locked,
+                        $actor,
+                        $creditDestinationInventory,
+                    );
+                } else {
+                    InventoryMovement::query()->create([
+                        'product_id' => $product->id,
+                        'inventory_id' => $fromInv->id,
+                        'movement_type' => InventoryMovementType::Transfer,
+                        'quantity' => -1 * abs($qty),
+                        'unit_cost' => $unitCost,
+                        'reference_type' => ProductTransfer::class,
+                        'reference_id' => $locked->id,
+                        'notes' => 'Salida traslado '.$locked->code,
+                        'created_by' => $actor,
+                    ]);
 
-                InventoryMovement::query()->create([
-                    'product_id' => $product->id,
-                    'inventory_id' => $toInv->id,
-                    'movement_type' => InventoryMovementType::Transfer,
-                    'quantity' => abs($qty),
-                    'unit_cost' => $unitCost,
-                    'reference_type' => ProductTransfer::class,
-                    'reference_id' => $locked->id,
-                    'notes' => 'Entrada traslado '.$locked->code,
-                    'created_by' => $actor,
-                ]);
+                    if ($toInv instanceof Inventory) {
+                        InventoryMovement::query()->create([
+                            'product_id' => $product->id,
+                            'inventory_id' => $toInv->id,
+                            'movement_type' => InventoryMovementType::Transfer,
+                            'quantity' => abs($qty),
+                            'unit_cost' => $unitCost,
+                            'reference_type' => ProductTransfer::class,
+                            'reference_id' => $locked->id,
+                            'notes' => 'Entrada traslado '.$locked->code,
+                            'created_by' => $actor,
+                        ]);
+                    }
+                }
 
                 $lineCostTotal = round($qty * $unitCost, 2);
 

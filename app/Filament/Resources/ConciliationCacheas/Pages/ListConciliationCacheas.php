@@ -17,7 +17,7 @@ class ListConciliationCacheas extends ListRecords
 
     protected static ?string $title = 'Conciliaciones Cachea';
 
-    protected ?string $subheading = 'Ventas con pago Cachea en caja. Por defecto se listan solo montos por cobrar; el administrador puede marcar cobros recibidos con la acción masiva.';
+    protected ?string $subheading = 'Ventas con pago Cachea en caja. Gerencia ve solo montos por cobrar de sus sucursales asignadas; el administrador puede marcar cobros recibidos con la acción masiva.';
 
     public function getHeading(): string|Htmlable
     {

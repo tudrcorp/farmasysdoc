@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Services\Inventory\InventoryAdjustmentApplyService;
 use App\Support\Inventory\InventoryAdjustmentReason;
+use App\Support\Inventory\InventoryQuantityFormat;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Component;
 use Filament\Forms\Components\Hidden;
@@ -327,7 +328,7 @@ final class ApplyInventoryAdjustmentAction
             }
 
             $qty = (float) ($row->branch_qty ?? 0);
-            $label .= ' · Cant. '.number_format(max(0.0, $qty), 2, ',', '.');
+            $label .= ' · Cant. '.InventoryQuantityFormat::display(max(0.0, $qty));
 
             return [(int) $row->id => (string) $label];
         })->all();
@@ -359,7 +360,7 @@ final class ApplyInventoryAdjustmentAction
         }
 
         $qty = (float) ($row->branch_qty ?? 0);
-        $base .= ' · Cant. '.number_format(max(0.0, $qty), 2, ',', '.');
+        $base .= ' · Cant. '.InventoryQuantityFormat::display(max(0.0, $qty));
 
         return (string) $base;
     }

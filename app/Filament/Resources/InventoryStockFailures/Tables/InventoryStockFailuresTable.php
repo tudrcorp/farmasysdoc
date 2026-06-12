@@ -7,6 +7,7 @@ use App\Filament\Resources\Products\ProductResource;
 use App\Models\Branch;
 use App\Models\InventoryStockFailure;
 use App\Models\User;
+use App\Support\Inventory\InventoryQuantityFormat;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Support\Icons\Heroicon;
@@ -75,7 +76,7 @@ class InventoryStockFailuresTable
                     ->label('Existencia')
                     ->alignEnd()
                     ->weight('bold')
-                    ->formatStateUsing(fn (mixed $state): string => number_format((float) $state, 3, ',', '.'))
+                    ->formatStateUsing(fn (mixed $state): string => InventoryQuantityFormat::display($state))
                     ->badge()
                     ->color('danger')
                     ->icon(Heroicon::ExclamationTriangle)

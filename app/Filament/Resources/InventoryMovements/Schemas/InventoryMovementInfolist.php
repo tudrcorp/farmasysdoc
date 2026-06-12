@@ -4,6 +4,7 @@ namespace App\Filament\Resources\InventoryMovements\Schemas;
 
 use App\Enums\InventoryMovementType;
 use App\Models\InventoryMovement;
+use App\Support\Inventory\InventoryQuantityFormat;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -63,7 +64,7 @@ class InventoryMovementInfolist
                                     ->icon(Heroicon::ArrowsRightLeft),
                                 TextEntry::make('quantity')
                                     ->label('Cantidad')
-                                    ->numeric(3)
+                                    ->formatStateUsing(fn (mixed $state): string => InventoryQuantityFormat::display($state))
                                     ->icon(Heroicon::Hashtag),
                                 TextEntry::make('unit_cost')
                                     ->label('Costo unitario')

@@ -3968,6 +3968,146 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
     align-items: center;
 }
 
+/* Alertas FEFO en caja — fondo según severidad */
+.farmadoc-pos-fefo-alert {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin-top: 0.45rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 0.65rem;
+    border-width: 2px;
+    border-style: solid;
+    line-height: 1.35;
+}
+
+.farmadoc-pos-fefo-alert__title {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+}
+
+.farmadoc-pos-fefo-alert__detail {
+    display: block;
+    font-size: 0.74rem;
+    font-weight: 600;
+}
+
+.farmadoc-pos-fefo-alert--critical {
+    background: linear-gradient(180deg, rgb(254 226 226) 0%, rgb(254 202 202) 100%);
+    border-color: rgb(220 38 38);
+    color: rgb(127 29 29);
+    box-shadow: 0 0 0 1px rgb(248 113 113 / 0.35);
+}
+
+.farmadoc-pos-fefo-alert--warning {
+    background: linear-gradient(180deg, rgb(254 243 199) 0%, rgb(253 230 138) 100%);
+    border-color: rgb(217 119 6);
+    color: rgb(120 53 15);
+    box-shadow: 0 0 0 1px rgb(251 191 36 / 0.35);
+}
+
+.dark .farmadoc-pos-fefo-alert--critical {
+    background: linear-gradient(180deg, rgb(127 29 29 / 0.55) 0%, rgb(69 10 10 / 0.72) 100%);
+    border-color: rgb(248 113 113);
+    color: rgb(254 202 202);
+    box-shadow: 0 0 0 1px rgb(248 113 113 / 0.25);
+}
+
+.dark .farmadoc-pos-fefo-alert--warning {
+    background: linear-gradient(180deg, rgb(120 53 15 / 0.55) 0%, rgb(69 26 3 / 0.72) 100%);
+    border-color: rgb(251 191 36);
+    color: rgb(254 243 199);
+    box-shadow: 0 0 0 1px rgb(251 191 36 / 0.25);
+}
+
+.farmadoc-pos-fefo-badge {
+    display: inline-block;
+    margin-inline-start: 0.35rem;
+    padding: 0.12rem 0.45rem;
+    border-radius: 9999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.farmadoc-pos-fefo-badge.farmadoc-pos-fefo-alert--critical {
+    background: rgb(220 38 38);
+    color: rgb(255 255 255);
+}
+
+.farmadoc-pos-fefo-badge.farmadoc-pos-fefo-alert--warning {
+    background: rgb(217 119 6);
+    color: rgb(255 255 255);
+}
+
+.farmadoc-pos-cart-section
+    .farmadoc-pos-line-items-repeater.fi-fo-table-repeater
+    table
+    tbody
+    tr:has(.farmadoc-pos-fefo-alert--critical)
+    > td {
+    background: rgb(254 242 242 / 0.65);
+}
+
+.farmadoc-pos-cart-section
+    .farmadoc-pos-line-items-repeater.fi-fo-table-repeater
+    table
+    tbody
+    tr:has(.farmadoc-pos-fefo-alert--warning)
+    > td {
+    background: rgb(255 251 235 / 0.72);
+}
+
+.dark
+    .farmadoc-pos-cart-section
+    .farmadoc-pos-line-items-repeater.fi-fo-table-repeater
+    table
+    tbody
+    tr:has(.farmadoc-pos-fefo-alert--critical)
+    > td {
+    background: rgb(127 29 29 / 0.18);
+}
+
+.dark
+    .farmadoc-pos-cart-section
+    .farmadoc-pos-line-items-repeater.fi-fo-table-repeater
+    table
+    tbody
+    tr:has(.farmadoc-pos-fefo-alert--warning)
+    > td {
+    background: rgb(120 53 15 / 0.18);
+}
+
+/* Notificación Filament con cuerpo FEFO */
+.fi-no-notification.fi-status-danger:has(.farmadoc-pos-fefo-alert--critical) {
+    background: linear-gradient(180deg, rgb(254 226 226) 0%, rgb(254 202 202) 100%) !important;
+    border: 2px solid rgb(220 38 38) !important;
+}
+
+.fi-no-notification.fi-status-warning:has(.farmadoc-pos-fefo-alert--warning) {
+    background: linear-gradient(180deg, rgb(254 243 199) 0%, rgb(253 230 138) 100%) !important;
+    border: 2px solid rgb(217 119 6) !important;
+}
+
+.dark .fi-no-notification.fi-status-danger:has(.farmadoc-pos-fefo-alert--critical) {
+    background: linear-gradient(180deg, rgb(127 29 29 / 0.72) 0%, rgb(69 10 10 / 0.88) 100%) !important;
+    border-color: rgb(248 113 113) !important;
+}
+
+.dark .fi-no-notification.fi-status-warning:has(.farmadoc-pos-fefo-alert--warning) {
+    background: linear-gradient(180deg, rgb(120 53 15 / 0.72) 0%, rgb(69 26 3 / 0.88) 100%) !important;
+    border-color: rgb(251 191 36) !important;
+}
+
+.fi-no-notification-body .farmadoc-pos-fefo-alert {
+    margin-top: 0.35rem;
+}
+
 /* Líneas de venta: repeater ítem por ítem (sin tabla) */
 .farmadoc-pos-cart-section .farmadoc-pos-line-items-repeater.fi-fo-repeater .fi-fo-repeater-item {
     border-radius: 1rem;

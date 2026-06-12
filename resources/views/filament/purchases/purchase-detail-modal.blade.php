@@ -119,7 +119,7 @@
                                 @endif
                             </td>
                             <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums">{{ $moneyPfx }}{{ number_format((float) $line->unit_cost, 2, ',', '.') }}</td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums">{{ number_format((float) $line->quantity_ordered, 3, ',', '.') }}</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums">{{ \App\Support\Inventory\InventoryQuantityFormat::display($line->quantity_ordered) }}</td>
                             <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums">{{ number_format((float) $line->line_discount_percent, 2, ',', '.') }}</td>
                             <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums">{{ number_format((float) $line->line_vat_percent, 2, ',', '.') }}</td>
                             <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums">{{ $moneyPfx }}{{ number_format((float) $line->tax_amount, 2, ',', '.') }}</td>

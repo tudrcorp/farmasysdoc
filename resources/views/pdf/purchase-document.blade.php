@@ -216,7 +216,7 @@
                         @endif
                     </td>
                     <td class="num">{{ $pdfSym }}{{ number_format((float) $line->unit_cost, 2, ',', '.') }}</td>
-                    <td class="num">{{ number_format((float) $line->quantity_ordered, 3, ',', '.') }}</td>
+                    <td class="num">{{ \App\Support\Inventory\InventoryQuantityFormat::display($line->quantity_ordered) }}</td>
                     <td class="num">{{ number_format((float) $line->line_discount_percent, 2, ',', '.') }}</td>
                     <td class="num">{{ number_format((float) $line->line_vat_percent, 2, ',', '.') }}</td>
                     <td class="num">{{ $pdfSym }}{{ number_format((float) $line->tax_amount, 2, ',', '.') }}</td>

@@ -8,14 +8,17 @@ use App\Filament\Resources\ConciliationCacheas\Pages\ViewConciliationCachea;
 use App\Filament\Resources\ConciliationCacheas\Schemas\ConciliationCacheaInfolist;
 use App\Filament\Resources\ConciliationCacheas\Tables\ConciliationCacheasTable;
 use App\Models\ConciliationCachea;
+use App\Models\User;
+use App\Support\Filament\BranchAuthScope;
 use App\Support\Sales\PosPaymentMethodOptions;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use UnitEnum;
+use Illuminate\Support\Facades\Auth;
 
 class ConciliationCacheaResource extends Resource
 {
@@ -29,9 +32,14 @@ class ConciliationCacheaResource extends Resource
 
     protected static ?string $pluralModelLabel = 'conciliaciones Cachea';
 
-    protected static string|UnitEnum|null $navigationGroup = 'Configuración';
-
     protected static ?int $navigationSort = 46;
+
+    public static function getNavigationGroup(): ?string
+    {
+        $user = Auth::user();
+
+        return $user instanceof User ? $user->navigationOperationsGroupLabel() : 'Farmadoc®';
+    }
 
     public static function getNavigationIcon(): string|BackedEnum|Htmlable|null
     {
@@ -59,6 +67,24 @@ class ConciliationCacheaResource extends Resource
             'index' => ListConciliationCacheas::route('/'),
             'view' => ViewConciliationCachea::route('/{record}'),
         ];
+    }
+
+    /**
+     * Gerencia y gerentes: solo conciliaciones de sucursales asignadas; montos por cobrar.
+     * Administrador: todas las sucursales y cualquier estatus de cobro.
+     *
+     * @return Builder<ConciliationCachea>
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        $query = BranchAuthScope::apply(parent::getEloquentQuery());
+
+        $user = Auth::user();
+        if ($user instanceof User && ! $user->isAdministrator()) {
+            $query->pendingCollection();
+        }
+
+        return $query;
     }
 
     public static function canCreate(): bool

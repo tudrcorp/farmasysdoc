@@ -89,8 +89,12 @@ final class PhysicalCashBoxShiftReportBuilder
                 'label' => PosPaymentMethodOptions::posCobroOptionLabel((string) $method) ?? '—',
                 'count' => $group->count(),
                 'total_document' => round((float) $group->sum('total'), 2),
-                'payment_usd' => round((float) $group->sum('payment_usd'), 2),
-                'payment_ves' => round((float) $group->sum('payment_ves'), 2),
+                'payment_usd' => round((float) $group->sum(
+                    fn (Sale $sale): float => self::resolvedPaymentAmounts($sale)['usd'],
+                ), 2),
+                'payment_ves' => round((float) $group->sum(
+                    fn (Sale $sale): float => self::resolvedPaymentAmounts($sale)['ves'],
+                ), 2),
             ];
         }
 
@@ -173,5 +177,47 @@ final class PhysicalCashBoxShiftReportBuilder
         }
 
         $query->whereIn($column, $branchIds);
+    }
+
+    /**
+     * Completa el cobro en la moneda faltante usando la tasa BCV de la venta.
+     *
+     * @return array{usd: float, ves: float}
+     */
+    private static function resolvedPaymentAmounts(Sale $sale): array
+    {
+        $usd = round((float) $sale->payment_usd, 2);
+        $ves = round((float) $sale->payment_ves, 2);
+        $rate = self::resolveVesUsdRate($sale);
+
+        if ($usd > 0.00001 && $ves <= 0.00001) {
+            $ves = round($usd * $rate, 2);
+        } elseif ($ves > 0.00001 && $usd <= 0.00001) {
+            $usd = round($ves / $rate, 2);
+        }
+
+        return [
+            'usd' => $usd,
+            'ves' => $ves,
+        ];
+    }
+
+    private static function resolveVesUsdRate(Sale $sale): float
+    {
+        $stored = (float) ($sale->bcv_ves_per_usd ?? 0);
+        if ($stored > 0) {
+            return $stored;
+        }
+
+        $totalUsd = (float) $sale->total;
+        $ves = (float) ($sale->payment_ves ?? 0);
+
+        if ($totalUsd > 0.00001 && $ves > 0) {
+            return $ves / $totalUsd;
+        }
+
+        $fallback = config('fiscal.fallback_ves_usd_rate');
+
+        return is_numeric($fallback) && (float) $fallback > 0 ? (float) $fallback : 1.0;
     }
 }

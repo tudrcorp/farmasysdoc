@@ -76,6 +76,7 @@ return [
         'token' => env('ULTRAMSG_TOKEN'),
         'timeout' => (int) env('ULTRAMSG_TIMEOUT', 15),
         'admin_fallback_phones' => env('ULTRAMSG_ADMIN_FALLBACK_PHONES', ''),
+        'cash_box_banner_url' => env('ULTRAMSG_CASH_BOX_BANNER_URL'),
     ],
 
 ];

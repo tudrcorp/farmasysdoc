@@ -260,7 +260,6 @@
                 <tr>
                     <th>Forma de pago</th>
                     <th class="center">Nº ventas</th>
-                    <th class="num">Total documento (USD)</th>
                     <th class="num">Cobro USD</th>
                     <th class="num">Cobro VES (Bs.)</th>
                 </tr>
@@ -270,7 +269,6 @@
                     <tr>
                         <td>{{ $row['label'] }}</td>
                         <td class="center">{{ $row['count'] }}</td>
-                        <td class="num">$ {{ number_format($row['total_document'], 2, ',', '.') }}</td>
                         <td class="num">$ {{ number_format($row['payment_usd'], 2, ',', '.') }}</td>
                         <td class="num">Bs. {{ number_format($row['payment_ves'], 2, ',', '.') }}</td>
                     </tr>
@@ -280,7 +278,6 @@
                 <tr>
                     <td>Total (todos los métodos)</td>
                     <td class="center">{{ $pt['count'] }}</td>
-                    <td class="num">$ {{ number_format($pt['total_document'], 2, ',', '.') }}</td>
                     <td class="num">$ {{ number_format($pt['payment_usd'], 2, ',', '.') }}</td>
                     <td class="num">Bs. {{ number_format($pt['payment_ves'], 2, ',', '.') }}</td>
                 </tr>

@@ -6,12 +6,16 @@ use App\Filament\Resources\Sales\Actions\CashRegisterAction;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Filament\Resources\Sales\Widgets\StatsListSaleByPaymentMethod;
 use App\Filament\Resources\Sales\Widgets\StatsListSaleOverview;
+use App\Models\Branch;
+use App\Models\User;
 use App\Support\Cash\PhysicalCashBoxBillingGate;
+use App\Support\Filament\BranchAuthScope;
 use App\Support\Sales\SalesBillingAccess;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Pages\Concerns\ExposesTableToWidgets;
 use Filament\Resources\Pages\ListRecords;
@@ -148,7 +152,7 @@ class ListSales extends ListRecords
                 ->icon(Heroicon::DocumentArrowDown)
                 ->color('danger')
                 ->modalHeading('Reporte de cierre de caja')
-                ->modalDescription('PDF detallado con todas las ventas completadas del período (fecha efectiva: venta o registro). Por defecto, el día de hoy.')
+                ->modalDescription('PDF detallado con todas las ventas completadas del período (fecha efectiva: venta o registro). Los administradores pueden acotar el reporte a una o varias sucursales.')
                 ->modalSubmitActionLabel('Descargar PDF')
                 ->modalWidth(Width::Medium)
                 ->extraAttributes([
@@ -167,6 +171,16 @@ class ListSales extends ListRecords
                         ->required()
                         ->native(false)
                         ->displayFormat('d/m/Y'),
+                    Select::make('branch_ids')
+                        ->label('Sucursales')
+                        ->multiple()
+                        ->searchable()
+                        ->preload()
+                        ->visible(fn (): bool => Auth::user() instanceof User && Auth::user()->isAdministrator())
+                        ->helperText('Deje vacío para incluir todas las sucursales activas.')
+                        ->options(fn (): array => BranchAuthScope::applyToBranchFormSelect(
+                            Branch::query()->where('is_active', true)->orderBy('name'),
+                        )->pluck('name', 'id')->toArray()),
                 ])
                 ->action(function (array $data): void {
                     $from = Carbon::parse((string) $data['date_from'])->startOfDay();
@@ -182,13 +196,29 @@ class ListSales extends ListRecords
                         return;
                     }
 
+                    $routeParams = [
+                        'from' => $from->toDateString(),
+                        'until' => $until->toDateString(),
+                    ];
+
+                    $user = Auth::user();
+                    if ($user instanceof User && $user->isAdministrator()) {
+                        $branchIds = is_array($data['branch_ids'] ?? null)
+                            ? array_values(array_filter(array_map(
+                                static fn (mixed $id): int => (int) $id,
+                                $data['branch_ids'],
+                            ), static fn (int $id): bool => $id > 0))
+                            : [];
+
+                        if ($branchIds !== []) {
+                            $routeParams['branches'] = implode(',', $branchIds);
+                        }
+                    }
+
                     $url = URL::temporarySignedRoute(
                         'sales.cash-close-pdf',
                         now()->addMinutes(10),
-                        [
-                            'from' => $from->toDateString(),
-                            'until' => $until->toDateString(),
-                        ]
+                        $routeParams,
                     );
 
                     $this->js('window.open('.Js::from($url).', "_blank")');

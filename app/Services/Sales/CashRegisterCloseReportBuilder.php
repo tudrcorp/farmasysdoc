@@ -3,6 +3,7 @@
 namespace App\Services\Sales;
 
 use App\Enums\SaleStatus;
+use App\Models\Branch;
 use App\Models\Sale;
 use App\Models\User;
 use App\Support\Filament\BranchAuthScope;
@@ -42,19 +43,20 @@ final class CashRegisterCloseReportBuilder
      *         method: string,
      *         label: string,
      *         count: int,
-     *         total_document: float,
      *         payment_usd: float,
      *         payment_ves: float,
      *     }>,
      *     payment_breakdown_totals: array{
      *         count: int,
-     *         total_document: float,
      *         payment_usd: float,
      *         payment_ves: float,
      *     },
      * }
      */
-    public function build(Carbon $from, Carbon $until): array
+    /**
+     * @param  list<int>|null  $branchIds  Solo administradores: filtra sucursales. Null = todas las permitidas.
+     */
+    public function build(Carbon $from, Carbon $until, ?array $branchIds = null): array
     {
         $from = $from->copy()->startOfDay();
         $until = $until->copy()->endOfDay();
@@ -71,6 +73,14 @@ final class CashRegisterCloseReportBuilder
 
         BranchAuthScope::applyToSalesQuery($query);
         SaleEffectiveDateScope::apply($query, $from->toDateString(), $until->toDateString());
+
+        if ($branchIds !== null) {
+            if ($branchIds === []) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn($query->getModel()->getTable().'.branch_id', $branchIds);
+            }
+        }
 
         /** @var Collection<int, Sale> $sales */
         $sales = $query->get();
@@ -101,9 +111,12 @@ final class CashRegisterCloseReportBuilder
                 'method' => (string) $method,
                 'label' => self::paymentMethodLabel((string) $method),
                 'count' => $group->count(),
-                'total_document' => round((float) $group->sum('total'), 2),
-                'payment_usd' => round((float) $group->sum('payment_usd'), 2),
-                'payment_ves' => round((float) $group->sum('payment_ves'), 2),
+                'payment_usd' => round((float) $group->sum(
+                    fn (Sale $sale): float => self::resolvedPaymentAmounts($sale)['usd'],
+                ), 2),
+                'payment_ves' => round((float) $group->sum(
+                    fn (Sale $sale): float => self::resolvedPaymentAmounts($sale)['ves'],
+                ), 2),
             ];
         }
 
@@ -112,14 +125,14 @@ final class CashRegisterCloseReportBuilder
         $breakdownCollection = collect($payment_breakdown);
         $payment_breakdown_totals = [
             'count' => (int) $breakdownCollection->sum('count'),
-            'total_document' => round((float) $breakdownCollection->sum('total_document'), 2),
             'payment_usd' => round((float) $breakdownCollection->sum('payment_usd'), 2),
             'payment_ves' => round((float) $breakdownCollection->sum('payment_ves'), 2),
         ];
 
         $actor = Auth::user();
         $actorUser = $actor instanceof User ? $actor : null;
-        $scope_note = $this->resolveScopeNote($actorUser, $sales);
+        $selectedBranchNames = $this->resolveSelectedBranchNames($branchIds);
+        $scope_note = $this->resolveScopeNote($actorUser, $sales, $branchIds, $selectedBranchNames);
 
         return [
             'generated_at' => now()->format('d/m/Y H:i:s'),
@@ -140,10 +153,79 @@ final class CashRegisterCloseReportBuilder
         ];
     }
 
-    private function resolveScopeNote(?User $user, Collection $sales): string
+    /**
+     * @param  list<int>|null  $requestedBranchIds
+     * @return list<int>|null null = todas las sucursales; list = filtro válido; [] = inválido
+     */
+    public function resolveAdministratorBranchFilter(?array $requestedBranchIds): ?array
     {
+        $user = Auth::user();
+        if (! $user instanceof User || ! $user->isAdministrator()) {
+            return null;
+        }
+
+        if ($requestedBranchIds === null || $requestedBranchIds === []) {
+            return null;
+        }
+
+        $permittedIds = BranchAuthScope::applyToBranchFormSelect(
+            Branch::query()->where('is_active', true),
+        )
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
+
+        $allowed = array_values(array_intersect(
+            array_values(array_unique(array_map('intval', $requestedBranchIds))),
+            $permittedIds,
+        ));
+
+        return $allowed === [] ? [] : $allowed;
+    }
+
+    /**
+     * @param  list<int>|null  $branchIds
+     * @return list<string>
+     */
+    private function resolveSelectedBranchNames(?array $branchIds): array
+    {
+        if ($branchIds === null || $branchIds === []) {
+            return [];
+        }
+
+        return Branch::query()
+            ->whereIn('id', $branchIds)
+            ->orderBy('name')
+            ->pluck('name')
+            ->map(fn (mixed $name): string => (string) $name)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<int>|null  $selectedBranchIds
+     * @param  list<string>  $selectedBranchNames
+     */
+    private function resolveScopeNote(
+        ?User $user,
+        Collection $sales,
+        ?array $selectedBranchIds,
+        array $selectedBranchNames,
+    ): string {
         if ($user instanceof User && $user->isAdministrator()) {
-            return 'Todas las sucursales (usuario administrador).';
+            if ($selectedBranchIds === null || $selectedBranchIds === []) {
+                return 'Todas las sucursales.';
+            }
+
+            if (count($selectedBranchNames) === 1) {
+                return 'Sucursal: '.$selectedBranchNames[0].'.';
+            }
+
+            if ($selectedBranchNames !== []) {
+                return 'Sucursales: '.implode(', ', $selectedBranchNames).'.';
+            }
+
+            return 'Sucursales seleccionadas: '.count($selectedBranchIds).'.';
         }
 
         $branchName = $user?->branch?->name;
@@ -164,6 +246,48 @@ final class CashRegisterCloseReportBuilder
         }
 
         return $note;
+    }
+
+    /**
+     * Completa el cobro en la moneda faltante usando la tasa BCV de la venta.
+     *
+     * @return array{usd: float, ves: float}
+     */
+    private static function resolvedPaymentAmounts(Sale $sale): array
+    {
+        $usd = round((float) $sale->payment_usd, 2);
+        $ves = round((float) $sale->payment_ves, 2);
+        $rate = self::resolveVesUsdRate($sale);
+
+        if ($usd > 0.00001 && $ves <= 0.00001) {
+            $ves = round($usd * $rate, 2);
+        } elseif ($ves > 0.00001 && $usd <= 0.00001) {
+            $usd = round($ves / $rate, 2);
+        }
+
+        return [
+            'usd' => $usd,
+            'ves' => $ves,
+        ];
+    }
+
+    private static function resolveVesUsdRate(Sale $sale): float
+    {
+        $stored = (float) ($sale->bcv_ves_per_usd ?? 0);
+        if ($stored > 0) {
+            return $stored;
+        }
+
+        $totalUsd = (float) $sale->total;
+        $ves = (float) ($sale->payment_ves ?? 0);
+
+        if ($totalUsd > 0.00001 && $ves > 0) {
+            return $ves / $totalUsd;
+        }
+
+        $fallback = config('fiscal.fallback_ves_usd_rate');
+
+        return is_numeric($fallback) && (float) $fallback > 0 ? (float) $fallback : 1.0;
     }
 
     private static function paymentMethodLabel(string $value): string

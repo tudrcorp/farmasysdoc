@@ -4,6 +4,7 @@ namespace App\Support\Cash;
 
 use App\Models\PhysicalCashBox;
 use App\Models\User;
+use App\Services\Sales\PhysicalCashBoxShiftPaymentTotalsPdfGenerator;
 use App\Services\Sales\PhysicalCashBoxShiftReportBuilder;
 use App\Support\Notifications\UltramsgWhatsAppClient;
 use Carbon\CarbonInterface;
@@ -14,6 +15,7 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
 {
     public function __construct(
         private readonly PhysicalCashBoxShiftReportBuilder $shiftReportBuilder,
+        private readonly PhysicalCashBoxShiftPaymentTotalsPdfGenerator $paymentTotalsPdfGenerator,
         private readonly UltramsgWhatsAppClient $ultramsgWhatsAppClient,
     ) {}
 
@@ -44,11 +46,39 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
         }
 
         $report = $this->shiftReportBuilder->build($cashier, $physicalCashBox, $openedAt, $closedAt);
-        $message = $this->buildMessage($report);
+        $bannerImage = $this->ultramsgWhatsAppClient->resolvePhysicalCashBoxBannerImage();
+        $caption = $this->buildCaption($report);
+        $pdfBytes = $this->paymentTotalsPdfGenerator->generate($report);
+        $pdfDocument = base64_encode($pdfBytes);
+        $pdfFilename = 'totales-pago-cierre-caja-'.$closedAt->timezone((string) config('app.timezone'))->format('Y-m-d-His').'.pdf';
+        $pdfCaption = 'Totales por tipo de pago — '.$report['cashier_name'].' ('.$report['opened_at_label'].' — '.$report['closed_at_label'].')';
 
         foreach ($phones as $phone) {
             try {
-                $this->ultramsgWhatsAppClient->sendTextMessage($phone, $message);
+                $sentImage = false;
+
+                if ($bannerImage !== null) {
+                    $sentImage = $this->ultramsgWhatsAppClient->sendImageMessage($phone, $bannerImage, $caption);
+                }
+
+                if (! $sentImage) {
+                    $this->ultramsgWhatsAppClient->sendTextMessage($phone, $caption);
+                }
+
+                $sentDocument = $this->ultramsgWhatsAppClient->sendDocumentMessage(
+                    $phone,
+                    $pdfDocument,
+                    $pdfFilename,
+                    $pdfCaption,
+                );
+
+                if (! $sentDocument) {
+                    Log::warning('Cierre de caja física: no se pudo enviar PDF de totales por tipo de pago', [
+                        'phone' => $phone,
+                        'cashier_id' => $cashier->getKey(),
+                        'physical_cash_box_id' => $physicalCashBox->getKey(),
+                    ]);
+                }
             } catch (Throwable $exception) {
                 Log::warning('Cierre de caja física: error al enviar WhatsApp a administrador', [
                     'phone' => $phone,
@@ -90,64 +120,29 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
      *     },
      * }  $report
      */
-    private function buildMessage(array $report): string
+    private function buildCaption(array $report): string
     {
         $summary = $report['summary'];
-        $totals = $report['payment_breakdown_totals'];
 
-        $lines = [
-            '========================================',
+        return implode("\n", [
             'CIERRE DE CAJA FISICA',
             (string) config('app.name'),
-            '========================================',
             '',
-            '[ 1. TURNO ]',
-            'Sucursal ....... '.$report['branch_name'],
-            'Cajero ......... '.$report['cashier_name'],
-            'Apertura ....... '.$report['opened_at_label'],
-            'Cierre ......... '.$report['closed_at_label'],
+            'El cierre de caja se ejecuto con exito.',
             '',
-            '[ 2. RESUMEN ]',
-            'Ventas ......... '.$this->formatInteger($summary['sale_count']),
-            'Clientes ....... '.$this->formatInteger($summary['customers_served']),
-            'Productos ...... '.$this->formatQuantity($summary['quantity_sold']).' uds.',
-            'Total ventas ... USD '.$this->formatMoney($summary['grand_total']),
+            '[ TURNO ]',
+            'Sucursal:'.$report['branch_name'],
+            'Cajero:'.$report['cashier_name'],
+            'Apertura:'.$report['opened_at_label'],
+            'Cierre:'.$report['closed_at_label'],
             '',
-            '[ 3. FORMAS DE PAGO ]',
-        ];
-
-        if ($report['payment_breakdown'] === []) {
-            $lines[] = 'Sin ventas registradas en este turno.';
-            $lines[] = '';
-        } else {
-            foreach ($report['payment_breakdown'] as $index => $row) {
-                $number = str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
-                $lines[] = $number.'. '.$row['label'];
-                $lines[] = '    Ventas ....... '.$this->formatInteger($row['count']);
-                $lines[] = '    Total doc. ... USD '.$this->formatMoney($row['total_document']);
-
-                if ($row['payment_usd'] > 0.00001) {
-                    $lines[] = '    Cobrado USD .. USD '.$this->formatMoney($row['payment_usd']);
-                }
-
-                if ($row['payment_ves'] > 0.00001) {
-                    $lines[] = '    Cobrado Bs ... Bs '.$this->formatMoney($row['payment_ves']);
-                }
-
-                $lines[] = '';
-            }
-        }
-
-        $lines[] = '[ 4. TOTALES ]';
-        $lines[] = 'Ventas ......... '.$this->formatInteger($totals['count']);
-        $lines[] = 'Total doc. ..... USD '.$this->formatMoney($totals['total_document']);
-        $lines[] = 'Cobrado USD .... USD '.$this->formatMoney($totals['payment_usd']);
-        $lines[] = 'Cobrado Bs ..... Bs '.$this->formatMoney($totals['payment_ves']);
-        $lines[] = '';
-        $lines[] = '========================================';
-        $lines[] = 'Reporte automatico al cierre de caja fisica.';
-
-        return implode("\n", $lines);
+            '[ RESUMEN ]',
+            'Ventas:'.$this->formatInteger($summary['sale_count']),
+            'Total ventas: USD '.$this->formatMoney($summary['grand_total']),
+            '',
+            'Reporte automatico al cerrar caja fisica.',
+            'Adjunto: totales por tipo de pago (PDF).',
+        ]);
     }
 
     /**
@@ -184,15 +179,6 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
     private function formatInteger(int $value): string
     {
         return number_format($value, 0, ',', '.');
-    }
-
-    private function formatQuantity(float $quantity): string
-    {
-        if (abs($quantity - round($quantity)) < 0.0001) {
-            return $this->formatInteger((int) round($quantity));
-        }
-
-        return number_format($quantity, 3, ',', '.');
     }
 
     private function normalizePhone(?string $phone): ?string

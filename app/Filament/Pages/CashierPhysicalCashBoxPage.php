@@ -7,6 +7,7 @@ use App\Models\PhysicalCashBoxMovement;
 use App\Models\User;
 use App\Support\Cash\CashierShiftLock;
 use App\Support\Cash\NotifyAdministratorsOnPhysicalCashBoxClose;
+use App\Support\Cash\NotifyOnPhysicalCashBoxOpen;
 use App\Support\Cash\UsdBillDenominationCalculator;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -242,7 +243,18 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
 
         CashierShiftLock::clear($user);
 
-        $fresh = $box->fresh();
+        $fresh = $box->fresh() ?? $box;
+
+        try {
+            app(NotifyOnPhysicalCashBoxOpen::class)->notify($user, $fresh, $usd, $ves);
+        } catch (Throwable $exception) {
+            Log::warning('No se pudo enviar WhatsApp de apertura de caja física', [
+                'cashier_id' => $user->getKey(),
+                'physical_cash_box_id' => $fresh->getKey(),
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
         $this->syncInputsFromBox($fresh);
         $this->syncPublicBoxState($fresh);
         $this->syncCashierRecentMovements($fresh);

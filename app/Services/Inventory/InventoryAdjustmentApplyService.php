@@ -36,6 +36,8 @@ final class InventoryAdjustmentApplyService
             ]);
         }
 
+        $this->assertActorMayApplyToBranch($branchId, $actor);
+
         $sign = InventoryAdjustmentReason::quantitySign($reason);
         if ($sign === 0) {
             throw ValidationException::withMessages([
@@ -222,6 +224,24 @@ final class InventoryAdjustmentApplyService
                 'items' => $appliedItems,
             ],
         );
+    }
+
+    private function assertActorMayApplyToBranch(int $branchId, ?Authenticatable $actor): void
+    {
+        if (! $actor instanceof User) {
+            return;
+        }
+
+        if ($actor->isAdministrator()) {
+            return;
+        }
+
+        $permittedIds = $actor->restrictedBranchIdsForQueries();
+        if ($permittedIds === [] || ! in_array($branchId, $permittedIds, true)) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'No tiene permiso para ajustar inventario en esta sucursal.',
+            ]);
+        }
     }
 
     private function updateProductCostAndCategory(

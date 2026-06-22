@@ -6906,6 +6906,41 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
         0 2px 10px -4px rgb(254 123 71 / 0.16) !important;
 }
 
+/* Total general — paleta Success / Teal Farmadoc */
+.fi-farmaadmin-stats-all-branches-ios .fi-farmaadmin-ios-sales-stat--total.fi-wi-stats-overview-stat {
+    border: 1px solid rgb(255 255 255 / 0.72) !important;
+    background:
+        radial-gradient(ellipse 95% 75% at 100% 8%, rgb(14 148 154 / 0.42), transparent 52%),
+        radial-gradient(ellipse 70% 55% at 0% 100%, rgb(24 172 178 / 0.28), transparent 48%),
+        linear-gradient(
+            165deg,
+            rgb(255 255 255 / 0.9) 0%,
+            rgb(14 148 154 / 0.12) 50%,
+            rgb(186 236 238 / 0.52) 100%
+        ) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.82) inset,
+        0 6px 20px -6px rgb(14 148 154 / 0.22),
+        0 2px 10px -4px rgb(24 172 178 / 0.16) !important;
+}
+
+/* Tasa BCV — neutro cálido */
+.fi-farmaadmin-stats-all-branches-ios .fi-farmaadmin-ios-sales-stat--bcv.fi-wi-stats-overview-stat {
+    border: 1px solid rgb(255 255 255 / 0.68) !important;
+    background:
+        radial-gradient(ellipse 90% 70% at 100% 0%, rgb(120 113 108 / 0.2), transparent 55%),
+        linear-gradient(
+            165deg,
+            rgb(255 255 255 / 0.92) 0%,
+            rgb(245 245 244 / 0.88) 55%,
+            rgb(231 229 228 / 0.72) 100%
+        ) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.8) inset,
+        0 6px 20px -6px rgb(120 113 108 / 0.14),
+        0 2px 10px -4px rgb(0 0 0 / 0.05) !important;
+}
+
 .fi-farmaadmin-stats-general-ios .fi-farmaadmin-ios-sales-stat.fi-wi-stats-overview-stat::before {
     content: '' !important;
     display: block !important;
@@ -6960,6 +6995,368 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
         0 1px 0 rgb(255 255 255 / 0.05) inset,
         0 8px 28px -10px rgb(0 0 0 / 0.42),
         0 0 0 1px rgb(255 167 44 / 0.12) !important;
+}
+
+.dark .fi-farmaadmin-stats-all-branches-ios .fi-farmaadmin-ios-sales-stat--total.fi-wi-stats-overview-stat {
+    border-color: rgb(255 255 255 / 0.1) !important;
+    background:
+        radial-gradient(ellipse 90% 70% at 100% 0%, rgb(14 148 154 / 0.22), transparent 52%),
+        linear-gradient(165deg, rgb(39 39 42 / 0.92) 0%, rgb(24 68 70 / 0.55) 100%) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.06) inset,
+        0 8px 28px -10px rgb(0 0 0 / 0.45),
+        0 0 0 1px rgb(14 148 154 / 0.14) !important;
+}
+
+.dark .fi-farmaadmin-stats-all-branches-ios .fi-farmaadmin-ios-sales-stat--bcv.fi-wi-stats-overview-stat {
+    border-color: rgb(255 255 255 / 0.1) !important;
+    background:
+        radial-gradient(ellipse 90% 70% at 100% 0%, rgb(168 162 158 / 0.14), transparent 52%),
+        linear-gradient(165deg, rgb(39 39 42 / 0.92) 0%, rgb(48 46 44 / 0.55) 100%) !important;
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.06) inset,
+        0 8px 28px -10px rgb(0 0 0 / 0.45),
+        0 0 0 1px rgb(168 162 158 / 0.1) !important;
+}
+
+/* Dashboard — ventas mensuales por sucursal (tarjeta compacta + barra de meta) */
+.fi-farmaadmin-branch-monthly-stats {
+    font-family:
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        'SF Pro Display',
+        'SF Pro Text',
+        'Segoe UI',
+        sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+.fi-farmaadmin-branch-monthly-stats__header {
+    margin-bottom: 0.55rem;
+}
+
+.fi-farmaadmin-branch-monthly-stats__title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: rgb(68 52 44);
+}
+
+.dark .fi-farmaadmin-branch-monthly-stats__title {
+    color: rgb(250 245 240);
+}
+
+.fi-farmaadmin-branch-monthly-stats__description {
+    margin-top: 0.1rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: rgb(100 85 76);
+}
+
+.dark .fi-farmaadmin-branch-monthly-stats__description {
+    color: rgb(214 199 188);
+}
+
+.fi-farmaadmin-branch-monthly-stats__grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+
+@media (min-width: 768px) {
+    .fi-farmaadmin-branch-monthly-stats__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1280px) {
+    .fi-farmaadmin-branch-monthly-stats__grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+.fi-farmaadmin-branch-monthly-stats__grid--single {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 768px) {
+    .fi-farmaadmin-branch-monthly-stats__grid--single {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (min-width: 1280px) {
+    .fi-farmaadmin-branch-monthly-stats__grid--single {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.fi-farmaadmin-branch-monthly-stat {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border-radius: 0.85rem;
+    border: 1px solid rgb(0 0 0 / 0.06);
+    padding: 0.55rem 0.6rem 0.5rem;
+    animation: fi-farmaadmin-stats-general-ios-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        border-color 0.2s ease;
+}
+
+.fi-farmaadmin-branch-monthly-stat:hover {
+    transform: translateY(-1px);
+}
+
+.fi-farmaadmin-branch-monthly-stat--variant-0 {
+    background: linear-gradient(165deg, rgb(248 252 253) 0%, rgb(224 242 247 / 0.65) 100%);
+    box-shadow: 0 2px 10px -6px rgb(54 156 187 / 0.14);
+}
+
+.fi-farmaadmin-branch-monthly-stat--variant-1 {
+    background: linear-gradient(165deg, rgb(255 251 245) 0%, rgb(255 237 213 / 0.55) 100%);
+    box-shadow: 0 2px 10px -6px rgb(255 167 44 / 0.12);
+}
+
+.fi-farmaadmin-branch-monthly-stat--variant-2 {
+    background: linear-gradient(165deg, rgb(245 253 253) 0%, rgb(204 251 241 / 0.5) 100%);
+    box-shadow: 0 2px 10px -6px rgb(14 148 154 / 0.12);
+}
+
+.fi-farmaadmin-branch-monthly-stat__head {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 0.45rem;
+}
+
+.fi-farmaadmin-branch-monthly-stat__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.55rem;
+    height: 1.55rem;
+    border-radius: 0.5rem;
+    background: rgb(0 0 0 / 0.04);
+    color: rgb(68 52 44);
+    flex-shrink: 0;
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat__icon {
+    background: rgb(255 255 255 / 0.06);
+    color: rgb(228 228 231);
+}
+
+.fi-farmaadmin-branch-monthly-stat__identity {
+    min-width: 0;
+    flex: 1;
+}
+
+.fi-farmaadmin-branch-monthly-stat__name {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: rgb(45 38 34);
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat__name {
+    color: rgb(250 245 240);
+}
+
+.fi-farmaadmin-branch-monthly-stat__total {
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    color: rgb(14 116 144);
+    white-space: nowrap;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat__total {
+    color: rgb(125 211 252);
+}
+
+.fi-farmaadmin-branch-monthly-stat__goal {
+    position: relative;
+    z-index: 1;
+    margin-bottom: 0.45rem;
+}
+
+.fi-farmaadmin-branch-monthly-stat__goal-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    margin-bottom: 0.28rem;
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.fi-farmaadmin-branch-monthly-stat__goal-label {
+    color: rgb(100 85 76);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fi-farmaadmin-branch-monthly-stat__goal-label--empty {
+    font-style: italic;
+    opacity: 0.85;
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat__goal-label {
+    color: rgb(214 199 188);
+}
+
+.fi-farmaadmin-branch-monthly-stat__goal-percent {
+    color: rgb(180 83 9);
+    white-space: nowrap;
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat__goal-percent {
+    color: rgb(253 186 116);
+}
+
+.fi-farmaadmin-branch-monthly-stat__progress-track {
+    position: relative;
+    height: 0.72rem;
+    border-radius: 9999px;
+    padding: 2px;
+    background: rgb(0 0 0 / 0.06);
+    border: 1px solid rgb(0 0 0 / 0.05);
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.06);
+    overflow: hidden;
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat__progress-track {
+    background: rgb(24 24 27);
+    border-color: rgb(63 63 70 / 0.45);
+    box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.35);
+}
+
+.fi-farmaadmin-branch-monthly-stat__progress-fill {
+    position: relative;
+    height: 100%;
+    min-width: 0;
+    border-radius: 9999px;
+    background: linear-gradient(
+        90deg,
+        rgb(220 38 38) 0%,
+        rgb(249 115 22) 38%,
+        rgb(250 204 21) 72%,
+        rgb(253 224 71) 100%
+    );
+    box-shadow: 0 0 6px rgb(250 204 21 / 0.25);
+    transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat__progress-fill {
+    box-shadow: 0 0 5px rgb(250 204 21 / 0.18);
+}
+
+.fi-farmaadmin-branch-monthly-stat__metrics {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.25rem;
+    padding-top: 0.35rem;
+    border-top: 1px solid rgb(0 0 0 / 0.05);
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat__metrics {
+    border-top-color: rgb(255 255 255 / 0.06);
+}
+
+.fi-farmaadmin-branch-monthly-stat__metric {
+    min-width: 0;
+    padding: 0.15rem 0.1rem;
+    border-radius: 0.45rem;
+    background: rgb(0 0 0 / 0.025);
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat__metric {
+    background: rgb(255 255 255 / 0.03);
+}
+
+.fi-farmaadmin-branch-monthly-stat__metric dt {
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: rgb(120 113 108);
+    line-height: 1.2;
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat__metric dt {
+    color: rgb(168 162 158);
+}
+
+.fi-farmaadmin-branch-monthly-stat__metric dd {
+    margin-top: 0.08rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: rgb(45 38 34);
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat__metric dd {
+    color: rgb(250 245 240);
+}
+
+.fi-farmaadmin-branch-monthly-stat__metric--note dt,
+.fi-farmaadmin-branch-monthly-stat__metric--note dd {
+    font-size: 0.5625rem;
+    font-weight: 600;
+    color: rgb(120 113 108);
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat__metric--note dt,
+.dark .fi-farmaadmin-branch-monthly-stat__metric--note dd {
+    color: rgb(168 162 158);
+}
+
+.fi-farmaadmin-branch-monthly-stats__empty {
+    grid-column: 1 / -1;
+    font-size: 0.75rem;
+    color: rgb(100 85 76);
+}
+
+.dark .fi-farmaadmin-branch-monthly-stats__empty {
+    color: rgb(214 199 188);
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat {
+    border-color: rgb(255 255 255 / 0.08);
+    box-shadow: none;
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat--variant-0 {
+    background: linear-gradient(165deg, rgb(39 39 42) 0%, rgb(28 52 68 / 0.35) 100%);
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat--variant-1 {
+    background: linear-gradient(165deg, rgb(39 39 42) 0%, rgb(58 48 28 / 0.32) 100%);
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat--variant-2 {
+    background: linear-gradient(165deg, rgb(39 39 42) 0%, rgb(24 68 70 / 0.35) 100%);
 }
 
 .dark .fi-farmaadmin-stats-general-ios .fi-farmaadmin-ios-sales-stat.fi-wi-stats-overview-stat::before {

@@ -2,9 +2,12 @@
 
 namespace App\Filament\Resources\InventoryAdjustments\Actions;
 
+use App\Models\Branch;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\User;
 use App\Services\Inventory\InventoryAdjustmentApplyService;
+use App\Support\Filament\BranchAuthScope;
 use App\Support\Inventory\InventoryAdjustmentReason;
 use App\Support\Inventory\InventoryQuantityFormat;
 use Filament\Actions\Action;
@@ -51,9 +54,39 @@ final class ApplyInventoryAdjustmentAction
     public static function formSchema(): array
     {
         return [
-            Hidden::make('branch_id')
-                ->default(fn (): int => (int) (Auth::user()?->branch_id ?? 0))
-                ->dehydrated(),
+            Select::make('branch_id')
+                ->label('Sucursal')
+                ->options(fn (): array => BranchAuthScope::applyToBranchFormSelect(
+                    Branch::query()->where('is_active', true)->orderBy('name'),
+                )->pluck('name', 'id')->toArray())
+                ->default(fn (): ?int => self::defaultBranchIdForAdjustment())
+                ->required()
+                ->searchable()
+                ->preload()
+                ->native(false)
+                ->live()
+                ->disabled(fn (): bool => self::shouldLockBranchSelectionForAdjustment())
+                ->dehydrated(true)
+                ->helperText(fn (): string => self::branchSelectHelperText())
+                ->prefixIcon(Heroicon::BuildingStorefront)
+                ->afterStateUpdated(function (mixed $state, Set $set, Get $get): void {
+                    if (blank($state)) {
+                        return;
+                    }
+
+                    $items = $get('items');
+                    if (! is_array($items) || $items === []) {
+                        return;
+                    }
+
+                    $set('items', array_map(
+                        static fn (mixed $row): array => array_merge(
+                            is_array($row) ? $row : [],
+                            ['product_id' => null],
+                        ),
+                        $items,
+                    ));
+                }),
 
             Select::make('reason')
                 ->label('Tipo de ajuste')
@@ -92,17 +125,17 @@ final class ApplyInventoryAdjustmentAction
                         ->noSearchResultsMessage('Sin coincidencias. Pulse Intro (Enter) para registrar el producto con el texto que escribió.')
                         ->helperText('Si no aparece en la lista, pulse Intro en el buscador para crear el producto y usarlo en esta línea.')
                         ->extraAlpineAttributes(self::productSelectQuickCreateDataAttributes())
-                        ->disabled(fn (): bool => blank(Auth::user()?->branch_id))
-                        ->getSearchResultsUsing(function (string $search): array {
-                            $branchId = (int) (Auth::user()?->branch_id ?? 0);
+                        ->disabled(fn (Get $get): bool => (int) ($get('../../branch_id') ?? 0) <= 0)
+                        ->getSearchResultsUsing(function (string $search, Get $get): array {
+                            $branchId = (int) ($get('../../branch_id') ?? 0);
                             if ($branchId <= 0) {
                                 return [];
                             }
 
                             return self::productSearchResultsForInventoryAdjustment($branchId, $search);
                         })
-                        ->getOptionLabelUsing(function ($value): ?string {
-                            $branchId = (int) (Auth::user()?->branch_id ?? 0);
+                        ->getOptionLabelUsing(function ($value, Get $get): ?string {
+                            $branchId = (int) ($get('../../branch_id') ?? 0);
                             if ($branchId <= 0 || blank($value)) {
                                 return null;
                             }
@@ -181,6 +214,8 @@ final class ApplyInventoryAdjustmentAction
         $notes = isset($data['notes']) && is_string($data['notes']) ? trim($data['notes']) : null;
         $items = is_array($data['items'] ?? null) ? ($data['items'] ?? []) : [];
 
+        self::assertBranchIdPermittedForAuthenticatedUser($branchId);
+
         try {
             app(InventoryAdjustmentApplyService::class)->apply(
                 branchId: $branchId,
@@ -202,6 +237,87 @@ final class ApplyInventoryAdjustmentAction
                 ->danger()
                 ->send();
         }
+    }
+
+    public static function assertBranchIdPermittedForAuthenticatedUser(int $branchId): void
+    {
+        $user = Auth::user();
+        if (! $user instanceof User) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Debe iniciar sesión para aplicar ajustes.',
+            ]);
+        }
+
+        if ($user->isAdministrator()) {
+            $exists = Branch::query()
+                ->whereKey($branchId)
+                ->where('is_active', true)
+                ->exists();
+
+            if (! $exists) {
+                throw ValidationException::withMessages([
+                    'branch_id' => 'Sucursal inválida o inactiva.',
+                ]);
+            }
+
+            return;
+        }
+
+        $permittedIds = $user->restrictedBranchIdsForQueries();
+        if ($permittedIds === [] || ! in_array($branchId, $permittedIds, true)) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Seleccione una sucursal asignada a su usuario.',
+            ]);
+        }
+    }
+
+    public static function shouldLockBranchSelectionForAdjustment(): bool
+    {
+        $user = Auth::user();
+        if (! $user instanceof User || $user->isAdministrator()) {
+            return false;
+        }
+
+        return count($user->restrictedBranchIdsForQueries()) === 1;
+    }
+
+    public static function defaultBranchIdForAdjustment(): ?int
+    {
+        $suggested = BranchAuthScope::suggestedBranchIdForOperationalForm();
+        if ($suggested !== null) {
+            return $suggested;
+        }
+
+        $user = Auth::user();
+        if (! $user instanceof User) {
+            return null;
+        }
+
+        $permittedIds = $user->restrictedBranchIdsForQueries();
+
+        return count($permittedIds) === 1 ? $permittedIds[0] : null;
+    }
+
+    public static function branchSelectHelperText(): string
+    {
+        $user = Auth::user();
+        if (! $user instanceof User) {
+            return 'Sucursal donde se aplicará el ajuste.';
+        }
+
+        if (self::shouldLockBranchSelectionForAdjustment()) {
+            return 'Su sucursal asignada; el ajuste se aplicará en esta sucursal.';
+        }
+
+        if ($user->hasGerenciaRole() && count($user->managedBranchIds()) > 1) {
+            return 'Elija la sucursal donde aplicará el ajuste.';
+        }
+
+        if ($user->isManager() && ! $user->hasGerenciaRole()) {
+            return 'Sucursal donde se aplicará el ajuste.';
+        }
+
+        return 'Sucursal donde se aplicará el ajuste.';
     }
 
     /**

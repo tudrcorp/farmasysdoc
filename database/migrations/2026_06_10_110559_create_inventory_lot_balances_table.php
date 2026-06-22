@@ -18,7 +18,6 @@ return new class extends Migration
                 ->constrained()
                 ->cascadeOnDelete();
             $table->foreignId('product_lot_id')
-                ->unique()
                 ->constrained('product_lots')
                 ->cascadeOnDelete();
             $table->foreignId('product_id')
@@ -28,6 +27,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['branch_id', 'product_id']);
+            $table->unique(['branch_id', 'product_lot_id']);
         });
     }
 

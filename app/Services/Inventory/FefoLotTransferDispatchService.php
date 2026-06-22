@@ -132,16 +132,20 @@ final class FefoLotTransferDispatchService
 
     private function creditDestinationLotBalance(int $toBranchId, InventoryLotBalance $originBalance, float $take): void
     {
-        $destinationBalance = InventoryLotBalance::query()->firstOrCreate(
-            [
+        $destinationBalance = InventoryLotBalance::query()
+            ->where('branch_id', $toBranchId)
+            ->where('product_lot_id', $originBalance->product_lot_id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $destinationBalance instanceof InventoryLotBalance) {
+            $destinationBalance = InventoryLotBalance::query()->create([
                 'branch_id' => $toBranchId,
                 'product_lot_id' => $originBalance->product_lot_id,
-            ],
-            [
                 'product_id' => (int) $originBalance->product_id,
                 'quantity_remaining' => 0,
-            ],
-        );
+            ]);
+        }
 
         $destinationBalance->forceFill([
             'product_id' => (int) $originBalance->product_id,

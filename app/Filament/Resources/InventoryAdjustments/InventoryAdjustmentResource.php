@@ -50,7 +50,7 @@ class InventoryAdjustmentResource extends Resource
     {
         $user = request()->user() ?? Auth::user();
 
-        if (! $user instanceof User || (! $user->isAdministrator() && ! $user->hasGerenciaRole())) {
+        if (! $user instanceof User || (! $user->isAdministrator() && ! $user->isManager())) {
             return false;
         }
 

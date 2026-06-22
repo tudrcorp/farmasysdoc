@@ -27,7 +27,7 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
      */
     protected string $view = 'filament.widgets.ios-sales-branch-days-chart';
 
-    protected static ?int $sort = -1;
+    protected static ?int $sort = 0;
 
     protected ?string $heading = 'Ventas por día (sucursales visibles)';
 

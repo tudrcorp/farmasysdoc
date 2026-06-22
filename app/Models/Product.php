@@ -104,6 +104,23 @@ class Product extends Model
 
             app(FarmaExpressBranchPriceSynchronizer::class)->syncProduct($product);
         });
+
+        static::saved(function (Product $product): void {
+            if ($product->wasRecentlyCreated) {
+                return;
+            }
+
+            if (! $product->wasChanged([
+                'active_ingredient',
+                'concentration',
+                'presentation_type',
+                'product_category_id',
+            ])) {
+                return;
+            }
+
+            Inventory::propagatePharmacySnapshotToInventories($product);
+        });
     }
 
     /**

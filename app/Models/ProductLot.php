@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Lote asociado a una línea de compra: producto, factura del proveedor y vencimiento mm/YYYY.
@@ -47,10 +47,10 @@ class ProductLot extends Model
     }
 
     /**
-     * @return HasOne<InventoryLotBalance, $this>
+     * @return HasMany<InventoryLotBalance, $this>
      */
-    public function inventoryLotBalance(): HasOne
+    public function inventoryLotBalances(): HasMany
     {
-        return $this->hasOne(InventoryLotBalance::class);
+        return $this->hasMany(InventoryLotBalance::class);
     }
 }

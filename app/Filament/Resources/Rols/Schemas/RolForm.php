@@ -204,7 +204,7 @@ class RolForm
     {
         $options = FarmaadminMenuAccessCatalog::optionsForGroup($group);
 
-        unset($options['dashboard']);
+        unset($options['dashboard'], $options['branch_sales_goals']);
 
         if (! User::roleNameMayAssignSalesVoidPermission($roleName)) {
             unset($options['sales_void']);

@@ -40,6 +40,7 @@ class FarmaadminMenuAccessCatalog
             'suppliers' => ['label' => 'Proveedores', 'route_name_fragment' => 'resources.suppliers.', 'group' => 'Inventario'],
             'branches' => ['label' => 'Sucursales', 'route_name_fragment' => 'resources.branches.', 'group' => 'Configuración'],
             'roles' => ['label' => 'Roles', 'route_name_fragment' => 'resources.roles.', 'group' => 'Configuración'],
+            'branch_sales_goals' => ['label' => 'Metas de ventas', 'route_name_fragment' => 'resources.branch-sales-goals.', 'group' => 'Configuración'],
             'users' => ['label' => 'Usuarios', 'route_name_fragment' => 'resources.users.', 'group' => 'Configuración'],
             'audit_logs' => ['label' => 'Auditoría y trazas', 'route_name_fragment' => 'resources.audit-logs.', 'group' => 'Configuración'],
             'bdv_conciliations' => ['label' => 'Conciliaciones BDV', 'route_name_fragment' => 'resources.conciliation-bdvs.', 'group' => 'Configuración'],

@@ -16,6 +16,10 @@ trait InteractsWithDashboardBranchFilter
             $this->drillDownDate = null;
         }
 
+        if (property_exists($this, 'drillDownCategoryId')) {
+            $this->drillDownCategoryId = null;
+        }
+
         if (method_exists($this, 'updateChartData')) {
             $this->updateChartData();
         }
@@ -29,6 +33,10 @@ trait InteractsWithDashboardBranchFilter
 
         if (property_exists($this, 'cachedDrillDownPayload')) {
             $this->cachedDrillDownPayload = null;
+        }
+
+        if (property_exists($this, 'cachedStats')) {
+            $this->cachedStats = null;
         }
     }
 

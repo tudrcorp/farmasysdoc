@@ -165,6 +165,26 @@ class Inventory extends Model
         }
     }
 
+    /**
+     * Actualiza el snapshot farmacéutico en todas las filas de inventario del producto.
+     */
+    public static function propagatePharmacySnapshotToInventories(Product $product): void
+    {
+        $product->loadMissing('productCategory');
+        $snapshot = self::pharmacySnapshotFromProduct($product);
+
+        self::query()
+            ->where('product_id', $product->id)
+            ->orderBy('id')
+            ->each(function (Inventory $inventory) use ($snapshot): void {
+                $inventory->forceFill($snapshot);
+
+                if ($inventory->isDirty()) {
+                    $inventory->saveQuietly();
+                }
+            });
+    }
+
     public function syncFinancialSnapshotFromRelatedProductAndCost(): void
     {
         if ($this->product_id === null) {

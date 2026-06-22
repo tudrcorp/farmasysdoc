@@ -2,9 +2,12 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Widgets\AllBranchesMonthlySalesOverview;
+use App\Filament\Widgets\CategoryProductSalesChart;
+use App\Filament\Widgets\CurrentMonthGlobalSalesOverview;
+use App\Filament\Widgets\FarmaadminAccountWidget;
 use App\Filament\Widgets\ManagementBranchSalesByMonthChart;
 use App\Filament\Widgets\ManagementBranchSalesCurrentMonthDaysChart;
-use App\Filament\Widgets\SalesChart;
 use App\Models\User;
 use App\Support\Filament\FarmaadminDeliveryUserAccess;
 use Filament\Pages\Dashboard;
@@ -61,22 +64,29 @@ class FarmaadminDashboard extends Dashboard
 
         $user = request()->user() ?? Auth::user();
 
-        if ($user instanceof User && $user->hasGerenciaRole()) {
-            return [
-                ManagementBranchSalesByMonthChart::class,
-                ManagementBranchSalesCurrentMonthDaysChart::class,
+        if ($user instanceof User && $user->isManager() && ! $user->isAdministrator()) {
+            $widgets = [
+                AllBranchesMonthlySalesOverview::class,
             ];
+
+            if ($user->hasGerenciaRole()) {
+                $widgets[] = ManagementBranchSalesByMonthChart::class;
+                $widgets[] = ManagementBranchSalesCurrentMonthDaysChart::class;
+            }
+
+            return $widgets;
         }
 
         if ($user instanceof User && ! $user->isAdministrator()) {
-            return [
-                SalesChart::class,
-            ];
+            return [];
         }
 
-        $widgets = parent::getWidgets();
-        $widgets[] = ManagementBranchSalesCurrentMonthDaysChart::class;
-
-        return array_values(array_unique($widgets));
+        return [
+            FarmaadminAccountWidget::class,
+            CurrentMonthGlobalSalesOverview::class,
+            AllBranchesMonthlySalesOverview::class,
+            ManagementBranchSalesCurrentMonthDaysChart::class,
+            CategoryProductSalesChart::class,
+        ];
     }
 }

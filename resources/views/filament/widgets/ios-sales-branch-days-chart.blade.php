@@ -15,7 +15,7 @@
     $pollingInterval = $this->getPollingInterval();
     $drillDownBranches = $isDayOverview ? [] : $this->getDrillDownBranches();
     $drillDownBcvRate = $isDayOverview ? null : $this->getDrillDownBcvRateFormatted();
-    $drillDownBranchFills = BrandChartPalette::barFills(max(1, count($drillDownBranches)));
+    $drillDownBranchFills = BrandChartPalette::branchBarFills(max(1, count($drillDownBranches)));
 @endphp
 
 <x-filament-widgets::widget

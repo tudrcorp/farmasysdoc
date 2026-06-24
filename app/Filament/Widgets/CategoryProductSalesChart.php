@@ -227,16 +227,20 @@ class CategoryProductSalesChart extends ChartWidget
             ];
         }
 
+        $fills = IosSalesTrendChartStyle::vividBarFills($count);
+        $hovers = IosSalesTrendChartStyle::vividBarHovers($count);
+        $borders = IosSalesTrendChartStyle::vividBarBorderColors($count);
+
         return [
             'datasets' => [
                 [
                     'label' => $this->datasetLabelForSelectedFilter(),
                     'data' => $overview['data'],
-                    'backgroundColor' => IosSalesTrendChartStyle::vividBarFills($count),
-                    'hoverBackgroundColor' => IosSalesTrendChartStyle::vividBarHovers($count),
-                    'borderColor' => IosSalesTrendChartStyle::barBorderColors($count),
-                    'hoverBorderColor' => 'rgba(255, 255, 255, 0.5)',
-                    'borderWidth' => 1,
+                    'backgroundColor' => $fills,
+                    'hoverBackgroundColor' => $hovers,
+                    'borderColor' => $borders,
+                    'hoverBorderColor' => $borders,
+                    'borderWidth' => 2,
                     'hoverBorderWidth' => 2,
                     'borderRadius' => 8,
                     'borderSkipped' => false,
@@ -267,16 +271,20 @@ class CategoryProductSalesChart extends ChartWidget
             ];
         }
 
+        $fills = BrandChartPalette::seriesBarFills($count);
+        $hovers = BrandChartPalette::seriesBarHovers($count);
+        $borders = BrandChartPalette::seriesBarBorderColors($count);
+
         return [
             'datasets' => [
                 [
                     'label' => __('Unidades vendidas'),
                     'data' => $payload['data'],
-                    'backgroundColor' => BrandChartPalette::barFills($count),
-                    'hoverBackgroundColor' => BrandChartPalette::barHovers($count),
-                    'borderColor' => BrandChartPalette::barBorderColors($count),
-                    'hoverBorderColor' => 'rgba(255, 255, 255, 0.45)',
-                    'borderWidth' => 1,
+                    'backgroundColor' => $fills,
+                    'hoverBackgroundColor' => $hovers,
+                    'borderColor' => $borders,
+                    'hoverBorderColor' => $borders,
+                    'borderWidth' => 2,
                     'hoverBorderWidth' => 2,
                     'borderRadius' => 7,
                     'borderSkipped' => false,

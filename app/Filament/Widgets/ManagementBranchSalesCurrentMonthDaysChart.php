@@ -286,9 +286,9 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
         }
 
         $dayKeys = $this->dayKeys($monthStart);
-        $fills = BrandChartPalette::barFills(count($branchIds));
-        $hovers = BrandChartPalette::barHovers(count($branchIds));
-        $borders = BrandChartPalette::barBorderColors(count($branchIds));
+        $fills = BrandChartPalette::branchBarFills(count($branchIds));
+        $hovers = BrandChartPalette::branchBarHovers(count($branchIds));
+        $borders = BrandChartPalette::branchBarBorderColors(count($branchIds));
 
         $datasets = [];
         foreach (array_values($branchIds) as $index => $branchId) {
@@ -301,11 +301,11 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
             $datasets[] = [
                 'label' => Str::limit((string) $branchName, 28, '…'),
                 'data' => $series,
-                'backgroundColor' => $fills[$index] ?? 'rgba(16, 185, 129, 0.82)',
-                'hoverBackgroundColor' => $hovers[$index] ?? 'rgba(16, 185, 129, 0.96)',
-                'borderColor' => $borders[$index] ?? 'rgba(255, 255, 255, 0.28)',
-                'hoverBorderColor' => 'rgba(255, 255, 255, 0.55)',
-                'borderWidth' => 1,
+                'backgroundColor' => $fills[$index] ?? 'rgba(50, 196, 240, 1)',
+                'hoverBackgroundColor' => $hovers[$index] ?? 'rgba(93, 212, 247, 1)',
+                'borderColor' => $borders[$index] ?? 'rgba(20, 143, 181, 1)',
+                'hoverBorderColor' => $borders[$index] ?? 'rgba(20, 143, 181, 1)',
+                'borderWidth' => 2,
                 'hoverBorderWidth' => 2,
                 'borderRadius' => 8,
                 'borderSkipped' => false,
@@ -334,20 +334,20 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
             ];
         }
 
-        $fills = BrandChartPalette::barFills(count($branches));
-        $hovers = BrandChartPalette::barHovers(count($branches));
-        $borders = BrandChartPalette::barBorderColors(count($branches));
+        $fills = BrandChartPalette::branchBarFills(count($branches));
+        $hovers = BrandChartPalette::branchBarHovers(count($branches));
+        $borders = BrandChartPalette::branchBarBorderColors(count($branches));
 
         $datasets = [];
         foreach ($branches as $index => $branch) {
             $datasets[] = [
                 'label' => $branch['branch_name'],
                 'data' => $branch['chart_values'],
-                'backgroundColor' => $fills[$index] ?? 'rgba(16, 185, 129, 0.82)',
-                'hoverBackgroundColor' => $hovers[$index] ?? 'rgba(16, 185, 129, 0.96)',
-                'borderColor' => $borders[$index] ?? 'rgba(255, 255, 255, 0.28)',
-                'hoverBorderColor' => 'rgba(255, 255, 255, 0.55)',
-                'borderWidth' => 1,
+                'backgroundColor' => $fills[$index] ?? 'rgba(50, 196, 240, 1)',
+                'hoverBackgroundColor' => $hovers[$index] ?? 'rgba(93, 212, 247, 1)',
+                'borderColor' => $borders[$index] ?? 'rgba(20, 143, 181, 1)',
+                'hoverBorderColor' => $borders[$index] ?? 'rgba(20, 143, 181, 1)',
+                'borderWidth' => 2,
                 'hoverBorderWidth' => 2,
                 'borderRadius' => 8,
                 'borderSkipped' => false,

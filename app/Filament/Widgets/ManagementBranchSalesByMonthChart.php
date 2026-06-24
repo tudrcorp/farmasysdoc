@@ -92,9 +92,9 @@ class ManagementBranchSalesByMonthChart extends ChartWidget
         }
 
         $monthKeys = $this->monthKeys($year);
-        $fills = BrandChartPalette::barFills(count($branchIds));
-        $hovers = BrandChartPalette::barHovers(count($branchIds));
-        $borders = BrandChartPalette::barBorderColors(count($branchIds));
+        $fills = BrandChartPalette::branchBarFills(count($branchIds));
+        $hovers = BrandChartPalette::branchBarHovers(count($branchIds));
+        $borders = BrandChartPalette::branchBarBorderColors(count($branchIds));
 
         $datasets = [];
         foreach (array_values($branchIds) as $index => $branchId) {
@@ -107,11 +107,11 @@ class ManagementBranchSalesByMonthChart extends ChartWidget
             $datasets[] = [
                 'label' => Str::limit((string) $branchName, 28, '…'),
                 'data' => $series,
-                'backgroundColor' => $fills[$index] ?? 'rgba(54, 162, 235, 0.82)',
-                'hoverBackgroundColor' => $hovers[$index] ?? 'rgba(54, 162, 235, 0.96)',
-                'borderColor' => $borders[$index] ?? 'rgba(255, 255, 255, 0.28)',
-                'hoverBorderColor' => 'rgba(255, 255, 255, 0.55)',
-                'borderWidth' => 1,
+                'backgroundColor' => $fills[$index] ?? 'rgba(50, 196, 240, 1)',
+                'hoverBackgroundColor' => $hovers[$index] ?? 'rgba(93, 212, 247, 1)',
+                'borderColor' => $borders[$index] ?? 'rgba(20, 143, 181, 1)',
+                'hoverBorderColor' => $borders[$index] ?? 'rgba(20, 143, 181, 1)',
+                'borderWidth' => 2,
                 'hoverBorderWidth' => 2,
                 'borderRadius' => 8,
                 'borderSkipped' => false,

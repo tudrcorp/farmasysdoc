@@ -14,7 +14,7 @@ final class IosSalesTrendChartStyle
      */
     public static function vividBarFills(int $count): array
     {
-        return BrandChartPalette::barFills($count);
+        return BrandChartPalette::seriesBarFills($count);
     }
 
     /**
@@ -22,7 +22,15 @@ final class IosSalesTrendChartStyle
      */
     public static function vividBarHovers(int $count): array
     {
-        return BrandChartPalette::barHovers($count);
+        return BrandChartPalette::seriesBarHovers($count);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function vividBarBorderColors(int $count): array
+    {
+        return BrandChartPalette::seriesBarBorderColors($count);
     }
 
     /**

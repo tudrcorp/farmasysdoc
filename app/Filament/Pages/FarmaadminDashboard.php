@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Filament\Widgets\AllBranchesMonthlySalesOverview;
 use App\Filament\Widgets\CategoryProductSalesChart;
 use App\Filament\Widgets\CurrentMonthGlobalSalesOverview;
+use App\Filament\Widgets\DailyAverageTicketChart;
 use App\Filament\Widgets\FarmaadminAccountWidget;
 use App\Filament\Widgets\ManagementBranchSalesByMonthChart;
 use App\Filament\Widgets\ManagementBranchSalesCurrentMonthDaysChart;
@@ -86,6 +87,7 @@ class FarmaadminDashboard extends Dashboard
             CurrentMonthGlobalSalesOverview::class,
             AllBranchesMonthlySalesOverview::class,
             ManagementBranchSalesCurrentMonthDaysChart::class,
+            DailyAverageTicketChart::class,
             CategoryProductSalesChart::class,
         ];
     }

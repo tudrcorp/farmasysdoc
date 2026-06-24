@@ -23,6 +23,7 @@ use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Computed;
 use Throwable;
 use UnitEnum;
 
@@ -77,56 +78,6 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
 
     public bool $isManagementView = false;
 
-    /**
-     * @var list<array{
-     *     branch_name: string,
-     *     cashier_name: string,
-     *     is_open: bool,
-     *     amount_usd: float,
-     *     amount_ves: float,
-     *     opened_at: string,
-     *     closed_at: string,
-     *     movements_count: int
-     * }>
-     */
-    public array $branchCashBoxes = [];
-
-    /**
-     * @var array{
-     *     expected_usd: float,
-     *     expected_ves: float,
-     *     declared_usd: float,
-     *     declared_ves: float,
-     *     difference_usd: float,
-     *     difference_ves: float,
-     *     has_mismatch: bool
-     * }
-     */
-    public array $closeReconciliation = [
-        'expected_usd' => 0.0,
-        'expected_ves' => 0.0,
-        'declared_usd' => 0.0,
-        'declared_ves' => 0.0,
-        'difference_usd' => 0.0,
-        'difference_ves' => 0.0,
-        'has_mismatch' => false,
-    ];
-
-    /**
-     * @var list<array{
-     *     created_at: string,
-     *     branch_name: string,
-     *     cashier_name: string,
-     *     sale_number: string,
-     *     client_bill_usd: float,
-     *     drawer_out_usd: float,
-     *     final_change_ves: float,
-     *     usd_delta: float,
-     *     ves_delta: float
-     * }>
-     */
-    public array $recentMovements = [];
-
     public function mount(): void
     {
         $user = Auth::user();
@@ -136,7 +87,6 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
 
         if ($this->isManagementUser($user)) {
             $this->isManagementView = true;
-            $this->syncManagementSnapshot($user);
 
             return;
         }
@@ -150,8 +100,6 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
         $box = $this->resolveBox();
         $this->syncInputsFromBox($box);
         $this->syncPublicBoxState($box);
-        $this->syncCashierRecentMovements($box);
-        $this->syncCloseReconciliation();
     }
 
     public static function getNavigationGroup(): string|UnitEnum|null
@@ -257,8 +205,6 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
 
         $this->syncInputsFromBox($fresh);
         $this->syncPublicBoxState($fresh);
-        $this->syncCashierRecentMovements($fresh);
-        $this->syncCloseReconciliation();
 
         Notification::make()
             ->title('Caja abierta')
@@ -421,24 +367,11 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
     public function refreshCashBoxSnapshot(): void
     {
         $user = Auth::user();
-        if (! $user instanceof User) {
+        if (! $user instanceof User || ! $this->isCashierView) {
             return;
         }
 
-        if ($this->isManagementView) {
-            $this->syncManagementSnapshot($user);
-
-            return;
-        }
-
-        if (! $this->isCashierView) {
-            return;
-        }
-
-        $box = $this->resolveBox();
-        $this->syncPublicBoxState($box);
-        $this->syncCashierRecentMovements($box);
-        $this->syncCloseReconciliation();
+        $this->syncPublicBoxState($this->resolveBox());
     }
 
     public function updatedOpenUsdBillCounts(mixed $value, string $key): void
@@ -460,13 +393,231 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
     public function updatedCloseUsd(mixed $value): void
     {
         $this->closeUsd = (string) $value;
-        $this->syncCloseReconciliation();
     }
 
     public function updatedCloseVes(mixed $value): void
     {
         $this->closeVes = (string) $value;
-        $this->syncCloseReconciliation();
+    }
+
+    /**
+     * @return list<array{
+     *     branch_name: string,
+     *     cashier_name: string,
+     *     is_open: bool,
+     *     amount_usd: float,
+     *     amount_ves: float,
+     *     opened_at: string,
+     *     closed_at: string,
+     *     movements_count: int
+     * }>
+     */
+    #[Computed]
+    public function branchCashBoxes(): array
+    {
+        if (! $this->isManagementView) {
+            return [];
+        }
+
+        $user = Auth::user();
+        if (! $user instanceof User) {
+            return [];
+        }
+
+        $branchIds = $this->scopedBranchIdsForManagement($user);
+
+        $boxesQuery = PhysicalCashBox::query()
+            ->with([
+                'user:id,name,branch_id',
+                'user.branch:id,name',
+            ])
+            ->withCount('movements')
+            ->latest('updated_at');
+
+        if ($branchIds !== null) {
+            if ($branchIds === []) {
+                return [];
+            }
+
+            $boxesQuery->whereHas(
+                'user',
+                fn ($q) => $q->whereIn('branch_id', $branchIds),
+            );
+        }
+
+        return $boxesQuery
+            ->get()
+            ->map(static function (PhysicalCashBox $box): array {
+                return [
+                    'branch_name' => (string) ($box->user?->branch?->name ?? 'Sin sucursal'),
+                    'cashier_name' => (string) ($box->user?->name ?? 'Cajero'),
+                    'is_open' => (bool) $box->is_open,
+                    'amount_usd' => round((float) $box->amount_usd, 2),
+                    'amount_ves' => round((float) $box->amount_ves, 2),
+                    'opened_at' => $box->opened_at !== null
+                        ? $box->opened_at->timezone((string) config('app.timezone'))->format('d/m/Y H:i')
+                        : '—',
+                    'closed_at' => $box->closed_at !== null
+                        ? $box->closed_at->timezone((string) config('app.timezone'))->format('d/m/Y H:i')
+                        : '—',
+                    'movements_count' => (int) ($box->movements_count ?? 0),
+                ];
+            })
+            ->sortBy(['branch_name', 'cashier_name'])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array{
+     *     created_at: string,
+     *     branch_name: string,
+     *     cashier_name: string,
+     *     sale_number: string,
+     *     client_bill_usd: float,
+     *     drawer_out_usd: float,
+     *     final_change_ves: float,
+     *     usd_delta: float,
+     *     ves_delta: float
+     * }>
+     */
+    #[Computed]
+    public function recentMovements(): array
+    {
+        if ($this->isManagementView) {
+            $user = Auth::user();
+            if (! $user instanceof User) {
+                return [];
+            }
+
+            return $this->queryManagementMovements($user);
+        }
+
+        if (! $this->isCashierView) {
+            return [];
+        }
+
+        return $this->queryCashierMovements($this->resolveBox());
+    }
+
+    /**
+     * @return array{
+     *     expected_usd: float,
+     *     expected_ves: float,
+     *     declared_usd: float,
+     *     declared_ves: float,
+     *     difference_usd: float,
+     *     difference_ves: float,
+     *     has_mismatch: bool
+     * }
+     */
+    #[Computed]
+    public function closeReconciliation(): array
+    {
+        if (! $this->isCashierView) {
+            return [
+                'expected_usd' => 0.0,
+                'expected_ves' => 0.0,
+                'declared_usd' => 0.0,
+                'declared_ves' => 0.0,
+                'difference_usd' => 0.0,
+                'difference_ves' => 0.0,
+                'has_mismatch' => false,
+            ];
+        }
+
+        $expectedUsd = round(max(0.0, (float) $this->boxAmountUsd), 2);
+        $expectedVes = round(max(0.0, (float) $this->boxAmountVes), 2);
+        $declaredUsd = round(max(0.0, $this->parseMonetaryInput($this->closeUsd)), 2);
+        $declaredVes = round(max(0.0, $this->parseMonetaryInput($this->closeVes)), 2);
+        $differenceUsd = round($declaredUsd - $expectedUsd, 2);
+        $differenceVes = round($declaredVes - $expectedVes, 2);
+
+        return [
+            'expected_usd' => $expectedUsd,
+            'expected_ves' => $expectedVes,
+            'declared_usd' => $declaredUsd,
+            'declared_ves' => $declaredVes,
+            'difference_usd' => $differenceUsd,
+            'difference_ves' => $differenceVes,
+            'has_mismatch' => abs($differenceUsd) >= 0.01 || abs($differenceVes) >= 0.01,
+        ];
+    }
+
+    /**
+     * @return list<array{
+     *     created_at: string,
+     *     branch_name: string,
+     *     cashier_name: string,
+     *     sale_number: string,
+     *     client_bill_usd: float,
+     *     drawer_out_usd: float,
+     *     final_change_ves: float,
+     *     usd_delta: float,
+     *     ves_delta: float
+     * }>
+     */
+    private function queryCashierMovements(PhysicalCashBox $box): array
+    {
+        return PhysicalCashBoxMovement::query()
+            ->where('physical_cash_box_id', $box->id)
+            ->with([
+                'sale:id,sale_number,branch_id',
+                'sale.branch:id,name',
+                'physicalCashBox.user:id,name,branch_id',
+                'physicalCashBox.user.branch:id,name',
+            ])
+            ->latest('created_at')
+            ->limit(30)
+            ->get()
+            ->map(fn (PhysicalCashBoxMovement $movement): array => $this->mapMovementForView($movement))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array{
+     *     created_at: string,
+     *     branch_name: string,
+     *     cashier_name: string,
+     *     sale_number: string,
+     *     client_bill_usd: float,
+     *     drawer_out_usd: float,
+     *     final_change_ves: float,
+     *     usd_delta: float,
+     *     ves_delta: float
+     * }>
+     */
+    private function queryManagementMovements(User $user): array
+    {
+        $branchIds = $this->scopedBranchIdsForManagement($user);
+
+        $movementsQuery = PhysicalCashBoxMovement::query()
+            ->with([
+                'sale:id,sale_number,branch_id',
+                'sale.branch:id,name',
+                'physicalCashBox.user:id,name,branch_id',
+                'physicalCashBox.user.branch:id,name',
+            ])
+            ->latest('created_at')
+            ->limit(100);
+
+        if ($branchIds !== null) {
+            if ($branchIds === []) {
+                return [];
+            }
+
+            $movementsQuery->whereHas(
+                'sale',
+                fn ($q) => $q->whereIn('branch_id', $branchIds),
+            );
+        }
+
+        return $movementsQuery
+            ->get()
+            ->map(fn (PhysicalCashBoxMovement $movement): array => $this->mapMovementForView($movement))
+            ->values()
+            ->all();
     }
 
     private function resolveBox(): PhysicalCashBox
@@ -514,96 +665,6 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
     {
         $total = UsdBillDenominationCalculator::totalFromCounts($this->openUsdBillCounts);
         $this->openUsd = number_format($total, 2, '.', '');
-    }
-
-    private function syncCashierRecentMovements(PhysicalCashBox $box): void
-    {
-        $this->recentMovements = PhysicalCashBoxMovement::query()
-            ->where('physical_cash_box_id', $box->id)
-            ->with([
-                'sale:id,sale_number,branch_id',
-                'sale.branch:id,name',
-                'physicalCashBox.user:id,name,branch_id',
-                'physicalCashBox.user.branch:id,name',
-            ])
-            ->latest('created_at')
-            ->limit(30)
-            ->get()
-            ->map(fn (PhysicalCashBoxMovement $movement): array => $this->mapMovementForView($movement))
-            ->values()
-            ->all();
-    }
-
-    private function syncManagementSnapshot(User $user): void
-    {
-        $branchIds = $this->scopedBranchIdsForManagement($user);
-
-        $boxesQuery = PhysicalCashBox::query()
-            ->with([
-                'user:id,name,branch_id',
-                'user.branch:id,name',
-            ])
-            ->withCount('movements')
-            ->latest('updated_at');
-
-        if ($branchIds !== null) {
-            if ($branchIds === []) {
-                $this->branchCashBoxes = [];
-                $this->recentMovements = [];
-
-                return;
-            }
-
-            $boxesQuery->whereHas(
-                'user',
-                fn ($q) => $q->whereIn('branch_id', $branchIds),
-            );
-        }
-
-        $this->branchCashBoxes = $boxesQuery
-            ->get()
-            ->map(static function (PhysicalCashBox $box): array {
-                return [
-                    'branch_name' => (string) ($box->user?->branch?->name ?? 'Sin sucursal'),
-                    'cashier_name' => (string) ($box->user?->name ?? 'Cajero'),
-                    'is_open' => (bool) $box->is_open,
-                    'amount_usd' => round((float) $box->amount_usd, 2),
-                    'amount_ves' => round((float) $box->amount_ves, 2),
-                    'opened_at' => $box->opened_at !== null
-                        ? $box->opened_at->timezone((string) config('app.timezone'))->format('d/m/Y H:i')
-                        : '—',
-                    'closed_at' => $box->closed_at !== null
-                        ? $box->closed_at->timezone((string) config('app.timezone'))->format('d/m/Y H:i')
-                        : '—',
-                    'movements_count' => (int) ($box->movements_count ?? 0),
-                ];
-            })
-            ->sortBy(['branch_name', 'cashier_name'])
-            ->values()
-            ->all();
-
-        $movementsQuery = PhysicalCashBoxMovement::query()
-            ->with([
-                'sale:id,sale_number,branch_id',
-                'sale.branch:id,name',
-                'physicalCashBox.user:id,name,branch_id',
-                'physicalCashBox.user.branch:id,name',
-            ])
-            ->latest('created_at')
-            ->limit(100);
-
-        if ($branchIds !== null) {
-            $movementsQuery->whereHas(
-                'sale',
-                fn ($q) => $q->whereIn('branch_id', $branchIds),
-            );
-        }
-
-        $this->recentMovements = $movementsQuery
-            ->get()
-            ->map(fn (PhysicalCashBoxMovement $movement): array => $this->mapMovementForView($movement))
-            ->values()
-            ->all();
     }
 
     /**
@@ -662,26 +723,6 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
     private function isManagementUser(User $user): bool
     {
         return $user->isAdministrator() || $user->hasGerenciaRole();
-    }
-
-    private function syncCloseReconciliation(): void
-    {
-        $expectedUsd = round(max(0.0, (float) $this->boxAmountUsd), 2);
-        $expectedVes = round(max(0.0, (float) $this->boxAmountVes), 2);
-        $declaredUsd = round(max(0.0, $this->parseMonetaryInput($this->closeUsd)), 2);
-        $declaredVes = round(max(0.0, $this->parseMonetaryInput($this->closeVes)), 2);
-        $differenceUsd = round($declaredUsd - $expectedUsd, 2);
-        $differenceVes = round($declaredVes - $expectedVes, 2);
-
-        $this->closeReconciliation = [
-            'expected_usd' => $expectedUsd,
-            'expected_ves' => $expectedVes,
-            'declared_usd' => $declaredUsd,
-            'declared_ves' => $declaredVes,
-            'difference_usd' => $differenceUsd,
-            'difference_ves' => $differenceVes,
-            'has_mismatch' => abs($differenceUsd) >= 0.01 || abs($differenceVes) >= 0.01,
-        ];
     }
 
     private function parseMonetaryInput(string $value): float

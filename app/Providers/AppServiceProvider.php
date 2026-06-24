@@ -72,6 +72,7 @@ class AppServiceProvider extends ServiceProvider
         }
 
         $this->configureDefaults();
+        $this->configureLivewireReleaseToken();
         $this->ensureLivewireTemporaryUploadDirectoriesExist();
         $this->disableLivewireChecksumFailureThrottling();
         $this->observeLivewireChecksumFailures();
@@ -109,6 +110,31 @@ class AppServiceProvider extends ServiceProvider
                 ->uncompromised()
             : null,
         );
+    }
+
+    protected function configureLivewireReleaseToken(): void
+    {
+        $configured = env('LIVEWIRE_RELEASE_TOKEN');
+
+        if (is_string($configured) && $configured !== '') {
+            config(['livewire.release_token' => $configured]);
+
+            return;
+        }
+
+        $lockFile = base_path('composer.lock');
+
+        if (! is_file($lockFile)) {
+            return;
+        }
+
+        config([
+            'livewire.release_token' => substr(
+                hash('sha256', (string) filemtime($lockFile).':'.(string) filesize($lockFile)),
+                0,
+                16,
+            ),
+        ]);
     }
 
     /**

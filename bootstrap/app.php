@@ -53,6 +53,14 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (CorruptComponentPayloadException $exception, Request $request) {
+            if ($request->headers->has('X-Livewire') || LivewireRequestPayload::shouldSkipNormalization($request)) {
+                return response('', 419);
+            }
+
+            return null;
+        });
+
         $exceptions->report(function (CorruptComponentPayloadException $exception): void {
             $request = request();
 

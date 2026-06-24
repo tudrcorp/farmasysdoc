@@ -79,7 +79,7 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 bg-white dark:divide-white/10 dark:bg-transparent">
-                            @forelse ($branchCashBoxes as $boxRow)
+                            @forelse ($this->branchCashBoxes as $boxRow)
                                 <tr>
                                     <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-200">{{ $boxRow['branch_name'] }}</td>
                                     <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-200">{{ $boxRow['cashier_name'] }}</td>
@@ -210,28 +210,28 @@
                 <div class="grid gap-4 lg:grid-cols-3">
                     <div class="rounded-xl border border-gray-950/10 bg-white p-4 dark:border-white/10 dark:bg-white/5">
                         <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Saldo esperado (sistema)</h4>
-                        <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white">USD {{ number_format((float) $closeReconciliation['expected_usd'], 2) }}</p>
-                        <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">VES {{ number_format((float) $closeReconciliation['expected_ves'], 2, ',', '.') }}</p>
+                        <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white">USD {{ number_format((float) $this->closeReconciliation['expected_usd'], 2) }}</p>
+                        <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">VES {{ number_format((float) $this->closeReconciliation['expected_ves'], 2, ',', '.') }}</p>
                     </div>
 
                     <div class="rounded-xl border border-gray-950/10 bg-white p-4 dark:border-white/10 dark:bg-white/5">
                         <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Saldo declarado (cajero)</h4>
-                        <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white">USD {{ number_format((float) $closeReconciliation['declared_usd'], 2) }}</p>
-                        <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">VES {{ number_format((float) $closeReconciliation['declared_ves'], 2, ',', '.') }}</p>
+                        <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white">USD {{ number_format((float) $this->closeReconciliation['declared_usd'], 2) }}</p>
+                        <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">VES {{ number_format((float) $this->closeReconciliation['declared_ves'], 2, ',', '.') }}</p>
                     </div>
 
-                    <div class="rounded-xl border p-4 {{ $closeReconciliation['has_mismatch'] ? 'border-danger-500/40 bg-danger-500/10 dark:bg-danger-500/15' : 'border-success-500/40 bg-success-500/10 dark:bg-success-500/15' }}">
-                        <h4 class="text-xs font-semibold uppercase tracking-wide {{ $closeReconciliation['has_mismatch'] ? 'text-danger-700 dark:text-danger-300' : 'text-success-700 dark:text-success-300' }}">
+                    <div class="rounded-xl border p-4 {{ $this->closeReconciliation['has_mismatch'] ? 'border-danger-500/40 bg-danger-500/10 dark:bg-danger-500/15' : 'border-success-500/40 bg-success-500/10 dark:bg-success-500/15' }}">
+                        <h4 class="text-xs font-semibold uppercase tracking-wide {{ $this->closeReconciliation['has_mismatch'] ? 'text-danger-700 dark:text-danger-300' : 'text-success-700 dark:text-success-300' }}">
                             Diferencia (declarado - esperado)
                         </h4>
-                        <p class="mt-2 text-sm font-semibold {{ (float) $closeReconciliation['difference_usd'] === 0.0 ? 'text-gray-800 dark:text-gray-100' : ((float) $closeReconciliation['difference_usd'] > 0 ? 'text-success-700 dark:text-success-300' : 'text-danger-700 dark:text-danger-300') }}">
-                            USD {{ number_format((float) $closeReconciliation['difference_usd'], 2) }}
+                        <p class="mt-2 text-sm font-semibold {{ (float) $this->closeReconciliation['difference_usd'] === 0.0 ? 'text-gray-800 dark:text-gray-100' : ((float) $this->closeReconciliation['difference_usd'] > 0 ? 'text-success-700 dark:text-success-300' : 'text-danger-700 dark:text-danger-300') }}">
+                            USD {{ number_format((float) $this->closeReconciliation['difference_usd'], 2) }}
                         </p>
-                        <p class="mt-1 text-sm font-semibold {{ (float) $closeReconciliation['difference_ves'] === 0.0 ? 'text-gray-800 dark:text-gray-100' : ((float) $closeReconciliation['difference_ves'] > 0 ? 'text-success-700 dark:text-success-300' : 'text-danger-700 dark:text-danger-300') }}">
-                            VES {{ number_format((float) $closeReconciliation['difference_ves'], 2, ',', '.') }}
+                        <p class="mt-1 text-sm font-semibold {{ (float) $this->closeReconciliation['difference_ves'] === 0.0 ? 'text-gray-800 dark:text-gray-100' : ((float) $this->closeReconciliation['difference_ves'] > 0 ? 'text-success-700 dark:text-success-300' : 'text-danger-700 dark:text-danger-300') }}">
+                            VES {{ number_format((float) $this->closeReconciliation['difference_ves'], 2, ',', '.') }}
                         </p>
-                        <p class="mt-2 text-xs {{ $closeReconciliation['has_mismatch'] ? 'text-danger-700 dark:text-danger-300' : 'text-success-700 dark:text-success-300' }}">
-                            {{ $closeReconciliation['has_mismatch'] ? 'Hay descuadre: revise billetes, vueltos y conteo físico antes de cerrar.' : 'Conciliado: declarado coincide con el saldo esperado.' }}
+                        <p class="mt-2 text-xs {{ $this->closeReconciliation['has_mismatch'] ? 'text-danger-700 dark:text-danger-300' : 'text-success-700 dark:text-success-300' }}">
+                            {{ $this->closeReconciliation['has_mismatch'] ? 'Hay descuadre: revise billetes, vueltos y conteo físico antes de cerrar.' : 'Conciliado: declarado coincide con el saldo esperado.' }}
                         </p>
                     </div>
                 </div>
@@ -312,7 +312,7 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 bg-white dark:divide-white/10 dark:bg-transparent">
-                        @forelse ($recentMovements as $movement)
+                        @forelse ($this->recentMovements as $movement)
                             <tr>
                                 <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-200">{{ $movement['created_at'] }}</td>
                                 @if (! $isCashierView)

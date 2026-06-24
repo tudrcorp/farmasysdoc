@@ -35,7 +35,7 @@ final class SystemReportsHubPage extends Page
 
     public function getSubheading(): string|Htmlable|null
     {
-        return 'Descargas en CSV (UTF-8, separador punto y coma). Elija rango de fechas cuando aplique; los datos respetan el alcance de sucursal de su usuario.';
+        return null;
     }
 
     public static function canAccess(): bool
@@ -61,32 +61,107 @@ final class SystemReportsHubPage extends Page
      */
     protected function getViewData(): array
     {
-        $desde = now()->subDays(90)->toDateString();
-        $hasta = now()->toDateString();
+        $sections = self::reportSectionsMeta();
+        $reportCount = 0;
+        foreach ($sections as $section) {
+            $reportCount += count($section['items']);
+        }
 
         return [
-            'defaultDesde' => $desde,
-            'defaultHasta' => $hasta,
-            'sections' => self::reportSectionsMeta(),
+            'defaultDesde' => now()->subDays(90)->toDateString(),
+            'defaultHasta' => now()->toDateString(),
+            'sections' => $sections,
+            'reportCount' => $reportCount,
+            'sectionCount' => count($sections),
+            'datePresets' => self::datePresets(),
         ];
     }
 
     /**
-     * @return list<array{title: string, description: string, items: list<array{slug: string, title: string, hint: string, dates: bool, extra_fields?: list<array{name: string, label: string, type: string, options?: array<string, string>}>}>}>
+     * @return list<array{id: string, label: string, desde: string, hasta: string}>
+     */
+    public static function datePresets(): array
+    {
+        $today = now();
+        $monthStart = $today->copy()->startOfMonth();
+        $prevMonthStart = $monthStart->copy()->subMonth();
+        $prevMonthEnd = $monthStart->copy()->subDay();
+
+        return [
+            [
+                'id' => '7d',
+                'label' => '7 días',
+                'desde' => $today->copy()->subDays(6)->toDateString(),
+                'hasta' => $today->toDateString(),
+            ],
+            [
+                'id' => '30d',
+                'label' => '30 días',
+                'desde' => $today->copy()->subDays(29)->toDateString(),
+                'hasta' => $today->toDateString(),
+            ],
+            [
+                'id' => '90d',
+                'label' => '90 días',
+                'desde' => $today->copy()->subDays(89)->toDateString(),
+                'hasta' => $today->toDateString(),
+            ],
+            [
+                'id' => 'month',
+                'label' => 'Mes actual',
+                'desde' => $monthStart->toDateString(),
+                'hasta' => $today->toDateString(),
+            ],
+            [
+                'id' => 'prev_month',
+                'label' => 'Mes anterior',
+                'desde' => $prevMonthStart->toDateString(),
+                'hasta' => $prevMonthEnd->toDateString(),
+            ],
+        ];
+    }
+
+    /**
+     * @return list<array{
+     *     key: string,
+     *     title: string,
+     *     description: string,
+     *     icon: string,
+     *     accent: string,
+     *     items: list<array{
+     *         slug: string,
+     *         title: string,
+     *         hint: string,
+     *         dates: bool,
+     *         extra_fields?: list<array{name: string, label: string, type: string, options?: array<string, string>}>
+     *     }>
+     * }>
      */
     public static function reportSectionsMeta(): array
     {
         return [
             [
+                'key' => 'ventas',
+                'icon' => 'chart-bar',
+                'accent' => 'teal',
                 'title' => 'Ventas y caja',
                 'description' => 'Movimientos de venta según la fecha registrada en cada venta.',
                 'items' => [
                     ['slug' => 'ventas', 'title' => 'Ventas detalladas', 'hint' => 'Una fila por venta con totales y pagos.', 'dates' => true],
+                    [
+                        'slug' => 'ventas-global-sucursal',
+                        'title' => 'Ventas global y por sucursal',
+                        'hint' => 'Resumen consolidado y desglose por sucursal (ventas completadas, cobros USD/Bs y ticket promedio).',
+                        'dates' => true,
+                    ],
                     ['slug' => 'ventas-por-usuario', 'title' => 'Ventas por usuario', 'hint' => 'Agrupado por quien registró la venta.', 'dates' => true],
                     ['slug' => 'ventas-por-sucursal', 'title' => 'Ventas por sucursal', 'hint' => 'Totales por sucursal de la venta.', 'dates' => true],
                 ],
             ],
             [
+                'key' => 'operaciones',
+                'icon' => 'building-storefront',
+                'accent' => 'violet',
                 'title' => 'Operaciones y aliados',
                 'description' => 'Pedidos, órdenes de servicio e ingresos por compañía aliada.',
                 'items' => [
@@ -97,6 +172,9 @@ final class SystemReportsHubPage extends Page
                 ],
             ],
             [
+                'key' => 'traslados',
+                'icon' => 'truck',
+                'accent' => 'amber',
                 'title' => 'Traslados de inventario',
                 'description' => 'Movimientos entre sucursales y costos asociados.',
                 'items' => [
@@ -106,6 +184,9 @@ final class SystemReportsHubPage extends Page
                 ],
             ],
             [
+                'key' => 'clientes',
+                'icon' => 'users',
+                'accent' => 'sky',
                 'title' => 'Clientes y productos',
                 'description' => 'Clientes, ranking de compra y rotación de productos.',
                 'items' => [
@@ -142,20 +223,48 @@ final class SystemReportsHubPage extends Page
                 ],
             ],
             [
+                'key' => 'inventario',
+                'icon' => 'cube',
+                'accent' => 'emerald',
                 'title' => 'Inventario y tasas',
                 'description' => 'Existencias valorizadas y serie BCV oficial en caché.',
                 'items' => [
                     [
                         'slug' => 'inventario',
-                        'title' => 'Inventario valorizado',
-                        'hint' => 'Costos y precios según columnas del inventario.',
+                        'title' => 'Valoración de inventario',
+                        'hint' => 'Existencias con costos, precios y valor total (cantidad × unitario). Precios en USD; opción Bs usa tasa BCV del día.',
                         'dates' => false,
                         'extra_fields' => [
                             [
                                 'name' => 'moneda',
                                 'label' => 'Columnas',
                                 'type' => 'select',
-                                'options' => ['ambas' => 'USD y Bs', 'usd' => 'Solo USD', 'ves' => 'Solo columnas Bs'],
+                                'options' => ['ambas' => 'USD y Bs (valor total)', 'usd' => 'Solo USD'],
+                            ],
+                            [
+                                'name' => 'vista',
+                                'label' => 'Vista',
+                                'type' => 'select',
+                                'options' => ['detalle' => 'Por producto', 'resumen_sucursal' => 'Resumen por sucursal'],
+                            ],
+                        ],
+                    ],
+                    [
+                        'slug' => 'inventario-vencimientos',
+                        'title' => 'Vencidos y por vencer',
+                        'hint' => 'Lotes FEFO con stock: vencidos o próximos a vencer según umbrales del sistema.',
+                        'dates' => false,
+                        'extra_fields' => [
+                            [
+                                'name' => 'filtro',
+                                'label' => 'Mostrar',
+                                'type' => 'select',
+                                'options' => [
+                                    'vencidos_y_por_vencer' => 'Vencidos y por vencer',
+                                    'vencidos' => 'Solo vencidos',
+                                    'por_vencer' => 'Solo por vencer',
+                                    'todos' => 'Todos con stock',
+                                ],
                             ],
                         ],
                     ],
@@ -163,6 +272,9 @@ final class SystemReportsHubPage extends Page
                 ],
             ],
             [
+                'key' => 'compras',
+                'icon' => 'banknotes',
+                'accent' => 'rose',
                 'title' => 'Compras y finanzas',
                 'description' => 'Compras con filtro por estado de pago y CxP.',
                 'items' => [

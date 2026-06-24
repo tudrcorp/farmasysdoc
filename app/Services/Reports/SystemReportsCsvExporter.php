@@ -3,6 +3,7 @@
 namespace App\Services\Reports;
 
 use App\Enums\OrderStatus;
+use App\Enums\SaleStatus;
 use App\Models\Branch;
 use App\Models\Client;
 use App\Models\Inventory;
@@ -18,10 +19,13 @@ use App\Models\User;
 use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Finance\AccountsPayableStatus;
+use App\Support\Purchases\LotExpirationMonthYear;
 use App\Support\Purchases\PurchasePaymentStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class SystemReportsCsvExporter
@@ -32,6 +36,7 @@ final class SystemReportsCsvExporter
 
         return match ($slug) {
             'ventas' => $this->streamVentas($user, $from, $to),
+            'ventas-global-sucursal' => $this->streamVentasGlobalSucursal($user, $from, $to),
             'ventas-por-usuario' => $this->streamVentasPorUsuario($user, $from, $to),
             'ventas-por-sucursal' => $this->streamVentasPorSucursal($user, $from, $to),
             'companias-aliadas' => $this->streamPartnerCompanies(),
@@ -44,7 +49,12 @@ final class SystemReportsCsvExporter
             'catalogo-productos' => $this->streamCatalogoProductos(),
             'top-clientes-sucursal' => $this->streamTopClientesPorSucursal($user, $from, $to, (int) $request->query('top', 10)),
             'productos-mas-vendidos' => $this->streamProductosMasVendidos($user, $from, $to, (string) $request->query('agrupar', 'sucursal')),
-            'inventario' => $this->streamInventario($user, (string) $request->query('moneda', 'ambas')),
+            'inventario' => $this->streamInventario(
+                $user,
+                (string) $request->query('moneda', 'ambas'),
+                (string) $request->query('vista', 'detalle'),
+            ),
+            'inventario-vencimientos' => $this->streamInventarioVencimientos($user, (string) $request->query('filtro', 'vencidos_y_por_vencer')),
             'tasas-bcv' => $this->streamTasasBcv($from, $to),
             'ingresos-aliados' => $this->streamIngresosAliados($user, $from, $to),
             'compras' => $this->streamCompras($user, (string) $request->query('filtro', 'todas')),
@@ -146,6 +156,97 @@ final class SystemReportsCsvExporter
         }
 
         return $this->csvResponse('reporte-ventas-por-sucursal-'.now()->format('YmdHis').'.csv', $headers, $rows);
+    }
+
+    private function streamVentasGlobalSucursal(User $user, Carbon $from, Carbon $to): StreamedResponse
+    {
+        $baseQuery = Sale::query()
+            ->where('status', SaleStatus::Completed)
+            ->whereNotNull('sold_at')
+            ->whereNotNull('branch_id')
+            ->whereBetween('sold_at', [$from, $to]);
+        BranchAuthScope::applyToSalesQuery($baseQuery);
+
+        $customerCountExpression = $this->salesCustomerCountExpression();
+        $globalAgg = (clone $baseQuery)
+            ->selectRaw("COUNT(*) as ventas, {$customerCountExpression} as clientes, SUM(CAST(total AS DECIMAL(14,2))) as total_documento, SUM(CAST(payment_usd AS DECIMAL(14,2))) as cobro_usd, SUM(CAST(payment_ves AS DECIMAL(14,2))) as cobro_bs")
+            ->first();
+
+        $branchAgg = (clone $baseQuery)
+            ->selectRaw("branch_id, COUNT(*) as ventas, {$customerCountExpression} as clientes, SUM(CAST(total AS DECIMAL(14,2))) as total_documento, SUM(CAST(payment_usd AS DECIMAL(14,2))) as cobro_usd, SUM(CAST(payment_ves AS DECIMAL(14,2))) as cobro_bs")
+            ->groupBy('branch_id')
+            ->orderBy('branch_id')
+            ->get();
+
+        $branches = Branch::query()->pluck('name', 'id');
+
+        $globalCobroUsd = round((float) ($globalAgg->cobro_usd ?? 0), 2);
+        $globalCobroBs = round((float) ($globalAgg->cobro_bs ?? 0), 2);
+        $globalCobroBsEnUsd = round($this->sumVesConvertedToUsd(clone $baseQuery), 2);
+        $globalTotalGeneral = round($globalCobroUsd + $globalCobroBsEnUsd, 2);
+        $globalVentas = (int) ($globalAgg->ventas ?? 0);
+        $globalClientes = (int) ($globalAgg->clientes ?? 0);
+        $globalTicket = $globalClientes > 0 ? round($globalTotalGeneral / $globalClientes, 2) : 0.0;
+
+        $headers = [
+            'nivel',
+            'branch_id',
+            'sucursal',
+            'cantidad_ventas',
+            'clientes_unicos',
+            'total_documento_usd',
+            'cobro_usd',
+            'cobro_bs',
+            'cobro_bs_en_usd',
+            'total_general_usd',
+            'ticket_promedio_usd',
+            'desde',
+            'hasta',
+        ];
+
+        $data = [[
+            'GLOBAL',
+            '',
+            'TODAS LAS SUCURSALES',
+            $globalVentas,
+            $globalClientes,
+            round((float) ($globalAgg->total_documento ?? 0), 2),
+            $globalCobroUsd,
+            $globalCobroBs,
+            $globalCobroBsEnUsd,
+            $globalTotalGeneral,
+            $globalTicket,
+            $from->toDateString(),
+            $to->toDateString(),
+        ]];
+
+        foreach ($branchAgg as $row) {
+            $branchQuery = (clone $baseQuery)->where('branch_id', $row->branch_id);
+            $cobroUsd = round((float) $row->cobro_usd, 2);
+            $cobroBs = round((float) $row->cobro_bs, 2);
+            $cobroBsEnUsd = round($this->sumVesConvertedToUsd(clone $branchQuery), 2);
+            $totalGeneral = round($cobroUsd + $cobroBsEnUsd, 2);
+            $clientes = (int) $row->clientes;
+            $ticket = $clientes > 0 ? round($totalGeneral / $clientes, 2) : 0.0;
+
+            $data[] = [
+                'SUCURSAL',
+                $row->branch_id,
+                $branches[$row->branch_id] ?? '',
+                (int) $row->ventas,
+                $clientes,
+                round((float) $row->total_documento, 2),
+                $cobroUsd,
+                $cobroBs,
+                $cobroBsEnUsd,
+                $totalGeneral,
+                $ticket,
+                $from->toDateString(),
+                $to->toDateString(),
+            ];
+        }
+
+        return $this->csvResponse('reporte-ventas-global-sucursal-'.now()->format('YmdHis').'.csv', $headers, $data);
     }
 
     private function streamPartnerCompanies(): StreamedResponse
@@ -509,57 +610,263 @@ final class SystemReportsCsvExporter
         return $this->csvResponse('reporte-productos-vendidos-sucursal-'.now()->format('YmdHis').'.csv', $headers, $data);
     }
 
-    private function streamInventario(User $user, string $moneda): StreamedResponse
+    private function streamInventario(User $user, string $moneda, string $vista): StreamedResponse
     {
+        $includeBs = $moneda !== 'usd';
+        $bcvRate = $includeBs
+            ? app(VenezuelaOfficialUsdVesRateClient::class)->rateForDate(now())
+            : null;
+
         $q = Inventory::query()->with(['branch:id,name', 'product:id,name,sku']);
         BranchAuthScope::apply($q);
-        $rows = $q->orderBy('branch_id')->limit(100_000)->get();
+        $rows = $q->orderBy('branch_id')->orderBy('product_id')->limit(100_000)->get();
 
-        if ($moneda === 'usd') {
-            $headers = ['sucursal', 'sku', 'producto', 'cantidad', 'cost_price', 'cost_plus_vat', 'final_price_without_vat'];
-        } elseif ($moneda === 'ves') {
-            $headers = ['sucursal', 'sku', 'producto', 'cantidad', 'final_price_with_vat', 'vat_final_price_amount'];
-        } else {
-            $headers = ['sucursal', 'sku', 'producto', 'cantidad', 'cost_price', 'cost_plus_vat', 'final_price_without_vat', 'vat_final_price_amount', 'final_price_with_vat'];
+        if ($vista === 'resumen_sucursal') {
+            return $this->streamInventarioResumenSucursal($rows, $includeBs, $bcvRate);
+        }
+
+        $headers = [
+            'sucursal',
+            'sku',
+            'producto',
+            'cantidad',
+            'cantidad_disponible',
+            'costo_unitario_usd',
+            'valor_costo_usd',
+            'costo_con_iva_unitario_usd',
+            'valor_costo_con_iva_usd',
+            'precio_venta_sin_iva_unitario_usd',
+            'valor_venta_sin_iva_usd',
+            'precio_venta_con_iva_unitario_usd',
+            'valor_venta_con_iva_usd',
+        ];
+
+        if ($includeBs && $bcvRate !== null) {
+            $headers[] = 'tasa_bcv_bs_por_usd';
+            $headers[] = 'valor_costo_bs';
+            $headers[] = 'valor_venta_con_iva_bs';
         }
 
         $data = [];
         foreach ($rows as $inv) {
-            if ($moneda === 'usd') {
-                $data[] = [
-                    $inv->branch?->name,
-                    $inv->product?->sku,
-                    $inv->product?->name,
-                    $inv->quantity,
-                    $inv->cost_price,
-                    $inv->cost_plus_vat,
-                    $inv->final_price_without_vat,
+            $qty = (float) $inv->quantity;
+            $available = (float) $inv->available_quantity;
+            $costPrice = (float) $inv->cost_price;
+            $costPlusVat = (float) $inv->cost_plus_vat;
+            $finalWithoutVat = (float) $inv->final_price_without_vat;
+            $finalWithVat = (float) $inv->final_price_with_vat;
+
+            $valorCosto = round($qty * $costPrice, 2);
+            $valorCostoConIva = round($qty * $costPlusVat, 2);
+            $valorVentaSinIva = round($qty * $finalWithoutVat, 2);
+            $valorVentaConIva = round($qty * $finalWithVat, 2);
+
+            $line = [
+                $inv->branch?->name,
+                $inv->product?->sku,
+                $inv->product?->name,
+                $this->formatDecimal($qty, 3),
+                $this->formatDecimal($available, 3),
+                $this->formatDecimal($costPrice),
+                $this->formatDecimal($valorCosto),
+                $this->formatDecimal($costPlusVat),
+                $this->formatDecimal($valorCostoConIva),
+                $this->formatDecimal($finalWithoutVat),
+                $this->formatDecimal($valorVentaSinIva),
+                $this->formatDecimal($finalWithVat),
+                $this->formatDecimal($valorVentaConIva),
+            ];
+
+            if ($includeBs && $bcvRate !== null) {
+                $line[] = $this->formatDecimal($bcvRate);
+                $line[] = $this->formatDecimal($valorCosto * $bcvRate);
+                $line[] = $this->formatDecimal($valorVentaConIva * $bcvRate);
+            }
+
+            $data[] = $line;
+        }
+
+        $suffix = $includeBs ? 'usd-bs' : 'usd';
+
+        return $this->csvResponse('reporte-valoracion-inventario-'.$suffix.'-'.now()->format('YmdHis').'.csv', $headers, $data);
+    }
+
+    /**
+     * @param  Collection<int, Inventory>  $rows
+     */
+    private function streamInventarioResumenSucursal($rows, bool $includeBs, ?float $bcvRate): StreamedResponse
+    {
+        $headers = [
+            'sucursal',
+            'productos_distintos',
+            'cantidad_total',
+            'valor_costo_usd',
+            'valor_costo_con_iva_usd',
+            'valor_venta_sin_iva_usd',
+            'valor_venta_con_iva_usd',
+        ];
+
+        if ($includeBs && $bcvRate !== null) {
+            $headers[] = 'tasa_bcv_bs_por_usd';
+            $headers[] = 'valor_costo_bs';
+            $headers[] = 'valor_venta_con_iva_bs';
+        }
+
+        $grouped = [];
+        foreach ($rows as $inv) {
+            $branchName = (string) ($inv->branch?->name ?? 'Sin sucursal');
+            $qty = (float) $inv->quantity;
+
+            if (! isset($grouped[$branchName])) {
+                $grouped[$branchName] = [
+                    'productos' => 0,
+                    'cantidad' => 0.0,
+                    'valor_costo' => 0.0,
+                    'valor_costo_iva' => 0.0,
+                    'valor_venta_sin_iva' => 0.0,
+                    'valor_venta_con_iva' => 0.0,
                 ];
-            } elseif ($moneda === 'ves') {
-                $data[] = [
-                    $inv->branch?->name,
-                    $inv->product?->sku,
-                    $inv->product?->name,
-                    $inv->quantity,
-                    $inv->final_price_with_vat,
-                    $inv->vat_final_price_amount,
-                ];
+            }
+
+            $grouped[$branchName]['productos']++;
+            $grouped[$branchName]['cantidad'] += $qty;
+            $grouped[$branchName]['valor_costo'] += $qty * (float) $inv->cost_price;
+            $grouped[$branchName]['valor_costo_iva'] += $qty * (float) $inv->cost_plus_vat;
+            $grouped[$branchName]['valor_venta_sin_iva'] += $qty * (float) $inv->final_price_without_vat;
+            $grouped[$branchName]['valor_venta_con_iva'] += $qty * (float) $inv->final_price_with_vat;
+        }
+
+        ksort($grouped);
+
+        $data = [];
+        foreach ($grouped as $branchName => $totals) {
+            $line = [
+                $branchName,
+                $totals['productos'],
+                $this->formatDecimal($totals['cantidad'], 3),
+                $this->formatDecimal($totals['valor_costo']),
+                $this->formatDecimal($totals['valor_costo_iva']),
+                $this->formatDecimal($totals['valor_venta_sin_iva']),
+                $this->formatDecimal($totals['valor_venta_con_iva']),
+            ];
+
+            if ($includeBs && $bcvRate !== null) {
+                $line[] = $this->formatDecimal($bcvRate);
+                $line[] = $this->formatDecimal($totals['valor_costo'] * $bcvRate);
+                $line[] = $this->formatDecimal($totals['valor_venta_con_iva'] * $bcvRate);
+            }
+
+            $data[] = $line;
+        }
+
+        $suffix = $includeBs ? 'resumen-usd-bs' : 'resumen-usd';
+
+        return $this->csvResponse('reporte-valoracion-inventario-'.$suffix.'-'.now()->format('YmdHis').'.csv', $headers, $data);
+    }
+
+    private function streamInventarioVencimientos(User $user, string $filtro): StreamedResponse
+    {
+        $warningDays = (int) config('inventory.lot_near_expiry_days.warning', 60);
+        $orderExpr = LotExpirationMonthYear::mysqlOrderByExpression('pl.expiration_month_year');
+
+        $q = DB::table('inventory_lot_balances as ilb')
+            ->join('product_lots as pl', 'pl.id', '=', 'ilb.product_lot_id')
+            ->join('products as p', 'p.id', '=', 'ilb.product_id')
+            ->join('branches as b', 'b.id', '=', 'ilb.branch_id')
+            ->leftJoin('inventories as inv', function ($join): void {
+                $join->on('inv.branch_id', '=', 'ilb.branch_id')
+                    ->on('inv.product_id', '=', 'ilb.product_id');
+            })
+            ->where('p.requires_expiry_on_purchase', true)
+            ->where('ilb.quantity_remaining', '>', 0)
+            ->select([
+                'ilb.id as balance_id',
+                'b.name as sucursal',
+                'ilb.branch_id',
+                'ilb.product_id',
+                'p.sku',
+                'p.name as producto',
+                'ilb.product_lot_id',
+                'pl.expiration_month_year',
+                'ilb.quantity_remaining',
+                'pl.supplier_invoice_number',
+                'inv.cost_price',
+            ])
+            ->orderBy('b.name')
+            ->orderByRaw("{$orderExpr} ASC");
+
+        if (! $user->isAdministrator() && ! $user->isDeliveryUser()) {
+            $branchIds = $user->restrictedBranchIdsForQueries();
+            if ($branchIds === []) {
+                $q->whereRaw('1 = 0');
             } else {
-                $data[] = [
-                    $inv->branch?->name,
-                    $inv->product?->sku,
-                    $inv->product?->name,
-                    $inv->quantity,
-                    $inv->cost_price,
-                    $inv->cost_plus_vat,
-                    $inv->final_price_without_vat,
-                    $inv->vat_final_price_amount,
-                    $inv->final_price_with_vat,
-                ];
+                $q->whereIn('ilb.branch_id', $branchIds);
             }
         }
 
-        return $this->csvResponse('reporte-inventario-'.$moneda.'-'.now()->format('YmdHis').'.csv', $headers, $data);
+        $rows = $q->limit(100_000)->get();
+
+        $headers = [
+            'sucursal',
+            'product_id',
+            'sku',
+            'producto',
+            'product_lot_id',
+            'vencimiento_mm_yyyy',
+            'dias_hasta_vencer',
+            'estado',
+            'cantidad_lote',
+            'factura_proveedor',
+            'costo_unitario_usd',
+            'valor_costo_lote_usd',
+            'umbral_por_vencer_dias',
+        ];
+
+        $data = [];
+        foreach ($rows as $row) {
+            $days = LotExpirationMonthYear::daysUntilExpiry((string) $row->expiration_month_year);
+            if ($days === null) {
+                continue;
+            }
+
+            $estado = match (true) {
+                $days < 0 => 'vencido',
+                $days <= (int) config('inventory.lot_near_expiry_days.critical', 30) => 'por_vencer_critico',
+                $days <= $warningDays => 'por_vencer',
+                default => 'vigente',
+            };
+
+            if ($filtro === 'vencidos' && $days >= 0) {
+                continue;
+            }
+            if ($filtro === 'por_vencer' && ($days < 0 || $days > $warningDays)) {
+                continue;
+            }
+            if ($filtro === 'vencidos_y_por_vencer' && $days > $warningDays) {
+                continue;
+            }
+
+            $qty = (float) $row->quantity_remaining;
+            $cost = (float) ($row->cost_price ?? 0);
+
+            $data[] = [
+                $row->sucursal,
+                $row->product_id,
+                $row->sku,
+                $row->producto,
+                $row->product_lot_id,
+                $row->expiration_month_year,
+                $days,
+                $estado,
+                $this->formatDecimal($qty, 3),
+                $row->supplier_invoice_number,
+                $this->formatDecimal($cost),
+                $this->formatDecimal($qty * $cost),
+                $warningDays,
+            ];
+        }
+
+        return $this->csvResponse('reporte-inventario-vencimientos-'.$filtro.'-'.now()->format('YmdHis').'.csv', $headers, $data);
     }
 
     private function streamTasasBcv(Carbon $from, Carbon $to): StreamedResponse
@@ -631,5 +938,57 @@ final class SystemReportsCsvExporter
         }
 
         return $this->csvResponse('reporte-compras-'.$filtro.'-'.now()->format('YmdHis').'.csv', $headers, $data);
+    }
+
+    private function salesCustomerCountExpression(): string
+    {
+        return match (DB::connection()->getDriverName()) {
+            'sqlite' => "COUNT(DISTINCT CASE WHEN client_id IS NOT NULL THEN 'c' || client_id ELSE 's' || id END)",
+            'pgsql' => "COUNT(DISTINCT CASE WHEN client_id IS NOT NULL THEN ('c' || client_id::text) ELSE ('s' || id::text) END)",
+            default => "COUNT(DISTINCT CASE WHEN client_id IS NOT NULL THEN CONCAT('c', client_id) ELSE CONCAT('s', id) END)",
+        };
+    }
+
+    /**
+     * @param  Builder<Sale>  $query
+     */
+    private function sumVesConvertedToUsd(Builder $query): float
+    {
+        $fallbackRate = $this->fallbackBcvRate();
+        $rateExpression = $this->bcvRateSqlExpression($fallbackRate);
+        $vesCast = match (DB::connection()->getDriverName()) {
+            'sqlite' => 'CAST(payment_ves AS REAL)',
+            default => 'CAST(payment_ves AS DECIMAL(14,2))',
+        };
+
+        $value = $query
+            ->selectRaw(
+                "SUM(CASE WHEN {$vesCast} > 0 THEN {$vesCast} / ({$rateExpression}) ELSE 0 END) as ves_converted_usd",
+            )
+            ->value('ves_converted_usd');
+
+        return (float) ($value ?? 0);
+    }
+
+    private function bcvRateSqlExpression(float $fallbackRate): string
+    {
+        $fallback = number_format($fallbackRate, 6, '.', '');
+
+        return match (DB::connection()->getDriverName()) {
+            'sqlite' => "COALESCE(NULLIF(CAST(bcv_ves_per_usd AS REAL), 0), {$fallback})",
+            default => "COALESCE(NULLIF(CAST(bcv_ves_per_usd AS DECIMAL(14,6)), 0), {$fallback})",
+        };
+    }
+
+    private function fallbackBcvRate(): float
+    {
+        $fallback = config('fiscal.fallback_ves_usd_rate');
+
+        return is_numeric($fallback) && (float) $fallback > 0 ? (float) $fallback : 1.0;
+    }
+
+    private function formatDecimal(float $value, int $decimals = 2): string
+    {
+        return number_format($value, $decimals, '.', '');
     }
 }

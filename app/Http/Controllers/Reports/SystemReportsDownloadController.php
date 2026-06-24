@@ -13,6 +13,7 @@ final class SystemReportsDownloadController extends Controller
 {
     private const ALLOWED_SLUGS = [
         'ventas',
+        'ventas-global-sucursal',
         'ventas-por-usuario',
         'ventas-por-sucursal',
         'companias-aliadas',
@@ -26,6 +27,7 @@ final class SystemReportsDownloadController extends Controller
         'top-clientes-sucursal',
         'productos-mas-vendidos',
         'inventario',
+        'inventario-vencimientos',
         'tasas-bcv',
         'ingresos-aliados',
         'compras',

@@ -107,6 +107,13 @@ final class PosPaymentMethodOptions
         return asset(self::CACHEA_LOGO);
     }
 
+    public const BDV_PM_NAV_LOGO = 'images/logos/bdv-pm-nav.jpg';
+
+    public static function bdvNavigationIconUrl(): string
+    {
+        return asset(self::BDV_PM_NAV_LOGO);
+    }
+
     public static function cacheaPageHeadingHtml(string $title): HtmlString
     {
         $src = e(asset(self::CACHEA_LOGO));

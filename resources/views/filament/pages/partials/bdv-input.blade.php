@@ -3,17 +3,18 @@
     'label',
     'placeholder' => null,
     'class' => '',
+    'idPrefix' => 'bdv',
 ])
 <div @class(['space-y-1', $class])>
-    <label class="text-sm font-medium text-gray-950 dark:text-white" for="bdv-{{ $name }}">{{ $label }}</label>
+    <label class="farmadoc-bdv-pm-field-label" for="{{ $idPrefix }}-{{ $name }}">{{ $label }}</label>
     <input
-        id="bdv-{{ $name }}"
+        id="{{ $idPrefix }}-{{ $name }}"
         type="text"
         wire:model="{{ $name }}"
         @if ($placeholder !== null) placeholder="{{ $placeholder }}" @endif
-        class="fi-input block w-full rounded-lg border border-gray-950/10 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5 dark:text-white"
+        class="farmadoc-bdv-pm-field-input fi-input"
     />
     @error($name)
-        <p class="text-sm text-danger-600 dark:text-danger-400">{{ $message }}</p>
+        <p class="farmadoc-bdv-pm-field-error">{{ $message }}</p>
     @enderror
 </div>

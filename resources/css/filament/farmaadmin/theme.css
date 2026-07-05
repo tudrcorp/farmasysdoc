@@ -242,27 +242,48 @@ html.fi.dark .fi-sidebar-close-overlay {
 }
 
 /*
- * Cachea en sidebar: el logo sustituye el icono vectorial.
- * El padding/fondo circular del ítem activo desalinea imágenes raster.
+ * Logos raster en sidebar (Cachea, BDV): círculo como el ítem nativo de Filament.
  */
-.fi-sidebar .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/cachea"] {
+.fi-sidebar .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/cachea"],
+.fi-sidebar .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/bdv-pm-nav"] {
     display: block;
     flex-shrink: 0;
+    width: 1.25rem;
+    height: 1.25rem;
     padding: 0 !important;
     overflow: hidden;
     border-radius: 9999px;
-    background: transparent !important;
     box-shadow: none !important;
     filter: none;
+}
+
+.fi-sidebar .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/cachea"] {
+    background: transparent !important;
     object-fit: cover;
+}
+
+.fi-sidebar .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/bdv-pm-nav"] {
+    background: rgb(255 255 255) !important;
+    object-fit: contain;
+}
+
+.fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/cachea"],
+.dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/cachea"],
+.fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/bdv-pm-nav"],
+.dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/bdv-pm-nav"] {
+    margin-inline-end: 0.125rem;
+    padding: 0 !important;
+    box-shadow: none !important;
 }
 
 .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/cachea"],
 .dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/cachea"] {
-    margin-inline-end: 0.125rem;
-    padding: 0 !important;
     background: transparent !important;
-    box-shadow: none !important;
+}
+
+.fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/bdv-pm-nav"],
+.dark .fi-sidebar .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > img.fi-sidebar-item-icon[src*="logos/bdv-pm-nav"] {
+    background: rgb(255 255 255) !important;
 }
 
 /* Grupo de navegación con ítem activo: cabecera alineada visualmente */
@@ -2940,6 +2961,503 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
     .farmadoc-bdv-pm-success-overlay__card {
         animation: none;
     }
+
+    .farmadoc-bdv-pm-fab,
+    .farmadoc-bdv-pm-sheet,
+    .farmadoc-bdv-pm-sheet__backdrop {
+        transition-duration: 0.01ms !important;
+        animation: none !important;
+    }
+}
+
+/* Campos compartidos (página + FAB) */
+.farmadoc-bdv-pm-field-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: rgb(24 24 27);
+}
+
+.dark .farmadoc-bdv-pm-field-label {
+    color: rgb(250 250 250);
+}
+
+.farmadoc-bdv-pm-field-input {
+    display: block;
+    width: 100%;
+    border-radius: 0.72rem;
+    border: 1px solid rgb(0 0 0 / 0.08);
+    background: rgb(255 255 255);
+    padding: 0.62rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.35;
+    color: rgb(24 24 27);
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.65) inset;
+    transition:
+        border-color 0.18s ease,
+        box-shadow 0.18s ease;
+}
+
+.dark .farmadoc-bdv-pm-field-input {
+    border-color: rgb(255 255 255 / 0.12);
+    background: rgb(39 39 42 / 0.72);
+    color: rgb(250 250 250);
+}
+
+.farmadoc-bdv-pm-field-input:focus {
+    outline: none;
+    border-color: rgb(234 179 8 / 0.55);
+    box-shadow:
+        0 0 0 3px rgb(234 179 8 / 0.18),
+        0 1px 0 rgb(255 255 255 / 0.65) inset;
+}
+
+.farmadoc-bdv-pm-field-error {
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+    color: rgb(220 38 38);
+}
+
+.dark .farmadoc-bdv-pm-field-error {
+    color: rgb(248 113 113);
+}
+
+/* Resultado conciliación (página + sheet) */
+.farmadoc-bdv-pm-result {
+    border-radius: 1rem;
+    border: 1px solid rgb(0 0 0 / 0.08);
+    padding: 1rem;
+}
+
+.farmadoc-bdv-pm-result--ok {
+    border-color: rgb(16 185 129 / 0.35);
+    background: rgb(236 253 245 / 0.85);
+}
+
+.farmadoc-bdv-pm-result--fail {
+    border-color: rgb(239 68 68 / 0.35);
+    background: rgb(254 242 242 / 0.85);
+}
+
+.dark .farmadoc-bdv-pm-result--ok {
+    border-color: rgb(16 185 129 / 0.35);
+    background: rgb(6 78 59 / 0.35);
+}
+
+.dark .farmadoc-bdv-pm-result--fail {
+    border-color: rgb(239 68 68 / 0.35);
+    background: rgb(127 29 29 / 0.35);
+}
+
+.farmadoc-bdv-pm-result__title {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 650;
+}
+
+.farmadoc-bdv-pm-result__subtitle {
+    margin: 0.35rem 0 0;
+    font-size: 0.8125rem;
+    opacity: 0.88;
+}
+
+.farmadoc-bdv-pm-result__codes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 0.85rem 0 0;
+    font-size: 0.8125rem;
+}
+
+.farmadoc-bdv-pm-result__codes dt {
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    opacity: 0.65;
+}
+
+.farmadoc-bdv-pm-result__codes dd {
+    margin: 0.15rem 0 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 650;
+}
+
+.farmadoc-bdv-pm-result__json {
+    margin: 0.85rem 0 0;
+    max-height: 16rem;
+    overflow: auto;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(0 0 0 / 0.12);
+    background: rgb(24 24 27);
+    padding: 0.75rem;
+    font-size: 0.6875rem;
+    line-height: 1.45;
+    color: rgb(244 244 245);
+}
+
+/* FAB global — esquina inferior derecha */
+.farmadoc-bdv-pm-fab-root {
+    pointer-events: none;
+}
+
+.farmadoc-bdv-pm-fab {
+    pointer-events: auto;
+    position: fixed;
+    z-index: 120;
+    isolation: isolate;
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: max(1.15rem, env(safe-area-inset-bottom));
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 3.25rem;
+    padding: 0.45rem 0.95rem 0.45rem 0.45rem;
+    border: none;
+    border-radius: 9999px;
+    cursor: pointer;
+    font-family:
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        Roboto,
+        sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: rgb(24 24 27);
+    background: linear-gradient(165deg, rgb(255 255 255) 0%, rgb(250 250 250) 100%);
+    box-shadow:
+        0 0 0 1px rgb(0 0 0 / 0.06),
+        0 10px 24px -8px rgb(0 0 0 / 0.28),
+        0 4px 10px -4px rgb(0 0 0 / 0.12);
+    transition:
+        transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+        box-shadow 0.28s ease,
+        opacity 0.2s ease;
+}
+
+.dark .farmadoc-bdv-pm-fab {
+    color: rgb(250 250 250);
+    background: linear-gradient(165deg, rgb(63 63 70) 0%, rgb(39 39 42) 100%);
+    box-shadow:
+        0 0 0 1px rgb(255 255 255 / 0.08),
+        0 10px 24px -8px rgb(0 0 0 / 0.55),
+        0 4px 10px -4px rgb(0 0 0 / 0.35);
+}
+
+.farmadoc-bdv-pm-fab:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow:
+        0 0 0 1px rgb(234 179 8 / 0.35),
+        0 16px 32px -10px rgb(0 0 0 / 0.32),
+        0 6px 14px -4px rgb(234 179 8 / 0.18);
+}
+
+.farmadoc-bdv-pm-fab:active {
+    transform: translateY(0) scale(0.98);
+}
+
+.farmadoc-bdv-pm-fab__halo {
+    position: absolute;
+    inset: -4px;
+    border-radius: inherit;
+    background: radial-gradient(circle at 30% 30%, rgb(234 179 8 / 0.28), transparent 68%);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+}
+
+.farmadoc-bdv-pm-fab:hover .farmadoc-bdv-pm-fab__halo {
+    opacity: 1;
+}
+
+.farmadoc-bdv-pm-fab__logo {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    object-fit: contain;
+    background: rgb(255 255 255);
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.06);
+}
+
+.farmadoc-bdv-pm-fab__label {
+    padding-right: 0.15rem;
+}
+
+/* Sheet iOS — portal + backdrop + panel */
+body.farmadoc-bdv-pm-sheet-open {
+    overflow: hidden;
+}
+
+.farmadoc-bdv-pm-sheet-portal {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.farmadoc-bdv-pm-sheet-portal[x-cloak] {
+    display: none !important;
+}
+
+.farmadoc-bdv-pm-sheet__backdrop {
+    position: absolute;
+    inset: 0;
+    pointer-events: auto;
+    background: rgb(0 0 0 / 0.38);
+    backdrop-filter: blur(10px) saturate(1.15);
+}
+
+.dark .farmadoc-bdv-pm-sheet__backdrop {
+    background: rgb(0 0 0 / 0.58);
+}
+
+.farmadoc-bdv-pm-sheet-backdrop-enter,
+.farmadoc-bdv-pm-sheet-backdrop-leave {
+    transition: opacity 0.34s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.farmadoc-bdv-pm-sheet-backdrop-enter-start,
+.farmadoc-bdv-pm-sheet-backdrop-leave-end {
+    opacity: 0;
+}
+
+.farmadoc-bdv-pm-sheet-backdrop-enter-end,
+.farmadoc-bdv-pm-sheet-backdrop-leave-start {
+    opacity: 1;
+}
+
+.farmadoc-bdv-pm-sheet {
+    position: relative;
+    z-index: 1;
+    pointer-events: auto;
+    width: min(100%, 34rem);
+    max-height: min(92vh, 52rem);
+    margin-bottom: env(safe-area-inset-bottom);
+    display: flex;
+    flex-direction: column;
+    border-radius: 1.35rem 1.35rem 0 0;
+    border: 1px solid rgb(234 179 8 / 0.22);
+    background: linear-gradient(180deg, rgb(255 253 245) 0%, rgb(255 255 255) 28%, rgb(250 250 250) 100%);
+    box-shadow:
+        0 0 0 1px rgb(255 255 255 / 0.65) inset,
+        0 -8px 40px rgb(0 0 0 / 0.18);
+    font-family:
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        Roboto,
+        sans-serif;
+    overflow: hidden;
+}
+
+.dark .farmadoc-bdv-pm-sheet {
+    border-color: rgb(234 179 8 / 0.28);
+    background: linear-gradient(180deg, rgb(39 39 42) 0%, rgb(24 24 27) 35%, rgb(28 28 30) 100%);
+    box-shadow:
+        0 0 0 1px rgb(255 255 255 / 0.06) inset,
+        0 -8px 40px rgb(0 0 0 / 0.55);
+}
+
+@media (min-width: 640px) {
+    .farmadoc-bdv-pm-sheet-portal {
+        align-items: center;
+        padding: 1rem;
+    }
+
+    .farmadoc-bdv-pm-sheet {
+        margin-bottom: 0;
+        border-radius: 1.35rem;
+        max-height: min(88vh, 52rem);
+    }
+}
+
+.farmadoc-bdv-pm-sheet-enter,
+.farmadoc-bdv-pm-sheet-leave {
+    transition:
+        transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+        opacity 0.34s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.farmadoc-bdv-pm-sheet-enter-start,
+.farmadoc-bdv-pm-sheet-leave-end {
+    opacity: 0;
+    transform: translateY(calc(100% + 1.5rem)) scale(0.96);
+}
+
+.farmadoc-bdv-pm-sheet-enter-end,
+.farmadoc-bdv-pm-sheet-leave-start {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+@media (min-width: 640px) {
+    .farmadoc-bdv-pm-sheet-enter-start,
+    .farmadoc-bdv-pm-sheet-leave-end {
+        transform: translateY(1.5rem) scale(0.94);
+    }
+}
+
+.farmadoc-bdv-pm-sheet__handle-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 0.55rem 0 0.15rem;
+}
+
+.farmadoc-bdv-pm-sheet__handle {
+    width: 2.5rem;
+    height: 0.28rem;
+    border-radius: 9999px;
+    background: rgb(0 0 0 / 0.14);
+}
+
+.dark .farmadoc-bdv-pm-sheet__handle {
+    background: rgb(255 255 255 / 0.22);
+}
+
+.farmadoc-bdv-pm-sheet__header {
+    position: relative;
+    padding: 0.35rem 1.1rem 0.85rem;
+    text-align: center;
+    border-bottom: 1px solid rgb(0 0 0 / 0.06);
+}
+
+.dark .farmadoc-bdv-pm-sheet__header {
+    border-bottom-color: rgb(255 255 255 / 0.08);
+}
+
+.farmadoc-bdv-pm-sheet__close {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.65rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border: none;
+    border-radius: 9999px;
+    background: rgb(0 0 0 / 0.06);
+    color: rgb(82 82 91);
+    cursor: pointer;
+    transition: background 0.18s ease;
+}
+
+.dark .farmadoc-bdv-pm-sheet__close {
+    background: rgb(255 255 255 / 0.08);
+    color: rgb(212 212 216);
+}
+
+.farmadoc-bdv-pm-sheet__close:hover {
+    background: rgb(0 0 0 / 0.1);
+}
+
+.farmadoc-bdv-pm-sheet__close svg {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+.farmadoc-bdv-pm-sheet__brand-logo {
+    display: inline-block;
+    max-width: 9.5rem;
+    height: auto;
+    object-fit: contain;
+}
+
+.farmadoc-bdv-pm-sheet__title {
+    margin: 0.55rem 0 0;
+    font-size: 1.125rem;
+    font-weight: 650;
+    letter-spacing: -0.03em;
+    color: rgb(24 24 27);
+}
+
+.dark .farmadoc-bdv-pm-sheet__title {
+    color: rgb(250 250 250);
+}
+
+.farmadoc-bdv-pm-sheet__subtitle {
+    margin: 0.35rem 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: rgb(82 82 91);
+}
+
+.dark .farmadoc-bdv-pm-sheet__subtitle {
+    color: rgb(161 161 170);
+}
+
+.farmadoc-bdv-pm-sheet__body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 1rem 1.1rem 1.25rem;
+}
+
+.farmadoc-bdv-pm-sheet__form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.farmadoc-bdv-pm-sheet__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    margin-top: 0.35rem;
+}
+
+.farmadoc-bdv-pm-sheet__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.85rem;
+    border-radius: 0.85rem;
+    border: none;
+    padding: 0.65rem 1rem;
+    font-size: 0.9375rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+        transform 0.16s ease,
+        box-shadow 0.16s ease,
+        background 0.16s ease;
+}
+
+.farmadoc-bdv-pm-sheet__btn:active {
+    transform: scale(0.98);
+}
+
+.farmadoc-bdv-pm-sheet__btn--primary {
+    color: rgb(24 24 27);
+    background: linear-gradient(180deg, rgb(252 228 34) 0%, rgb(234 179 8) 100%);
+    box-shadow: 0 4px 14px -4px rgb(234 179 8 / 0.65);
+}
+
+.farmadoc-bdv-pm-sheet__btn--primary:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.farmadoc-bdv-pm-sheet__btn--ghost {
+    color: rgb(63 63 70);
+    background: rgb(0 0 0 / 0.05);
+}
+
+.dark .farmadoc-bdv-pm-sheet__btn--ghost {
+    color: rgb(228 228 231);
+    background: rgb(255 255 255 / 0.08);
+}
+
+.farmadoc-bdv-pm-sheet .farmadoc-bdv-pm-success-overlay {
+    border-radius: inherit;
 }
 
 /* Dos columnas (lg+): carrito ~8/12, total+pago ~4/12 — más aire para el repeater */

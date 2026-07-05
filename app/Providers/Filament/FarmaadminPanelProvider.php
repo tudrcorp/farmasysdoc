@@ -39,6 +39,7 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Livewire\Livewire;
 
 class FarmaadminPanelProvider extends PanelProvider
 {
@@ -134,6 +135,22 @@ class FarmaadminPanelProvider extends PanelProvider
                     return view('filament.farmaadmin.components.quick-shortcuts-pill', [
                         'items' => $items,
                     ])->render();
+                },
+            )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                function (): string {
+                    if (Filament::getCurrentPanel()?->getId() !== 'farmaadmin') {
+                        return '';
+                    }
+
+                    $user = Auth::user();
+
+                    if (! $user instanceof User || ! $user->canAccessFarmaadminMenuKey('bdv_pagomovil_conciliation')) {
+                        return '';
+                    }
+
+                    return Livewire::mount('filament.bdv-pagomovil-conciliation-fab', [], 'farmadoc-bdv-pm-fab');
                 },
             )
             ->authMiddleware([

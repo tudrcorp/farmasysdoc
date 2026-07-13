@@ -110,6 +110,14 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * Rol de coordinación: supervisión de ventas de la sucursal asignada, sin caja ni alta directa.
+     */
+    public function isCoordinator(): bool
+    {
+        return $this->hasRole('COORDINADORES');
+    }
+
+    /**
      * Administrador, Gerencia y Coordinadores: listado y stats de ventas, sin caja ni alta directa.
      */
     public function hasSalesBillingRestrictedRole(): bool
@@ -347,6 +355,26 @@ class User extends Authenticatable implements FilamentUser
     public function canAccessFarmaadminMenuKey(string $menuKey): bool
     {
         return in_array($menuKey, $this->resolvedAllowedFarmaadminMenuItems(), true);
+    }
+
+    /**
+     * Ver la columna «Precio directo» en el listado de productos.
+     */
+    public function canSeeProductDirectPrice(): bool
+    {
+        if ($this->isAdministrator()) {
+            return true;
+        }
+
+        return $this->canAccessFarmaadminMenuKey('product_direct_price');
+    }
+
+    /**
+     * Editar el precio directo en el listado de productos (solo administrador).
+     */
+    public function canEditProductDirectPrice(): bool
+    {
+        return $this->isAdministrator();
     }
 
     /**

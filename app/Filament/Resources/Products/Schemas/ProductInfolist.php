@@ -3,7 +3,9 @@
 namespace App\Filament\Resources\Products\Schemas;
 
 use App\Models\Product;
+use App\Models\User;
 use App\Support\Finance\DefaultVatRate;
+use App\Support\Products\ProductBranchPricingInfolistRows;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -14,6 +16,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\Auth;
 
 class ProductInfolist
 {
@@ -104,7 +107,7 @@ class ProductInfolist
                     ]),
 
                 Section::make('Unidad de venta y precios')
-                    ->description('Precio de venta (lista) = costo + (costo × % de ganancia de la categoría). Contenido comercial y valores únicos para todas las sucursales.')
+                    ->description('Precio de referencia (sede central) = costo + (costo × % de ganancia de la categoría en esa sucursal). Cada sucursal puede tener márgenes distintos.')
                     ->icon(Heroicon::CurrencyDollar)
                     ->schema([
                         Grid::make([
@@ -121,14 +124,14 @@ class ProductInfolist
                                     ->color('warning')
                                     ->icon(Heroicon::Swatch),
                                 TextEntry::make('category_profit_percent')
-                                    ->label('Margen de ganancia (categoría)')
+                                    ->label('Margen de ganancia (referencia)')
                                     ->badge()
                                     ->size('lg')
                                     ->weight('bold')
                                     ->state(fn (Product $record): string => number_format(max(0.0, (float) ($record->productCategory?->profit_percentage ?? 0)), 2, '.', ',').' %')
                                     ->color('warning')
                                     ->icon(Heroicon::ChartBarSquare)
-                                    ->helperText('Porcentaje configurado en la categoría del producto; define el precio lista sobre el costo.'),
+                                    ->helperText('Margen por defecto de la categoría. El precio lista usa la sede central; consulte inventario por sucursal para precios locales.'),
                             ]),
                         Grid::make([
                             'default' => 1,
@@ -265,6 +268,77 @@ class ProductInfolist
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
+
+                Section::make('Costos y márgenes por sucursal')
+                    ->description('Vista exclusiva para administradores: costo unitario, margen de categoría aplicado en cada sucursal y precios finales según inventario.')
+                    ->icon(Heroicon::ShieldExclamation)
+                    ->schema([
+                        TextEntry::make('admin_branch_pricing_notice')
+                            ->label('')
+                            ->state('Acceso restringido · Solo rol ADMINISTRADOR')
+                            ->badge()
+                            ->color('danger')
+                            ->icon(Heroicon::LockClosed)
+                            ->columnSpanFull(),
+                        RepeatableEntry::make('admin_branch_pricing_rows')
+                            ->label('')
+                            ->placeholder('Este producto aún no tiene filas de inventario en ninguna sucursal activa.')
+                            ->state(fn (Product $record): array => ProductBranchPricingInfolistRows::forProduct($record))
+                            ->table([
+                                TableColumn::make('Sucursal'),
+                                TableColumn::make('Existencia')
+                                    ->width('7rem')
+                                    ->alignment(Alignment::End),
+                                TableColumn::make('Costo unit.')
+                                    ->alignment(Alignment::End),
+                                TableColumn::make('Margen cat.')
+                                    ->width('8rem')
+                                    ->alignment(Alignment::Center),
+                                TableColumn::make('Final sin IVA')
+                                    ->alignment(Alignment::End),
+                                TableColumn::make('Final con IVA')
+                                    ->alignment(Alignment::End),
+                            ])
+                            ->schema([
+                                TextEntry::make('branch_name')
+                                    ->label('')
+                                    ->weight('bold')
+                                    ->icon(Heroicon::BuildingStorefront)
+                                    ->placeholder('—'),
+                                TextEntry::make('quantity')
+                                    ->label('')
+                                    ->alignment(Alignment::End)
+                                    ->formatStateUsing(fn ($state): string => number_format((float) $state, 3, '.', ',')),
+                                TextEntry::make('cost_price')
+                                    ->label('')
+                                    ->alignment(Alignment::End)
+                                    ->formatStateUsing(fn ($state): string => '$'.number_format((float) $state, 2, '.', ',')),
+                                TextEntry::make('profit_percentage')
+                                    ->label('')
+                                    ->alignment(Alignment::Center)
+                                    ->badge()
+                                    ->color('warning')
+                                    ->formatStateUsing(fn ($state): string => number_format((float) $state, 2, '.', ',').' %'),
+                                TextEntry::make('final_price_without_vat')
+                                    ->label('')
+                                    ->alignment(Alignment::End)
+                                    ->weight('medium')
+                                    ->formatStateUsing(fn ($state): string => '$'.number_format((float) $state, 2, '.', ',')),
+                                TextEntry::make('final_price_with_vat')
+                                    ->label('')
+                                    ->alignment(Alignment::End)
+                                    ->weight('bold')
+                                    ->color('success')
+                                    ->formatStateUsing(fn ($state): string => '$'.number_format((float) $state, 2, '.', ',')),
+                            ])
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull()
+                    ->visible(fn (): bool => Auth::user() instanceof User && Auth::user()->isAdministrator())
+                    ->extraAttributes([
+                        'class' => 'fi-farmaadmin-product-admin-branch-pricing-section',
+                    ]),
 
                 Section::make('Información farmacéutica y registro')
                     ->description('Datos para medicamentos: principio activo, registro sanitario y requisitos legales.')

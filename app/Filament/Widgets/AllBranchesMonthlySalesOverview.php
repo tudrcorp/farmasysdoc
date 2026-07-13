@@ -33,6 +33,10 @@ class AllBranchesMonthlySalesOverview extends Widget
             return true;
         }
 
+        if ($user->isCoordinator()) {
+            return DashboardBranchFilter::allowedBranchIdsForCurrentUser() !== [];
+        }
+
         if (! $user->isManager()) {
             return false;
         }

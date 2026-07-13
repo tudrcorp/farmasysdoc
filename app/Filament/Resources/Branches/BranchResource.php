@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Branches;
 use App\Filament\Resources\Branches\Pages\CreateBranch;
 use App\Filament\Resources\Branches\Pages\EditBranch;
 use App\Filament\Resources\Branches\Pages\ListBranches;
+use App\Filament\Resources\Branches\Pages\ManageBranchProfitMargins;
 use App\Filament\Resources\Branches\Pages\ViewBranch;
 use App\Filament\Resources\Branches\Schemas\BranchForm;
 use App\Filament\Resources\Branches\Schemas\BranchInfolist;
@@ -59,6 +60,7 @@ class BranchResource extends Resource
             'create' => CreateBranch::route('/create'),
             'view' => ViewBranch::route('/{record}'),
             'edit' => EditBranch::route('/{record}/edit'),
+            'profit-margins' => ManageBranchProfitMargins::route('/{record}/profit-margins'),
         ];
     }
 }

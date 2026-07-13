@@ -205,6 +205,10 @@ final class AllBranchesMonthlySalesStatsService
             return 'sucursales asignadas';
         }
 
+        if ($viewer instanceof User && $viewer->isCoordinator()) {
+            return 'sucursal asignada';
+        }
+
         return 'alcance por sucursal';
     }
 

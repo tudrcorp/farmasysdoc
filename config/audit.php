@@ -2,6 +2,7 @@
 
 use App\Models\ApiClient;
 use App\Models\Branch;
+use App\Models\BranchCategoryProfitMargin;
 use App\Models\Client;
 use App\Models\Delivery;
 use App\Models\FinancialSetting;
@@ -59,6 +60,7 @@ return [
         Supplier::class,
         Order::class,
         Branch::class,
+        BranchCategoryProfitMargin::class,
         User::class,
         Rol::class,
         ProductTransfer::class,

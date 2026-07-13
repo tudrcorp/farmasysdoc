@@ -179,7 +179,7 @@ final class SystemReportsHubPage extends Page
                 'description' => 'Movimientos entre sucursales y costos asociados.',
                 'items' => [
                     ['slug' => 'traslados-por-usuario', 'title' => 'Traslados por usuario', 'hint' => 'Quién creó el traslado.', 'dates' => true],
-                    ['slug' => 'traslados-por-sucursal', 'title' => 'Traslados por sucursal', 'hint' => 'Salidas y entradas por sucursal.', 'dates' => true],
+                    ['slug' => 'traslados-por-sucursal', 'title' => 'Traslados por sucursal', 'hint' => 'Detalle por traslado: origen, destino, ítems y totales USD/Bs (tasa BCV del día «Hasta»).', 'dates' => true],
                     ['slug' => 'traslados-costos', 'title' => 'Costos de traslados', 'hint' => 'Detalle con costo total de traslado por movimiento.', 'dates' => true],
                 ],
             ],

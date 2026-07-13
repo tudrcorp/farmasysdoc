@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Services\Pricing\BranchCategoryProfitMarginProvisioner;
 use Database\Factories\ProductCategoryFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Auth;
 
 class ProductCategory extends Model
 {
@@ -37,12 +39,30 @@ class ProductCategory extends Model
         'updated_by',
     ];
 
+    protected static function booted(): void
+    {
+        static::created(function (ProductCategory $category): void {
+            $actorId = Auth::id();
+            $actor = $actorId !== null ? (string) $actorId : 'sistema';
+
+            app(BranchCategoryProfitMarginProvisioner::class)->provisionForCategory($category, $actor);
+        });
+    }
+
     /**
      * @return HasMany<Product, $this>
      */
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);
+    }
+
+    /**
+     * @return HasMany<BranchCategoryProfitMargin, $this>
+     */
+    public function branchProfitMargins(): HasMany
+    {
+        return $this->hasMany(BranchCategoryProfitMargin::class, 'product_category_id');
     }
 
     /**

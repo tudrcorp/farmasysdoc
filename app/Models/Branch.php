@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use App\Services\Pricing\BranchCategoryProfitMarginProvisioner;
 use Database\Factories\BranchFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Auth;
 
 class Branch extends Model
 {
@@ -49,6 +51,12 @@ class Branch extends Model
     {
         static::created(function (Branch $branch): void {
             $branch->forceFill(['code' => 'SUC-'.$branch->id])->saveQuietly();
+
+            $actor = Auth::user()?->email
+                ?? Auth::user()?->name
+                ?? 'sistema';
+
+            app(BranchCategoryProfitMarginProvisioner::class)->provisionForBranch($branch, $actor);
         });
     }
 
@@ -58,6 +66,14 @@ class Branch extends Model
     public function inventories(): HasMany
     {
         return $this->hasMany(Inventory::class);
+    }
+
+    /**
+     * @return HasMany<BranchCategoryProfitMargin, $this>
+     */
+    public function categoryProfitMargins(): HasMany
+    {
+        return $this->hasMany(BranchCategoryProfitMargin::class);
     }
 
     /**

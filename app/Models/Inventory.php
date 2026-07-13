@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Services\Pricing\BranchCategoryInventoryPriceRecalculator;
+use App\Services\Pricing\BranchCategoryProfitResolver;
 use App\Support\Finance\DefaultVatRate;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -104,7 +106,7 @@ class Inventory extends Model
     }
 
     /**
-     * Snapshot financiero persistido en inventario usando el costo y la categoría del producto.
+     * Snapshot financiero persistido en inventario usando costo, sucursal y categoría del producto.
      *
      * @return array{
      *     cost_price: float,
@@ -115,7 +117,7 @@ class Inventory extends Model
      *     final_price_with_vat: float
      * }
      */
-    public static function financialSnapshotFromCostAndProduct(float $cost, ?Product $product): array
+    public static function financialSnapshotFromCostAndProduct(float $cost, ?Product $product, ?int $branchId = null): array
     {
         $safeCost = round(max(0.0, $cost), 8);
         $vatRate = 0.0;
@@ -126,9 +128,10 @@ class Inventory extends Model
         $profitPercent = 0.0;
         if ($product !== null) {
             $product->loadMissing('productCategory');
-            $category = $product->productCategory;
-            if ($category !== null && (bool) $category->is_active) {
-                $profitPercent = max(0.0, (float) $category->profit_percentage);
+            $categoryId = $product->product_category_id !== null ? (int) $product->product_category_id : null;
+
+            if ($categoryId !== null && $categoryId > 0) {
+                $profitPercent = app(BranchCategoryProfitResolver::class)->resolve($branchId, $categoryId);
             }
         }
 
@@ -205,9 +208,17 @@ class Inventory extends Model
             $cost = (float) ($explicitCost ?? ($product?->cost_price ?? 0));
         }
 
-        foreach (self::financialSnapshotFromCostAndProduct($cost, $product) as $key => $value) {
+        foreach (self::financialSnapshotFromCostAndProduct($cost, $product, $this->branch_id !== null ? (int) $this->branch_id : null) as $key => $value) {
             $this->setAttribute($key, $value);
         }
+    }
+
+    /**
+     * Recalcula el snapshot financiero en todas las filas de inventario del producto.
+     */
+    public static function propagateFinancialSnapshotToInventories(Product $product): void
+    {
+        app(BranchCategoryInventoryPriceRecalculator::class)->recalculateForProduct($product);
     }
 
     /**

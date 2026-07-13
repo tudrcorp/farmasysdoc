@@ -70,7 +70,7 @@ class ProductCategoryForm
                     ->columnSpanFull(),
 
                 Section::make('Comercial')
-                    ->description('Visibilidad en catálogo y margen orientativo asociado a la categoría.')
+                    ->description('Visibilidad en catálogo y margen por defecto para nuevas sucursales. Cada sucursal puede ajustar su propio margen por categoría.')
                     ->icon(Heroicon::ChartBar)
                     ->schema([
                         Toggle::make('is_active')
@@ -98,7 +98,7 @@ class ProductCategoryForm
                             ->suffix('%')
                             ->minValue(0)
                             ->default(0)
-                            ->helperText('Valor numérico (ej. IVA o margen según su política). Por defecto 0.')
+                            ->helperText('Valor por defecto al crear sucursales o categorías. Las sucursales pueden personalizarlo en Configuración → Sucursales → Márgenes por categoría.')
                             ->placeholder('0'),
                     ])
                     ->columns(2)

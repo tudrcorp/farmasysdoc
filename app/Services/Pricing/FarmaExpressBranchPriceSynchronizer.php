@@ -15,7 +15,7 @@ class FarmaExpressBranchPriceSynchronizer
         $vatRate = max(0.0, min(100.0, DefaultVatRate::percent()));
 
         Product::query()
-            ->select(['id', 'cost_price', 'applies_vat'])
+            ->select(['id', 'cost_price', 'applies_vat', 'product_category_id'])
             ->orderBy('id', 'asc')
             ->chunkById(200, function (Collection $products) use ($structures, $vatRate): void {
                 foreach ($products as $product) {
@@ -73,10 +73,14 @@ class FarmaExpressBranchPriceSynchronizer
     {
         $costPrice = max(0.0, (float) ($product->cost_price ?? 0));
         $appliesVat = (bool) $product->applies_vat;
+        $categoryId = $product->product_category_id !== null ? (int) $product->product_category_id : null;
+        $resolver = app(BranchCategoryProfitResolver::class);
         $prices = [];
 
         foreach ($structures as $structure) {
-            $profitPercentage = max(0.0, (float) $structure->profit_percentage);
+            $profitPercentage = $categoryId !== null && $categoryId > 0
+                ? $resolver->resolve((int) $structure->branch_id, $categoryId)
+                : max(0.0, (float) $structure->profit_percentage);
             $finalPriceWithoutVat = round($costPrice + ($costPrice * $profitPercentage / 100), 2);
             $finalPriceWithVat = $appliesVat
                 ? round($finalPriceWithoutVat + ($finalPriceWithoutVat * $vatRate / 100), 2)

@@ -10,6 +10,7 @@ use App\Models\Branch;
 use App\Models\Sale;
 use App\Models\User;
 use App\Services\Dashboard\BranchSalesDayPaymentMethodChartDataService;
+use App\Support\Filament\DashboardBranchFilter;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Filament\Facades\Filament;
@@ -116,6 +117,11 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
             $date = Carbon::parse($this->drillDownDate)->locale('es');
 
             return 'Cobro por método de pago · '.$date->translatedFormat('d \d\e F Y');
+        }
+
+        $user = Filament::auth()->user();
+        if ($user instanceof User && $user->isCoordinator()) {
+            return 'Ventas por día (sucursal asignada)';
         }
 
         return $this->heading;
@@ -468,6 +474,15 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
     {
         $user = Filament::auth()->user();
 
-        return $user instanceof User && ($user->hasGerenciaRole() || $user->isAdministrator());
+        if (! $user instanceof User) {
+            return false;
+        }
+
+        if ($user->isAdministrator() || $user->hasGerenciaRole()) {
+            return true;
+        }
+
+        return $user->isCoordinator()
+            && DashboardBranchFilter::allowedBranchIdsForCurrentUser() !== [];
     }
 }

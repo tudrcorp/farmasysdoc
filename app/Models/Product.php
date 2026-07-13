@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Services\Pricing\BranchCategoryProfitResolver;
 use App\Services\Pricing\FarmaExpressBranchPriceSynchronizer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Auth;
 
 class Product extends Model
 {
@@ -45,6 +47,7 @@ class Product extends Model
         'sku',
         'product_category_id',
         'sale_price',
+        'direct_price',
         'cost_price',
         'discount_percent',
         'applies_vat',
@@ -60,6 +63,7 @@ class Product extends Model
         return [
             'unit_content' => 'decimal:3',
             'sale_price' => 'decimal:2',
+            'direct_price' => 'decimal:2',
             'cost_price' => 'decimal:2',
             'discount_percent' => 'decimal:2',
             'requires_prescription' => 'boolean',
@@ -83,6 +87,18 @@ class Product extends Model
             }
         });
 
+        static::updating(function (Product $product): void {
+            if (! $product->isDirty('direct_price')) {
+                return;
+            }
+
+            $user = Auth::user();
+
+            if (! $user instanceof User || ! $user->canEditProductDirectPrice()) {
+                $product->direct_price = $product->getOriginal('direct_price');
+            }
+        });
+
         static::saving(function (Product $product): void {
             if ($product->product_category_id === null) {
                 return;
@@ -94,6 +110,7 @@ class Product extends Model
             $product->sale_price = self::salePriceFromCostAndCategoryProfit(
                 $costAmount,
                 (int) $product->product_category_id,
+                self::referenceBranchIdForPricing(),
             );
         });
 
@@ -121,26 +138,57 @@ class Product extends Model
 
             Inventory::propagatePharmacySnapshotToInventories($product);
         });
+
+        static::saved(function (Product $product): void {
+            if ($product->wasRecentlyCreated) {
+                return;
+            }
+
+            if (! $product->wasChanged(['product_category_id', 'cost_price', 'applies_vat'])) {
+                return;
+            }
+
+            Inventory::propagateFinancialSnapshotToInventories($product);
+        });
     }
 
     /**
-     * Precio de venta (lista) = costo + (costo × % de ganancia de la categoría).
+     * Sucursal de referencia para el precio lista del catálogo (sede central o primera activa).
+     */
+    public static function referenceBranchIdForPricing(): ?int
+    {
+        $headquartersId = Branch::query()
+            ->where('is_headquarters', true)
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->value('id');
+
+        if ($headquartersId !== null) {
+            return (int) $headquartersId;
+        }
+
+        $firstActiveId = Branch::query()
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->value('id');
+
+        return $firstActiveId !== null ? (int) $firstActiveId : null;
+    }
+
+    /**
+     * Precio de venta (lista) = costo + (costo × % de ganancia de la categoría en la sucursal).
      * Ej.: costo 100 y margen 80 % → 100 + 80 = 180.
      */
-    public static function salePriceFromCostAndCategoryProfit(float $costAmount, ?int $productCategoryId): float
+    public static function salePriceFromCostAndCategoryProfit(float $costAmount, ?int $productCategoryId, ?int $branchId = null): float
     {
         $cost = max(0.0, $costAmount);
         $profitPercent = 0.0;
 
         if ($productCategoryId !== null && $productCategoryId > 0) {
-            $category = ProductCategory::query()
-                ->whereKey($productCategoryId)
-                ->where('is_active', true)
-                ->first();
-
-            if ($category !== null) {
-                $profitPercent = max(0.0, (float) $category->profit_percentage);
-            }
+            $profitPercent = app(BranchCategoryProfitResolver::class)->resolve(
+                $branchId ?? self::referenceBranchIdForPricing(),
+                $productCategoryId,
+            );
         }
 
         return round($cost + ($cost * $profitPercent / 100), 2);

@@ -3,6 +3,7 @@
 namespace App\Services\Reports;
 
 use App\Enums\OrderStatus;
+use App\Enums\ProductTransferStatus;
 use App\Enums\SaleStatus;
 use App\Models\Branch;
 use App\Models\Client;
@@ -19,6 +20,7 @@ use App\Models\User;
 use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Finance\AccountsPayableStatus;
+use App\Support\Inventory\InventoryQuantityFormat;
 use App\Support\Purchases\LotExpirationMonthYear;
 use App\Support\Purchases\PurchasePaymentStatus;
 use Illuminate\Database\Eloquent\Builder;
@@ -347,29 +349,61 @@ final class SystemReportsCsvExporter
 
     private function streamTrasladosPorSucursal(User $user, Carbon $from, Carbon $to): StreamedResponse
     {
-        $q = $this->scopeTransfers($user)->whereBetween('created_at', [$from, $to]);
-        $fromAgg = $q->clone()->selectRaw('from_branch_id as branch_id, COUNT(*) as salidas')
-            ->groupBy('from_branch_id');
-        $toAgg = $this->scopeTransfers($user)->whereBetween('created_at', [$from, $to])
-            ->selectRaw('to_branch_id as branch_id, COUNT(*) as entradas')
-            ->groupBy('to_branch_id');
+        $bcvRate = $this->bcvRateForReportDate($to);
+        $bcvRateDate = $to->toDateString();
 
-        $merged = collect();
-        foreach ($fromAgg->get() as $r) {
-            $merged->put($r->branch_id, ['salidas' => (int) $r->salidas, 'entradas' => 0]);
-        }
-        foreach ($toAgg->get() as $r) {
-            $bid = (int) $r->branch_id;
-            $cur = $merged->get($bid, ['salidas' => 0, 'entradas' => 0]);
-            $cur['entradas'] = (int) $r->entradas;
-            $merged->put($bid, $cur);
-        }
-        $names = Branch::query()->pluck('name', 'id');
+        $transfers = $this->scopeTransfers($user)
+            ->whereBetween('created_at', [$from, $to])
+            ->with([
+                'fromBranch:id,name,code',
+                'toBranch:id,name,code',
+                'items' => fn ($query) => $query->orderBy('id'),
+                'items.product:id,name,barcode,sku',
+            ])
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
 
-        $headers = ['branch_id', 'sucursal', 'traslados_salida', 'traslados_entrada'];
+        $headers = [
+            'id',
+            'codigo',
+            'origen',
+            'destino',
+            'items',
+            'lineas_producto',
+            'total_usd',
+            'tasa_bcv_bs_por_usd',
+            'fecha_tasa_bcv',
+            'total_bs',
+            'estado',
+            'fecha_traslado',
+            'creado_por',
+        ];
+
         $data = [];
-        foreach ($merged as $bid => $v) {
-            $data[] = [$bid, $names[$bid] ?? '', $v['salidas'], $v['entradas']];
+        foreach ($transfers as $transfer) {
+            $totalUsd = $transfer->total_transfer_cost !== null
+                ? round((float) $transfer->total_transfer_cost, 2)
+                : null;
+            $totalBs = $totalUsd !== null
+                ? round($totalUsd * $bcvRate, 2)
+                : null;
+
+            $data[] = [
+                $transfer->id,
+                $transfer->code,
+                $this->formatTransferBranchLabel($transfer->fromBranch?->name, $transfer->from_branch_id),
+                $this->formatTransferBranchLabel($transfer->toBranch?->name, $transfer->to_branch_id),
+                $this->formatTransferItemsSummary($transfer),
+                $transfer->items->count(),
+                $totalUsd !== null ? $this->formatDecimal($totalUsd) : '',
+                $this->formatDecimal($bcvRate, 6),
+                $bcvRateDate,
+                $totalBs !== null ? $this->formatDecimal($totalBs) : '',
+                ProductTransferStatus::labelForStored($transfer->status),
+                $transfer->created_at?->format('Y-m-d H:i:s'),
+                $transfer->created_by,
+            ];
         }
 
         return $this->csvResponse('reporte-traslados-por-sucursal-'.now()->format('YmdHis').'.csv', $headers, $data);
@@ -985,6 +1019,46 @@ final class SystemReportsCsvExporter
         $fallback = config('fiscal.fallback_ves_usd_rate');
 
         return is_numeric($fallback) && (float) $fallback > 0 ? (float) $fallback : 1.0;
+    }
+
+    private function bcvRateForReportDate(Carbon $selectedDate): float
+    {
+        $rate = app(VenezuelaOfficialUsdVesRateClient::class)->rateForDate($selectedDate);
+
+        return $rate !== null && $rate > 0 ? $rate : $this->fallbackBcvRate();
+    }
+
+    private function formatTransferBranchLabel(?string $name, int $branchId): string
+    {
+        if (filled($name)) {
+            return (string) $name;
+        }
+
+        return $branchId > 0 ? 'Sucursal #'.$branchId : '—';
+    }
+
+    private function formatTransferItemsSummary(ProductTransfer $transfer): string
+    {
+        if ($transfer->items->isEmpty()) {
+            return '—';
+        }
+
+        return $transfer->items
+            ->map(function ($item): string {
+                $product = $item->product;
+                $label = filled($product?->name)
+                    ? (string) $product->name
+                    : ('Producto #'.(int) $item->product_id);
+
+                if (filled($product?->barcode)) {
+                    $label .= ' ['.(string) $product->barcode.']';
+                } elseif (filled($product?->sku)) {
+                    $label .= ' ['.(string) $product->sku.']';
+                }
+
+                return $label.' × '.InventoryQuantityFormat::display((float) $item->quantity);
+            })
+            ->implode("\n");
     }
 
     private function formatDecimal(float $value, int $decimals = 2): string

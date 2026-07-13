@@ -152,7 +152,7 @@ class InventoryForm
                     ->columnSpanFull(),
 
                 Section::make('Precios del producto')
-                    ->description('Snapshot financiero en inventario: se recalcula con costo de compra, IVA del sistema y % de ganancia de categoría.')
+                    ->description('Snapshot financiero en inventario: se recalcula con costo de compra, IVA del sistema y % de ganancia de la categoría en esta sucursal.')
                     ->icon(Heroicon::CurrencyDollar)
                     ->visible(fn (Get $get): bool => filled($get('product_id')))
                     ->schema([

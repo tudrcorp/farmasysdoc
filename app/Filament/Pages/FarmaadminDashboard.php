@@ -78,6 +78,13 @@ class FarmaadminDashboard extends Dashboard
             return $widgets;
         }
 
+        if ($user instanceof User && $user->isCoordinator() && ! $user->isAdministrator()) {
+            return [
+                AllBranchesMonthlySalesOverview::class,
+                ManagementBranchSalesCurrentMonthDaysChart::class,
+            ];
+        }
+
         if ($user instanceof User && ! $user->isAdministrator()) {
             return [];
         }

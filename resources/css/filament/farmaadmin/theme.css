@@ -9740,6 +9740,59 @@ body.farmadoc-bdv-pm-sheet-open {
         0 16px 40px -12px rgb(0 0 0 / 0.5);
 }
 
+.fi-farmaadmin-ios-product-page .fi-farmaadmin-product-admin-branch-pricing-section.fi-sc-section {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.125rem;
+    border: 2px solid rgb(239 68 68 / 0.55);
+    background:
+        radial-gradient(ellipse 90% 70% at 100% 0%, rgb(239 68 68 / 0.12), transparent 52%),
+        radial-gradient(ellipse 70% 55% at 0% 100%, rgb(245 158 11 / 0.1), transparent 48%),
+        linear-gradient(168deg, rgb(255 251 235 / 0.98) 0%, rgb(254 242 242 / 0.94) 100%);
+    box-shadow:
+        0 0 0 1px rgb(239 68 68 / 0.15) inset,
+        0 1px 0 rgb(255 255 255 / 0.85) inset,
+        0 10px 32px -12px rgb(220 38 38 / 0.28);
+}
+
+.fi-farmaadmin-ios-product-page .fi-farmaadmin-product-admin-branch-pricing-section.fi-sc-section::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0.35rem;
+    background: linear-gradient(180deg, rgb(239 68 68) 0%, rgb(245 158 11) 100%);
+    pointer-events: none;
+}
+
+.fi-farmaadmin-ios-product-page .fi-farmaadmin-product-admin-branch-pricing-section .fi-section-header-heading {
+    color: rgb(153 27 27);
+    font-weight: 700;
+}
+
+.fi-farmaadmin-ios-product-page .fi-farmaadmin-product-admin-branch-pricing-section .fi-section-header-description {
+    color: rgb(127 29 29 / 0.82);
+}
+
+.dark .fi-farmaadmin-ios-product-page .fi-farmaadmin-product-admin-branch-pricing-section.fi-sc-section {
+    border-color: rgb(248 113 113 / 0.45);
+    background:
+        radial-gradient(ellipse 85% 60% at 100% 0%, rgb(239 68 68 / 0.16), transparent 50%),
+        radial-gradient(ellipse 70% 50% at 0% 100%, rgb(245 158 11 / 0.1), transparent 45%),
+        linear-gradient(162deg, rgb(69 10 10 / 0.92) 0%, rgb(28 25 23 / 0.94) 100%);
+    box-shadow:
+        0 0 0 1px rgb(248 113 113 / 0.2) inset,
+        0 1px 0 rgb(255 255 255 / 0.04) inset,
+        0 16px 40px -12px rgb(0 0 0 / 0.55);
+}
+
+.dark .fi-farmaadmin-ios-product-page .fi-farmaadmin-product-admin-branch-pricing-section .fi-section-header-heading {
+    color: rgb(254 202 202);
+}
+
+.dark .fi-farmaadmin-ios-product-page .fi-farmaadmin-product-admin-branch-pricing-section .fi-section-header-description {
+    color: rgb(254 215 170 / 0.82);
+}
+
 .fi-farmaadmin-ios-product-page .fi-in-image img.fi-farmaadmin-ios-product-infolist-img {
     border-radius: 1rem;
     object-fit: cover;
@@ -13117,6 +13170,70 @@ html.fi.dark .farmadoc-ios-field__select {
 .fi-topbar-end .fi-global-search-ctn,
 .fi-topbar-end .fi-global-search {
     min-width: 0;
+}
+
+.fi-global-search-result-detail:has(.fi-farmaadmin-global-search-price) {
+    margin-block: 0.2rem;
+    padding: 0.4rem 0.55rem;
+    border-radius: 0.625rem;
+    border: 1px solid rgb(245 158 11 / 0.45);
+    background: linear-gradient(135deg, rgb(255 251 235 / 0.98) 0%, rgb(254 243 199 / 0.92) 100%);
+    box-shadow:
+        0 0 0 1px rgb(255 255 255 / 0.65) inset,
+        0 1px 2px rgb(245 158 11 / 0.12);
+}
+
+.fi-global-search-result-detail:has(.fi-farmaadmin-global-search-price) .fi-global-search-result-detail-label {
+    font-weight: 700;
+    color: rgb(180 83 9);
+}
+
+.fi-farmaadmin-global-search-price {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.45rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.fi-farmaadmin-global-search-price-usd {
+    color: rgb(146 64 14);
+    font-variant-numeric: tabular-nums;
+}
+
+.fi-farmaadmin-global-search-price-sep {
+    color: rgb(217 119 6 / 0.55);
+    font-weight: 500;
+}
+
+.fi-farmaadmin-global-search-price-bsd {
+    color: rgb(21 128 61);
+    font-variant-numeric: tabular-nums;
+}
+
+.dark .fi-global-search-result-detail:has(.fi-farmaadmin-global-search-price) {
+    border-color: rgb(245 158 11 / 0.35);
+    background: linear-gradient(135deg, rgb(69 26 3 / 0.88) 0%, rgb(41 37 36 / 0.94) 100%);
+    box-shadow:
+        0 0 0 1px rgb(255 255 255 / 0.04) inset,
+        0 1px 2px rgb(0 0 0 / 0.25);
+}
+
+.dark .fi-global-search-result-detail:has(.fi-farmaadmin-global-search-price) .fi-global-search-result-detail-label {
+    color: rgb(253 186 116);
+}
+
+.dark .fi-farmaadmin-global-search-price-usd {
+    color: rgb(253 230 138);
+}
+
+.dark .fi-farmaadmin-global-search-price-sep {
+    color: rgb(251 191 36 / 0.45);
+}
+
+.dark .fi-farmaadmin-global-search-price-bsd {
+    color: rgb(134 239 172);
 }
 
 .farmadoc-ios-shortcuts {

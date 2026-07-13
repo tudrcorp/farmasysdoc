@@ -6,6 +6,7 @@ use App\Filament\Exports\ProductExporter;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product;
 use App\Models\Supplier;
+use App\Support\Products\ProductDirectPriceAccess;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -17,6 +18,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\TextInputColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
@@ -92,6 +94,29 @@ class ProductsTable
                     ->alignEnd()
                     ->toggleable()
                     ->tooltip('Precio tras descuento % del catálogo'),
+                TextInputColumn::make('direct_price')
+                    ->label('Precio directo')
+                    ->type('number')
+                    ->inputMode('decimal')
+                    ->step(0.01)
+                    ->prefix('$')
+                    ->alignEnd()
+                    ->placeholder('—')
+                    ->sortable()
+                    ->rules(['nullable', 'numeric', 'min:0'])
+                    ->visible(fn (): bool => ProductDirectPriceAccess::canEdit())
+                    ->tooltip('Editable solo por administradores. Precio directo comercial del producto.'),
+                TextColumn::make('direct_price_display')
+                    ->label('Precio directo')
+                    ->state(fn (Product $record): ?float => $record->direct_price !== null ? (float) $record->direct_price : null)
+                    ->money('USD')
+                    ->alignEnd()
+                    ->placeholder('—')
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('direct_price', $direction);
+                    })
+                    ->visible(fn (): bool => ProductDirectPriceAccess::canView() && ! ProductDirectPriceAccess::canEdit())
+                    ->tooltip('Precio directo asignado al producto.'),
                 TextColumn::make('supplier_label')
                     ->label('Proveedor')
                     ->state(fn (Product $record): string => self::formatSupplierLabel($record))

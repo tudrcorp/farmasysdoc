@@ -10,12 +10,10 @@ use App\Http\Requests\BdvConciliation\GetMovementRequest;
 use App\Models\Branch;
 use App\Models\Client;
 use App\Models\ConciliationBdv;
-use App\Models\FarmaExpressCostStructure;
 use App\Models\Inventory;
 use App\Models\PhysicalCashBox;
 use App\Models\PhysicalCashBoxMovement;
 use App\Models\Product;
-use App\Models\ProductCategory;
 use App\Models\ProductTransfer;
 use App\Models\Sale;
 use App\Models\User;
@@ -38,6 +36,7 @@ use App\Support\Inventory\NearExpiryLotAlert;
 use App\Support\Sales\CacheaPosPaymentSupport;
 use App\Support\Sales\MixedPosPaymentSupport;
 use App\Support\Sales\PosPaymentMethodOptions;
+use App\Support\Sales\ProductUnitPricingForBranch;
 use App\Support\Sales\SalesBillingAccess;
 use DateTimeInterface;
 use Filament\Actions\Action;
@@ -1300,6 +1299,7 @@ final class CashRegisterAction
                         'barcode',
                         'sku',
                         'sale_price',
+                        'direct_price',
                         'cost_price',
                         'applies_vat',
                     ])
@@ -4450,6 +4450,9 @@ final class CashRegisterAction
             if (SchemaFacade::hasColumn('products', 'express_branch_prices')) {
                 $select[] = 'express_branch_prices';
             }
+            if (SchemaFacade::hasColumn('products', 'direct_price')) {
+                $select[] = 'direct_price';
+            }
             if (SchemaFacade::hasColumn('products', 'sku')) {
                 $select[] = 'sku';
             }
@@ -4959,167 +4962,11 @@ final class CashRegisterAction
      */
     private static function posUnitPricingForBranch(Product $product, int $branchId): array
     {
-        $baseUnitNet = round(max(0.0, (float) ($product->sale_price ?? 0)), 2);
-        $appliesVat = (bool) ($product->applies_vat ?? false);
-        $vatRate = max(0.0, DefaultVatRate::percent());
-        $baseUnitFinal = $appliesVat && $vatRate > 0.0
-            ? round($baseUnitNet + round($baseUnitNet * $vatRate / 100, 2), 2)
-            : $baseUnitNet;
-
-        if ($branchId <= 0 || self::isImportedCategoryProduct($product)) {
-            return [
-                'unit_net' => $baseUnitNet,
-                'unit_final' => $baseUnitFinal,
-                'applies_vat' => $appliesVat,
-            ];
-        }
-
-        $expressProfit = self::posBranchExpressProfitPercentage($branchId);
-        if ($expressProfit === null) {
-            return [
-                'unit_net' => $baseUnitNet,
-                'unit_final' => $baseUnitFinal,
-                'applies_vat' => $appliesVat,
-            ];
-        }
-
-        $expressData = self::expressPriceDataForBranch($product, $branchId);
-        $expressWithoutVat = $expressData['final_price_without_vat'] ?? null;
-        $expressWithVat = $expressData['final_price_with_vat'] ?? null;
-
-        if ($expressWithoutVat === null) {
-            $costPrice = max(0.0, (float) ($product->cost_price ?? 0));
-            $expressWithoutVat = round($costPrice + ($costPrice * $expressProfit / 100), 2);
-        }
-
-        if ($appliesVat) {
-            if ($expressWithVat === null) {
-                $expressWithVat = $vatRate > 0.0
-                    ? round($expressWithoutVat + round($expressWithoutVat * $vatRate / 100, 2), 2)
-                    : $expressWithoutVat;
-            }
-
-            return [
-                'unit_net' => round(max(0.0, $expressWithoutVat), 2),
-                'unit_final' => round(max(0.0, $expressWithVat), 2),
-                'applies_vat' => true,
-            ];
-        }
-
-        $withoutVatForNoVatProduct = $expressWithoutVat > 0.0
-            ? $expressWithoutVat
-            : ($expressWithVat ?? 0.0);
-
-        return [
-            'unit_net' => round(max(0.0, $withoutVatForNoVatProduct), 2),
-            'unit_final' => round(max(0.0, $withoutVatForNoVatProduct), 2),
-            'applies_vat' => false,
-        ];
-    }
-
-    /**
-     * @return array{final_price_without_vat: float, final_price_with_vat: ?float}|null
-     */
-    private static function expressPriceDataForBranch(Product $product, int $branchId): ?array
-    {
-        $raw = $product->express_branch_prices;
-        if (! is_array($raw)) {
-            return null;
-        }
-
-        $entry = $raw[(string) $branchId] ?? $raw[$branchId] ?? null;
-        if (! is_array($entry)) {
-            return null;
-        }
-
-        $withoutVatRaw = $entry['final_price_without_vat'] ?? null;
-        $withVatRaw = $entry['final_price_with_vat'] ?? null;
-        $withoutVat = is_numeric($withoutVatRaw) ? max(0.0, (float) $withoutVatRaw) : null;
-        $withVat = is_numeric($withVatRaw) ? max(0.0, (float) $withVatRaw) : null;
-
-        if ($withoutVat === null && $withVat === null) {
-            return null;
-        }
-
-        if ($withoutVat === null && $withVat !== null) {
-            $withoutVat = $withVat;
-        }
-
-        return [
-            'final_price_without_vat' => round(max(0.0, (float) $withoutVat), 2),
-            'final_price_with_vat' => $withVat !== null ? round($withVat, 2) : null,
-        ];
-    }
-
-    private static function posBranchExpressProfitPercentage(int $branchId): ?float
-    {
-        if ($branchId <= 0) {
-            return null;
-        }
-
-        /** @var array<int, float|null> $cache */
-        $cache = request()->attributes->get('cash_register.express_profit_by_branch', []);
-        if (! is_array($cache)) {
-            $cache = [];
-        }
-
-        if (array_key_exists($branchId, $cache)) {
-            return $cache[$branchId];
-        }
-
-        $profit = FarmaExpressCostStructure::query()
-            ->where('branch_id', $branchId)
-            ->value('profit_percentage');
-
-        $cache[$branchId] = is_numeric($profit)
-            ? max(0.0, (float) $profit)
+        $inventory = $branchId > 0
+            ? self::posBranchInventory($branchId, (int) $product->id)
             : null;
 
-        request()->attributes->set('cash_register.express_profit_by_branch', $cache);
-
-        return $cache[$branchId];
-    }
-
-    private static function isImportedCategoryProduct(Product $product): bool
-    {
-        $categoryId = (int) ($product->product_category_id ?? 0);
-        if ($categoryId <= 0) {
-            return false;
-        }
-
-        $name = self::productCategoryNameForPos($categoryId);
-        if ($name === null) {
-            return false;
-        }
-
-        $normalized = mb_strtoupper(Str::ascii(trim($name)));
-
-        return $normalized === 'IMPORTADOS';
-    }
-
-    private static function productCategoryNameForPos(int $categoryId): ?string
-    {
-        /** @var array<int, string|null> $cache */
-        $cache = request()->attributes->get('cash_register.product_category_name_by_id', []);
-        if (! is_array($cache)) {
-            $cache = [];
-        }
-
-        if (array_key_exists($categoryId, $cache)) {
-            return $cache[$categoryId];
-        }
-
-        $name = ProductCategory::query()
-            ->whereKey($categoryId)
-            ->value('name');
-
-        $cache[$categoryId] = is_string($name) && trim($name) !== ''
-            ? trim($name)
-            : null;
-
-        request()->attributes->set('cash_register.product_category_name_by_id', $cache);
-
-        return $cache[$categoryId];
+        return ProductUnitPricingForBranch::resolve($product, $branchId, $inventory);
     }
 
     private static function appendProductToPosLineItems(int $branchId, int $productId, Set $set, Get $get): void

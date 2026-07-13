@@ -118,7 +118,7 @@ class ProductForm
                     ]),
 
                 Section::make('Precios e impuestos')
-                    ->description('El precio de venta se calcula: costo + (costo × % de ganancia de la categoría). Misma política en todas las sucursales.')
+                    ->description('El precio de venta de referencia usa el margen de la sede central. Cada sucursal calcula su precio según su política de márgenes por categoría.')
                     ->icon(Heroicon::CurrencyDollar)
                     ->schema([
                         Select::make('product_category_id')
@@ -136,7 +136,7 @@ class ProductForm
                             ->afterStateUpdated(function (Get $get, Set $set): void {
                                 self::syncComputedSalePriceToForm($get, $set);
                             })
-                            ->helperText('El margen % definido en la categoría se aplica sobre el costo para obtener el precio de venta (lista).')
+                            ->helperText('Margen por defecto de la categoría. El precio lista mostrado usa la sede central; otras sucursales pueden diferir.')
                             ->prefixIcon(Heroicon::Swatch)
                             ->columnSpanFull(),
                         Grid::make([

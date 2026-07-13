@@ -7,6 +7,7 @@ use App\Filament\Resources\Clients\ClientResource;
 use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Client;
+use App\Models\FarmaExpressCostStructure;
 use App\Models\Inventory;
 use App\Models\PartnerCompany;
 use App\Models\Product;
@@ -14,11 +15,13 @@ use App\Models\Sale;
 use App\Services\Dolar\DolarApiDolaresService;
 use App\Support\Finance\DefaultVatRate;
 use App\Support\Inventory\InventoryQuantityFormat;
+use App\Support\Sales\ProductUnitPricingForBranch;
 use Carbon\Carbon;
 use Filament\GlobalSearch\GlobalSearchResult;
 use Filament\GlobalSearch\GlobalSearchResults;
 use Filament\GlobalSearch\Providers\Contracts\GlobalSearchProvider;
 use Filament\GlobalSearch\Providers\DefaultGlobalSearchProvider;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
@@ -104,8 +107,15 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
             'description',
             'manufacturer',
             'sale_price',
+            'direct_price',
+            'cost_price',
             'applies_vat',
+            'product_category_id',
         ];
+
+        if (Schema::hasColumn('products', 'express_branch_prices')) {
+            $select[] = 'express_branch_prices';
+        }
 
         if ($hasSku) {
             $select[] = 'sku';
@@ -151,10 +161,11 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
         /** @var list<int> $exactIds */
         $exactIds = $exactIdCollection->map(fn (mixed $id): int => (int) $id)->unique()->values()->all();
 
-        $exactProducts = collect();
+        $exactProducts = new EloquentCollection;
         if ($exactIds !== []) {
             $exactProducts = Product::query()
                 ->select($select)
+                ->with('productCategory:id,name')
                 ->whereIn('id', $exactIds)
                 ->orderBy('name')
                 ->limit(self::PRODUCT_LIMIT)
@@ -163,10 +174,11 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
 
         $remaining = self::PRODUCT_LIMIT - $exactProducts->count();
 
-        $likeProducts = collect();
+        $likeProducts = new EloquentCollection;
         if ($remaining > 0) {
             $likeQuery = Product::query()
                 ->select($select)
+                ->with('productCategory:id,name')
                 ->where(function ($q) use ($like, $term, $hasSku, $hasSlug, $hasModel, $hasHealthReg): void {
                     $q->where('name', 'like', $like)
                         ->orWhere('barcode', 'like', $like)
@@ -207,8 +219,17 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
                 ->get();
         }
 
-        /** @var \Illuminate\Database\Eloquent\Collection<int, Product> $products */
+        /** @var EloquentCollection<int, Product> $products */
         $products = $exactProducts->concat($likeProducts);
+
+        ProductUnitPricingForBranch::seedExpressProfitByBranch(
+            FarmaExpressCostStructure::query()
+                ->pluck('profit_percentage', 'branch_id')
+                ->mapWithKeys(fn (mixed $profit, int|string $branchId): array => [
+                    (int) $branchId => is_numeric($profit) ? max(0.0, (float) $profit) : null,
+                ])
+                ->all(),
+        );
 
         $productIds = $products->pluck('id')->all();
 
@@ -226,15 +247,31 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
         /** @var array<int, array<int, array{name: string, qty: float}>> */
         $stockByBranchPerProduct = [];
 
+        /** @var array<int, array<int, Inventory>> */
+        $inventoryByBranchPerProduct = [];
+
         if ($productIds !== []) {
             $inventories = Inventory::query()
                 ->whereIn('product_id', $productIds)
                 ->with('branch:id,name')
-                ->get(['product_id', 'branch_id', 'quantity']);
+                ->get([
+                    'id',
+                    'product_id',
+                    'branch_id',
+                    'quantity',
+                    'final_price_without_vat',
+                    'final_price_with_vat',
+                ]);
 
             foreach ($inventories as $inv) {
+                if (! $inv instanceof Inventory) {
+                    continue;
+                }
+
                 $pid = (int) $inv->product_id;
                 $bid = (int) $inv->branch_id;
+
+                $inventoryByBranchPerProduct[$pid][$bid] = $inv;
 
                 if (! isset($stockByBranchPerProduct[$pid])) {
                     $stockByBranchPerProduct[$pid] = [];
@@ -253,7 +290,7 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
             }
         }
 
-        return $products->map(function (Product $product) use ($stockByProduct, $stockByBranchPerProduct, $hasSku, $hasSlug, $hasModel, $hasHealthReg): GlobalSearchResult {
+        $results = $products->map(function (Product $product) use ($stockByProduct, $stockByBranchPerProduct, $inventoryByBranchPerProduct, $hasSku, $hasSlug, $hasModel, $hasHealthReg): GlobalSearchResult {
             $url = ProductResource::getUrl('view', ['record' => $product], isAbsolute: false);
             $stock = $stockByProduct[$product->id] ?? 0.0;
 
@@ -282,21 +319,39 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
             $details = array_merge($details, [
                 'Marca' => filled($product->brand) ? (string) $product->brand : '—',
                 'Principio activo' => $this->formatActiveIngredient($product->active_ingredient),
-                'Precio venta' => $this->formatSalePriceWithCurrentBcv(
-                    (float) ($product->sale_price ?? 0),
-                    (bool) ($product->applies_vat ?? false),
-                ),
             ]);
 
             $branches = $stockByBranchPerProduct[$product->id] ?? [];
 
             if ($branches === []) {
+                $referencePricing = ProductUnitPricingForBranch::resolve(
+                    $product,
+                    (int) (Product::referenceBranchIdForPricing() ?? 0),
+                );
+                $details['Precio venta'] = $this->formatHighlightedFinalPriceWithCurrentBcv(
+                    $referencePricing['unit_final'],
+                    (bool) ($referencePricing['applies_vat'] ?? false),
+                );
                 $details['Existencia por sucursal'] = 'Sin registros de inventario';
             } else {
                 uasort(
                     $branches,
                     fn (array $a, array $b): int => strcasecmp($a['name'], $b['name']),
                 );
+
+                foreach ($branches as $branchId => $data) {
+                    $inventory = $inventoryByBranchPerProduct[$product->id][$branchId] ?? null;
+                    $pricing = ProductUnitPricingForBranch::resolve(
+                        $product,
+                        (int) $branchId,
+                        $inventory,
+                    );
+
+                    $details['Precio · '.$data['name']] = $this->formatHighlightedFinalPriceWithCurrentBcv(
+                        $pricing['unit_final'],
+                        (bool) ($pricing['applies_vat'] ?? false),
+                    );
+                }
 
                 foreach ($branches as $data) {
                     $details['Exist. '.$data['name']] = $this->formatQuantity($data['qty']);
@@ -321,6 +376,10 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
                 details: $details,
             );
         });
+
+        ProductUnitPricingForBranch::forgetExpressProfitCache();
+
+        return $results;
     }
 
     /**
@@ -529,13 +588,12 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
         return '—';
     }
 
-    private function formatSalePriceWithCurrentBcv(float $salePriceUsd, bool $appliesVat): string
+    private function formatFinalPriceWithCurrentBcv(float $finalUsd, bool $appliesVat): string
     {
-        $normalizedUsd = max(0.0, $salePriceUsd);
-        $finalUsd = $this->salePriceFinalUsd($normalizedUsd, $appliesVat);
-        $usd = '$'.number_format($normalizedUsd, 2, '.', ',');
-        if ($appliesVat && abs($finalUsd - $normalizedUsd) > 0.00001) {
-            $usd = '$'.number_format($finalUsd, 2, '.', ',').' (IVA inc.)';
+        $finalUsd = max(0.0, $finalUsd);
+        $usd = '$'.number_format($finalUsd, 2, '.', ',');
+        if ($appliesVat) {
+            $usd .= ' (IVA inc.)';
         }
 
         $rate = $this->resolveCurrentBcvUsdRate();
@@ -544,9 +602,37 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
             return $usd.' | Bs. —';
         }
 
-        $salePriceVes = $finalUsd * $rate;
+        return $usd.' | Bs. '.number_format($finalUsd * $rate, 2, ',', '.');
+    }
 
-        return $usd.' | Bs. '.number_format($salePriceVes, 2, ',', '.');
+    private function formatHighlightedFinalPriceWithCurrentBcv(float $finalUsd, bool $appliesVat): HtmlString
+    {
+        $finalUsd = max(0.0, $finalUsd);
+        $usd = '$'.number_format($finalUsd, 2, '.', ',');
+        if ($appliesVat) {
+            $usd .= ' (IVA inc.)';
+        }
+
+        $rate = $this->resolveCurrentBcvUsdRate();
+        $bsPart = ($rate === null || $rate <= 0)
+            ? 'Bs. —'
+            : 'Bs. '.number_format($finalUsd * $rate, 2, ',', '.');
+
+        return new HtmlString(
+            '<span class="fi-farmaadmin-global-search-price">'
+            .'<span class="fi-farmaadmin-global-search-price-usd">'.e($usd).'</span>'
+            .'<span class="fi-farmaadmin-global-search-price-sep" aria-hidden="true">|</span>'
+            .'<span class="fi-farmaadmin-global-search-price-bsd">'.e($bsPart).'</span>'
+            .'</span>',
+        );
+    }
+
+    private function formatSalePriceWithCurrentBcv(float $salePriceUsd, bool $appliesVat): string
+    {
+        return $this->formatFinalPriceWithCurrentBcv(
+            $this->salePriceFinalUsd(max(0.0, $salePriceUsd), $appliesVat),
+            $appliesVat,
+        );
     }
 
     private function salePriceFinalUsd(float $baseUsd, bool $appliesVat): float

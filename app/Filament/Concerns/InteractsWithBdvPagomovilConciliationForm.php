@@ -2,6 +2,7 @@
 
 namespace App\Filament\Concerns;
 
+use App\Enums\VenezuelanPagoMovilBank;
 use App\Http\Requests\BdvConciliation\GetMovementRequest;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
@@ -26,7 +27,7 @@ trait InteractsWithBdvPagomovilConciliationForm
 
     public string $importe = '';
 
-    public string $bancoOrigen = '0102';
+    public string $bancoOrigen = VenezuelanPagoMovilBank::BancoDeVenezuela->value;
 
     public bool $reqCed = false;
 
@@ -158,7 +159,7 @@ trait InteractsWithBdvPagomovilConciliationForm
         ]);
 
         $this->fechaPago = now()->toDateString();
-        $this->bancoOrigen = '0102';
+        $this->bancoOrigen = VenezuelanPagoMovilBank::BancoDeVenezuela->value;
         $this->branchId = $service->defaultBranchIdForUser($user);
         $this->telefonoDestino = $service->resolveCommercePhone($this->branchId);
     }

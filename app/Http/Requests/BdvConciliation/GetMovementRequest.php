@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\BdvConciliation;
 
+use App\Enums\VenezuelanPagoMovilBank;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class GetMovementRequest extends FormRequest
 {
@@ -23,7 +25,7 @@ class GetMovementRequest extends FormRequest
             'referencia' => ['required', 'string', 'max:64'],
             'fechaPago' => ['required', 'string', 'date_format:Y-m-d'],
             'importe' => ['required', 'string', 'regex:/^\d+(\.\d+)?$/'],
-            'bancoOrigen' => ['required', 'string', 'max:16'],
+            'bancoOrigen' => ['required', 'string', Rule::enum(VenezuelanPagoMovilBank::class)],
             /*
              * Manual API Conciliación: validar cédula solo en pagos BDV→BDV; en interbancario debe ser false.
              */
@@ -39,6 +41,7 @@ class GetMovementRequest extends FormRequest
         return [
             'fechaPago.date_format' => 'La fecha de pago debe usar el formato AAAA-MM-DD (sin barras).',
             'importe.regex' => 'El importe debe usar punto (.) como separador decimal, sin comas.',
+            'bancoOrigen.enum' => 'Seleccione un banco de origen válido de la lista.',
         ];
     }
 

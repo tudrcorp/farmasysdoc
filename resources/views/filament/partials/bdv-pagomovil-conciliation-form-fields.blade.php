@@ -77,10 +77,20 @@
         'placeholder' => '120.00',
         'idPrefix' => $idPrefix,
     ])
-    @include('filament.pages.partials.bdv-input', [
-        'name' => 'bancoOrigen',
-        'label' => 'Banco origen',
-        'placeholder' => '0102',
-        'idPrefix' => $idPrefix,
-    ])
+
+    <div class="space-y-1">
+        <label class="farmadoc-bdv-pm-field-label" for="{{ $idPrefix }}-bancoOrigen">Banco origen</label>
+        <select
+            id="{{ $idPrefix }}-bancoOrigen"
+            wire:model="bancoOrigen"
+            class="farmadoc-bdv-pm-field-input fi-select-input"
+        >
+            @foreach (\App\Enums\VenezuelanPagoMovilBank::optionsForSelect() as $code => $label)
+                <option value="{{ $code }}">{{ $label }}</option>
+            @endforeach
+        </select>
+        @error('bancoOrigen')
+            <p class="farmadoc-bdv-pm-field-error">{{ $message }}</p>
+        @enderror
+    </div>
 </div>

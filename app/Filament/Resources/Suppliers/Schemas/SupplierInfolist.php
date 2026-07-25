@@ -41,6 +41,11 @@ class SupplierInfolist
                                     ->label('NIT / identificación fiscal')
                                     ->icon(Heroicon::Identification)
                                     ->copyable(),
+                                TextEntry::make('seniat_retention_percent')
+                                    ->label('Retención SENIAT')
+                                    ->placeholder('—')
+                                    ->suffix('%')
+                                    ->icon(Heroicon::Calculator),
                             ]),
                     ])
                     ->columns(1)

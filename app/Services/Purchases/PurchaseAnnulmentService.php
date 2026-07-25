@@ -8,8 +8,10 @@ use App\Models\AccountsPayable;
 use App\Models\InventoryAdjustment;
 use App\Models\ProductLot;
 use App\Models\Purchase;
+use App\Models\PurchaseBook;
 use App\Models\PurchaseHistory;
 use App\Models\PurchaseItem;
+use App\Models\PurchaseLedger;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Inventory\InventoryLotBalanceSyncService;
@@ -127,6 +129,8 @@ final class PurchaseAnnulmentService
             ProductLot::query()->where('purchase_id', $purchase->getKey())->delete();
 
             PurchaseHistory::query()->where('purchase_id', $purchase->getKey())->delete();
+            PurchaseLedger::query()->where('purchase_id', $purchase->getKey())->delete();
+            PurchaseBook::query()->where('purchase_id', $purchase->getKey())->delete();
 
             $ap = AccountsPayable::query()->where('purchase_id', $purchase->getKey())->first();
             if ($ap instanceof AccountsPayable) {

@@ -1,0 +1,14 @@
+---
+description: Retención SENIAT IVA debe usar el % de la ficha del proveedor
+globs: app/Services/Finance/PurchaseBook*.php,app/Support/Purchases/**/*.php,app/Filament/Resources/PurchaseBooks/**/*.php,app/Filament/Resources/Purchases/**/*.php,app/Filament/Resources/Suppliers/**/*.php,app/Models/{PurchaseBook,Supplier,Purchase}.php
+alwaysApply: false
+---
+
+# Retención SENIAT desde proveedor
+
+- El porcentaje de retención IVA **siempre** sale de `suppliers.seniat_retention_percent` (ficha del proveedor).
+- No hardcodear 75 %, 100 % ni otros valores fijos de retención.
+- Fórmula de Retenciones / comprobante: `tax_retained_ves = tax_caused_ves × (seniat_retention_percent / 100)`.
+- Al crear una compra, si el proveedor no tiene `%` configurado, exigir completarlo antes de continuar (no inventar un default).
+- Al sincronizar `PurchaseBook`, leer el `%` del proveedor de la compra y persistirlo en `purchase_books.seniat_retention_percent` junto con el retenido calculado.
+- PDF, widgets y totales deben sumar el retenido ya calculado; no recalcular con otro porcentaje.

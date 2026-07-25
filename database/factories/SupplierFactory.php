@@ -26,6 +26,7 @@ class SupplierFactory extends Factory
             'legal_name' => $company.' S.A.S.',
             'trade_name' => $company,
             'tax_id' => fake()->unique()->numerify('9########'),
+            'seniat_retention_percent' => fake()->optional()->randomElement([0, 75, 100]),
             'email' => fake()->unique()->safeEmail(),
             'phone' => fake()->phoneNumber(),
             'mobile_phone' => fake()->optional()->phoneNumber(),

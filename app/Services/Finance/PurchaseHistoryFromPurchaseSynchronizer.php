@@ -56,6 +56,9 @@ final class PurchaseHistoryFromPurchaseSynchronizer
             ?? Auth::user()?->name
             ?? 'sistema';
 
+        $retention = app(PurchaseHistoryRetentionVoucherSynchronizer::class)
+            ->attributesForPurchaseId((int) $purchase->id);
+
         $history = PurchaseHistory::query()->create([
             'entry_type' => PurchaseHistoryEntryType::COMPRA_CONTADO,
             'purchase_id' => $purchase->id,
@@ -67,6 +70,9 @@ final class PurchaseHistoryFromPurchaseSynchronizer
             'supplier_control_number' => $snapshot['supplier_control_number'],
             'supplier_tax_id' => $snapshot['supplier_tax_id'],
             'supplier_name' => $snapshot['supplier_name'],
+            'retention_voucher_issued_at' => $retention['retention_voucher_issued_at'],
+            'retention_voucher_number' => $retention['retention_voucher_number'],
+            'retention_amount_ves' => $retention['retention_amount_ves'],
             'purchase_total_usd' => $snapshot['usd_total'],
             'purchase_total_ves_at_issue' => $snapshot['ves_at_issue'],
             'total_ves_at_system_registration' => $snapshot['ves_at_registration'],

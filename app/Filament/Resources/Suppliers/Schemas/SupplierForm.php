@@ -66,6 +66,20 @@ class SupplierForm
                                         : null)
                                     ->maxLength(255)
                                     ->prefixIcon(Heroicon::Identification),
+                                TextInput::make('seniat_retention_percent')
+                                    ->label('Retención SENIAT (%)')
+                                    ->helperText('Porcentaje de retención que aplica SENIAT a este proveedor. Déjalo vacío si no aplica.')
+                                    ->numeric()
+                                    ->suffix('%')
+                                    ->minValue(0)
+                                    ->maxValue(100)
+                                    ->step(0.01)
+                                    ->nullable()
+                                    ->placeholder('Ej. 75')
+                                    ->dehydrateStateUsing(fn (mixed $state): ?float => $state === '' || $state === null
+                                        ? null
+                                        : (float) $state)
+                                    ->prefixIcon(Heroicon::Calculator),
                             ]),
                     ])
                     ->columns(1)

@@ -18,6 +18,7 @@ class Supplier extends Model
         'legal_name',
         'trade_name',
         'tax_id',
+        'seniat_retention_percent',
         'email',
         'phone',
         'mobile_phone',
@@ -42,6 +43,7 @@ class Supplier extends Model
     protected function casts(): array
     {
         return [
+            'seniat_retention_percent' => 'decimal:2',
             'is_active' => 'boolean',
         ];
     }

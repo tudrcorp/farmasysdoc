@@ -199,6 +199,26 @@ class Purchase extends Model
     }
 
     /**
+     * Fila de Retenciones generada automáticamente al confirmar la compra.
+     *
+     * @return HasOne<PurchaseBook, $this>
+     */
+    public function purchaseBook(): HasOne
+    {
+        return $this->hasOne(PurchaseBook::class);
+    }
+
+    /**
+     * Filas del Libro de Compras generadas automáticamente al confirmar la compra.
+     *
+     * @return HasMany<PurchaseLedger, $this>
+     */
+    public function purchaseLedgers(): HasMany
+    {
+        return $this->hasMany(PurchaseLedger::class)->orderBy('operation_number');
+    }
+
+    /**
      * Crea o actualiza filas en `product_lots` según `lot_expiration_month_year` de cada línea.
      */
     public function syncProductLotsFromItems(): void

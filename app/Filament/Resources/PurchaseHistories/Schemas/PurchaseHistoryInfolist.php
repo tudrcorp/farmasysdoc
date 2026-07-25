@@ -4,6 +4,7 @@ namespace App\Filament\Resources\PurchaseHistories\Schemas;
 
 use App\Filament\Resources\AccountsPayables\AccountsPayableResource;
 use App\Models\PurchaseHistory;
+use App\Support\Fiscal\VenezuelanRifFormatter;
 use App\Support\Purchases\PurchaseHistoryEntryType;
 use App\Support\Purchases\PurchaseHistoryPaymentForm;
 use App\Support\Purchases\PurchaseHistoryPaymentMethod;
@@ -52,10 +53,16 @@ class PurchaseHistoryInfolist
                             ->label('Sucursal')
                             ->placeholder('—'),
                         TextEntry::make('supplier_name')
-                            ->label('Nombre del proveedor'),
+                            ->label('Nombre del proveedor')
+                            ->placeholder('—'),
                         TextEntry::make('supplier_tax_id')
                             ->label('RIF')
-                            ->placeholder('—'),
+                            ->placeholder('—')
+                            ->formatStateUsing(function (?string $state): string {
+                                $formatted = VenezuelanRifFormatter::format($state);
+
+                                return $formatted !== '' ? $formatted : '—';
+                            }),
                         TextEntry::make('supplier_invoice_number')
                             ->label('Nº de factura del proveedor'),
                         TextEntry::make('supplier_control_number')
@@ -73,6 +80,30 @@ class PurchaseHistoryInfolist
                             ->url(fn (PurchaseHistory $record): ?string => $record->accounts_payable_id
                                 ? AccountsPayableResource::getUrl('view', ['record' => $record->accounts_payable_id], isAbsolute: false)
                                 : null),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
+                Section::make('Comprobante de retención IVA')
+                    ->description('Datos del módulo Retenciones. La fecha de emisión se actualiza al imprimir el PDF desde Retenciones.')
+                    ->icon(Heroicon::ReceiptPercent)
+                    ->schema([
+                        TextEntry::make('retention_voucher_number')
+                            ->label('Número del comprobante de retención')
+                            ->placeholder('—')
+                            ->copyable(),
+                        TextEntry::make('retention_voucher_issued_at')
+                            ->label('Fecha de emisión del comprobante')
+                            ->date('d/m/Y')
+                            ->placeholder('Pendiente de impresión'),
+                        TextEntry::make('retention_amount_ves')
+                            ->label('Monto de la retención')
+                            ->placeholder('—')
+                            ->badge()
+                            ->color(fn ($state): string => (float) ($state ?? 0) > 0 ? 'warning' : 'gray')
+                            ->formatStateUsing(fn ($state): string => $state !== null
+                                ? 'Bs '.number_format((float) $state, 2, ',', '.')
+                                : '—'),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

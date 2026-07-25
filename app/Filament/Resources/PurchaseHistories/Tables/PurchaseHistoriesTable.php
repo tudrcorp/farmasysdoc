@@ -6,6 +6,7 @@ use App\Filament\Resources\AccountsPayables\AccountsPayableResource;
 use App\Filament\Resources\Branches\BranchResource;
 use App\Models\PurchaseHistory;
 use App\Support\Filament\BranchAuthScope;
+use App\Support\Fiscal\VenezuelanRifFormatter;
 use App\Support\Purchases\PurchaseHistoryEntryType;
 use App\Support\Purchases\PurchaseHistoryPaymentForm;
 use App\Support\Purchases\PurchaseHistoryPaymentMethod;
@@ -59,16 +60,55 @@ class PurchaseHistoriesTable
                         ? BranchResource::getUrl('view', ['record' => $record->branch_id], isAbsolute: false)
                         : null),
                 TextColumn::make('supplier_name')
-                    ->label('Proveedor')
+                    ->label('Nombre del proveedor')
                     ->searchable()
+                    ->sortable()
                     ->wrap()
-                    ->icon(Heroicon::Truck),
+                    ->icon(Heroicon::Truck)
+                    ->iconColor('gray')
+                    ->placeholder('—'),
                 TextColumn::make('supplier_tax_id')
                     ->label('RIF')
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->searchable()
+                    ->sortable()
+                    ->placeholder('—')
+                    ->formatStateUsing(function (?string $state): string {
+                        $formatted = VenezuelanRifFormatter::format($state);
+
+                        return $formatted !== '' ? $formatted : '—';
+                    })
+                    ->tooltip('Formato letra-cuerpo-dígito, p. ej. J-41086765-5'),
                 TextColumn::make('supplier_invoice_number')
                     ->label('Nº factura')
                     ->searchable(),
+                TextColumn::make('supplier_control_number')
+                    ->label('Nro de Control')
+                    ->searchable()
+                    ->placeholder('—')
+                    ->toggleable(),
+                TextColumn::make('retention_voucher_number')
+                    ->label('Nº comprobante retención')
+                    ->searchable()
+                    ->sortable()
+                    ->placeholder('—')
+                    ->copyable()
+                    ->copyMessage('Comprobante copiado')
+                    ->tooltip('Número del comprobante de retención IVA (módulo Retenciones)'),
+                TextColumn::make('retention_voucher_issued_at')
+                    ->label('Emisión comprobante retención')
+                    ->date('d/m/Y')
+                    ->sortable()
+                    ->placeholder('—')
+                    ->tooltip('Se actualiza automáticamente al imprimir el comprobante desde Retenciones'),
+                TextColumn::make('retention_amount_ves')
+                    ->label('Monto retención')
+                    ->alignEnd()
+                    ->sortable()
+                    ->placeholder('—')
+                    ->formatStateUsing(fn ($state): string => $state !== null ? self::formatBs((float) $state) : '—')
+                    ->color(fn ($state): string => (float) ($state ?? 0) > 0 ? 'warning' : 'gray')
+                    ->weight('semibold')
+                    ->tooltip('Impuesto retenido IVA en bolívares'),
                 TextColumn::make('issued_at')
                     ->label('Emisión factura')
                     ->date('d/m/Y')

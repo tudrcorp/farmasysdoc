@@ -32,7 +32,7 @@ class AccountsPayablesTable
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => BranchAuthScope::apply($query)
-                ->with(['purchase', 'branch']))
+                ->with(['purchase.purchaseBook', 'purchase.supplier', 'branch']))
             ->columns([
                 TextColumn::make('status')
                     ->label('Estado')
@@ -100,6 +100,37 @@ class AccountsPayablesTable
                     ->label('Total factura (Bs, tasa emisión)')
                     ->alignEnd()
                     ->formatStateUsing(fn ($state): string => self::formatBs((float) $state)),
+                TextColumn::make('purchase.purchaseBook.tax_retained_ves')
+                    ->label('Retención IVA')
+                    ->alignEnd()
+                    ->badge()
+                    ->color(fn ($state): string => (float) ($state ?? 0) > 0 ? 'warning' : 'gray')
+                    ->weight('bold')
+                    ->icon(fn ($state): Heroicon => (float) ($state ?? 0) > 0
+                        ? Heroicon::ReceiptPercent
+                        : Heroicon::MinusCircle)
+                    ->iconColor(fn ($state): string => (float) ($state ?? 0) > 0 ? 'warning' : 'gray')
+                    ->formatStateUsing(function ($state, AccountsPayable $record): string {
+                        if ($state === null && $record->purchase?->purchaseBook === null) {
+                            return 'Sin retención';
+                        }
+
+                        return self::formatBs((float) ($state ?? 0));
+                    })
+                    ->description(function (AccountsPayable $record): ?string {
+                        $percent = $record->purchase?->purchaseBook?->seniat_retention_percent
+                            ?? $record->purchase?->supplier?->seniat_retention_percent;
+
+                        if ($percent === null) {
+                            return null;
+                        }
+
+                        return number_format((float) $percent, 0, ',', '.').'% SENIAT proveedor';
+                    })
+                    ->tooltip('Impuesto retenido según el % SENIAT configurado en la ficha del proveedor (IVA causado × %).')
+                    ->extraAttributes([
+                        'class' => 'farmadoc-cxp-iva-retention',
+                    ]),
                 TextColumn::make('original_balance_ves')
                     ->label('Saldo original (Bs)')
                     ->alignEnd()

@@ -6,6 +6,7 @@ use App\Http\Controllers\NominatimProxyController;
 use App\Http\Controllers\ProductTransfers\ProductTransferReportPdfController;
 use App\Http\Controllers\PublicProductSearchController;
 use App\Http\Controllers\Purchases\PurchaseAnnulmentApprovalController;
+use App\Http\Controllers\Purchases\PurchaseBookRetentionVoucherPdfController;
 use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
 use App\Http\Controllers\Reports\SystemReportsDownloadController;
 use App\Http\Controllers\Sales\CashRegisterClosePdfController;
@@ -71,6 +72,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('purchases/{purchase}/document-pdf', PurchaseDocumentPdfController::class)
         ->name('purchases.document-pdf');
+
+    Route::get('purchase-books/retention-voucher-pdf', PurchaseBookRetentionVoucherPdfController::class)
+        ->middleware('signed')
+        ->name('purchase-books.retention-voucher-pdf');
 
     Route::get('purchases/{purchase}/annulment-approve', [PurchaseAnnulmentApprovalController::class, 'show'])
         ->middleware('signed')

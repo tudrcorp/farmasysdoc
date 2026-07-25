@@ -4,58 +4,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Ancho del ticket (caracteres por línea)
+    | Agente de retención (Retenciones / SENIAT)
     |--------------------------------------------------------------------------
-    | Típico: 58 mm ≈ 32–42; 80 mm ≈ 42–48. Ajuste según su impresora HKA/ACLAS.
     */
-    'thermal_line_width' => (int) env('FISCAL_THERMAL_LINE_WIDTH', 42),
+    'retention_agent' => [
+        'name' => env('FISCAL_RETENTION_AGENT_NAME', 'VEN MEDICAL GLOBAL,C.A.'),
+        'rif' => env('FISCAL_RETENTION_AGENT_RIF', 'J-41086765-5'),
+        'address' => env(
+            'FISCAL_RETENTION_AGENT_ADDRESS',
+            'AV CIUDAD VARYNA CASA NRO G220 URB CIUDAD VARYNA SECTOR CEIBA BARINAS',
+        ),
+    ],
 
     /*
     |--------------------------------------------------------------------------
-    | Tasa Bs/USD de respaldo
+    | Número de comprobante de Retenciones
     |--------------------------------------------------------------------------
-    | Si la venta no permite inferir tasa (p. ej. solo USD sin VES), se usa para
-    | mostrar montos en bolívares en el ticket de prueba.
+    |
+    | Primer valor asignado cuando aún no hay filas en purchase_books.
+    |
     */
-    'fallback_ves_usd_rate' => env('FISCAL_VES_USD_RATE') !== null
-        ? (float) env('FISCAL_VES_USD_RATE')
-        : null,
-
-    /*
-    |--------------------------------------------------------------------------
-    | Datos de pie fiscal (hardware / emisor)
-    |--------------------------------------------------------------------------
-    */
-    'printer_serial' => env('FISCAL_PRINTER_SERIAL', 'ZZP0000000'),
-
-    'emitido_por' => env('FISCAL_EMITIDO_POR', 'FARMASYS'),
-
-    'mh_footer' => env('FISCAL_MH_FOOTER', 'MH'),
-
-    /*
-    |--------------------------------------------------------------------------
-    | Impresión automática al registrar la venta
-    |--------------------------------------------------------------------------
-    | Si está activo, tras cerrar una venta en caja (POS) o crear una venta
-    | completada desde Filament, se redirige a una página que abre el diálogo
-    | de impresión del navegador con el ticket fiscal (texto monoespaciado).
-    | El usuario debe tener la impresora fiscal como predeterminada o elegirla
-    | en el cuadro de impresión. Desactive con FISCAL_AUTO_PRINT_ON_SALE=false.
-    */
-    'auto_print_on_sale_complete' => filter_var(
-        env('FISCAL_AUTO_PRINT_ON_SALE', true),
-        FILTER_VALIDATE_BOOL
-    ),
-
-    /*
-    |--------------------------------------------------------------------------
-    | Imagen JPG para WhatsApp (factura fiscal)
-    |--------------------------------------------------------------------------
-    */
-    'thermal_receipt_font' => base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSansMono.ttf'),
-
-    'whatsapp_image_font_size' => (int) env('FISCAL_WHATSAPP_IMAGE_FONT_SIZE', 14),
-
-    'whatsapp_image_padding' => (int) env('FISCAL_WHATSAPP_IMAGE_PADDING', 18),
+    'purchase_book' => [
+        'initial_voucher_number' => (int) env('FISCAL_PURCHASE_BOOK_INITIAL_VOUCHER', 20260700000058),
+    ],
 
 ];

@@ -70,6 +70,21 @@ final class QuickCreateSupplierAction
                                     ->maxLength(255)
                                     ->prefixIcon(Heroicon::BuildingStorefront)
                                     ->columnSpan(['default' => 1, 'lg' => 2]),
+                                TextInput::make('seniat_retention_percent')
+                                    ->label('Retención SENIAT (%)')
+                                    ->helperText('Obligatorio para registrar compras. Use 0 si no aplica retención.')
+                                    ->numeric()
+                                    ->suffix('%')
+                                    ->required()
+                                    ->minValue(0)
+                                    ->maxValue(100)
+                                    ->step(0.01)
+                                    ->placeholder('Ej. 75')
+                                    ->dehydrateStateUsing(fn (mixed $state): ?float => $state === '' || $state === null
+                                        ? null
+                                        : (float) $state)
+                                    ->prefixIcon(Heroicon::Calculator)
+                                    ->columnSpan(['default' => 1, 'lg' => 1]),
                             ]),
                     ])
                     ->columns(1),
@@ -101,6 +116,9 @@ final class QuickCreateSupplierAction
                     'legal_name' => trim((string) $data['legal_name']),
                     'trade_name' => filled($data['trade_name'] ?? null) ? trim((string) $data['trade_name']) : null,
                     'tax_id' => $taxId,
+                    'seniat_retention_percent' => isset($data['seniat_retention_percent'])
+                        ? (float) $data['seniat_retention_percent']
+                        : null,
                     'email' => null,
                     'phone' => null,
                     'mobile_phone' => $mobile,

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Purchases\Pages;
 
 use App\Enums\PurchaseEntryCurrency;
+use App\Filament\Resources\Purchases\Actions\CompleteSupplierSeniatRetentionAction;
 use App\Filament\Resources\Purchases\Actions\QuickCreatePurchaseProductAction;
 use App\Filament\Resources\Purchases\Actions\QuickCreateSupplierAction;
 use App\Filament\Resources\Purchases\Pages\Concerns\InteractsWithPurchaseLines;
@@ -11,9 +12,12 @@ use App\Filament\Resources\Purchases\Schemas\PurchaseForm;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
+use App\Models\Supplier;
 use App\Services\Audit\AuditLogger;
 use App\Services\Finance\AccountsPayableFromPurchaseSynchronizer;
+use App\Services\Finance\PurchaseBookFromPurchaseSynchronizer;
 use App\Services\Finance\PurchaseHistoryFromPurchaseSynchronizer;
+use App\Services\Finance\PurchaseLedgerFromPurchaseSynchronizer;
 use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use App\Support\Purchases\PurchaseCreateSummaryPresenter;
 use App\Support\Purchases\PurchaseDeclaredInvoiceTotalTolerance;
@@ -75,6 +79,50 @@ class CreatePurchase extends CreateRecord
             }
         }
 
+        if ($this->selectedSupplierMissingSeniatRetention()) {
+            $supplierId = (int) ($this->data['supplier_id'] ?? 0);
+
+            AuditLogger::record(
+                event: 'purchase_create_supplier_seniat_retention_required',
+                description: 'Compras: el proveedor no tiene retención SENIAT; se solicita completarla antes del resumen.',
+                properties: array_merge($this->purchaseCreateAuditSnapshot(), [
+                    'supplier_id' => $supplierId,
+                ]),
+            );
+
+            Notification::make()
+                ->title('Retención SENIAT pendiente')
+                ->body('El proveedor seleccionado no tiene cargado el porcentaje de retención. Complételo para continuar.')
+                ->warning()
+                ->send();
+
+            $this->mountAction('completeSupplierSeniatRetention', [
+                'supplier_id' => $supplierId,
+            ]);
+
+            return;
+        }
+
+        $this->openPurchaseCreateSummaryModal();
+    }
+
+    private function selectedSupplierMissingSeniatRetention(): bool
+    {
+        $supplierId = $this->data['supplier_id'] ?? null;
+        if (blank($supplierId)) {
+            return false;
+        }
+
+        $supplier = Supplier::query()->find($supplierId);
+        if ($supplier === null) {
+            return false;
+        }
+
+        return ! filled($supplier->seniat_retention_percent);
+    }
+
+    private function openPurchaseCreateSummaryModal(): void
+    {
         AuditLogger::record(
             event: 'purchase_create_summary_opened',
             description: 'Compras: formulario validado; se muestra resumen previo al guardado.',
@@ -272,6 +320,42 @@ class CreatePurchase extends CreateRecord
                 ],
             );
         }
+
+        $retention = null;
+
+        try {
+            $retention = app(PurchaseBookFromPurchaseSynchronizer::class)->syncFromPurchase($this->record);
+        } catch (\Throwable $e) {
+            report($e);
+            AuditLogger::record(
+                event: 'purchase_book_sync_from_purchase_failed',
+                description: 'Retenciones: error al generar registro desde la compra (la compra sí quedó guardada).',
+                auditableType: Purchase::class,
+                auditableId: (string) $this->record->getKey(),
+                auditableLabel: $this->record->purchase_number,
+                properties: [
+                    'exception' => $e::class,
+                    'message' => $e->getMessage(),
+                ],
+            );
+        }
+
+        try {
+            app(PurchaseLedgerFromPurchaseSynchronizer::class)->syncFromPurchase($this->record, $retention);
+        } catch (\Throwable $e) {
+            report($e);
+            AuditLogger::record(
+                event: 'purchase_ledger_sync_from_purchase_failed',
+                description: 'Libro de Compras: error al generar registro desde la compra (la compra sí quedó guardada).',
+                auditableType: Purchase::class,
+                auditableId: (string) $this->record->getKey(),
+                auditableLabel: $this->record->purchase_number,
+                properties: [
+                    'exception' => $e::class,
+                    'message' => $e->getMessage(),
+                ],
+            );
+        }
     }
 
     /**
@@ -296,10 +380,27 @@ class CreatePurchase extends CreateRecord
                     'legal_name' => '',
                     'trade_name' => '',
                     'mobile_phone' => '',
+                    'seniat_retention_percent' => null,
                 ]),
             QuickCreatePurchaseProductAction::make(function (Product $product, ?float $unitCostFromModal = null): void {
                 $this->appendPurchaseLineForProduct($product, $unitCostFromModal);
                 $this->data['purchase_line_product_search'] = '';
+            }),
+            CompleteSupplierSeniatRetentionAction::make(function (): void {
+                AuditLogger::record(
+                    event: 'purchase_create_supplier_seniat_retention_saved',
+                    description: 'Compras: retención SENIAT del proveedor guardada; se abre el resumen de la compra.',
+                    properties: $this->purchaseCreateAuditSnapshot(),
+                );
+
+                AuditLogger::record(
+                    event: 'purchase_create_summary_opened',
+                    description: 'Compras: formulario validado; se muestra resumen previo al guardado.',
+                    properties: $this->purchaseCreateAuditSnapshot(),
+                );
+
+                // Encadenar desde la acción montada: replace evita que el modal de retención bloquee el resumen.
+                $this->replaceMountedAction('confirmPurchaseSave');
             }),
         ];
     }

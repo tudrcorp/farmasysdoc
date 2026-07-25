@@ -25,6 +25,8 @@ class FarmaadminMenuAccessCatalog
             'accounts_receivable' => ['label' => 'Cuentas por cobrar', 'route_name_fragment' => 'resources.accounts-receivables.', 'group' => 'Operaciones'],
             'accounts_payable' => ['label' => 'Cuentas por pagar', 'route_name_fragment' => 'resources.accounts-payables.', 'group' => 'Operaciones'],
             'purchase_histories' => ['label' => 'Histórico de compras', 'route_name_fragment' => 'resources.purchase-histories.', 'group' => 'Operaciones'],
+            'purchase_ledgers' => ['label' => 'Libro de Compras', 'route_name_fragment' => 'resources.purchase-ledgers.', 'group' => 'Operaciones'],
+            'purchase_books' => ['label' => 'Retenciones', 'route_name_fragment' => 'resources.purchase-books.', 'group' => 'Operaciones'],
             'deliveries' => ['label' => 'Entregas', 'route_name_fragment' => 'resources.deliveries.', 'group' => 'Operaciones'],
             'clients' => ['label' => 'Clientes', 'route_name_fragment' => 'resources.clients.', 'group' => 'Operaciones'],
             'partner_companies' => ['label' => 'Compañias aliadas', 'route_name_fragment' => 'resources.partner-companies.', 'group' => 'Aliados Comerciales'],

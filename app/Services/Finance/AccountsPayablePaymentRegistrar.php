@@ -209,6 +209,9 @@ final class AccountsPayablePaymentRegistrar
 
         $paymentRef = $this->normalizePaymentReference($data['payment_reference'] ?? null);
 
+        $retention = app(PurchaseHistoryRetentionVoucherSynchronizer::class)
+            ->attributesForPurchaseId((int) $purchase->id);
+
         $history = PurchaseHistory::query()->create([
             'entry_type' => PurchaseHistoryEntryType::PAGO_CUENTA_POR_PAGAR,
             'purchase_id' => $purchase->id,
@@ -224,6 +227,9 @@ final class AccountsPayablePaymentRegistrar
             'supplier_control_number' => $ap->supplier_control_number,
             'supplier_tax_id' => $ap->supplier_tax_id,
             'supplier_name' => $ap->supplier_name,
+            'retention_voucher_issued_at' => $retention['retention_voucher_issued_at'],
+            'retention_voucher_number' => $retention['retention_voucher_number'],
+            'retention_amount_ves' => $retention['retention_amount_ves'],
             'purchase_total_usd' => (float) $ap->purchase_total_usd,
             'purchase_total_ves_at_issue' => (float) $ap->purchase_total_ves_at_issue,
             'total_ves_at_system_registration' => $snapshot !== null

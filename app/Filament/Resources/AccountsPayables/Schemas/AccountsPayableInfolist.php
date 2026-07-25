@@ -87,6 +87,36 @@ class AccountsPayableInfolist
                                 TextEntry::make('purchase_total_ves_at_issue')
                                     ->label('Total en Bs (tasa del día de emisión de la factura)')
                                     ->formatStateUsing(fn ($state): string => self::formatBs((float) $state)),
+                                TextEntry::make('purchase.purchaseBook.tax_retained_ves')
+                                    ->label('Retención IVA')
+                                    ->badge()
+                                    ->color(fn ($state): string => (float) ($state ?? 0) > 0 ? 'warning' : 'gray')
+                                    ->icon(Heroicon::ReceiptPercent)
+                                    ->formatStateUsing(function ($state, mixed $record): string {
+                                        if (! $record instanceof AccountsPayable) {
+                                            return '—';
+                                        }
+
+                                        if ($state === null && $record->purchase?->purchaseBook === null) {
+                                            return 'Sin retención';
+                                        }
+
+                                        return self::formatBs((float) ($state ?? 0));
+                                    })
+                                    ->helperText(function (mixed $record): ?string {
+                                        if (! $record instanceof AccountsPayable) {
+                                            return null;
+                                        }
+
+                                        $percent = $record->purchase?->purchaseBook?->seniat_retention_percent
+                                            ?? $record->purchase?->supplier?->seniat_retention_percent;
+
+                                        if ($percent === null) {
+                                            return 'Según el % SENIAT de la ficha del proveedor.';
+                                        }
+
+                                        return number_format((float) $percent, 0, ',', '.').'% SENIAT configurado en el proveedor.';
+                                    }),
                                 TextEntry::make('original_balance_ves')
                                     ->label('Saldo original en Bs (día de registro en sistema)')
                                     ->formatStateUsing(fn ($state): string => self::formatBs((float) $state)),

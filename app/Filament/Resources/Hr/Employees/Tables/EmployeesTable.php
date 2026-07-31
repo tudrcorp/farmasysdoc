@@ -10,6 +10,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
@@ -21,13 +22,28 @@ class EmployeesTable
     {
         return $table
             ->columns([
+                ImageColumn::make('photo_path')
+                    ->label('')
+                    ->disk('public')
+                    ->visibility('public')
+                    ->circular()
+                    ->imageSize(40)
+                    ->defaultImageUrl(fn (Employee $record): string => $record->tableAvatarPlaceholderDataUri())
+                    ->extraImgAttributes(fn (Employee $record): array => [
+                        'alt' => $record->fullName(),
+                        'class' => 'fi-hr-employee-table-avatar',
+                    ])
+                    ->extraAttributes([
+                        'class' => 'fi-hr-employee-table-avatar-cell',
+                    ]),
                 TextColumn::make('full_name')
                     ->label('Empleado')
                     ->state(fn (Employee $record): string => $record->fullName())
                     ->searchable(['first_name', 'last_name'])
                     ->sortable(query: function ($query, string $direction) {
                         $query->orderBy('last_name', $direction)->orderBy('first_name', $direction);
-                    }),
+                    })
+                    ->weight('medium'),
                 TextColumn::make('national_id')
                     ->label('Cédula')
                     ->searchable()

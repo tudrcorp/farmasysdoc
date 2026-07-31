@@ -285,12 +285,9 @@ class EmployeeInfolist
         );
         $loanRemaining = round((float) $activeLoans->sum('remaining_usd'), 2);
 
-        $initials = mb_strtoupper(
-            mb_substr((string) $record->first_name, 0, 1).mb_substr((string) $record->last_name, 0, 1),
-        );
-
         return [
-            'initials' => $initials !== '' ? $initials : 'EM',
+            'initials' => $record->initials(),
+            'photo_url' => $record->photoUrl(),
             'full_name' => $record->fullName(),
             'national_id' => $record->national_id,
             'branch' => $record->branch?->name ?? 'Sin sucursal',

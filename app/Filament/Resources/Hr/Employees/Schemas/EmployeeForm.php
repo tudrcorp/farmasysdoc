@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Hr\Employees\Schemas;
 
 use App\Services\Hr\HrBcvRateResolver;
 use App\Services\Hr\HrUsdVesConverter;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -60,6 +61,18 @@ class EmployeeForm
                         Textarea::make('address')
                             ->label('Dirección')
                             ->rows(2)
+                            ->columnSpanFull(),
+                        FileUpload::make('photo_path')
+                            ->label('Foto del empleado')
+                            ->helperText('Opcional. Si no se carga, en el listado se muestran las iniciales.')
+                            ->image()
+                            ->avatar()
+                            ->imageEditor()
+                            ->circleCropper()
+                            ->disk('public')
+                            ->directory('employees')
+                            ->visibility('public')
+                            ->maxSize(2048)
                             ->columnSpanFull(),
                     ])
                     ->columnSpanFull(),

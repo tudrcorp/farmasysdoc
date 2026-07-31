@@ -55,6 +55,182 @@ html.fi.dark .fi-sidebar-close-overlay {
 }
 
 /*
+ * Mobile navigation: bottom sheet (estilo app) en lugar del drawer lateral.
+ * Desktop (lg / 64rem+) conserva el sidebar de Filament.
+ */
+.fi-sidebar-mobile-sheet-handle {
+    display: none;
+}
+
+@media (width < 64rem) {
+    .fi-sidebar-close-overlay {
+        z-index: 39;
+        background-color: rgb(2 4 10 / 0.62);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+    }
+
+    html.fi.dark .fi-sidebar-close-overlay {
+        background-color: rgb(2 4 10 / 0.72);
+    }
+
+    .fi-sidebar.fi-main-sidebar {
+        inset: auto 0 0 0 !important;
+        top: auto !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        z-index: 40;
+        display: flex;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        max-height: min(88dvh, 44rem);
+        flex-direction: column;
+        overflow: hidden;
+        border-radius: 1.45rem 1.45rem 0 0;
+        border: 1px solid rgb(0 0 0 / 0.08);
+        border-bottom: none;
+        background-color: rgb(255 255 255 / 0.98) !important;
+        box-shadow:
+            0 -1px 0 rgb(255 255 255 / 0.65) inset,
+            0 -18px 48px rgb(0 0 0 / 0.28) !important;
+        transform: translate3d(0, 100%, 0) !important;
+        transition:
+            transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+            box-shadow 0.34s ease !important;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        --tw-ring-shadow: 0 0 #0000;
+    }
+
+    .fi-sidebar.fi-main-sidebar.fi-sidebar-open {
+        width: 100% !important;
+        transform: translate3d(0, 0, 0) !important;
+        box-shadow:
+            0 -1px 0 rgb(255 255 255 / 0.65) inset,
+            0 -22px 56px rgb(0 0 0 / 0.32) !important;
+    }
+
+    .fi-sidebar.fi-main-sidebar:not(.fi-sidebar-open) {
+        width: 100% !important;
+        transform: translate3d(0, 100%, 0) !important;
+        pointer-events: none;
+        box-shadow: none !important;
+    }
+
+    html.fi.dark .fi-sidebar.fi-main-sidebar,
+    html.fi.dark .fi-sidebar.fi-main-sidebar.fi-sidebar-open {
+        background-color: rgb(14 17 26 / 0.97) !important;
+        border-color: rgb(255 255 255 / 0.08);
+        backdrop-filter: saturate(1.4) blur(28px);
+        -webkit-backdrop-filter: saturate(1.4) blur(28px);
+        box-shadow:
+            inset 0 1px 0 rgb(255 255 255 / 0.08),
+            0 -18px 56px rgb(0 0 0 / 0.55) !important;
+    }
+
+    html.fi.dark .fi-sidebar.fi-main-sidebar:not(.fi-sidebar-open) {
+        box-shadow: none !important;
+    }
+
+    .fi-sidebar-mobile-sheet-handle {
+        display: flex;
+        flex: none;
+        justify-content: center;
+        align-items: center;
+        padding: 0.7rem 0 0.2rem;
+    }
+
+    .fi-sidebar-mobile-sheet-handle-bar {
+        display: block;
+        width: 2.75rem;
+        height: 0.3rem;
+        border-radius: 9999px;
+        background: rgb(0 0 0 / 0.16);
+    }
+
+    .dark .fi-sidebar-mobile-sheet-handle-bar {
+        background: rgb(255 255 255 / 0.28);
+    }
+
+    .fi-body-has-topbar .fi-sidebar.fi-main-sidebar .fi-sidebar-header {
+        height: auto;
+        min-height: 0;
+        padding: 0.15rem 1.25rem 0.35rem;
+        background: transparent !important;
+        box-shadow: none !important;
+        --tw-ring-shadow: 0 0 #0000;
+    }
+
+    html.fi.dark .fi-body-has-topbar .fi-sidebar-header {
+        background-color: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .fi-sidebar.fi-main-sidebar .fi-sidebar-header-logo-ctn {
+        display: none !important;
+    }
+
+    .fi-sidebar.fi-main-sidebar .fi-sidebar-nav {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        padding-top: 0.5rem;
+        padding-bottom: 1.25rem;
+        scrollbar-gutter: auto;
+    }
+
+    .fi-sidebar.fi-main-sidebar .fi-sidebar-nav-groups {
+        gap: 1.1rem;
+    }
+
+    .fi-sidebar.fi-main-sidebar .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn {
+        min-height: 3.05rem;
+        padding-inline: 0.85rem;
+        border: 1px solid rgb(0 0 0 / 0.08);
+        border-radius: 0.95rem;
+        background-color: rgb(255 255 255 / 0.72);
+        justify-content: flex-start;
+    }
+
+    .dark .fi-sidebar.fi-main-sidebar .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn {
+        border-color: rgb(255 255 255 / 0.1);
+        background-color: rgb(255 255 255 / 0.03);
+    }
+
+    .fi-sidebar.fi-main-sidebar .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn > .fi-sidebar-item-label {
+        letter-spacing: 0.01em;
+    }
+
+    .fi-sidebar.fi-main-sidebar .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn::after {
+        content: '';
+        flex: none;
+        width: 0.45rem;
+        height: 0.45rem;
+        margin-inline-start: auto;
+        border-inline-end: 1.5px solid currentColor;
+        border-block-end: 1.5px solid currentColor;
+        opacity: 0.35;
+        transform: rotate(-45deg);
+    }
+
+    .fi-sidebar.fi-main-sidebar .fi-sidebar-footer {
+        flex: none;
+        margin-inline: 1rem;
+        margin-bottom: 0.75rem;
+        padding-top: 0.35rem;
+        border-top: 1px solid rgb(0 0 0 / 0.06);
+    }
+
+    .dark .fi-sidebar.fi-main-sidebar .fi-sidebar-footer {
+        border-top-color: rgb(255 255 255 / 0.08);
+    }
+}
+
+/*
  * Topbar estilo iOS (cristal esmerilado): fondo translúcido + backdrop blur.
  * Filament usa .fi-topbar-ctn (sticky) y .fi-topbar (barra visible).
  */
@@ -14055,6 +14231,7 @@ html:not(.dark) .fi-hr-employee-hero {
     width: 4.25rem;
     height: 4.25rem;
     border-radius: 1.15rem;
+    overflow: hidden;
     background: linear-gradient(145deg, rgb(20 184 166) 0%, rgb(14 148 136) 55%, rgb(13 148 136 / 0.85) 100%);
     color: rgb(255 255 255);
     font-size: 1.35rem;
@@ -14063,6 +14240,26 @@ html:not(.dark) .fi-hr-employee-hero {
     box-shadow:
         0 0 0 3px rgb(20 184 166 / 0.18),
         0 10px 24px rgb(13 148 136 / 0.35);
+}
+
+.fi-hr-employee-hero__avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.fi-hr-employee-table-avatar-cell {
+    width: 1%;
+    padding-inline-end: 0.25rem !important;
+}
+
+.fi-hr-employee-table-avatar-cell .fi-ta-image {
+    justify-content: flex-start;
+}
+
+.fi-hr-employee-table-avatar {
+    box-shadow: 0 0 0 2px rgb(20 184 166 / 0.22);
 }
 
 .fi-hr-employee-hero__identity {

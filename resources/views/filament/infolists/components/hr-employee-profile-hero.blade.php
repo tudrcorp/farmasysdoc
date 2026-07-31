@@ -1,6 +1,7 @@
 @php
     /** @var array<string, mixed> $data */
     $initials = $data['initials'] ?? '—';
+    $photoUrl = $data['photo_url'] ?? null;
     $fullName = $data['full_name'] ?? '—';
     $nationalId = $data['national_id'] ?? '—';
     $branch = $data['branch'] ?? '—';
@@ -21,7 +22,11 @@
 <div class="fi-hr-employee-hero" data-fi-hr-employee-hero>
     <div class="fi-hr-employee-hero__profile">
         <div class="fi-hr-employee-hero__avatar" aria-hidden="true">
-            <span>{{ $initials }}</span>
+            @if (filled($photoUrl))
+                <img src="{{ $photoUrl }}" alt="" class="fi-hr-employee-hero__avatar-img">
+            @else
+                <span>{{ $initials }}</span>
+            @endif
         </div>
         <div class="fi-hr-employee-hero__identity">
             <div class="fi-hr-employee-hero__title-row">

@@ -21,6 +21,10 @@
     >
         {{ \Filament\Support\Facades\FilamentView::renderHook(\Filament\View\PanelsRenderHook::SIDEBAR_START) }}
 
+        <div class="fi-sidebar-mobile-sheet-handle" aria-hidden="true">
+            <span class="fi-sidebar-mobile-sheet-handle-bar"></span>
+        </div>
+
         <div class="fi-sidebar-header-ctn">
             <header
                 class="fi-sidebar-header"

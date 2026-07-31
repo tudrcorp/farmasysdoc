@@ -13911,3 +13911,672 @@ html.fi.dark .farmadoc-ios-shortcuts__segment--5 .farmadoc-ios-shortcuts__bubble
         transform: none;
     }
 }
+
+/* —— RRHH: detalle de empleado —— */
+.fi-hr-employee-hero-section .fi-section-content-ctn,
+.fi-hr-employee-hero-section .fi-sc-section-content {
+    padding: 0 !important;
+}
+
+.fi-hr-employee-hero {
+    display: grid;
+    gap: 1.25rem;
+    padding: 1.25rem 1.35rem 1.35rem;
+    border-radius: 1rem;
+    background:
+        radial-gradient(ellipse 90% 120% at 0% 0%, rgb(20 184 166 / 0.18), transparent 55%),
+        radial-gradient(ellipse 70% 90% at 100% 0%, rgb(252 228 34 / 0.1), transparent 50%),
+        linear-gradient(165deg, rgb(18 22 32) 0%, rgb(12 15 22) 100%);
+    border: 1px solid rgb(255 255 255 / 0.08);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.06),
+        0 12px 40px rgb(0 0 0 / 0.28);
+}
+
+html:not(.dark) .fi-hr-employee-hero {
+    background:
+        radial-gradient(ellipse 90% 120% at 0% 0%, rgb(14 148 136 / 0.12), transparent 55%),
+        radial-gradient(ellipse 70% 90% at 100% 0%, rgb(252 228 34 / 0.14), transparent 50%),
+        linear-gradient(165deg, rgb(255 255 255) 0%, rgb(246 248 251) 100%);
+    border-color: rgb(15 23 42 / 0.08);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.8),
+        0 10px 28px rgb(15 23 42 / 0.06);
+}
+
+.fi-hr-employee-hero__profile {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.fi-hr-employee-hero__avatar {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 4.25rem;
+    height: 4.25rem;
+    border-radius: 1.15rem;
+    background: linear-gradient(145deg, rgb(20 184 166) 0%, rgb(14 148 136) 55%, rgb(13 148 136 / 0.85) 100%);
+    color: rgb(255 255 255);
+    font-size: 1.35rem;
+    font-weight: 750;
+    letter-spacing: 0.02em;
+    box-shadow:
+        0 0 0 3px rgb(20 184 166 / 0.18),
+        0 10px 24px rgb(13 148 136 / 0.35);
+}
+
+.fi-hr-employee-hero__identity {
+    min-width: 0;
+}
+
+.fi-hr-employee-hero__title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.55rem 0.75rem;
+}
+
+.fi-hr-employee-hero__name {
+    margin: 0;
+    font-size: 1.45rem;
+    font-weight: 750;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    color: rgb(248 250 252);
+}
+
+html:not(.dark) .fi-hr-employee-hero__name {
+    color: rgb(15 23 42);
+}
+
+.fi-hr-employee-hero__badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.2rem 0.65rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.fi-hr-employee-hero__badge--active {
+    background: rgb(16 185 129 / 0.16);
+    color: rgb(110 231 183);
+    box-shadow: inset 0 0 0 1px rgb(16 185 129 / 0.35);
+}
+
+.fi-hr-employee-hero__badge--inactive {
+    background: rgb(148 163 184 / 0.16);
+    color: rgb(203 213 225);
+    box-shadow: inset 0 0 0 1px rgb(148 163 184 / 0.35);
+}
+
+html:not(.dark) .fi-hr-employee-hero__badge--active {
+    color: rgb(4 120 87);
+}
+
+html:not(.dark) .fi-hr-employee-hero__badge--inactive {
+    color: rgb(71 85 105);
+}
+
+.fi-hr-employee-hero__meta,
+.fi-hr-employee-hero__contact {
+    margin: 0.35rem 0 0;
+    font-size: 0.9rem;
+    line-height: 1.35;
+    color: rgb(148 163 184);
+}
+
+html:not(.dark) .fi-hr-employee-hero__meta,
+html:not(.dark) .fi-hr-employee-hero__contact {
+    color: rgb(71 85 105);
+}
+
+.fi-hr-employee-hero__dot {
+    margin: 0 0.35rem;
+    opacity: 0.65;
+}
+
+.fi-hr-employee-hero__stats {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+}
+
+@media (width >= 40rem) {
+    .fi-hr-employee-hero__stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+.fi-hr-employee-hero__stat {
+    min-width: 0;
+    border-radius: 0.9rem;
+    padding: 0.9rem 1rem;
+    background: rgb(255 255 255 / 0.04);
+    border: 1px solid rgb(255 255 255 / 0.07);
+}
+
+html:not(.dark) .fi-hr-employee-hero__stat {
+    background: rgb(255 255 255 / 0.72);
+    border-color: rgb(15 23 42 / 0.06);
+}
+
+.fi-hr-employee-hero__stat--primary {
+    background:
+        linear-gradient(160deg, rgb(252 228 34 / 0.14), transparent 70%),
+        rgb(255 255 255 / 0.04);
+    border-color: rgb(252 228 34 / 0.22);
+}
+
+html:not(.dark) .fi-hr-employee-hero__stat--primary {
+    background:
+        linear-gradient(160deg, rgb(252 228 34 / 0.22), transparent 70%),
+        rgb(255 255 255 / 0.9);
+}
+
+.fi-hr-employee-hero__stat-label {
+    margin: 0;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(148 163 184);
+}
+
+html:not(.dark) .fi-hr-employee-hero__stat-label {
+    color: rgb(100 116 139);
+}
+
+.fi-hr-employee-hero__stat-value {
+    margin: 0.35rem 0 0;
+    font-size: 1.25rem;
+    font-weight: 750;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    color: rgb(248 250 252);
+}
+
+html:not(.dark) .fi-hr-employee-hero__stat-value {
+    color: rgb(15 23 42);
+}
+
+.fi-hr-employee-hero__stat-sub {
+    margin: 0.25rem 0 0;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: rgb(45 212 191);
+}
+
+html:not(.dark) .fi-hr-employee-hero__stat-sub {
+    color: rgb(13 148 136);
+}
+
+.fi-hr-employee-hero__stat-hint {
+    margin: 0.35rem 0 0;
+    font-size: 0.75rem;
+    color: rgb(100 116 139);
+}
+
+/* —— RRHH: detalle de nómina —— */
+.fi-hr-payroll-detail {
+    display: grid;
+    gap: 1.25rem;
+}
+
+.fi-hr-payroll-detail__table-heading {
+    margin-bottom: 0.85rem;
+}
+
+.fi-hr-payroll-detail__table-heading h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    color: rgb(248 250 252);
+}
+
+html:not(.dark) .fi-hr-payroll-detail__table-heading h3 {
+    color: rgb(15 23 42);
+}
+
+.fi-hr-payroll-detail__table-heading p {
+    margin: 0.25rem 0 0;
+    font-size: 0.875rem;
+    color: rgb(148 163 184);
+}
+
+html:not(.dark) .fi-hr-payroll-detail__table-heading p {
+    color: rgb(71 85 105);
+}
+
+.fi-hr-payroll-hero {
+    display: grid;
+    gap: 1.15rem;
+    padding: 1.25rem 1.35rem 1.35rem;
+    border-radius: 1rem;
+    background:
+        radial-gradient(ellipse 90% 120% at 0% 0%, rgb(20 184 166 / 0.18), transparent 55%),
+        radial-gradient(ellipse 70% 90% at 100% 0%, rgb(252 228 34 / 0.1), transparent 50%),
+        linear-gradient(165deg, rgb(18 22 32) 0%, rgb(12 15 22) 100%);
+    border: 1px solid rgb(255 255 255 / 0.08);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.06),
+        0 12px 40px rgb(0 0 0 / 0.28);
+}
+
+html:not(.dark) .fi-hr-payroll-hero {
+    background:
+        radial-gradient(ellipse 90% 120% at 0% 0%, rgb(14 148 136 / 0.12), transparent 55%),
+        radial-gradient(ellipse 70% 90% at 100% 0%, rgb(252 228 34 / 0.14), transparent 50%),
+        linear-gradient(165deg, rgb(255 255 255) 0%, rgb(246 248 251) 100%);
+    border-color: rgb(15 23 42 / 0.08);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.8),
+        0 10px 28px rgb(15 23 42 / 0.06);
+}
+
+.fi-hr-payroll-hero__eyebrow {
+    margin: 0 0 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgb(148 163 184);
+}
+
+.fi-hr-payroll-hero__title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.55rem 0.75rem;
+}
+
+.fi-hr-payroll-hero__title {
+    margin: 0;
+    font-size: 1.55rem;
+    font-weight: 750;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: rgb(248 250 252);
+}
+
+html:not(.dark) .fi-hr-payroll-hero__title {
+    color: rgb(15 23 42);
+}
+
+.fi-hr-payroll-hero__badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.2rem 0.65rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.fi-hr-payroll-hero__badge--is-draft {
+    background: rgb(148 163 184 / 0.16);
+    color: rgb(203 213 225);
+    box-shadow: inset 0 0 0 1px rgb(148 163 184 / 0.35);
+}
+
+.fi-hr-payroll-hero__badge--is-calculated {
+    background: rgb(245 158 11 / 0.16);
+    color: rgb(252 211 77);
+    box-shadow: inset 0 0 0 1px rgb(245 158 11 / 0.4);
+}
+
+.fi-hr-payroll-hero__badge--is-closed {
+    background: rgb(16 185 129 / 0.16);
+    color: rgb(110 231 183);
+    box-shadow: inset 0 0 0 1px rgb(16 185 129 / 0.35);
+}
+
+html:not(.dark) .fi-hr-payroll-hero__badge--is-draft {
+    color: rgb(71 85 105);
+}
+
+html:not(.dark) .fi-hr-payroll-hero__badge--is-calculated {
+    color: rgb(180 83 9);
+}
+
+html:not(.dark) .fi-hr-payroll-hero__badge--is-closed {
+    color: rgb(4 120 87);
+}
+
+.fi-hr-payroll-hero__meta {
+    margin: 0.4rem 0 0;
+    font-size: 0.92rem;
+    color: rgb(203 213 225);
+}
+
+.fi-hr-payroll-hero__meta--secondary {
+    font-size: 0.82rem;
+    color: rgb(148 163 184);
+}
+
+html:not(.dark) .fi-hr-payroll-hero__meta,
+html:not(.dark) .fi-hr-payroll-hero__meta--secondary {
+    color: rgb(71 85 105);
+}
+
+.fi-hr-payroll-hero__dot {
+    margin: 0 0.35rem;
+    opacity: 0.65;
+}
+
+.fi-hr-payroll-hero__stats {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+}
+
+@media (width >= 40rem) {
+    .fi-hr-payroll-hero__stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (width >= 64rem) {
+    .fi-hr-payroll-hero__stats {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.fi-hr-payroll-hero__stat {
+    min-width: 0;
+    border-radius: 0.9rem;
+    padding: 0.9rem 1rem;
+    background: rgb(255 255 255 / 0.04);
+    border: 1px solid rgb(255 255 255 / 0.07);
+}
+
+html:not(.dark) .fi-hr-payroll-hero__stat {
+    background: rgb(255 255 255 / 0.72);
+    border-color: rgb(15 23 42 / 0.06);
+}
+
+.fi-hr-payroll-hero__stat--payable {
+    background:
+        linear-gradient(160deg, rgb(252 228 34 / 0.16), transparent 70%),
+        rgb(255 255 255 / 0.04);
+    border-color: rgb(252 228 34 / 0.28);
+}
+
+html:not(.dark) .fi-hr-payroll-hero__stat--payable {
+    background:
+        linear-gradient(160deg, rgb(252 228 34 / 0.24), transparent 70%),
+        rgb(255 255 255 / 0.9);
+}
+
+.fi-hr-payroll-hero__stat-label {
+    margin: 0;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(148 163 184);
+}
+
+.fi-hr-payroll-hero__stat-value {
+    margin: 0.35rem 0 0;
+    font-size: 1.2rem;
+    font-weight: 750;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    color: rgb(248 250 252);
+}
+
+html:not(.dark) .fi-hr-payroll-hero__stat-value {
+    color: rgb(15 23 42);
+}
+
+.fi-hr-payroll-hero__stat-sub {
+    margin: 0.25rem 0 0;
+    font-size: 0.86rem;
+    font-weight: 600;
+}
+
+.fi-hr-payroll-hero__stat--payable .fi-hr-payroll-hero__stat-sub,
+.fi-hr-payroll-hero__stat--plus .fi-hr-payroll-hero__stat-sub {
+    color: rgb(45 212 191);
+}
+
+.fi-hr-payroll-hero__stat--minus .fi-hr-payroll-hero__stat-sub {
+    color: rgb(251 191 36);
+}
+
+.fi-hr-payroll-hero__stat--loan .fi-hr-payroll-hero__stat-sub {
+    color: rgb(248 113 113);
+}
+
+html:not(.dark) .fi-hr-payroll-hero__stat--payable .fi-hr-payroll-hero__stat-sub,
+html:not(.dark) .fi-hr-payroll-hero__stat--plus .fi-hr-payroll-hero__stat-sub {
+    color: rgb(13 148 136);
+}
+
+html:not(.dark) .fi-hr-payroll-hero__stat--minus .fi-hr-payroll-hero__stat-sub {
+    color: rgb(180 83 9);
+}
+
+html:not(.dark) .fi-hr-payroll-hero__stat--loan .fi-hr-payroll-hero__stat-sub {
+    color: rgb(185 28 28);
+}
+
+.fi-hr-line-items {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.fi-hr-line-items__eyebrow {
+    margin: 0;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: rgb(148 163 184);
+}
+
+.fi-hr-line-items__title {
+    margin: 0.2rem 0 0;
+    font-size: 1.1rem;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    color: rgb(248 250 252);
+}
+
+html:not(.dark) .fi-hr-line-items__title {
+    color: rgb(15 23 42);
+}
+
+.fi-hr-line-items__list {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.fi-hr-line-items__row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem 0.9rem;
+    border-radius: 0.8rem;
+    border: 1px solid rgb(255 255 255 / 0.08);
+    background: rgb(255 255 255 / 0.03);
+}
+
+html:not(.dark) .fi-hr-line-items__row {
+    border-color: rgb(15 23 42 / 0.08);
+    background: rgb(248 250 252);
+}
+
+.fi-hr-line-items__row--is-plus {
+    border-color: rgb(16 185 129 / 0.28);
+}
+
+.fi-hr-line-items__row--is-minus {
+    border-color: rgb(245 158 11 / 0.3);
+}
+
+.fi-hr-line-items__row--is-loan {
+    border-color: rgb(248 113 113 / 0.3);
+}
+
+.fi-hr-line-items__type {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(148 163 184);
+}
+
+.fi-hr-line-items__concept {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: rgb(248 250 252);
+}
+
+html:not(.dark) .fi-hr-line-items__concept {
+    color: rgb(15 23 42);
+}
+
+.fi-hr-line-items__amounts {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.fi-hr-line-items__usd {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 750;
+    color: rgb(248 250 252);
+}
+
+html:not(.dark) .fi-hr-line-items__usd {
+    color: rgb(15 23 42);
+}
+
+.fi-hr-line-items__ves {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: rgb(148 163 184);
+}
+
+.fi-hr-line-items__empty {
+    padding: 1rem;
+    border-radius: 0.8rem;
+    border: 1px dashed rgb(255 255 255 / 0.12);
+    color: rgb(148 163 184);
+    text-align: center;
+}
+
+/* —— Sidebar: iconos y cabeceras de grupo —— */
+.fi-sidebar .fi-sidebar-group.fi-collapsible > .fi-sidebar-group-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-height: 2.55rem;
+    margin-block: 0.15rem;
+    padding-block: 0.45rem;
+    padding-inline: 0.7rem;
+    border-radius: 0.9rem;
+}
+
+.fi-sidebar .fi-sidebar-group.fi-collapsible > .fi-sidebar-group-btn > .fi-icon:not(.fi-sidebar-group-collapse-button) {
+    flex: none;
+    width: 1.2rem;
+    height: 1.2rem;
+    color: rgb(100 116 139);
+    transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.dark .fi-sidebar .fi-sidebar-group.fi-collapsible > .fi-sidebar-group-btn > .fi-icon:not(.fi-sidebar-group-collapse-button) {
+    color: rgb(148 163 184);
+}
+
+.fi-sidebar .fi-sidebar-group.fi-collapsible > .fi-sidebar-group-btn .fi-sidebar-group-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.92rem;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+}
+
+.fi-sidebar .fi-sidebar-group.fi-collapsible > .fi-sidebar-group-btn:hover {
+    background-color: rgb(252 228 34 / 0.14);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.55),
+        0 0 0 1px rgb(252 228 34 / 0.22);
+}
+
+.dark .fi-sidebar .fi-sidebar-group.fi-collapsible > .fi-sidebar-group-btn:hover {
+    background-color: rgb(252 228 34 / 0.1);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.08),
+        0 0 0 1px rgb(252 228 34 / 0.18);
+}
+
+.fi-sidebar .fi-sidebar-group.fi-collapsible > .fi-sidebar-group-btn:hover > .fi-icon:not(.fi-sidebar-group-collapse-button) {
+    color: var(--color-primary-700);
+    transform: translateY(-0.5px);
+}
+
+.dark .fi-sidebar .fi-sidebar-group.fi-collapsible > .fi-sidebar-group-btn:hover > .fi-icon:not(.fi-sidebar-group-collapse-button) {
+    color: var(--color-primary-300);
+}
+
+.fi-sidebar .fi-sidebar-group.fi-active > .fi-sidebar-group-btn {
+    background:
+        linear-gradient(
+            105deg,
+            rgb(252 228 34 / 0.16) 0%,
+            rgb(255 255 255 / 0.04) 55%,
+            rgb(24 172 178 / 0.08) 100%
+        );
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.08),
+        0 0 0 1px rgb(252 228 34 / 0.16);
+}
+
+html:not(.dark) .fi-sidebar .fi-sidebar-group.fi-active > .fi-sidebar-group-btn {
+    background:
+        linear-gradient(
+            105deg,
+            rgb(252 228 34 / 0.22) 0%,
+            rgb(255 255 255 / 0.55) 55%,
+            rgb(24 172 178 / 0.08) 100%
+        );
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.75),
+        0 0 0 1px rgb(252 228 34 / 0.2);
+}
+
+.fi-sidebar .fi-sidebar-group.fi-active > .fi-sidebar-group-btn > .fi-icon:not(.fi-sidebar-group-collapse-button) {
+    color: var(--color-primary-600);
+}
+
+.dark .fi-sidebar .fi-sidebar-group.fi-active > .fi-sidebar-group-btn > .fi-icon:not(.fi-sidebar-group-collapse-button) {
+    color: var(--color-primary-300);
+}
+
+.fi-sidebar .fi-sidebar-group.fi-collapsible > .fi-sidebar-group-items {
+    margin-top: 0.2rem;
+    margin-bottom: 0.45rem;
+    padding-inline-start: 0.15rem;
+}
+
+.fi-sidebar .fi-sidebar-nav {
+    gap: 0.15rem;
+}

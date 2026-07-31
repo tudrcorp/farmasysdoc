@@ -350,6 +350,22 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * Acceso completo al módulo RRHH (empleados, asignaciones, deducciones, nómina).
+     */
+    public function canAccessHrModule(): bool
+    {
+        return $this->isAdministrator();
+    }
+
+    /**
+     * Crear/ver préstamos RRHH: administrador o gerencia.
+     */
+    public function canManageHrLoans(): bool
+    {
+        return $this->isAdministrator() || $this->hasGerenciaRole();
+    }
+
+    /**
      * Acceso por ítem de menú del panel Farmaadmin según los roles activos del usuario.
      */
     public function canAccessFarmaadminMenuKey(string $menuKey): bool

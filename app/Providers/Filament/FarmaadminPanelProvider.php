@@ -76,6 +76,7 @@ class FarmaadminPanelProvider extends PanelProvider
                         ? $user->navigationOperationsGroupLabel()
                         : 'Farmadoc®';
                 }),
+                'hr' => NavigationGroup::make('Recursos Humanos'),
                 'marketing' => NavigationGroup::make('Marketing'),
                 'inventory' => NavigationGroup::make('Inventario'),
                 'commercial_allies' => NavigationGroup::make('Aliados Comerciales'),

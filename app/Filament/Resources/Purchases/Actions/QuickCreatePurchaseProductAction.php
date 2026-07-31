@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Purchases\Actions;
 
+use App\Filament\Resources\Products\Support\ActiveIngredientSelectField;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Supplier;
@@ -74,6 +75,11 @@ final class QuickCreatePurchaseProductAction
                             ->required()
                             ->maxLength(255)
                             ->prefixIcon(Heroicon::BuildingStorefront),
+                        ActiveIngredientSelectField::make()
+                            ->label('Principio activo')
+                            ->placeholder('Opcional — seleccione si aplica')
+                            ->helperText('Opcional. Puede dejarlo vacío en productos sin principio activo.')
+                            ->prefixIcon(Heroicon::Beaker),
                         Select::make('supplier_id')
                             ->label('Proveedor principal')
                             ->options(fn (): array => Supplier::query()
@@ -151,11 +157,17 @@ final class QuickCreatePurchaseProductAction
                     $slug = ($baseSlug !== '' ? $baseSlug : 'producto').'-'.Str::lower(Str::random(8));
                 }
 
+                $activeIngredient = collect($data['active_ingredient'] ?? [])
+                    ->filter(fn (mixed $item): bool => is_string($item) && filled($item))
+                    ->values()
+                    ->all();
+
                 $product = Product::query()->create([
                     'supplier_id' => filled($data['supplier_id'] ?? null) ? (int) $data['supplier_id'] : null,
                     'barcode' => $barcode,
                     'name' => $name,
                     'brand' => trim((string) ($data['brand'] ?? '')),
+                    'active_ingredient' => $activeIngredient === [] ? null : $activeIngredient,
                     'slug' => $slug,
                     'product_category_id' => (int) $data['product_category_id'],
                     'cost_price' => (float) ($data['cost_price'] ?? 0),

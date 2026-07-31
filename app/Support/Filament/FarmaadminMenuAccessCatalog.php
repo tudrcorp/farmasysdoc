@@ -37,6 +37,8 @@ class FarmaadminMenuAccessCatalog
             'inventories' => ['label' => 'Inventario', 'route_name_fragment' => 'resources.inventories.', 'group' => 'Inventario'],
             'inventory_movements' => ['label' => 'Movimientos de inventario', 'route_name_fragment' => 'resources.inventory-movements.', 'group' => 'Inventario'],
             'inventory_adjustments' => ['label' => 'Ajustes de inventario', 'route_name_fragment' => 'resources.inventory-adjustments.', 'group' => 'Inventario'],
+            'inventory_audits' => ['label' => 'Auditoría de inventario', 'route_name_fragment' => 'resources.inventory-audits.', 'group' => 'Inventario'],
+            'inventory_audit_updates' => ['label' => 'Productos actualizados (auditoría)', 'route_name_fragment' => 'resources.inventory-audit-updates.', 'group' => 'Inventario'],
             'inventory_stock_failures' => ['label' => 'Fallas de existencia', 'route_name_fragment' => 'resources.inventory-stock-failures.', 'group' => 'Inventario'],
             'fefo_pos_alert_logs' => ['label' => 'Alertas FEFO en caja', 'route_name_fragment' => 'resources.fefo-pos-alert-logs.', 'group' => 'Inventario'],
             'product_transfers' => ['label' => 'Traslados de productos', 'route_name_fragment' => 'resources.product-transfers.', 'group' => 'Inventario'],

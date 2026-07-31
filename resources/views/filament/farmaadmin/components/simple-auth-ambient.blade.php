@@ -8,7 +8,7 @@
 </div>
 
 <div
-    class="fixed right-3 top-3 z-[100] sm:right-6 sm:top-6"
+    class="fixed left-1/2 top-3 z-[100] -translate-x-1/2 sm:top-6"
     role="group"
     aria-label="Seleccionar tema de la interfaz"
 >

@@ -2108,27 +2108,50 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
 
 /*
  * Páginas simples de autenticación (login, registro, recuperar contraseña): misma línea visual que welcome.
+ *
+ * Estructura Filament:
+ *   .fi-simple-layout > .fi-simple-main-ctn > main.fi-simple-main > .fi-simple-page
+ * El “aire” debe ir en el contenedor (margen/padding exterior), no como padding de la tarjeta.
  */
 .fi-simple-layout {
     position: relative;
     isolation: isolate;
     overflow-x: hidden;
-    /* Centra el bloque sin forzar que la tarjeta ocupe todo el alto de la pantalla */
     justify-content: center;
 }
 
-/* Altura natural de la tarjeta; solo centrada en el eje vertical del layout */
-.fi-simple-layout > .fi-simple-page {
-    position: relative;
-    z-index: 1;
-    flex: 0 1 auto;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
+.fi-simple-layout .fi-simple-main-ctn {
+    box-sizing: border-box;
     width: 100%;
-    margin-inline: auto;
-    padding-inline: 1rem;
-    padding-block: 2rem;
+    /* Aire lateral visible en iPhone / pantallas estrechas + safe-area */
+    padding-inline: max(1.75rem, calc(env(safe-area-inset-left, 0px) + 1.25rem), calc(env(safe-area-inset-right, 0px) + 1.25rem));
+    padding-block: max(4.75rem, calc(env(safe-area-inset-top, 0px) + 3.75rem))
+        max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem));
+}
+
+@media (min-width: 640px) {
+    .fi-simple-layout .fi-simple-main-ctn {
+        padding-inline: 2rem;
+        padding-block: 2.5rem;
+    }
+}
+
+/* Quitar el “card” por defecto de Filament; la tarjeta visual es .fi-simple-page */
+.fi-simple-layout .fi-simple-main {
+    z-index: 1;
+    width: 100%;
+    max-width: 28rem;
+    margin-block: 0;
+    padding: 0;
+    background-color: transparent;
+    border-radius: 0;
+    box-shadow: none;
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-ring-color: transparent;
+}
+
+.dark .fi-simple-layout .fi-simple-main {
+    background: transparent;
 }
 
 .fi-simple-page {
@@ -13602,6 +13625,80 @@ html.fi.dark .farmadoc-ios-field__select {
 .fi-topbar-end .fi-global-search-ctn,
 .fi-topbar-end .fi-global-search {
     min-width: 0;
+}
+
+/*
+ * Móvil / tablet estrecha: buscador global debajo del navbar a ancho completo.
+ * Filament anida la búsqueda dentro de .fi-topbar-end; usamos display:contents
+ * para poder reordenar el campo como fila propia del .fi-topbar.
+ */
+@media (max-width: 63.999rem) {
+    .fi-topbar {
+        flex-wrap: wrap;
+        align-items: center;
+        column-gap: 0.5rem;
+        row-gap: 0.625rem;
+        min-height: auto;
+        padding-block: 0.625rem;
+    }
+
+    .fi-topbar-end {
+        display: contents;
+    }
+
+    .fi-topbar > .fi-topbar-open-sidebar-btn,
+    .fi-topbar > .fi-topbar-close-sidebar-btn {
+        order: 1;
+        flex-shrink: 0;
+    }
+
+    .fi-topbar .farmadoc-ios-shortcuts {
+        order: 2;
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: none;
+        margin-inline-end: 0;
+        align-self: center;
+    }
+
+    .fi-topbar .fi-topbar-database-notifications-btn,
+    .fi-topbar .fi-database-notifications {
+        order: 3;
+        flex-shrink: 0;
+    }
+
+    .fi-topbar .fi-user-menu {
+        order: 4;
+        flex-shrink: 0;
+    }
+
+    .fi-topbar .fi-global-search-ctn {
+        order: 20;
+        display: flex;
+        flex: 1 1 100%;
+        align-items: stretch;
+        width: 100%;
+        min-width: 100%;
+        max-width: 100%;
+    }
+
+    .fi-topbar .fi-global-search {
+        position: relative;
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .fi-topbar .fi-global-search-field,
+    .fi-topbar .fi-global-search-field .fi-input-wrp {
+        width: 100%;
+    }
+
+    .fi-topbar .fi-global-search-results-ctn {
+        inset-inline: 0;
+        width: 100%;
+        max-width: none;
+    }
 }
 
 .fi-global-search-result-detail:has(.fi-farmaadmin-global-search-price) {

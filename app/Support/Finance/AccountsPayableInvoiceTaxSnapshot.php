@@ -134,6 +134,44 @@ final class AccountsPayableInvoiceTaxSnapshot
     }
 
     /**
+     * Tasa BCV del día de registro/carga de la compra (Bs por USD).
+     */
+    public static function purchaseRegistrationBcvRate(AccountsPayable $record): ?float
+    {
+        $record->loadMissing(['purchase.purchaseBook']);
+
+        $purchase = $record->purchase;
+
+        if ($purchase !== null) {
+            $officialRate = (float) ($purchase->official_usd_ves_rate ?? 0);
+            if ($officialRate > 0) {
+                return $officialRate;
+            }
+
+            $bookRate = (float) ($purchase->purchaseBook?->bcv_rate_at_invoice ?? 0);
+            if ($bookRate > 0) {
+                return $bookRate;
+            }
+        }
+
+        $usdTotal = (float) $record->purchase_total_usd;
+
+        if ($usdTotal > 0.00001) {
+            $originalBalanceVes = (float) $record->original_balance_ves;
+            if ($originalBalanceVes > 0) {
+                return round($originalBalanceVes / $usdTotal, 8);
+            }
+
+            $vesAtIssue = (float) $record->purchase_total_ves_at_issue;
+            if ($vesAtIssue > 0) {
+                return round($vesAtIssue / $usdTotal, 8);
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return Collection<int, self>
      */
     private static function snapshotsForQuery(Builder $query): Collection

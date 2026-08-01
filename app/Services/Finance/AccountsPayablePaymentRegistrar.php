@@ -24,6 +24,7 @@ final class AccountsPayablePaymentRegistrar
     public function __construct(
         private readonly PurchaseMonetarySnapshotBuilder $snapshotBuilder,
         private readonly VenezuelaOfficialUsdVesRateClient $rateClient,
+        private readonly AccountsPayableCurrentBalanceRecalculator $currentBalanceRecalculator,
     ) {}
 
     /**
@@ -200,9 +201,10 @@ final class AccountsPayablePaymentRegistrar
         $paidUsd = $amountPaidUsd;
         $newRemainingUsd = max(0, round($remainingUsd - $paidUsd, 2));
 
-        $rateToday = $this->rateClient->rateForDate(now());
-        $newCurrentBalanceVes = ($rateToday !== null && $rateToday > 0)
-            ? round($newRemainingUsd * $rateToday, 2)
+        $ap->remaining_principal_usd = $newRemainingUsd;
+        $computedBalance = $this->currentBalanceRecalculator->compute($ap);
+        $newCurrentBalanceVes = $computedBalance['ok']
+            ? (float) $computedBalance['new_balance_ves']
             : max(0, round((float) $ap->current_balance_ves - $amountPaidVes, 2));
 
         $snapshot = $this->snapshotBuilder->build($purchase);

@@ -76,9 +76,12 @@ final class AccountsPayableFromPurchaseSynchronizer
         $vesAtIssue = $snapshot['ves_at_issue'];
         $originalBalance = $snapshot['ves_at_registration'];
 
+        // Saldo al día = (total a pagar Bs ÷ tasa BCV registro) × tasa BCV del día.
+        // Al crear aún no hay retención; el sync posterior la descuenta.
         $todayRate = $this->rateClient->rateForDate(now());
-        $currentBalance = ($todayRate !== null && $todayRate > 0)
-            ? round($usdTotal * $todayRate, 2)
+        $registrationRate = $rateAtLoad > 0 ? $rateAtLoad : $rateAtIssue;
+        $currentBalance = ($todayRate !== null && $todayRate > 0 && $registrationRate > 0)
+            ? round(($vesAtIssue / $registrationRate) * $todayRate, 2)
             : $originalBalance;
 
         $dueAt = filled($purchase->payment_due_date)

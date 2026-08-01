@@ -10,6 +10,7 @@ use App\Models\Purchase;
 use App\Models\Supplier;
 use App\Services\Audit\AuditLogger;
 use App\Services\Finance\AccountsPayablePaymentRegistrar;
+use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Finance\AccountsPayableBulkPaymentPayload;
 use App\Support\Finance\AccountsPayableInvoiceTaxSnapshot;
@@ -115,6 +116,19 @@ class AccountsPayablesTable
                     ->dateTime('d/m/Y H:i')
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('purchase_bcv_rate')
+                    ->label('Tasa BCV registro')
+                    ->alignEnd()
+                    ->badge()
+                    ->color(fn (?float $state): string => ($state ?? 0) > 0 ? 'warning' : 'gray')
+                    ->weight('bold')
+                    ->icon(Heroicon::CurrencyDollar)
+                    ->iconColor(fn (?float $state): string => ($state ?? 0) > 0 ? 'warning' : 'gray')
+                    ->state(fn (AccountsPayable $record): ?float => AccountsPayableInvoiceTaxSnapshot::purchaseRegistrationBcvRate($record))
+                    ->formatStateUsing(fn (?float $state): string => $state !== null
+                        ? number_format($state, 4, ',', '.').' Bs/USD'
+                        : '—')
+                    ->tooltip('Tasa BCV del día del registro de la compra (usada para convertir el total a pagar a USD).'),
                 TextColumn::make('purchase_total_usd')
                     ->label('Total (USD)')
                     ->alignEnd()
@@ -238,10 +252,25 @@ class AccountsPayablesTable
                     ->alignEnd()
                     ->formatStateUsing(fn ($state): string => self::formatBs((float) $state))
                     ->weight('semibold')
-                    ->description(fn (AccountsPayable $record): ?string => $record->last_balance_recalculated_at !== null
-                        ? 'Act. '.$record->last_balance_recalculated_at->timezone(config('app.timezone'))->format('d/m/Y H:i')
-                        : null)
-                    ->tooltip('Saldo revalorizado con la tasa BCV del día (use «Sincronizar saldos BCV» arriba).')
+                    ->description(function (AccountsPayable $record): ?string {
+                        if ($record->last_balance_recalculated_at === null) {
+                            return null;
+                        }
+
+                        $parts = [
+                            'Act. '.$record->last_balance_recalculated_at
+                                ->timezone(config('app.timezone'))
+                                ->format('d/m/Y H:i'),
+                        ];
+
+                        $rate = self::todayBcvRate();
+                        if ($rate !== null && $rate > 0) {
+                            $parts[] = 'BCV '.number_format($rate, 4, ',', '.');
+                        }
+
+                        return implode(' · ', $parts);
+                    })
+                    ->tooltip('Total a pagar ÷ tasa BCV del registro × tasa BCV del día (use «Sincronizar saldos BCV» arriba).')
                     ->summarize(
                         Sum::make()
                             ->label('Suma')
@@ -476,6 +505,20 @@ class AccountsPayablesTable
     private static function formatBs(float $amount): string
     {
         return 'Bs '.number_format($amount, 2, ',', '.');
+    }
+
+    private static ?float $todayBcvRateCache = null;
+
+    private static bool $todayBcvRateResolved = false;
+
+    private static function todayBcvRate(): ?float
+    {
+        if (! self::$todayBcvRateResolved) {
+            self::$todayBcvRateCache = app(VenezuelaOfficialUsdVesRateClient::class)->rateForDate(now());
+            self::$todayBcvRateResolved = true;
+        }
+
+        return self::$todayBcvRateCache;
     }
 
     private static function viewPurchaseFromInvoiceAction(): Action

@@ -14474,6 +14474,26 @@ html:not(.dark) .fi-hr-employee-hero__stat-sub {
 .fi-hr-payroll-detail {
     display: grid;
     gap: 1.25rem;
+    min-width: 0;
+}
+
+.fi-hr-payroll-detail__table {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.fi-hr-payroll-detail__table .fi-ta-ctn,
+.fi-hr-payroll-detail__table .fi-ta-content,
+.fi-hr-payroll-detail__table .fi-ta-main {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.fi-hr-payroll-detail__table .fi-ta-table {
+    width: max-content;
+    min-width: 100%;
 }
 
 .fi-hr-payroll-detail__table-heading {
@@ -14741,6 +14761,315 @@ html:not(.dark) .fi-hr-payroll-hero__stat--loan .fi-hr-payroll-hero__stat-sub {
 
 html:not(.dark) .fi-hr-line-items__title {
     color: rgb(15 23 42);
+}
+
+.fi-hr-line-items__profile {
+    display: grid;
+    gap: 0.85rem;
+    padding: 0.95rem 1rem;
+    border-radius: 0.95rem;
+    border: 1px solid rgb(255 255 255 / 0.08);
+    background:
+        linear-gradient(160deg, rgb(20 184 166 / 0.1), transparent 55%),
+        rgb(255 255 255 / 0.03);
+}
+
+html:not(.dark) .fi-hr-line-items__profile {
+    border-color: rgb(15 23 42 / 0.08);
+    background:
+        linear-gradient(160deg, rgb(13 148 136 / 0.08), transparent 55%),
+        rgb(248 250 252);
+}
+
+.fi-hr-line-items__profile-eyebrow {
+    margin: 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgb(148 163 184);
+}
+
+.fi-hr-line-items__profile-title {
+    margin: 0.15rem 0 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: rgb(248 250 252);
+}
+
+html:not(.dark) .fi-hr-line-items__profile-title {
+    color: rgb(15 23 42);
+}
+
+.fi-hr-line-items__contact-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+}
+
+@media (width >= 32rem) {
+    .fi-hr-line-items__contact-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .fi-hr-line-items__field--wide {
+        grid-column: auto;
+    }
+}
+
+.fi-hr-line-items__field {
+    min-width: 0;
+    display: grid;
+    gap: 0.2rem;
+}
+
+.fi-hr-line-items__field--wide {
+    grid-column: 1 / -1;
+}
+
+.fi-hr-line-items__field-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(148 163 184);
+}
+
+.fi-hr-line-items__field-value {
+    font-size: 0.9rem;
+    font-weight: 650;
+    color: rgb(248 250 252);
+    overflow-wrap: anywhere;
+}
+
+.fi-hr-line-items__field-value--wrap {
+    word-break: break-word;
+}
+
+.fi-hr-line-items__field-value--empty {
+    opacity: 0.55;
+    font-weight: 550;
+}
+
+html:not(.dark) .fi-hr-line-items__field-value {
+    color: rgb(15 23 42);
+}
+
+.fi-hr-line-items__copyable {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 0.3rem;
+    max-width: 100%;
+}
+
+.fi-hr-line-items__copyable .fi-hr-line-items__field-value,
+.fi-hr-line-items__copyable .fi-hr-line-items__account-number {
+    display: inline;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+    padding: 0.05rem 0.2rem;
+    margin-inline: -0.2rem;
+    border-radius: 0.3rem;
+    transition:
+        color 120ms ease,
+        background-color 120ms ease,
+        box-shadow 120ms ease;
+}
+
+.fi-hr-line-items__copyable .fi-hr-line-items__chip {
+    transition:
+        background-color 120ms ease,
+        box-shadow 120ms ease,
+        transform 120ms ease;
+}
+
+.fi-hr-line-items__copyable:hover .fi-hr-line-items__chip {
+    transform: translateY(-1px);
+}
+
+.fi-hr-line-items__copyable:hover .fi-hr-line-items__field-value,
+.fi-hr-line-items__copyable:hover .fi-hr-line-items__account-number {
+    color: rgb(125 211 252);
+    background: rgb(56 189 248 / 0.14);
+}
+
+.fi-hr-line-items__copyable:focus-visible {
+    outline: none;
+}
+
+.fi-hr-line-items__copyable:focus-visible .fi-hr-line-items__field-value,
+.fi-hr-line-items__copyable:focus-visible .fi-hr-line-items__account-number,
+.fi-hr-line-items__copyable:focus-visible .fi-hr-line-items__chip {
+    box-shadow: 0 0 0 2px rgb(56 189 248 / 0.45);
+}
+
+html:not(.dark) .fi-hr-line-items__copyable:hover .fi-hr-line-items__field-value,
+html:not(.dark) .fi-hr-line-items__copyable:hover .fi-hr-line-items__account-number {
+    color: rgb(3 105 161);
+    background: rgb(14 165 233 / 0.12);
+}
+
+.fi-hr-line-items__copyable:hover .fi-hr-line-items__chip--code {
+    background: rgb(252 228 34 / 0.28);
+    box-shadow: inset 0 0 0 1px rgb(252 228 34 / 0.55);
+}
+
+.fi-hr-line-items__copyable:hover .fi-hr-line-items__chip--type {
+    background: rgb(59 130 246 / 0.28);
+    box-shadow: inset 0 0 0 1px rgb(147 197 253 / 0.55);
+}
+
+.fi-hr-line-items__bank {
+    display: grid;
+    gap: 0.75rem;
+    padding: 0.85rem 0.95rem;
+    border-radius: 0.8rem;
+    border: 1px solid rgb(20 184 166 / 0.28);
+    background: rgb(20 184 166 / 0.08);
+}
+
+html:not(.dark) .fi-hr-line-items__bank {
+    border-color: rgb(13 148 136 / 0.22);
+    background: rgb(13 148 136 / 0.07);
+}
+
+.fi-hr-line-items__bank--empty {
+    border-color: rgb(148 163 184 / 0.25);
+    background: rgb(148 163 184 / 0.08);
+}
+
+.fi-hr-line-items__bank-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.55rem 0.75rem;
+}
+
+.fi-hr-line-items__bank-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.fi-hr-line-items__chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+}
+
+.fi-hr-line-items__chip--code {
+    background: rgb(252 228 34 / 0.16);
+    color: rgb(252 228 34);
+    box-shadow: inset 0 0 0 1px rgb(252 228 34 / 0.35);
+}
+
+html:not(.dark) .fi-hr-line-items__chip--code {
+    background: rgb(252 228 34 / 0.28);
+    color: rgb(113 63 18);
+    box-shadow: inset 0 0 0 1px rgb(202 138 4 / 0.35);
+}
+
+.fi-hr-line-items__chip--type {
+    background: rgb(59 130 246 / 0.16);
+    color: rgb(147 197 253);
+    box-shadow: inset 0 0 0 1px rgb(59 130 246 / 0.35);
+}
+
+html:not(.dark) .fi-hr-line-items__chip--type {
+    background: rgb(59 130 246 / 0.12);
+    color: rgb(29 78 216);
+    box-shadow: inset 0 0 0 1px rgb(59 130 246 / 0.25);
+}
+
+.fi-hr-line-items__field--account {
+    padding-top: 0.65rem;
+    border-top: 1px solid rgb(255 255 255 / 0.08);
+}
+
+html:not(.dark) .fi-hr-line-items__field--account {
+    border-top-color: rgb(15 23 42 / 0.08);
+}
+
+.fi-hr-line-items__account-number {
+    font-size: 1.05rem;
+    font-weight: 750;
+    letter-spacing: 0.03em;
+    font-variant-numeric: tabular-nums;
+    color: rgb(248 250 252);
+    overflow-wrap: anywhere;
+}
+
+html:not(.dark) .fi-hr-line-items__account-number {
+    color: rgb(15 23 42);
+}
+
+.fi-hr-line-items__pay-summary {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+}
+
+@media (width >= 28rem) {
+    .fi-hr-line-items__pay-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.fi-hr-line-items__pay-card {
+    min-width: 0;
+    border-radius: 0.8rem;
+    padding: 0.8rem 0.95rem;
+}
+
+.fi-hr-line-items__pay-card--usd {
+    background: rgb(16 185 129 / 0.08);
+    border: 1px solid rgb(16 185 129 / 0.25);
+}
+
+.fi-hr-line-items__pay-card--ves {
+    background: rgb(59 130 246 / 0.08);
+    border: 1px solid rgb(59 130 246 / 0.25);
+}
+
+.fi-hr-line-items__pay-label {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(148 163 184);
+}
+
+.fi-hr-line-items__pay-value {
+    margin: 0.3rem 0 0;
+    font-size: 1.05rem;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    color: rgb(248 250 252);
+}
+
+html:not(.dark) .fi-hr-line-items__pay-value {
+    color: rgb(15 23 42);
+}
+
+.fi-hr-line-items__pay-hint {
+    margin: 0.25rem 0 0;
+    font-size: 0.75rem;
+    color: rgb(148 163 184);
 }
 
 .fi-hr-line-items__list {

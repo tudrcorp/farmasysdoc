@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\EmployeeBankAccountType;
+use App\Enums\VenezuelanPagoMovilBank;
 use Database\Factories\EmployeeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -24,6 +26,9 @@ class Employee extends Model
         'phone',
         'email',
         'address',
+        'bank_account_number',
+        'bank_code',
+        'bank_account_type',
         'photo_path',
         'monthly_salary_usd',
         'first_half_usd_cash',
@@ -38,11 +43,26 @@ class Employee extends Model
     protected function casts(): array
     {
         return [
+            'bank_account_type' => EmployeeBankAccountType::class,
             'monthly_salary_usd' => 'decimal:2',
             'first_half_usd_cash' => 'decimal:2',
             'second_half_usd_cash' => 'decimal:2',
             'is_active' => 'boolean',
         ];
+    }
+
+    public function bank(): ?VenezuelanPagoMovilBank
+    {
+        if (! filled($this->bank_code)) {
+            return null;
+        }
+
+        return VenezuelanPagoMovilBank::tryFrom((string) $this->bank_code);
+    }
+
+    public function bankLabel(): ?string
+    {
+        return $this->bank()?->optionLabel();
     }
 
     public function biweeklyBaseUsd(): float

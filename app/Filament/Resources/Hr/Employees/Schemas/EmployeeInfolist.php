@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Hr\Employees\Schemas;
 
+use App\Enums\EmployeeBankAccountType;
 use App\Enums\HrLoanFrequency;
 use App\Enums\HrLoanStatus;
 use App\Enums\HrPayCurrencyBucket;
@@ -105,6 +106,43 @@ class EmployeeInfolist
                                 ->placeholder('—')
                                 ->copyable()
                                 ->copyMessage('Correo copiado'),
+                        ]),
+                    ])
+                    ->columnSpanFull(),
+
+                Section::make('Datos bancarios')
+                    ->description('Cuenta para transferencias de nómina.')
+                    ->icon(Heroicon::BuildingLibrary)
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'md' => 3,
+                        ])->schema([
+                            TextEntry::make('bank_code')
+                                ->label('Banco')
+                                ->icon(Heroicon::BuildingLibrary)
+                                ->state(fn (Employee $record): string => $record->bankLabel() ?? '—')
+                                ->placeholder('Sin banco'),
+                            TextEntry::make('bank_account_type')
+                                ->label('Tipo de cuenta')
+                                ->badge()
+                                ->formatStateUsing(fn (EmployeeBankAccountType|string|null $state): string => $state instanceof EmployeeBankAccountType
+                                    ? $state->label()
+                                    : (EmployeeBankAccountType::tryFrom((string) $state)?->label() ?? '—'))
+                                ->color(fn (EmployeeBankAccountType|string|null $state): string => match (
+                                    $state instanceof EmployeeBankAccountType ? $state : EmployeeBankAccountType::tryFrom((string) $state)
+                                ) {
+                                    EmployeeBankAccountType::Checking => 'info',
+                                    EmployeeBankAccountType::Savings => 'success',
+                                    default => 'gray',
+                                })
+                                ->placeholder('—'),
+                            TextEntry::make('bank_account_number')
+                                ->label('Número de cuenta')
+                                ->icon(Heroicon::Hashtag)
+                                ->placeholder('—')
+                                ->copyable()
+                                ->copyMessage('Número de cuenta copiado'),
                         ]),
                     ])
                     ->columnSpanFull(),

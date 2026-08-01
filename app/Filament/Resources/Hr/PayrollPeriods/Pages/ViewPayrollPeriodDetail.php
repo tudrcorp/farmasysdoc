@@ -219,12 +219,9 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
                 TextColumn::make('employee_name')
                     ->label('Empleado')
                     ->state(fn (PayrollLine $record): string => $record->employee?->fullName() ?? '—')
-                    ->description(fn (PayrollLine $record): ?string => $record->employee
-                        ? 'C.I. '.$record->employee->national_id
-                        : null)
+                    ->description(fn (PayrollLine $record): ?string => self::employeeContactSummary($record))
                     ->weight(FontWeight::SemiBold)
-                    ->icon(Heroicon::UserCircle)
-                    ->iconColor('primary')
+                    ->wrap()
                     ->url(fn (PayrollLine $record): ?string => $record->employee_id
                         ? EmployeeResource::getUrl('view', ['record' => $record->employee_id])
                         : null)
@@ -233,43 +230,90 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
                         $query->whereHas('employee', function ($q) use ($search): void {
                             $q->where('first_name', 'like', "%{$search}%")
                                 ->orWhere('last_name', 'like', "%{$search}%")
-                                ->orWhere('national_id', 'like', "%{$search}%");
+                                ->orWhere('national_id', 'like', "%{$search}%")
+                                ->orWhere('bank_account_number', 'like', "%{$search}%")
+                                ->orWhere('phone', 'like', "%{$search}%")
+                                ->orWhere('email', 'like', "%{$search}%");
                         });
                     }),
+
+                TextColumn::make('employee.national_id')
+                    ->label('Cédula')
+                    ->placeholder('—')
+                    ->limit(18)
+                    ->tooltip(fn (PayrollLine $record): ?string => $record->employee?->national_id)
+                    ->copyable()
+                    ->sortable(),
+
+                TextColumn::make('banking')
+                    ->label('Datos bancarios')
+                    ->state(fn (PayrollLine $record): string => self::bankingSummary($record))
+                    ->description(fn (PayrollLine $record): ?string => filled($record->employee?->bank_account_number)
+                        ? 'Cuenta '.$record->employee->bank_account_number
+                        : 'Sin cuenta')
+                    ->wrap()
+                    ->toggleable(),
+
+                TextColumn::make('employee.phone')
+                    ->label('Teléfono')
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('employee.email')
+                    ->label('Email')
+                    ->placeholder('—')
+                    ->limit(28)
+                    ->tooltip(fn (PayrollLine $record): ?string => $record->employee?->email)
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('employee.bank_code')
+                    ->label('Código banco')
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('employee.bank_account_number')
+                    ->label('Nº de cuenta')
+                    ->placeholder('—')
+                    ->copyable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('employee.branch.name')
                     ->label('Sucursal')
                     ->badge()
                     ->color('gray')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('base_salary_usd')
                     ->label('Base')
                     ->alignEnd()
                     ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->formatStateUsing(fn ($state): string => self::usd((float) $state))
                     ->description(fn (PayrollLine $record): string => self::ves((float) $record->base_salary_ves)),
 
                 TextColumn::make('assignments_usd')
-                    ->label('Asignaciones')
+                    ->label('Asig.')
                     ->alignEnd()
                     ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->formatStateUsing(fn ($state): string => self::usd((float) $state))
                     ->description(fn (PayrollLine $record): string => self::ves((float) $record->assignments_ves))
                     ->color(fn (PayrollLine $record): string => (float) $record->assignments_usd > 0 ? 'success' : 'gray'),
 
                 TextColumn::make('deductions_usd')
-                    ->label('Deducciones')
+                    ->label('Ded.')
                     ->alignEnd()
                     ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->formatStateUsing(fn ($state): string => self::usd((float) $state))
                     ->description(fn (PayrollLine $record): string => self::ves((float) $record->deductions_ves))
                     ->color(fn (PayrollLine $record): string => (float) $record->deductions_usd > 0 ? 'warning' : 'gray'),
 
                 TextColumn::make('loans_usd')
-                    ->label('Préstamos')
+                    ->label('Prést.')
                     ->alignEnd()
                     ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->formatStateUsing(fn ($state): string => self::usd((float) $state))
                     ->description(fn (PayrollLine $record): string => self::ves((float) $record->loans_ves))
                     ->color(fn (PayrollLine $record): string => (float) $record->loans_usd > 0 ? 'danger' : 'gray'),
@@ -280,10 +324,8 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
                     ->sortable()
                     ->weight(FontWeight::SemiBold)
                     ->formatStateUsing(fn ($state): string => self::usd((float) $state))
-                    ->description(fn (PayrollLine $record): string => 'Porción '.self::usd((float) $record->usd_cash_portion))
-                    ->color('success')
-                    ->icon(Heroicon::CurrencyDollar)
-                    ->iconColor('success'),
+                    ->description(fn (PayrollLine $record): string => self::usd((float) $record->usd_cash_portion).' bruto')
+                    ->color('success'),
 
                 TextColumn::make('cash_paid_ves')
                     ->label('Pagar Bs')
@@ -291,10 +333,8 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
                     ->sortable()
                     ->weight(FontWeight::SemiBold)
                     ->formatStateUsing(fn ($state): string => self::ves((float) $state))
-                    ->description(fn (PayrollLine $record): string => 'Porción '.self::usd((float) $record->ves_portion_usd).' × BCV')
-                    ->color('info')
-                    ->icon(Heroicon::Banknotes)
-                    ->iconColor('info'),
+                    ->description(fn (PayrollLine $record): string => self::usd((float) $record->ves_portion_usd).' × BCV')
+                    ->color('info'),
 
                 TextColumn::make('net_usd')
                     ->label('Neto contable')
@@ -365,5 +405,38 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
     private static function ves(float $amount): string
     {
         return 'Bs '.number_format($amount, 2, ',', '.');
+    }
+
+    private static function employeeContactSummary(PayrollLine $record): ?string
+    {
+        $employee = $record->employee;
+        if ($employee === null) {
+            return null;
+        }
+
+        $parts = array_filter([
+            filled($employee->national_id) ? 'C.I. '.$employee->national_id : null,
+            filled($employee->phone) ? (string) $employee->phone : null,
+            filled($employee->email) ? (string) $employee->email : null,
+        ]);
+
+        return $parts === [] ? null : implode(' · ', $parts);
+    }
+
+    private static function bankingSummary(PayrollLine $record): string
+    {
+        $employee = $record->employee;
+        if ($employee === null) {
+            return '—';
+        }
+
+        $bank = $employee->bank();
+        if ($bank !== null) {
+            return $bank->value.' · '.$bank->bankName();
+        }
+
+        return filled($employee->bank_code)
+            ? (string) $employee->bank_code
+            : '—';
     }
 }

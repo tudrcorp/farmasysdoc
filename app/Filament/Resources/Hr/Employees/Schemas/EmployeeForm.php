@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Hr\Employees\Schemas;
 
+use App\Enums\EmployeeBankAccountType;
+use App\Enums\VenezuelanPagoMovilBank;
 use App\Services\Hr\HrBcvRateResolver;
 use App\Services\Hr\HrUsdVesConverter;
 use Filament\Forms\Components\FileUpload;
@@ -74,6 +76,36 @@ class EmployeeForm
                             ->visibility('public')
                             ->maxSize(2048)
                             ->columnSpanFull(),
+                    ])
+                    ->columnSpanFull(),
+
+                Section::make('Datos bancarios')
+                    ->icon(Heroicon::BuildingLibrary)
+                    ->description('Cuenta para depositar el pago en bolívares u otras transferencias de nómina.')
+                    ->schema([
+                        Grid::make(2)->schema([
+                            Select::make('bank_code')
+                                ->label('Banco')
+                                ->options(VenezuelanPagoMovilBank::optionsForSelect())
+                                ->searchable()
+                                ->native(false)
+                                ->placeholder('Seleccione el banco')
+                                ->helperText('Se guarda con su código de 4 dígitos.'),
+                            Select::make('bank_account_type')
+                                ->label('Tipo de cuenta')
+                                ->options(EmployeeBankAccountType::options())
+                                ->native(false)
+                                ->placeholder('Corriente o ahorro'),
+                            TextInput::make('bank_account_number')
+                                ->label('Número de cuenta')
+                                ->maxLength(30)
+                                ->rule('regex:/^[0-9\s-]+$/')
+                                ->dehydrateStateUsing(fn (?string $state): ?string => filled($state)
+                                    ? preg_replace('/\D+/', '', $state)
+                                    : null)
+                                ->helperText('Solo dígitos (hasta 20). Se normalizan al guardar.')
+                                ->columnSpanFull(),
+                        ]),
                     ])
                     ->columnSpanFull(),
 

@@ -7,8 +7,8 @@
         body {
             font-family: DejaVu Sans, sans-serif;
             color: #1f2937;
-            font-size: 9px;
-            line-height: 1.35;
+            font-size: 8px;
+            line-height: 1.3;
         }
         .header {
             margin-bottom: 12px;
@@ -42,6 +42,7 @@
             border: 1px solid #e5e7eb;
             padding: 5px 7px;
             vertical-align: top;
+            font-size: 9px;
         }
         .summary-label {
             width: 22%;
@@ -51,14 +52,14 @@
         .detail-table th,
         .detail-table td {
             border: 1px solid #d1d5db;
-            padding: 4px 5px;
+            padding: 3px 4px;
             text-align: left;
             vertical-align: top;
         }
         .detail-table th {
             background: #f3f4f6;
             font-weight: 700;
-            font-size: 8px;
+            font-size: 7px;
         }
         .numeric {
             text-align: right;
@@ -75,6 +76,11 @@
         .totals-row td {
             background: #f9fafb;
             font-weight: 700;
+        }
+        .emp-meta {
+            color: #6b7280;
+            font-size: 7px;
+            margin-top: 1px;
         }
     </style>
 </head>
@@ -131,25 +137,34 @@
             <tr>
                 <th>Empleado</th>
                 <th>Cédula</th>
-                <th>Sucursal</th>
-                <th class="numeric">Base</th>
-                <th class="numeric">Asig.</th>
-                <th class="numeric">Ded.</th>
-                <th class="numeric">Prést.</th>
+                <th>Teléfono</th>
+                <th>Email</th>
+                <th>Banco</th>
+                <th>Cód.</th>
+                <th>Nº cuenta</th>
                 <th class="numeric">Pagar USD</th>
                 <th class="numeric">Pagar Bs</th>
             </tr>
         </thead>
         <tbody>
             @forelse ($lines as $line)
+                @php
+                    $employee = $line->employee;
+                    $bank = $employee?->bank();
+                @endphp
                 <tr>
-                    <td>{{ $line->employee?->fullName() ?? '—' }}</td>
-                    <td>{{ $line->employee?->national_id ?? '—' }}</td>
-                    <td>{{ $line->employee?->branch?->name ?? '—' }}</td>
-                    <td class="numeric">{{ number_format((float) $line->base_salary_usd, 2, ',', '.') }}</td>
-                    <td class="numeric">{{ number_format((float) $line->assignments_usd, 2, ',', '.') }}</td>
-                    <td class="numeric">{{ number_format((float) $line->deductions_usd, 2, ',', '.') }}</td>
-                    <td class="numeric">{{ number_format((float) $line->loans_usd, 2, ',', '.') }}</td>
+                    <td>
+                        {{ $employee?->fullName() ?? '—' }}
+                        @if ($employee?->branch?->name)
+                            <div class="emp-meta">{{ $employee->branch->name }}</div>
+                        @endif
+                    </td>
+                    <td>{{ $employee?->national_id ?? '—' }}</td>
+                    <td>{{ $employee?->phone ?: '—' }}</td>
+                    <td>{{ $employee?->email ?: '—' }}</td>
+                    <td>{{ $bank?->bankName() ?? '—' }}</td>
+                    <td>{{ $employee?->bank_code ?: '—' }}</td>
+                    <td>{{ $employee?->bank_account_number ?: '—' }}</td>
                     <td class="numeric pay-usd">{{ number_format((float) $line->cash_paid_usd, 2, ',', '.') }}</td>
                     <td class="numeric pay-ves">{{ number_format((float) $line->cash_paid_ves, 2, ',', '.') }}</td>
                 </tr>
@@ -160,11 +175,7 @@
             @endforelse
             @if ($lines->isNotEmpty())
                 <tr class="totals-row">
-                    <td colspan="3">Totales</td>
-                    <td class="numeric">{{ number_format($totals['base_salary_usd'], 2, ',', '.') }}</td>
-                    <td class="numeric">{{ number_format($totals['assignments_usd'], 2, ',', '.') }}</td>
-                    <td class="numeric">{{ number_format($totals['deductions_usd'], 2, ',', '.') }}</td>
-                    <td class="numeric">{{ number_format($totals['loans_usd'], 2, ',', '.') }}</td>
+                    <td colspan="7">Totales</td>
                     <td class="numeric pay-usd">{{ number_format($totals['cash_paid_usd'], 2, ',', '.') }}</td>
                     <td class="numeric pay-ves">{{ number_format($totals['cash_paid_ves'], 2, ',', '.') }}</td>
                 </tr>

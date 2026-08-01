@@ -1,9 +1,32 @@
 @php
     use App\Enums\HrPayCurrencyBucket;
     use App\Enums\PayrollLineItemType;
+    use Illuminate\Support\Js;
 
     $employeeName = $employeeName ?? 'Empleado';
     /** @var \App\Models\PayrollLine|null $line */
+
+    $copyableAttrs = static function (?string $value, string $message = 'Copiado'): ?string {
+        if (! filled($value)) {
+            return null;
+        }
+
+        $text = Js::from($value);
+        $tooltip = Js::from($message);
+
+        return <<<HTML
+            type="button"
+            class="fi-hr-line-items__copyable"
+            title="Clic para copiar"
+            x-on:click="
+                window.navigator.clipboard.writeText({$text})
+                \$tooltip({$tooltip}, {
+                    theme: \$store.theme,
+                    timeout: 1500,
+                })
+            "
+        HTML;
+    };
 @endphp
 
 <div class="fi-hr-line-items">
@@ -13,22 +36,119 @@
     </div>
 
     @if (isset($line))
-        <div class="fi-hr-line-items__pay-summary" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
-            <div style="border-radius:0.75rem;padding:0.75rem 1rem;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);">
-                <p style="margin:0;font-size:0.75rem;opacity:0.75;">Pagar en USD</p>
-                <p style="margin:0.25rem 0 0;font-weight:700;font-size:1.05rem;">
+        @php
+            $employee = $line->employee;
+            $bank = $employee?->bank();
+            $accountType = $employee?->bank_account_type;
+            $accountTypeLabel = $accountType?->label() ?? null;
+            $bankName = $bank?->bankName();
+            $bankCode = filled($employee?->bank_code) ? (string) $employee->bank_code : null;
+            $accountNumber = filled($employee?->bank_account_number) ? (string) $employee->bank_account_number : null;
+            $nationalId = filled($employee?->national_id) ? (string) $employee->national_id : null;
+            $phone = filled($employee?->phone) ? (string) $employee->phone : null;
+            $email = filled($employee?->email) ? (string) $employee->email : null;
+            $hasBanking = filled($bankCode) || filled($accountNumber) || filled($accountTypeLabel);
+        @endphp
+
+        @if ($employee)
+            <section class="fi-hr-line-items__profile">
+                <div class="fi-hr-line-items__profile-head">
+                    <p class="fi-hr-line-items__profile-eyebrow">Datos del empleado</p>
+                    <p class="fi-hr-line-items__profile-title">Contacto y cuenta bancaria</p>
+                </div>
+
+                <div class="fi-hr-line-items__contact-grid">
+                    <div class="fi-hr-line-items__field">
+                        <span class="fi-hr-line-items__field-label">Cédula</span>
+                        @if ($nationalId)
+                            <button {!! $copyableAttrs($nationalId, 'Cédula copiada') !!}>
+                                <span class="fi-hr-line-items__field-value">{{ $nationalId }}</span>
+                            </button>
+                        @else
+                            <span class="fi-hr-line-items__field-value fi-hr-line-items__field-value--empty">—</span>
+                        @endif
+                    </div>
+                    <div class="fi-hr-line-items__field">
+                        <span class="fi-hr-line-items__field-label">Teléfono</span>
+                        @if ($phone)
+                            <button {!! $copyableAttrs($phone, 'Teléfono copiado') !!}>
+                                <span class="fi-hr-line-items__field-value">{{ $phone }}</span>
+                            </button>
+                        @else
+                            <span class="fi-hr-line-items__field-value fi-hr-line-items__field-value--empty">—</span>
+                        @endif
+                    </div>
+                    <div class="fi-hr-line-items__field fi-hr-line-items__field--wide">
+                        <span class="fi-hr-line-items__field-label">Email</span>
+                        @if ($email)
+                            <button {!! $copyableAttrs($email, 'Email copiado') !!}>
+                                <span class="fi-hr-line-items__field-value fi-hr-line-items__field-value--wrap">{{ $email }}</span>
+                            </button>
+                        @else
+                            <span class="fi-hr-line-items__field-value fi-hr-line-items__field-value--empty">—</span>
+                        @endif
+                    </div>
+                </div>
+
+                <div class="fi-hr-line-items__bank @if (! $hasBanking) fi-hr-line-items__bank--empty @endif">
+                    <div class="fi-hr-line-items__bank-main">
+                        <div class="fi-hr-line-items__field">
+                            <span class="fi-hr-line-items__field-label">Banco</span>
+                            @if ($bankName)
+                                <button {!! $copyableAttrs($bankName, 'Banco copiado') !!}>
+                                    <span class="fi-hr-line-items__field-value">{{ $bankName }}</span>
+                                </button>
+                            @elseif ($bankCode)
+                                <button {!! $copyableAttrs($bankCode, 'Código de banco copiado') !!}>
+                                    <span class="fi-hr-line-items__field-value">Banco {{ $bankCode }}</span>
+                                </button>
+                            @else
+                                <span class="fi-hr-line-items__field-value fi-hr-line-items__field-value--empty">Sin banco</span>
+                            @endif
+                        </div>
+                        <div class="fi-hr-line-items__bank-badges">
+                            @if ($bankCode)
+                                <button {!! $copyableAttrs($bankCode, 'Código de banco copiado') !!}>
+                                    <span class="fi-hr-line-items__chip fi-hr-line-items__chip--code">{{ $bankCode }}</span>
+                                </button>
+                            @endif
+                            @if (filled($accountTypeLabel))
+                                <button {!! $copyableAttrs($accountTypeLabel, 'Tipo de cuenta copiado') !!}>
+                                    <span class="fi-hr-line-items__chip fi-hr-line-items__chip--type">{{ $accountTypeLabel }}</span>
+                                </button>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="fi-hr-line-items__field fi-hr-line-items__field--account">
+                        <span class="fi-hr-line-items__field-label">Número de cuenta</span>
+                        @if ($accountNumber)
+                            <button {!! $copyableAttrs($accountNumber, 'Número de cuenta copiado') !!}>
+                                <span class="fi-hr-line-items__account-number">{{ $accountNumber }}</span>
+                            </button>
+                        @else
+                            <span class="fi-hr-line-items__account-number fi-hr-line-items__field-value--empty">Sin número de cuenta</span>
+                        @endif
+                    </div>
+                </div>
+            </section>
+        @endif
+
+        <div class="fi-hr-line-items__pay-summary">
+            <div class="fi-hr-line-items__pay-card fi-hr-line-items__pay-card--usd">
+                <p class="fi-hr-line-items__pay-label">Pagar en USD</p>
+                <p class="fi-hr-line-items__pay-value">
                     US$ {{ number_format((float) $line->cash_paid_usd, 2, ',', '.') }}
                 </p>
-                <p style="margin:0.25rem 0 0;font-size:0.75rem;opacity:0.7;">
+                <p class="fi-hr-line-items__pay-hint">
                     Porción bruta US$ {{ number_format((float) $line->usd_cash_portion, 2, ',', '.') }}
                 </p>
             </div>
-            <div style="border-radius:0.75rem;padding:0.75rem 1rem;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
-                <p style="margin:0;font-size:0.75rem;opacity:0.75;">Pagar en Bs</p>
-                <p style="margin:0.25rem 0 0;font-weight:700;font-size:1.05rem;">
+            <div class="fi-hr-line-items__pay-card fi-hr-line-items__pay-card--ves">
+                <p class="fi-hr-line-items__pay-label">Pagar en Bs</p>
+                <p class="fi-hr-line-items__pay-value">
                     Bs {{ number_format((float) $line->cash_paid_ves, 2, ',', '.') }}
                 </p>
-                <p style="margin:0.25rem 0 0;font-size:0.75rem;opacity:0.7;">
+                <p class="fi-hr-line-items__pay-hint">
                     Porción US$ {{ number_format((float) $line->ves_portion_usd, 2, ',', '.') }} × BCV
                 </p>
             </div>

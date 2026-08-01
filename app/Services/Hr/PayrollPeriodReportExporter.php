@@ -120,6 +120,11 @@ final class PayrollPeriodReportExporter
         return [
             'Empleado',
             'Cédula',
+            'Teléfono',
+            'Email',
+            'Banco',
+            'Código banco',
+            'Número de cuenta',
             'Sucursal',
             'Base USD',
             'Asignaciones USD',
@@ -140,10 +145,17 @@ final class PayrollPeriodReportExporter
      */
     private function detailRow(PayrollLine $line): array
     {
+        $employee = $line->employee;
+
         return [
-            $line->employee?->fullName() ?? '—',
-            (string) ($line->employee?->national_id ?? '—'),
-            (string) ($line->employee?->branch?->name ?? '—'),
+            $employee?->fullName() ?? '—',
+            (string) ($employee?->national_id ?? '—'),
+            (string) ($employee?->phone ?? '—'),
+            (string) ($employee?->email ?? '—'),
+            $employee?->bank()?->bankName() ?? '—',
+            (string) ($employee?->bank_code ?? '—'),
+            (string) ($employee?->bank_account_number ?? '—'),
+            (string) ($employee?->branch?->name ?? '—'),
             $this->num((float) $line->base_salary_usd),
             $this->num((float) $line->assignments_usd),
             $this->num((float) $line->deductions_usd),

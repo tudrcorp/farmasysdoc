@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Enums\HrLoanFrequency;
 use App\Enums\HrLoanInstallmentMode;
 use App\Enums\HrLoanStatus;
+use App\Enums\HrPayCurrencyBucket;
 use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\HrLoan;
@@ -29,6 +30,7 @@ class HrLoanFactory extends Factory
             'branch_id' => Branch::factory(),
             'concept' => fake()->sentence(3),
             'amount_usd' => $amount,
+            'pay_currency_bucket' => HrPayCurrencyBucket::Ves,
             'remaining_usd' => $amount,
             'frequency' => HrLoanFrequency::Biweekly,
             'installment_mode' => HrLoanInstallmentMode::Fixed,

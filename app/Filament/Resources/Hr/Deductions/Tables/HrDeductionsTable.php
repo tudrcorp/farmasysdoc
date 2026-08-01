@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Hr\Deductions\Tables;
 
+use App\Enums\HrPayCurrencyBucket;
 use App\Enums\HrRecurrence;
 use App\Models\HrDeduction;
 use Filament\Actions\BulkActionGroup;
@@ -40,6 +41,19 @@ class HrDeductionsTable
                     ->money('USD')
                     ->alignEnd()
                     ->sortable(),
+                TextColumn::make('pay_currency_bucket')
+                    ->label('Bolsillo')
+                    ->badge()
+                    ->formatStateUsing(fn (HrPayCurrencyBucket|string|null $state): string => $state instanceof HrPayCurrencyBucket
+                        ? $state->label()
+                        : (HrPayCurrencyBucket::tryFrom((string) $state)?->label() ?? '—'))
+                    ->color(fn (HrPayCurrencyBucket|string|null $state): string => match (
+                        $state instanceof HrPayCurrencyBucket ? $state : HrPayCurrencyBucket::tryFrom((string) $state)
+                    ) {
+                        HrPayCurrencyBucket::Usd => 'success',
+                        HrPayCurrencyBucket::Ves => 'info',
+                        default => 'gray',
+                    }),
                 TextColumn::make('recurrence')
                     ->label('Recurrencia')
                     ->badge()

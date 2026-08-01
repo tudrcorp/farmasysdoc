@@ -98,7 +98,96 @@ class EmployeeForm
                         ]),
                     ])
                     ->columnSpanFull(),
+
+                Section::make('Forma de pago por quincena')
+                    ->icon(Heroicon::CurrencyDollar)
+                    ->description(fn (Get $get): string => self::biweeklyBaseDescription($get('monthly_salary_usd')))
+                    ->schema([
+                        Grid::make(2)->schema([
+                            TextInput::make('first_half_usd_cash')
+                                ->label('USD efectivo — 1.ª quincena (día 15)')
+                                ->numeric()
+                                ->minValue(0)
+                                ->step(0.01)
+                                ->required()
+                                ->default(0)
+                                ->prefix('US$')
+                                ->live(onBlur: true)
+                                ->rule(fn (Get $get): \Closure => self::usdCashMaxRule($get))
+                                ->helperText(fn (Get $get): HtmlString|string => self::remainderHint(
+                                    $get('monthly_salary_usd'),
+                                    $get('first_half_usd_cash'),
+                                )),
+                            TextInput::make('second_half_usd_cash')
+                                ->label('USD efectivo — 2.ª quincena (fin de mes)')
+                                ->numeric()
+                                ->minValue(0)
+                                ->step(0.01)
+                                ->required()
+                                ->default(0)
+                                ->prefix('US$')
+                                ->live(onBlur: true)
+                                ->rule(fn (Get $get): \Closure => self::usdCashMaxRule($get))
+                                ->helperText(fn (Get $get): HtmlString|string => self::remainderHint(
+                                    $get('monthly_salary_usd'),
+                                    $get('second_half_usd_cash'),
+                                )),
+                        ]),
+                    ])
+                    ->columnSpanFull(),
             ]);
+    }
+
+    private static function biweeklyBaseDescription(mixed $monthlySalary): string
+    {
+        if (! is_numeric($monthlySalary) || (float) $monthlySalary <= 0) {
+            return 'Indique el sueldo mensual. La base de cada quincena es sueldo ÷ 2; el resto de esa base (tras el USD efectivo) se paga en bolívares a tasa BCV.';
+        }
+
+        $base = number_format(round((float) $monthlySalary / 2, 2), 2, ',', '.');
+
+        return "Base quincenal: US$ {$base}. Configure cuánto de esa base se paga en efectivo USD; el resto va en Bs a tasa BCV.";
+    }
+
+    private static function usdCashMaxRule(Get $get): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+            if (! is_numeric($value)) {
+                return;
+            }
+
+            $monthly = $get('monthly_salary_usd');
+            if (! is_numeric($monthly) || (float) $monthly <= 0) {
+                return;
+            }
+
+            $max = round((float) $monthly / 2, 2);
+            if ((float) $value > $max) {
+                $fail('No puede superar la base quincenal (US$ '.number_format($max, 2, ',', '.').').');
+            }
+        };
+    }
+
+    private static function remainderHint(mixed $monthlySalary, mixed $usdCash): HtmlString|string
+    {
+        if (! is_numeric($monthlySalary) || (float) $monthlySalary <= 0) {
+            return 'Resto de la base quincenal en bolívares (tasa BCV).';
+        }
+
+        $base = round((float) $monthlySalary / 2, 2);
+        $cash = is_numeric($usdCash) ? max(0, (float) $usdCash) : 0.0;
+        $remainderUsd = round(max(0, $base - $cash), 2);
+
+        $rate = app(HrBcvRateResolver::class)->resolveForDate(now());
+        if ($rate === null) {
+            return 'Resto en Bs: US$ '.number_format($remainderUsd, 2, ',', '.').' (tasa BCV no disponible).';
+        }
+
+        $ves = number_format(HrUsdVesConverter::toVes($remainderUsd, $rate), 2, ',', '.');
+
+        return new HtmlString(
+            'Resto en Bs: <strong>US$ '.number_format($remainderUsd, 2, ',', '.').'</strong> ≈ <strong>Bs '.$ves.'</strong>',
+        );
     }
 
     private static function vesHint(mixed $usd): HtmlString|string

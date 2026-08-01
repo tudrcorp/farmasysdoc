@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Hr\Loans\Schemas;
 
 use App\Enums\HrLoanFrequency;
 use App\Enums\HrLoanInstallmentMode;
+use App\Enums\HrPayCurrencyBucket;
 use App\Models\Employee;
 use App\Models\User;
 use App\Services\Hr\HrBcvRateResolver;
@@ -58,6 +59,13 @@ class HrLoanForm
                             ->prefix('US$')
                             ->live(onBlur: true)
                             ->helperText(fn (Get $get): HtmlString|string => self::vesHint($get('amount_usd'))),
+                        Select::make('pay_currency_bucket')
+                            ->label('Bolsillo de descuento')
+                            ->options(HrPayCurrencyBucket::options())
+                            ->required()
+                            ->native(false)
+                            ->default(HrPayCurrencyBucket::Ves->value)
+                            ->helperText('Sobre qué porción del pago quincenal se descuentan las cuotas (monto siempre en USD).'),
                         Select::make('frequency')
                             ->label('Frecuencia de descuento')
                             ->options(HrLoanFrequency::options())

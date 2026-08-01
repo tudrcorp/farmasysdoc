@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Hr\Loans\Schemas;
 use App\Enums\HrLoanFrequency;
 use App\Enums\HrLoanInstallmentMode;
 use App\Enums\HrLoanStatus;
+use App\Enums\HrPayCurrencyBucket;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -24,6 +25,19 @@ class HrLoanInfolist
                         TextEntry::make('concept')->label('Concepto')->placeholder('—')->columnSpanFull(),
                         TextEntry::make('amount_usd')->label('Monto')->money('USD'),
                         TextEntry::make('remaining_usd')->label('Saldo')->money('USD'),
+                        TextEntry::make('pay_currency_bucket')
+                            ->label('Bolsillo de descuento')
+                            ->badge()
+                            ->formatStateUsing(fn (HrPayCurrencyBucket|string|null $state): string => $state instanceof HrPayCurrencyBucket
+                                ? $state->label()
+                                : (HrPayCurrencyBucket::tryFrom((string) $state)?->label() ?? '—'))
+                            ->color(fn (HrPayCurrencyBucket|string|null $state): string => match (
+                                $state instanceof HrPayCurrencyBucket ? $state : HrPayCurrencyBucket::tryFrom((string) $state)
+                            ) {
+                                HrPayCurrencyBucket::Usd => 'success',
+                                HrPayCurrencyBucket::Ves => 'info',
+                                default => 'gray',
+                            }),
                         TextEntry::make('frequency')
                             ->label('Frecuencia')
                             ->formatStateUsing(fn (HrLoanFrequency|string|null $state): string => $state instanceof HrLoanFrequency

@@ -5,6 +5,7 @@ namespace App\Services\Hr;
 use App\Enums\HrLoanFrequency;
 use App\Enums\HrLoanInstallmentMode;
 use App\Enums\HrLoanStatus;
+use App\Enums\HrPayCurrencyBucket;
 use App\Enums\HrRecurrence;
 use App\Enums\PayrollLineItemType;
 use App\Enums\PayrollPeriodStatus;
@@ -104,8 +105,10 @@ final class PayrollCalculator
      */
     private function calculateEmployeeLine(PayrollPeriod $period, Employee $employee, float $rate): array
     {
-        $baseUsd = round((float) $employee->monthly_salary_usd / 2, 2);
+        $baseUsd = $employee->biweeklyBaseUsd();
         $periodDate = $period->period_date->toDateString();
+        $usdCashPortion = $employee->usdCashForPeriod($period->isMonthEnd());
+        $vesPortionFromSalary = round(max(0, $baseUsd - $usdCashPortion), 2);
 
         $assignmentItems = [];
         $assignmentsUsd = 0.0;
@@ -117,20 +120,40 @@ final class PayrollCalculator
             $assignmentsUsd += $amount;
             $assignmentItems[] = [$assignment, $amount];
         }
+        $assignmentsUsd = round($assignmentsUsd, 2);
+
+        $vesPortionUsd = round($vesPortionFromSalary + $assignmentsUsd, 2);
 
         $deductionItems = [];
         $deductionsUsd = 0.0;
+        $deductionsUsdBucket = 0.0;
+        $deductionsVesBucket = 0.0;
+        $usdBucketConcepts = [];
+        $vesBucketConcepts = [];
+
         foreach ($employee->deductions as $deduction) {
             if (! $this->appliesOnPeriod($deduction, $periodDate)) {
                 continue;
             }
             $amount = round((float) $deduction->amount_usd, 2);
+            $bucket = $deduction->pay_currency_bucket ?? HrPayCurrencyBucket::Ves;
             $deductionsUsd += $amount;
-            $deductionItems[] = [$deduction, $amount];
+            $deductionItems[] = [$deduction, $amount, $bucket];
+
+            if ($bucket === HrPayCurrencyBucket::Usd) {
+                $deductionsUsdBucket += $amount;
+                $usdBucketConcepts[] = $deduction->concept.' (US$ '.number_format($amount, 2, ',', '.').')';
+            } else {
+                $deductionsVesBucket += $amount;
+                $vesBucketConcepts[] = $deduction->concept.' (US$ '.number_format($amount, 2, ',', '.').')';
+            }
         }
 
         $loanItems = [];
         $loansUsd = 0.0;
+        $loansUsdBucket = 0.0;
+        $loansVesBucket = 0.0;
+
         foreach ($employee->loans as $loan) {
             if ($loan->status !== HrLoanStatus::Active || (float) $loan->remaining_usd <= 0) {
                 continue;
@@ -145,25 +168,62 @@ final class PayrollCalculator
                 continue;
             }
 
+            $bucket = $loan->pay_currency_bucket ?? HrPayCurrencyBucket::Ves;
             $loansUsd += $amount;
-            $loanItems[] = [$loan, $amount];
+            $loanItems[] = [$loan, $amount, $bucket];
+            $label = ($loan->concept ?: 'Descuento por préstamo').' (US$ '.number_format($amount, 2, ',', '.').')';
+
+            if ($bucket === HrPayCurrencyBucket::Usd) {
+                $loansUsdBucket += $amount;
+                $usdBucketConcepts[] = $label;
+            } else {
+                $loansVesBucket += $amount;
+                $vesBucketConcepts[] = $label;
+            }
         }
 
+        $usdDiscounts = round($deductionsUsdBucket + $loansUsdBucket, 2);
+        $vesDiscounts = round($deductionsVesBucket + $loansVesBucket, 2);
+
+        $this->assertBucketNotExceeded(
+            $employee,
+            HrPayCurrencyBucket::Usd,
+            $usdDiscounts,
+            $usdCashPortion,
+            $usdBucketConcepts,
+        );
+        $this->assertBucketNotExceeded(
+            $employee,
+            HrPayCurrencyBucket::Ves,
+            $vesDiscounts,
+            $vesPortionUsd,
+            $vesBucketConcepts,
+        );
+
+        $cashPaidUsd = round(max(0, $usdCashPortion - $usdDiscounts), 2);
+        $cashPaidVes = HrUsdVesConverter::toVes(round(max(0, $vesPortionUsd - $vesDiscounts), 2), $rate);
+
+        $deductionsUsd = round($deductionsUsd, 2);
+        $loansUsd = round($loansUsd, 2);
         $netUsd = round($baseUsd + $assignmentsUsd - $deductionsUsd - $loansUsd, 2);
 
         $line = PayrollLine::query()->create([
             'payroll_period_id' => $period->id,
             'employee_id' => $employee->id,
             'base_salary_usd' => $baseUsd,
-            'assignments_usd' => round($assignmentsUsd, 2),
-            'deductions_usd' => round($deductionsUsd, 2),
-            'loans_usd' => round($loansUsd, 2),
+            'usd_cash_portion' => $usdCashPortion,
+            'ves_portion_usd' => $vesPortionUsd,
+            'assignments_usd' => $assignmentsUsd,
+            'deductions_usd' => $deductionsUsd,
+            'loans_usd' => $loansUsd,
             'net_usd' => $netUsd,
             'base_salary_ves' => HrUsdVesConverter::toVes($baseUsd, $rate),
             'assignments_ves' => HrUsdVesConverter::toVes($assignmentsUsd, $rate),
             'deductions_ves' => HrUsdVesConverter::toVes($deductionsUsd, $rate),
             'loans_ves' => HrUsdVesConverter::toVes($loansUsd, $rate),
             'net_ves' => HrUsdVesConverter::toVes($netUsd, $rate),
+            'cash_paid_usd' => $cashPaidUsd,
+            'cash_paid_ves' => $cashPaidVes,
             'bcv_ves_per_usd' => $rate,
         ]);
 
@@ -173,11 +233,19 @@ final class PayrollCalculator
             $this->createItem($line, PayrollLineItemType::Assignment, $assignment, $assignment->concept, $amount, $rate);
         }
 
-        foreach ($deductionItems as [$deduction, $amount]) {
-            $this->createItem($line, PayrollLineItemType::Deduction, $deduction, $deduction->concept, $amount, $rate);
+        foreach ($deductionItems as [$deduction, $amount, $bucket]) {
+            $this->createItem(
+                $line,
+                PayrollLineItemType::Deduction,
+                $deduction,
+                $deduction->concept,
+                $amount,
+                $rate,
+                $bucket,
+            );
         }
 
-        foreach ($loanItems as [$loan, $amount]) {
+        foreach ($loanItems as [$loan, $amount, $bucket]) {
             $this->createItem(
                 $line,
                 PayrollLineItemType::Loan,
@@ -185,16 +253,45 @@ final class PayrollCalculator
                 $loan->concept ?: 'Descuento por préstamo',
                 $amount,
                 $rate,
+                $bucket,
             );
             $this->applyLoanPayment($loan, $amount, $period, $line);
         }
 
         return [
-            'assignments_usd' => round($assignmentsUsd, 2),
-            'deductions_usd' => round($deductionsUsd, 2),
-            'loans_usd' => round($loansUsd, 2),
+            'assignments_usd' => $assignmentsUsd,
+            'deductions_usd' => $deductionsUsd,
+            'loans_usd' => $loansUsd,
             'net_usd' => $netUsd,
         ];
+    }
+
+    /**
+     * @param  list<string>  $concepts
+     */
+    private function assertBucketNotExceeded(
+        Employee $employee,
+        HrPayCurrencyBucket $bucket,
+        float $discounts,
+        float $portion,
+        array $concepts,
+    ): void {
+        if ($discounts <= $portion + 0.00001) {
+            return;
+        }
+
+        $conceptsText = $concepts === []
+            ? 'sin conceptos detallados'
+            : implode('; ', $concepts);
+
+        throw new InvalidArgumentException(sprintf(
+            'No se puede calcular la nómina de %s: los descuentos del bolsillo «%s» (US$ %s) superan la porción disponible (US$ %s). Conceptos: %s. Ajuste montos o el bolsillo en la ficha del empleado / deducciones / préstamos.',
+            $employee->fullName(),
+            $bucket->label(),
+            number_format($discounts, 2, ',', '.'),
+            number_format($portion, 2, ',', '.'),
+            $conceptsText,
+        ));
     }
 
     private function appliesOnPeriod(HrAssignment|HrDeduction $record, string $periodDate): bool
@@ -299,6 +396,7 @@ final class PayrollCalculator
         string $concept,
         float $amountUsd,
         float $rate,
+        ?HrPayCurrencyBucket $bucket = null,
     ): void {
         PayrollLineItem::query()->create([
             'payroll_line_id' => $line->id,
@@ -308,6 +406,7 @@ final class PayrollCalculator
             'concept' => $concept,
             'amount_usd' => $amountUsd,
             'amount_ves' => HrUsdVesConverter::toVes($amountUsd, $rate),
+            'pay_currency_bucket' => $bucket,
         ]);
     }
 }

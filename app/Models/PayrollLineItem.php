@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\HrPayCurrencyBucket;
 use App\Enums\PayrollLineItemType;
 use Database\Factories\PayrollLineItemFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -25,6 +26,7 @@ class PayrollLineItem extends Model
         'concept',
         'amount_usd',
         'amount_ves',
+        'pay_currency_bucket',
     ];
 
     /**
@@ -36,6 +38,7 @@ class PayrollLineItem extends Model
             'type' => PayrollLineItemType::class,
             'amount_usd' => 'decimal:2',
             'amount_ves' => 'decimal:2',
+            'pay_currency_bucket' => HrPayCurrencyBucket::class,
         ];
     }
 

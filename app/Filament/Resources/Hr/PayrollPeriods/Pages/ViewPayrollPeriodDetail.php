@@ -9,6 +9,7 @@ use App\Models\PayrollLine;
 use App\Models\PayrollPeriod;
 use App\Services\Hr\HrBcvRateResolver;
 use App\Services\Hr\PayrollCalculator;
+use App\Services\Hr\PayrollPeriodReportExporter;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\TextInput;
@@ -23,6 +24,7 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 class ViewPayrollPeriodDetail extends Page implements HasTable
@@ -114,7 +116,12 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
                         $this->record = $period->refresh();
                         Notification::make()->title('Nómina calculada')->success()->send();
                     } catch (Throwable $e) {
-                        Notification::make()->title('No se pudo calcular')->body($e->getMessage())->danger()->send();
+                        Notification::make()
+                            ->title('No se pudo calcular la nómina')
+                            ->body($e->getMessage())
+                            ->danger()
+                            ->persistent()
+                            ->send();
                     }
                 }),
             Action::make('close')
@@ -137,6 +144,55 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
                         Notification::make()->title('No se pudo cerrar')->body($e->getMessage())->danger()->send();
                     }
                 }),
+            ActionGroup::make([
+                Action::make('downloadPdf')
+                    ->label('Descargar PDF')
+                    ->icon(Heroicon::DocumentArrowDown)
+                    ->action(function (): ?StreamedResponse {
+                        try {
+                            /** @var PayrollPeriod $period */
+                            $period = $this->getRecord();
+
+                            return app(PayrollPeriodReportExporter::class)->streamPdf($period);
+                        } catch (Throwable $e) {
+                            Notification::make()
+                                ->title('No se pudo generar el PDF')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return null;
+                        }
+                    }),
+                Action::make('exportExcel')
+                    ->label('Exportar Excel (CSV)')
+                    ->icon(Heroicon::TableCells)
+                    ->action(function (): ?StreamedResponse {
+                        try {
+                            /** @var PayrollPeriod $period */
+                            $period = $this->getRecord();
+
+                            return app(PayrollPeriodReportExporter::class)->streamCsv($period);
+                        } catch (Throwable $e) {
+                            Notification::make()
+                                ->title('No se pudo exportar')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return null;
+                        }
+                    }),
+            ])
+                ->label('Reportes')
+                ->icon(Heroicon::ArrowDownTray)
+                ->color('gray')
+                ->button()
+                ->visible(fn (): bool => $this->getRecord() instanceof PayrollPeriod
+                    && in_array($this->getRecord()->status, [
+                        PayrollPeriodStatus::Calculated,
+                        PayrollPeriodStatus::Closed,
+                    ], true)),
         ];
     }
 
@@ -218,16 +274,36 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
                     ->description(fn (PayrollLine $record): string => self::ves((float) $record->loans_ves))
                     ->color(fn (PayrollLine $record): string => (float) $record->loans_usd > 0 ? 'danger' : 'gray'),
 
-                TextColumn::make('net_usd')
-                    ->label('Neto a pagar')
+                TextColumn::make('cash_paid_usd')
+                    ->label('Pagar USD')
                     ->alignEnd()
                     ->sortable()
                     ->weight(FontWeight::SemiBold)
                     ->formatStateUsing(fn ($state): string => self::usd((float) $state))
-                    ->description(fn (PayrollLine $record): string => self::ves((float) $record->net_ves))
+                    ->description(fn (PayrollLine $record): string => 'Porción '.self::usd((float) $record->usd_cash_portion))
+                    ->color('success')
+                    ->icon(Heroicon::CurrencyDollar)
+                    ->iconColor('success'),
+
+                TextColumn::make('cash_paid_ves')
+                    ->label('Pagar Bs')
+                    ->alignEnd()
+                    ->sortable()
+                    ->weight(FontWeight::SemiBold)
+                    ->formatStateUsing(fn ($state): string => self::ves((float) $state))
+                    ->description(fn (PayrollLine $record): string => 'Porción '.self::usd((float) $record->ves_portion_usd).' × BCV')
                     ->color('info')
                     ->icon(Heroicon::Banknotes)
                     ->iconColor('info'),
+
+                TextColumn::make('net_usd')
+                    ->label('Neto contable')
+                    ->alignEnd()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->formatStateUsing(fn ($state): string => self::usd((float) $state))
+                    ->description(fn (PayrollLine $record): string => self::ves((float) $record->net_ves))
+                    ->color('gray'),
             ])
             ->filters([
                 SelectFilter::make('branch_id')
@@ -261,6 +337,7 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
                         'filament.resources.hr.payroll-periods.partials.line-items',
                         [
                             'items' => $record->items,
+                            'line' => $record,
                             'employeeName' => $record->employee?->fullName() ?? 'Empleado',
                         ],
                     ))

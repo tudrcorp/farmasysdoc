@@ -189,7 +189,12 @@ class PayrollPeriodsTable
                                 app(PayrollCalculator::class)->calculate($record, $manual);
                                 Notification::make()->title('Nómina calculada')->success()->send();
                             } catch (Throwable $e) {
-                                Notification::make()->title('No se pudo calcular')->body($e->getMessage())->danger()->send();
+                                Notification::make()
+                                    ->title('No se pudo calcular la nómina')
+                                    ->body($e->getMessage())
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
                             }
                         }),
                     Action::make('close')

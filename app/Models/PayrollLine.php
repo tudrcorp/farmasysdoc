@@ -20,6 +20,8 @@ class PayrollLine extends Model
         'payroll_period_id',
         'employee_id',
         'base_salary_usd',
+        'usd_cash_portion',
+        'ves_portion_usd',
         'assignments_usd',
         'deductions_usd',
         'loans_usd',
@@ -29,6 +31,8 @@ class PayrollLine extends Model
         'deductions_ves',
         'loans_ves',
         'net_ves',
+        'cash_paid_usd',
+        'cash_paid_ves',
         'bcv_ves_per_usd',
     ];
 
@@ -39,6 +43,8 @@ class PayrollLine extends Model
     {
         return [
             'base_salary_usd' => 'decimal:2',
+            'usd_cash_portion' => 'decimal:2',
+            'ves_portion_usd' => 'decimal:2',
             'assignments_usd' => 'decimal:2',
             'deductions_usd' => 'decimal:2',
             'loans_usd' => 'decimal:2',
@@ -48,6 +54,8 @@ class PayrollLine extends Model
             'deductions_ves' => 'decimal:2',
             'loans_ves' => 'decimal:2',
             'net_ves' => 'decimal:2',
+            'cash_paid_usd' => 'decimal:2',
+            'cash_paid_ves' => 'decimal:2',
             'bcv_ves_per_usd' => 'decimal:6',
         ];
     }

@@ -23,6 +23,8 @@ class PayrollLineFactory extends Factory
             'payroll_period_id' => PayrollPeriod::factory(),
             'employee_id' => Employee::factory(),
             'base_salary_usd' => 150,
+            'usd_cash_portion' => 0,
+            'ves_portion_usd' => 150,
             'assignments_usd' => 0,
             'deductions_usd' => 0,
             'loans_usd' => 0,
@@ -32,6 +34,8 @@ class PayrollLineFactory extends Factory
             'deductions_ves' => 0,
             'loans_ves' => 0,
             'net_ves' => 0,
+            'cash_paid_usd' => 0,
+            'cash_paid_ves' => 0,
             'bcv_ves_per_usd' => 36.5,
         ];
     }

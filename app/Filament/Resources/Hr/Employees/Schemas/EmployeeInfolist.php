@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Hr\Employees\Schemas;
 
 use App\Enums\HrLoanFrequency;
 use App\Enums\HrLoanStatus;
+use App\Enums\HrPayCurrencyBucket;
 use App\Enums\HrRecurrence;
 use App\Models\Employee;
 use App\Models\HrAssignment;
@@ -127,13 +128,47 @@ class EmployeeInfolist
                                 ->icon(Heroicon::Banknotes)
                                 ->state(fn (Employee $record): string => self::vesLabel((float) $record->monthly_salary_usd)),
                             TextEntry::make('biweekly_salary_usd')
-                                ->label('Pago quincenal (USD)')
+                                ->label('Base quincenal (USD)')
                                 ->icon(Heroicon::CalendarDays)
-                                ->state(fn (Employee $record): string => 'US$ '.number_format(round((float) $record->monthly_salary_usd / 2, 2), 2, ',', '.')),
+                                ->state(fn (Employee $record): string => 'US$ '.number_format($record->biweeklyBaseUsd(), 2, ',', '.')),
                             TextEntry::make('biweekly_salary_ves')
-                                ->label('Pago quincenal (VES)')
+                                ->label('Base quincenal (VES)')
                                 ->icon(Heroicon::CalendarDays)
-                                ->state(fn (Employee $record): string => self::vesLabel(round((float) $record->monthly_salary_usd / 2, 2))),
+                                ->state(fn (Employee $record): string => self::vesLabel($record->biweeklyBaseUsd())),
+                        ]),
+                    ])
+                    ->columnSpanFull(),
+
+                Section::make('Forma de pago por quincena')
+                    ->description('Cuánto de la base quincenal se paga en efectivo USD; el resto en bolívares a tasa BCV.')
+                    ->icon(Heroicon::CurrencyDollar)
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'md' => 2,
+                        ])->schema([
+                            TextEntry::make('first_half_usd_cash')
+                                ->label('1.ª quincena — USD efectivo')
+                                ->icon(Heroicon::Banknotes)
+                                ->formatStateUsing(fn ($state): string => 'US$ '.number_format((float) $state, 2, ',', '.')),
+                            TextEntry::make('first_half_ves_remainder')
+                                ->label('1.ª quincena — resto en Bs')
+                                ->icon(Heroicon::CalendarDays)
+                                ->state(fn (Employee $record): string => self::halfPayDescription(
+                                    $record->biweeklyBaseUsd(),
+                                    (float) $record->first_half_usd_cash,
+                                )),
+                            TextEntry::make('second_half_usd_cash')
+                                ->label('2.ª quincena — USD efectivo')
+                                ->icon(Heroicon::Banknotes)
+                                ->formatStateUsing(fn ($state): string => 'US$ '.number_format((float) $state, 2, ',', '.')),
+                            TextEntry::make('second_half_ves_remainder')
+                                ->label('2.ª quincena — resto en Bs')
+                                ->icon(Heroicon::CalendarDays)
+                                ->state(fn (Employee $record): string => self::halfPayDescription(
+                                    $record->biweeklyBaseUsd(),
+                                    (float) $record->second_half_usd_cash,
+                                )),
                         ]),
                     ])
                     ->columnSpanFull(),
@@ -182,6 +217,7 @@ class EmployeeInfolist
                             ->table([
                                 TableColumn::make('Concepto'),
                                 TableColumn::make('Monto'),
+                                TableColumn::make('Bolsillo'),
                                 TableColumn::make('Recurrencia'),
                                 TableColumn::make('Vigencia'),
                                 TableColumn::make('Activo')->alignment(Alignment::Center)->width('5rem'),
@@ -192,6 +228,10 @@ class EmployeeInfolist
                                     ->wrap(),
                                 TextEntry::make('amount_usd')
                                     ->formatStateUsing(fn ($state): string => 'US$ '.number_format((float) $state, 2, ',', '.')),
+                                TextEntry::make('pay_currency_bucket')
+                                    ->badge()
+                                    ->formatStateUsing(fn ($state): string => self::bucketLabel($state))
+                                    ->color(fn ($state): string => self::bucketColor($state)),
                                 TextEntry::make('recurrence')
                                     ->badge()
                                     ->formatStateUsing(fn (HrRecurrence|string|null $state): string => self::recurrenceLabel($state))
@@ -217,6 +257,7 @@ class EmployeeInfolist
                                 TableColumn::make('Concepto'),
                                 TableColumn::make('Monto'),
                                 TableColumn::make('Saldo'),
+                                TableColumn::make('Bolsillo'),
                                 TableColumn::make('Frecuencia'),
                                 TableColumn::make('Estatus'),
                             ])
@@ -229,6 +270,10 @@ class EmployeeInfolist
                                     ->formatStateUsing(fn ($state): string => 'US$ '.number_format((float) $state, 2, ',', '.')),
                                 TextEntry::make('remaining_usd')
                                     ->formatStateUsing(fn ($state): string => 'US$ '.number_format((float) $state, 2, ',', '.')),
+                                TextEntry::make('pay_currency_bucket')
+                                    ->badge()
+                                    ->formatStateUsing(fn ($state): string => self::bucketLabel($state))
+                                    ->color(fn ($state): string => self::bucketColor($state)),
                                 TextEntry::make('frequency')
                                     ->formatStateUsing(fn (HrLoanFrequency|string|null $state): string => $state instanceof HrLoanFrequency
                                         ? $state->label()
@@ -315,6 +360,36 @@ class EmployeeInfolist
 
         return 'Bs '.number_format(HrUsdVesConverter::toVes($usd, $rate), 2, ',', '.')
             .' · tasa '.number_format($rate, 4, ',', '.');
+    }
+
+    private static function halfPayDescription(float $baseUsd, float $usdCash): string
+    {
+        $cash = min(max(0, $usdCash), $baseUsd);
+        $remainder = round(max(0, $baseUsd - $cash), 2);
+
+        return 'Resto en Bs: US$ '.number_format($remainder, 2, ',', '.').' · '.self::vesLabel($remainder);
+    }
+
+    private static function bucketLabel(mixed $state): string
+    {
+        if ($state instanceof HrPayCurrencyBucket) {
+            return $state->label();
+        }
+
+        return HrPayCurrencyBucket::tryFrom((string) $state)?->label() ?? '—';
+    }
+
+    private static function bucketColor(mixed $state): string
+    {
+        $bucket = $state instanceof HrPayCurrencyBucket
+            ? $state
+            : HrPayCurrencyBucket::tryFrom((string) $state);
+
+        return match ($bucket) {
+            HrPayCurrencyBucket::Usd => 'success',
+            HrPayCurrencyBucket::Ves => 'info',
+            default => 'gray',
+        };
     }
 
     private static function recurrenceLabel(HrRecurrence|string|null $state): string

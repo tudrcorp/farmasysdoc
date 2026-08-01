@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\HrPayCurrencyBucket;
 use App\Enums\HrRecurrence;
 use App\Models\Employee;
 use App\Models\HrDeduction;
@@ -23,6 +24,7 @@ class HrDeductionFactory extends Factory
             'employee_id' => Employee::factory(),
             'concept' => fake()->sentence(3),
             'amount_usd' => fake()->randomFloat(2, 5, 50),
+            'pay_currency_bucket' => HrPayCurrencyBucket::Ves,
             'recurrence' => HrRecurrence::Once,
             'applies_on' => now()->startOfMonth()->day(15)->toDateString(),
             'starts_on' => null,

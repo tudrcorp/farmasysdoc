@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Hr\Support;
 
+use App\Enums\HrPayCurrencyBucket;
 use App\Enums\HrRecurrence;
 use App\Models\Employee;
 use App\Models\PayrollPeriod;
@@ -23,7 +24,7 @@ final class HrRecurringAmountForm
     /**
      * @return array<int, mixed>
      */
-    public static function components(string $amountLabel): array
+    public static function components(string $amountLabel, bool $withPayCurrencyBucket = false): array
     {
         return [
             Section::make('Detalle')
@@ -62,6 +63,15 @@ final class HrRecurringAmountForm
                             ->native(false)
                             ->live(),
                     ]),
+                    Select::make('pay_currency_bucket')
+                        ->label('Bolsillo de descuento')
+                        ->options(HrPayCurrencyBucket::options())
+                        ->native(false)
+                        ->default(HrPayCurrencyBucket::Ves->value)
+                        ->helperText('Sobre qué porción del pago quincenal se aplica este descuento.')
+                        ->visible($withPayCurrencyBucket)
+                        ->dehydrated($withPayCurrencyBucket)
+                        ->required($withPayCurrencyBucket),
                     DatePicker::make('applies_on')
                         ->label('Periodo de aplicación')
                         ->helperText('Solo fechas de nómina (día 15 o fin de mes).')

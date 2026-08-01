@@ -9,6 +9,6 @@ class HrDeductionForm
 {
     public static function configure(Schema $schema): Schema
     {
-        return $schema->components(HrRecurringAmountForm::components('Monto a deducir (USD)'));
+        return $schema->components(HrRecurringAmountForm::components('Monto a deducir (USD)', withPayCurrencyBucket: true));
     }
 }

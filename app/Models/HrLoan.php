@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\HrLoanFrequency;
 use App\Enums\HrLoanInstallmentMode;
 use App\Enums\HrLoanStatus;
+use App\Enums\HrPayCurrencyBucket;
 use Database\Factories\HrLoanFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -24,6 +25,7 @@ class HrLoan extends Model
         'branch_id',
         'concept',
         'amount_usd',
+        'pay_currency_bucket',
         'remaining_usd',
         'frequency',
         'installment_mode',
@@ -43,6 +45,7 @@ class HrLoan extends Model
     {
         return [
             'amount_usd' => 'decimal:2',
+            'pay_currency_bucket' => HrPayCurrencyBucket::class,
             'remaining_usd' => 'decimal:2',
             'fixed_installment_usd' => 'decimal:2',
             'salary_percentage' => 'decimal:2',

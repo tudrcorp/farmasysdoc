@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Hr\Loans\Tables;
 
 use App\Enums\HrLoanFrequency;
 use App\Enums\HrLoanStatus;
+use App\Enums\HrPayCurrencyBucket;
 use App\Filament\Resources\Hr\Loans\HrLoanResource;
 use App\Models\HrLoan;
 use App\Models\User;
@@ -48,6 +49,19 @@ class HrLoansTable
                     ->label('Saldo')
                     ->money('USD')
                     ->alignEnd(),
+                TextColumn::make('pay_currency_bucket')
+                    ->label('Bolsillo')
+                    ->badge()
+                    ->formatStateUsing(fn (HrPayCurrencyBucket|string|null $state): string => $state instanceof HrPayCurrencyBucket
+                        ? $state->label()
+                        : (HrPayCurrencyBucket::tryFrom((string) $state)?->label() ?? '—'))
+                    ->color(fn (HrPayCurrencyBucket|string|null $state): string => match (
+                        $state instanceof HrPayCurrencyBucket ? $state : HrPayCurrencyBucket::tryFrom((string) $state)
+                    ) {
+                        HrPayCurrencyBucket::Usd => 'success',
+                        HrPayCurrencyBucket::Ves => 'info',
+                        default => 'gray',
+                    }),
                 TextColumn::make('frequency')
                     ->label('Frecuencia')
                     ->formatStateUsing(fn (HrLoanFrequency|string|null $state): string => $state instanceof HrLoanFrequency

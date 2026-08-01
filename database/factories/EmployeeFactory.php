@@ -26,6 +26,8 @@ class EmployeeFactory extends Factory
             'email' => fake()->unique()->safeEmail(),
             'address' => fake()->streetAddress(),
             'monthly_salary_usd' => fake()->randomFloat(2, 200, 800),
+            'first_half_usd_cash' => 0,
+            'second_half_usd_cash' => 0,
             'branch_id' => Branch::factory(),
             'is_active' => true,
         ];

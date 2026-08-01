@@ -26,6 +26,8 @@ class Employee extends Model
         'address',
         'photo_path',
         'monthly_salary_usd',
+        'first_half_usd_cash',
+        'second_half_usd_cash',
         'branch_id',
         'is_active',
     ];
@@ -37,8 +39,27 @@ class Employee extends Model
     {
         return [
             'monthly_salary_usd' => 'decimal:2',
+            'first_half_usd_cash' => 'decimal:2',
+            'second_half_usd_cash' => 'decimal:2',
             'is_active' => 'boolean',
         ];
+    }
+
+    public function biweeklyBaseUsd(): float
+    {
+        return round((float) $this->monthly_salary_usd / 2, 2);
+    }
+
+    /**
+     * USD efectivo configurado para la quincena del periodo (1.ª = día 15, 2.ª = fin de mes).
+     */
+    public function usdCashForPeriod(bool $isMonthEnd): float
+    {
+        $configured = $isMonthEnd
+            ? (float) $this->second_half_usd_cash
+            : (float) $this->first_half_usd_cash;
+
+        return round(min(max(0, $configured), $this->biweeklyBaseUsd()), 2);
     }
 
     public function fullName(): string

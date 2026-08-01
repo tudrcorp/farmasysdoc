@@ -12,9 +12,12 @@ use App\Models\InventoryAuditLine;
 use App\Models\InventoryAuditUpdate;
 use App\Models\InventoryMovement;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
+use App\Support\Inventory\InventoryAuditLetterRange;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
@@ -26,6 +29,9 @@ final class InventoryAuditApplyService
         ?Authenticatable $actor = null,
         ?string $notes = null,
         bool $truncateBranchUpdates = false,
+        ?int $productCategoryId = null,
+        ?string $letterFrom = null,
+        ?string $letterTo = null,
     ): InventoryAudit {
         if ($branchId <= 0) {
             throw ValidationException::withMessages([
@@ -42,6 +48,9 @@ final class InventoryAuditApplyService
             ]);
         }
 
+        $resolvedCategoryId = $this->resolveProductCategoryId($productCategoryId);
+        $letterRange = InventoryAuditLetterRange::resolve($letterFrom, $letterTo);
+
         $openExists = InventoryAudit::query()
             ->where('branch_id', $branchId)
             ->where('status', InventoryAuditStatus::Open)
@@ -55,13 +64,24 @@ final class InventoryAuditApplyService
 
         $actorId = $actor instanceof User ? (int) $actor->getKey() : null;
 
-        return DB::transaction(function () use ($branchId, $actor, $actorId, $notes, $truncateBranchUpdates): InventoryAudit {
+        return DB::transaction(function () use (
+            $branchId,
+            $actor,
+            $actorId,
+            $notes,
+            $truncateBranchUpdates,
+            $resolvedCategoryId,
+            $letterRange,
+        ): InventoryAudit {
             if ($truncateBranchUpdates) {
                 $this->truncateUpdatesForBranch($branchId, $actor);
             }
 
             $audit = InventoryAudit::query()->create([
                 'branch_id' => $branchId,
+                'product_category_id' => $resolvedCategoryId,
+                'letter_from' => $letterRange[0] ?? null,
+                'letter_to' => $letterRange[1] ?? null,
                 'status' => InventoryAuditStatus::Open,
                 'started_by' => $actorId,
                 'started_at' => now(),
@@ -72,14 +92,8 @@ final class InventoryAuditApplyService
             $rows = [];
             $skippedOrphans = 0;
 
-            Inventory::query()
-                ->where('branch_id', $branchId)
-                ->whereExists(function ($query): void {
-                    $query->selectRaw('1')
-                        ->from('products')
-                        ->whereColumn('products.id', 'inventories.product_id');
-                })
-                ->with(['product:id,cost_price'])
+            $this->scopedInventoriesQuery($branchId, $resolvedCategoryId, $letterRange)
+                ->with(['product:id,cost_price,name'])
                 ->orderBy('id')
                 ->chunkById(500, function ($inventories) use ($audit, $branchId, $now, &$rows, &$skippedOrphans): void {
                     foreach ($inventories as $inventory) {
@@ -120,6 +134,14 @@ final class InventoryAuditApplyService
                 InventoryAuditLine::query()->insert($rows);
             }
 
+            $linesCount = $audit->lines()->count();
+
+            if ($linesCount === 0) {
+                throw ValidationException::withMessages([
+                    'branch_id' => 'No hay productos con inventario que coincidan con la categoría y el rango de letras seleccionados.',
+                ]);
+            }
+
             AuditLogger::record(
                 event: 'inventory_audit_opened',
                 description: 'Auditoría de inventario abierta',
@@ -128,14 +150,64 @@ final class InventoryAuditApplyService
                 properties: [
                     'module' => 'inventory_audits',
                     'branch_id' => $branchId,
-                    'lines_count' => $audit->lines()->count(),
+                    'product_category_id' => $resolvedCategoryId,
+                    'letter_from' => $letterRange[0] ?? null,
+                    'letter_to' => $letterRange[1] ?? null,
+                    'lines_count' => $linesCount,
                     'skipped_orphan_inventories' => $skippedOrphans,
                 ],
                 user: $actor instanceof User ? $actor : null,
             );
 
-            return $audit->fresh(['branch']) ?? $audit;
+            return $audit->fresh(['branch', 'productCategory']) ?? $audit;
         });
+    }
+
+    private function resolveProductCategoryId(?int $productCategoryId): ?int
+    {
+        if ($productCategoryId === null || $productCategoryId <= 0) {
+            return null;
+        }
+
+        $exists = ProductCategory::query()
+            ->whereKey($productCategoryId)
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $exists) {
+            throw ValidationException::withMessages([
+                'product_category_id' => 'Categoría de inventario no válida.',
+            ]);
+        }
+
+        return $productCategoryId;
+    }
+
+    /**
+     * @param  array{0: string, 1: string}|null  $letterRange
+     * @return Builder<Inventory>
+     */
+    private function scopedInventoriesQuery(int $branchId, ?int $productCategoryId, ?array $letterRange): Builder
+    {
+        return Inventory::query()
+            ->where('branch_id', $branchId)
+            ->whereExists(function ($query) use ($productCategoryId, $letterRange): void {
+                $query->selectRaw('1')
+                    ->from('products')
+                    ->whereColumn('products.id', 'inventories.product_id');
+
+                if ($productCategoryId !== null) {
+                    $query->where('products.product_category_id', $productCategoryId);
+                }
+
+                if ($letterRange !== null) {
+                    [$from, $to] = $letterRange;
+                    $query->whereRaw(
+                        'UPPER(LEFT(TRIM(products.name), 1)) BETWEEN ? AND ?',
+                        [$from, $to],
+                    );
+                }
+            });
     }
 
     public function verifyWithoutChanges(

@@ -4,15 +4,18 @@ namespace App\Filament\Resources\InventoryAudits\Pages;
 
 use App\Filament\Resources\InventoryAudits\InventoryAuditResource;
 use App\Models\Branch;
+use App\Models\ProductCategory;
 use App\Models\User;
 use App\Services\Inventory\InventoryAuditApplyService;
 use App\Support\Filament\BranchAuthScope;
+use App\Support\Inventory\InventoryAuditLetterRange;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Grid;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
@@ -31,7 +34,7 @@ class ListInventoryAudits extends ListRecords
                 ->icon(Heroicon::Plus)
                 ->color('primary')
                 ->modalHeading('Abrir auditoría de inventario')
-                ->modalDescription('Se generará una línea por cada producto con inventario en la sucursal. Solo puede haber una auditoría abierta por sucursal.')
+                ->modalDescription('Se generará una línea por cada producto con inventario que coincida con la sucursal, categoría y rango de letras. Solo puede haber una auditoría abierta por sucursal.')
                 ->modalSubmitActionLabel('Abrir')
                 ->form([
                     Select::make('branch_id')
@@ -59,6 +62,36 @@ class ListInventoryAudits extends ListRecords
                         ->searchable()
                         ->preload()
                         ->native(false),
+                    Select::make('product_category_id')
+                        ->label('Categoría de inventario')
+                        ->options(fn (): array => ProductCategory::query()
+                            ->where('is_active', true)
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->all())
+                        ->placeholder('Todas las categorías')
+                        ->searchable()
+                        ->preload()
+                        ->native(false)
+                        ->helperText('Opcional. Limita la auditoría a una categoría.'),
+                    Grid::make(2)
+                        ->schema([
+                            Select::make('letter_from')
+                                ->label('Desde letra')
+                                ->options(InventoryAuditLetterRange::options())
+                                ->placeholder('Todas')
+                                ->native(false)
+                                ->requiredWith('letter_to')
+                                ->helperText('Opcional. Primera letra del nombre del producto.'),
+                            Select::make('letter_to')
+                                ->label('Hasta letra')
+                                ->options(InventoryAuditLetterRange::options())
+                                ->placeholder('Todas')
+                                ->native(false)
+                                ->requiredWith('letter_from')
+                                ->gte('letter_from')
+                                ->helperText('Opcional. Última letra inclusive del rango.'),
+                        ]),
                     Textarea::make('notes')
                         ->label('Notas (opcional)')
                         ->rows(2),
@@ -74,6 +107,11 @@ class ListInventoryAudits extends ListRecords
                             actor: Auth::user(),
                             notes: $data['notes'] ?? null,
                             truncateBranchUpdates: (bool) ($data['truncate_updates'] ?? false),
+                            productCategoryId: filled($data['product_category_id'] ?? null)
+                                ? (int) $data['product_category_id']
+                                : null,
+                            letterFrom: $data['letter_from'] ?? null,
+                            letterTo: $data['letter_to'] ?? null,
                         );
 
                         Notification::make()

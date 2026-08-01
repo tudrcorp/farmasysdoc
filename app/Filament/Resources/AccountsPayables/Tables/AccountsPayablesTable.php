@@ -6,22 +6,30 @@ use App\Filament\Resources\AccountsPayables\Support\AccountsPayableBulkPaymentFo
 use App\Filament\Resources\AccountsPayables\Support\AccountsPayablePaymentFormSchema;
 use App\Filament\Resources\Branches\BranchResource;
 use App\Models\AccountsPayable;
+use App\Models\Purchase;
+use App\Models\Supplier;
 use App\Services\Audit\AuditLogger;
 use App\Services\Finance\AccountsPayablePaymentRegistrar;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Finance\AccountsPayableBulkPaymentPayload;
+use App\Support\Finance\AccountsPayableInvoiceTaxSnapshot;
 use App\Support\Finance\AccountsPayableStatus;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Notifications\Notification;
 use Filament\Support\Enums\Width;
 use Filament\Support\Exceptions\Halt;
 use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\Summarizers\Sum;
+use Filament\Tables\Columns\Summarizers\Summarizer;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
@@ -73,7 +81,22 @@ class AccountsPayablesTable
                 TextColumn::make('supplier_invoice_number')
                     ->label('Nº factura')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->color('primary')
+                    ->weight('medium')
+                    ->description(function (AccountsPayable $record): ?string {
+                        $snapshot = AccountsPayableInvoiceTaxSnapshot::for($record);
+
+                        if (filled($snapshot->purchaseNumber)) {
+                            return 'Compra '.$snapshot->purchaseNumber;
+                        }
+
+                        return filled($record->supplier_invoice_number)
+                            ? 'Sin compra vinculada'
+                            : null;
+                    })
+                    ->tooltip('Ver detalle de la compra y sus totales')
+                    ->action(self::viewPurchaseFromInvoiceAction()),
                 TextColumn::make('supplier_control_number')
                     ->label('Nº control')
                     ->placeholder('—')
@@ -95,51 +118,135 @@ class AccountsPayablesTable
                 TextColumn::make('purchase_total_usd')
                     ->label('Total (USD)')
                     ->alignEnd()
-                    ->formatStateUsing(fn ($state): string => number_format((float) $state, 2, ',', '.').' USD'),
+                    ->formatStateUsing(fn ($state): string => number_format((float) $state, 2, ',', '.').' USD')
+                    ->summarize(
+                        Sum::make()
+                            ->label('Suma')
+                            ->formatStateUsing(fn ($state): string => number_format((float) ($state ?? 0), 2, ',', '.').' USD'),
+                    ),
                 TextColumn::make('purchase_total_ves_at_issue')
                     ->label('Total factura (Bs, tasa emisión)')
                     ->alignEnd()
-                    ->formatStateUsing(fn ($state): string => self::formatBs((float) $state)),
-                TextColumn::make('purchase.purchaseBook.tax_retained_ves')
-                    ->label('Retención IVA')
+                    ->formatStateUsing(fn ($state): string => self::formatBs((float) $state))
+                    ->summarize(
+                        Sum::make()
+                            ->label('Suma')
+                            ->formatStateUsing(fn ($state): string => self::formatBs((float) ($state ?? 0))),
+                    ),
+                TextColumn::make('invoice_tax_caused_ves')
+                    ->label('IVA factura')
                     ->alignEnd()
                     ->badge()
-                    ->color(fn ($state): string => (float) ($state ?? 0) > 0 ? 'warning' : 'gray')
+                    ->color(fn (?float $state): string => (float) ($state ?? 0) > 0 ? 'info' : 'gray')
                     ->weight('bold')
-                    ->icon(fn ($state): Heroicon => (float) ($state ?? 0) > 0
+                    ->state(fn (AccountsPayable $record): ?float => AccountsPayableInvoiceTaxSnapshot::for($record)->taxCausedVes)
+                    ->formatStateUsing(fn (?float $state): string => $state !== null
+                        ? self::formatBs($state)
+                        : '—')
+                    ->tooltip('IVA tomado de Retenciones o, si no hay comprobante, de la compra (tax_total) según el Nº de factura.')
+                    ->summarize(
+                        Summarizer::make()
+                            ->label('Suma')
+                            ->using(fn (Summarizer $summarizer): float => AccountsPayableInvoiceTaxSnapshot::sumTaxCausedForQuery(
+                                $summarizer->getQuery() ?? AccountsPayable::query()->whereKey([]),
+                            ))
+                            ->formatStateUsing(fn ($state): string => self::formatBs((float) ($state ?? 0))),
+                    ),
+                TextColumn::make('seniat_retention_percent')
+                    ->label('% retención')
+                    ->alignCenter()
+                    ->badge()
+                    ->state(fn (AccountsPayable $record): ?float => AccountsPayableInvoiceTaxSnapshot::for($record)->retentionPercent)
+                    ->color(fn (?float $state): string => match (true) {
+                        $state === null => 'gray',
+                        $state <= 0 => 'success',
+                        $state >= 100 => 'danger',
+                        default => 'warning',
+                    })
+                    ->formatStateUsing(fn (?float $state): string => $state !== null
+                        ? number_format($state, 0, ',', '.').'%'
+                        : '—')
+                    ->tooltip('Porcentaje de retención SENIAT configurado en la ficha del proveedor'),
+                TextColumn::make('invoice_tax_retained_ves')
+                    ->label('Total retenido')
+                    ->alignEnd()
+                    ->badge()
+                    ->state(fn (AccountsPayable $record): ?float => AccountsPayableInvoiceTaxSnapshot::for($record)->taxRetainedVes)
+                    ->color(fn (?float $state): string => (float) ($state ?? 0) > 0 ? 'warning' : 'gray')
+                    ->weight('bold')
+                    ->icon(fn (?float $state): Heroicon => (float) ($state ?? 0) > 0
                         ? Heroicon::ReceiptPercent
                         : Heroicon::MinusCircle)
-                    ->iconColor(fn ($state): string => (float) ($state ?? 0) > 0 ? 'warning' : 'gray')
-                    ->formatStateUsing(function ($state, AccountsPayable $record): string {
-                        if ($state === null && $record->purchase?->purchaseBook === null) {
-                            return 'Sin retención';
+                    ->iconColor(fn (?float $state): string => (float) ($state ?? 0) > 0 ? 'warning' : 'gray')
+                    ->formatStateUsing(function (?float $state, AccountsPayable $record): string {
+                        if ($state === null) {
+                            return AccountsPayableInvoiceTaxSnapshot::for($record)->purchaseId === null
+                                ? '—'
+                                : 'Sin retención';
                         }
 
-                        return self::formatBs((float) ($state ?? 0));
+                        return self::formatBs($state);
                     })
                     ->description(function (AccountsPayable $record): ?string {
-                        $percent = $record->purchase?->purchaseBook?->seniat_retention_percent
-                            ?? $record->purchase?->supplier?->seniat_retention_percent;
+                        $snapshot = AccountsPayableInvoiceTaxSnapshot::for($record);
 
-                        if ($percent === null) {
+                        if ($snapshot->retentionPercent === null) {
                             return null;
                         }
 
-                        return number_format((float) $percent, 0, ',', '.').'% SENIAT proveedor';
+                        return 'IVA × '.number_format($snapshot->retentionPercent, 0, ',', '.').'%';
                     })
-                    ->tooltip('Impuesto retenido según el % SENIAT configurado en la ficha del proveedor (IVA causado × %).')
+                    ->tooltip('Impuesto retenido = IVA de la factura × % SENIAT del proveedor (compra vinculada por Nº de factura).')
                     ->extraAttributes([
                         'class' => 'farmadoc-cxp-iva-retention',
-                    ]),
-                TextColumn::make('original_balance_ves')
-                    ->label('Saldo original (Bs)')
+                    ])
+                    ->summarize(
+                        Summarizer::make()
+                            ->label('Suma')
+                            ->using(fn (Summarizer $summarizer): float => AccountsPayableInvoiceTaxSnapshot::sumTaxRetainedForQuery(
+                                $summarizer->getQuery() ?? AccountsPayable::query()->whereKey([]),
+                            ))
+                            ->formatStateUsing(fn ($state): string => self::formatBs((float) ($state ?? 0))),
+                    ),
+                TextColumn::make('invoice_amount_payable_ves')
+                    ->label('Total a pagar')
                     ->alignEnd()
-                    ->formatStateUsing(fn ($state): string => self::formatBs((float) $state)),
+                    ->weight('semibold')
+                    ->color('success')
+                    ->state(fn (AccountsPayable $record): float => AccountsPayableInvoiceTaxSnapshot::amountPayableVes($record))
+                    ->formatStateUsing(fn (float $state): string => self::formatBs($state))
+                    ->description(function (AccountsPayable $record): ?string {
+                        $retained = AccountsPayableInvoiceTaxSnapshot::for($record)->taxRetainedVes;
+
+                        if ($retained === null || (float) $retained <= 0) {
+                            return 'Sin descontar retención';
+                        }
+
+                        return 'Factura − '.self::formatBs((float) $retained);
+                    })
+                    ->tooltip('Total factura (Bs, tasa emisión) menos el valor retenido por SENIAT.')
+                    ->summarize(
+                        Summarizer::make()
+                            ->label('Suma')
+                            ->using(fn (Summarizer $summarizer): float => AccountsPayableInvoiceTaxSnapshot::sumAmountPayableForQuery(
+                                $summarizer->getQuery() ?? AccountsPayable::query()->whereKey([]),
+                            ))
+                            ->formatStateUsing(fn ($state): string => self::formatBs((float) ($state ?? 0))),
+                    ),
                 TextColumn::make('current_balance_ves')
                     ->label('Saldo al día (Bs)')
                     ->alignEnd()
                     ->formatStateUsing(fn ($state): string => self::formatBs((float) $state))
-                    ->weight('medium'),
+                    ->weight('semibold')
+                    ->description(fn (AccountsPayable $record): ?string => $record->last_balance_recalculated_at !== null
+                        ? 'Act. '.$record->last_balance_recalculated_at->timezone(config('app.timezone'))->format('d/m/Y H:i')
+                        : null)
+                    ->tooltip('Saldo revalorizado con la tasa BCV del día (use «Sincronizar saldos BCV» arriba).')
+                    ->summarize(
+                        Sum::make()
+                            ->label('Suma')
+                            ->formatStateUsing(fn ($state): string => self::formatBs((float) ($state ?? 0))),
+                    ),
                 TextColumn::make('last_balance_recalculated_at')
                     ->label('Último recálculo')
                     ->dateTime('d/m/Y H:i')
@@ -166,6 +273,53 @@ class AccountsPayablesTable
                     )
                     ->searchable()
                     ->preload(),
+                SelectFilter::make('supplier_id')
+                    ->label('Proveedor')
+                    ->options(
+                        fn (): array => Supplier::query()
+                            ->where('is_active', true)
+                            ->orderBy('legal_name')
+                            ->get()
+                            ->mapWithKeys(fn (Supplier $supplier): array => [
+                                (string) $supplier->id => $supplier->displayName(),
+                            ])
+                            ->all(),
+                    )
+                    ->searchable()
+                    ->preload()
+                    ->query(function (Builder $query, array $data): Builder {
+                        $supplierId = $data['value'] ?? null;
+
+                        if (blank($supplierId)) {
+                            return $query;
+                        }
+
+                        return $query->whereHas(
+                            'purchase',
+                            fn (Builder $purchaseQuery): Builder => $purchaseQuery->where('supplier_id', $supplierId),
+                        );
+                    }),
+                Filter::make('issued_at_range')
+                    ->label('Fecha de factura')
+                    ->schema([
+                        DatePicker::make('issued_from')
+                            ->label('Desde')
+                            ->native(false),
+                        DatePicker::make('issued_until')
+                            ->label('Hasta')
+                            ->native(false),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                filled($data['issued_from'] ?? null),
+                                fn (Builder $q): Builder => $q->whereDate('issued_at', '>=', (string) $data['issued_from']),
+                            )
+                            ->when(
+                                filled($data['issued_until'] ?? null),
+                                fn (Builder $q): Builder => $q->whereDate('issued_at', '<=', (string) $data['issued_until']),
+                            );
+                    }),
             ])
             ->recordActions([
                 ViewAction::make(),
@@ -322,5 +476,60 @@ class AccountsPayablesTable
     private static function formatBs(float $amount): string
     {
         return 'Bs '.number_format($amount, 2, ',', '.');
+    }
+
+    private static function viewPurchaseFromInvoiceAction(): Action
+    {
+        return Action::make('viewPurchaseFromInvoice')
+            ->modalHeading(function (AccountsPayable $record): string {
+                $purchase = self::resolvePurchaseForAccountsPayable($record);
+                $invoice = filled($record->supplier_invoice_number)
+                    ? (string) $record->supplier_invoice_number
+                    : '—';
+
+                if ($purchase === null) {
+                    return 'Factura '.$invoice;
+                }
+
+                return 'Factura '.$invoice.' · '.$purchase->purchase_number;
+            })
+            ->modalDescription('Resumen de totales de la factura y la retención asociada.')
+            ->modalIcon(Heroicon::Banknotes)
+            ->modalIconColor('primary')
+            ->modalWidth(Width::Large)
+            ->modalContent(function (AccountsPayable $record): View {
+                $purchase = self::resolvePurchaseForAccountsPayable($record);
+                $purchase?->loadMissing('supplier');
+
+                return view('filament.accounts-payables.purchase-from-invoice-modal', [
+                    'purchase' => $purchase,
+                    'accountsPayable' => $record,
+                    'taxSnapshot' => AccountsPayableInvoiceTaxSnapshot::for($record),
+                ]);
+            })
+            ->modalSubmitAction(false)
+            ->modalCancelAction(fn (Action $action): Action => $action
+                ->label('Cerrar')
+                ->color('gray'));
+    }
+
+    private static function resolvePurchaseForAccountsPayable(AccountsPayable $record): ?Purchase
+    {
+        $record->loadMissing('purchase');
+
+        if ($record->purchase instanceof Purchase) {
+            return $record->purchase;
+        }
+
+        $invoiceNumber = trim((string) ($record->supplier_invoice_number ?? ''));
+
+        if ($invoiceNumber === '') {
+            return null;
+        }
+
+        return Purchase::query()
+            ->where('supplier_invoice_number', $invoiceNumber)
+            ->latest('id')
+            ->first();
     }
 }

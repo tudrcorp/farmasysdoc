@@ -20,6 +20,9 @@ class InventoryAudit extends Model
      */
     protected $fillable = [
         'branch_id',
+        'product_category_id',
+        'letter_from',
+        'letter_to',
         'status',
         'started_by',
         'closed_by',
@@ -46,6 +49,14 @@ class InventoryAudit extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * @return BelongsTo<ProductCategory, $this>
+     */
+    public function productCategory(): BelongsTo
+    {
+        return $this->belongsTo(ProductCategory::class);
     }
 
     /**

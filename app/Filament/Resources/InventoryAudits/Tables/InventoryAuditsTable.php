@@ -6,6 +6,7 @@ use App\Enums\InventoryAuditStatus;
 use App\Filament\Resources\InventoryAudits\InventoryAuditResource;
 use App\Models\InventoryAudit;
 use App\Services\Inventory\InventoryAuditApplyService;
+use App\Support\Inventory\InventoryAuditLetterRange;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
@@ -30,6 +31,18 @@ class InventoryAuditsTable
                     ->label('Sucursal')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('productCategory.name')
+                    ->label('Categoría')
+                    ->placeholder('Todas')
+                    ->toggleable(),
+                TextColumn::make('letter_range')
+                    ->label('Rango')
+                    ->state(fn (InventoryAudit $record): ?string => InventoryAuditLetterRange::label(
+                        $record->letter_from,
+                        $record->letter_to,
+                    ))
+                    ->placeholder('A – Z')
+                    ->toggleable(),
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
@@ -63,6 +76,11 @@ class InventoryAuditsTable
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->options(InventoryAuditStatus::options()),
+                SelectFilter::make('product_category_id')
+                    ->label('Categoría')
+                    ->relationship('productCategory', 'name')
+                    ->searchable()
+                    ->preload(),
             ])
             ->recordActions([
                 Action::make('work')

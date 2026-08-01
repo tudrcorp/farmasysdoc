@@ -25,6 +25,7 @@ use App\Services\Finance\AccountsReceivableFromSaleRegistrar;
 use App\Services\Inventory\FefoLotBalanceQueryService;
 use App\Services\Inventory\FefoLotSaleDispatchService;
 use App\Services\Inventory\FefoPosAlertSaleLinker;
+use App\Services\Inventory\InventoryAuditOpenLineSyncService;
 use App\Services\Inventory\PosFefoAlertLogRegistrar;
 use App\Services\Inventory\PosInventoryStockFailureRegistrar;
 use App\Services\Sales\CacheaConciliationRegistrar;
@@ -1805,6 +1806,9 @@ final class CashRegisterAction
                             $inventory->last_movement_at = now();
                             $inventory->updated_by = $actor;
                             $inventory->save();
+
+                            app(InventoryAuditOpenLineSyncService::class)
+                                ->syncPendingLineForInventory($inventory);
 
                             app(FefoLotSaleDispatchService::class)->dispatchForSaleLine(
                                 (int) $branchId,

@@ -4,6 +4,7 @@ namespace App\Filament\Resources\InventoryAudits\Schemas;
 
 use App\Enums\InventoryAuditStatus;
 use App\Models\InventoryAudit;
+use App\Support\Inventory\InventoryAuditLetterRange;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -21,6 +22,15 @@ class InventoryAuditInfolist
                             ->label('ID'),
                         TextEntry::make('branch.name')
                             ->label('Sucursal'),
+                        TextEntry::make('productCategory.name')
+                            ->label('Categoría')
+                            ->placeholder('Todas las categorías'),
+                        TextEntry::make('letter_range')
+                            ->label('Rango alfabético')
+                            ->state(fn (InventoryAudit $record): string => InventoryAuditLetterRange::label(
+                                $record->letter_from,
+                                $record->letter_to,
+                            ) ?? 'A – Z (todos)'),
                         TextEntry::make('status')
                             ->label('Estado')
                             ->badge()

@@ -47,7 +47,12 @@ class InventoryAuditResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return BranchAuthScope::apply(
-            parent::getEloquentQuery()->with(['branch:id,name', 'startedBy:id,name', 'closedBy:id,name'])
+            parent::getEloquentQuery()->with([
+                'branch:id,name',
+                'productCategory:id,name',
+                'startedBy:id,name',
+                'closedBy:id,name',
+            ])
         );
     }
 

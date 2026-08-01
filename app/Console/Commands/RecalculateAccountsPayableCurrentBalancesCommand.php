@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\AccountsPayable;
 use App\Services\Audit\AuditLogger;
+use App\Services\Finance\AccountsPayableCurrentBalanceRecalculator;
 use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use App\Support\Finance\AccountsPayableStatus;
 use Illuminate\Console\Command;
@@ -14,8 +15,10 @@ class RecalculateAccountsPayableCurrentBalancesCommand extends Command
 
     protected $description = 'Recalcula el saldo en bolívares (tasa BCV del día) de todas las cuentas por pagar';
 
-    public function handle(VenezuelaOfficialUsdVesRateClient $rateClient): int
-    {
+    public function handle(
+        VenezuelaOfficialUsdVesRateClient $rateClient,
+        AccountsPayableCurrentBalanceRecalculator $recalculator,
+    ): int {
         $rateToday = $rateClient->rateForDate(now());
 
         if ($rateToday === null || $rateToday <= 0) {
@@ -38,24 +41,22 @@ class RecalculateAccountsPayableCurrentBalancesCommand extends Command
         AccountsPayable::query()
             ->where('status', AccountsPayableStatus::POR_PAGAR)
             ->orderBy('id')
-            ->chunkById(100, function ($chunk) use ($rateToday, &$processed, &$changed): void {
-            foreach ($chunk as $ap) {
-                /** @var AccountsPayable $ap */
-                $usd = (float) ($ap->remaining_principal_usd ?? $ap->purchase_total_usd);
-                $newBalance = round($usd * $rateToday, 2);
+            ->chunkById(100, function ($chunk) use ($recalculator, &$processed, &$changed): void {
+                foreach ($chunk as $ap) {
+                    /** @var AccountsPayable $ap */
+                    $result = $recalculator->recalculate($ap, audit: false);
 
-                $previous = (float) $ap->current_balance_ves;
-                if (abs($previous - $newBalance) >= 0.005) {
-                    $changed++;
+                    if (! $result['ok']) {
+                        continue;
+                    }
+
+                    if (abs((float) $result['previous_balance_ves'] - (float) $result['new_balance_ves']) >= 0.005) {
+                        $changed++;
+                    }
+
+                    $processed++;
                 }
-
-                $ap->current_balance_ves = (string) $newBalance;
-                $ap->last_balance_recalculated_at = now();
-                $ap->saveQuietly();
-
-                $processed++;
-            }
-        });
+            });
 
         AuditLogger::record(
             event: 'accounts_payable_daily_recalc_completed',

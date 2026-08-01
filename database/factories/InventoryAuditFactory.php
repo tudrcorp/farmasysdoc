@@ -22,6 +22,9 @@ class InventoryAuditFactory extends Factory
     {
         return [
             'branch_id' => Branch::factory(),
+            'product_category_id' => null,
+            'letter_from' => null,
+            'letter_to' => null,
             'status' => InventoryAuditStatus::Open,
             'started_by' => User::factory(),
             'closed_by' => null,

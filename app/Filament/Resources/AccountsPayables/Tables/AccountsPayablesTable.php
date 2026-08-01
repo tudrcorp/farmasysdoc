@@ -5,6 +5,8 @@ namespace App\Filament\Resources\AccountsPayables\Tables;
 use App\Filament\Resources\AccountsPayables\Support\AccountsPayableBulkPaymentFormSchema;
 use App\Filament\Resources\AccountsPayables\Support\AccountsPayablePaymentFormSchema;
 use App\Filament\Resources\Branches\BranchResource;
+use App\Filament\Tables\Columns\Summarizers\CopyableSum;
+use App\Filament\Tables\Columns\Summarizers\CopyableSummarizer;
 use App\Models\AccountsPayable;
 use App\Models\Purchase;
 use App\Models\Supplier;
@@ -24,8 +26,6 @@ use Filament\Notifications\Notification;
 use Filament\Support\Enums\Width;
 use Filament\Support\Exceptions\Halt;
 use Filament\Support\Icons\Heroicon;
-use Filament\Tables\Columns\Summarizers\Sum;
-use Filament\Tables\Columns\Summarizers\Summarizer;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -134,8 +134,8 @@ class AccountsPayablesTable
                     ->alignEnd()
                     ->formatStateUsing(fn ($state): string => number_format((float) $state, 2, ',', '.').' USD')
                     ->summarize(
-                        Sum::make()
-                            ->label('Suma')
+                        CopyableSum::make()
+                            ->label('')
                             ->formatStateUsing(fn ($state): string => number_format((float) ($state ?? 0), 2, ',', '.').' USD'),
                     ),
                 TextColumn::make('purchase_total_ves_at_issue')
@@ -143,8 +143,8 @@ class AccountsPayablesTable
                     ->alignEnd()
                     ->formatStateUsing(fn ($state): string => self::formatBs((float) $state))
                     ->summarize(
-                        Sum::make()
-                            ->label('Suma')
+                        CopyableSum::make()
+                            ->label('')
                             ->formatStateUsing(fn ($state): string => self::formatBs((float) ($state ?? 0))),
                     ),
                 TextColumn::make('invoice_tax_caused_ves')
@@ -159,9 +159,9 @@ class AccountsPayablesTable
                         : '—')
                     ->tooltip('IVA tomado de Retenciones o, si no hay comprobante, de la compra (tax_total) según el Nº de factura.')
                     ->summarize(
-                        Summarizer::make()
-                            ->label('Suma')
-                            ->using(fn (Summarizer $summarizer): float => AccountsPayableInvoiceTaxSnapshot::sumTaxCausedForQuery(
+                        CopyableSummarizer::make()
+                            ->label('')
+                            ->using(fn (CopyableSummarizer $summarizer): float => AccountsPayableInvoiceTaxSnapshot::sumTaxCausedForQuery(
                                 $summarizer->getQuery() ?? AccountsPayable::query()->whereKey([]),
                             ))
                             ->formatStateUsing(fn ($state): string => self::formatBs((float) ($state ?? 0))),
@@ -215,9 +215,9 @@ class AccountsPayablesTable
                         'class' => 'farmadoc-cxp-iva-retention',
                     ])
                     ->summarize(
-                        Summarizer::make()
-                            ->label('Suma')
-                            ->using(fn (Summarizer $summarizer): float => AccountsPayableInvoiceTaxSnapshot::sumTaxRetainedForQuery(
+                        CopyableSummarizer::make()
+                            ->label('')
+                            ->using(fn (CopyableSummarizer $summarizer): float => AccountsPayableInvoiceTaxSnapshot::sumTaxRetainedForQuery(
                                 $summarizer->getQuery() ?? AccountsPayable::query()->whereKey([]),
                             ))
                             ->formatStateUsing(fn ($state): string => self::formatBs((float) ($state ?? 0))),
@@ -240,9 +240,9 @@ class AccountsPayablesTable
                     })
                     ->tooltip('Total factura (Bs, tasa emisión) menos el valor retenido por SENIAT.')
                     ->summarize(
-                        Summarizer::make()
-                            ->label('Suma')
-                            ->using(fn (Summarizer $summarizer): float => AccountsPayableInvoiceTaxSnapshot::sumAmountPayableForQuery(
+                        CopyableSummarizer::make()
+                            ->label('')
+                            ->using(fn (CopyableSummarizer $summarizer): float => AccountsPayableInvoiceTaxSnapshot::sumAmountPayableForQuery(
                                 $summarizer->getQuery() ?? AccountsPayable::query()->whereKey([]),
                             ))
                             ->formatStateUsing(fn ($state): string => self::formatBs((float) ($state ?? 0))),
@@ -272,8 +272,8 @@ class AccountsPayablesTable
                     })
                     ->tooltip('Total a pagar ÷ tasa BCV del registro × tasa BCV del día (use «Sincronizar saldos BCV» arriba).')
                     ->summarize(
-                        Sum::make()
-                            ->label('Suma')
+                        CopyableSum::make()
+                            ->label('')
                             ->formatStateUsing(fn ($state): string => self::formatBs((float) ($state ?? 0))),
                     ),
                 TextColumn::make('last_balance_recalculated_at')

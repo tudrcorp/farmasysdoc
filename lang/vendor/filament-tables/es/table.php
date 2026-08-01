@@ -82,9 +82,9 @@ return [
         'heading' => 'Resumen',
 
         'subheadings' => [
-            'all' => 'Todos :label',
-            'group' => 'resumen del :group',
-            'page' => 'Esta página',
+            'all' => 'Total general',
+            'group' => 'Total :group',
+            'page' => 'Total de esta hoja',
         ],
 
         'summarizers' => [

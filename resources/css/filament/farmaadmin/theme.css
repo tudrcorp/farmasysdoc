@@ -4243,6 +4243,60 @@ html.fi.dark .farmadoc-cxp-iva-retention .fi-badge {
     box-shadow: 0 0 0 1px rgb(251 191 36 / 0.45);
 }
 
+/* —— Totales de tabla: copiar monto —— */
+.farmadoc-summary-copyable {
+    cursor: pointer;
+    display: inline-block;
+    transition: color 120ms ease;
+}
+
+.farmadoc-summary-copyable:hover,
+.farmadoc-summary-copyable:hover > span:not(.fi-ta-text-summary-label) {
+    color: rgb(37 99 235);
+}
+
+html.fi.dark .farmadoc-summary-copyable:hover,
+html.fi.dark .farmadoc-summary-copyable:hover > span:not(.fi-ta-text-summary-label) {
+    color: rgb(147 197 253);
+}
+
+/* —— Totales de tabla: hoja vs general —— */
+.fi-ta-summary-row .farmadoc-summary-row-label .fi-ta-text-summary-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(100 116 139);
+}
+
+html.fi.dark .fi-ta-summary-row .farmadoc-summary-row-label .fi-ta-text-summary-label {
+    color: rgb(148 163 184);
+}
+
+.fi-ta-summary-row .fi-ta-text-summary > span:not(.fi-ta-text-summary-label) {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.fi-ta-summary-row:last-child {
+    background: rgb(241 245 249 / 0.9);
+}
+
+html.fi.dark .fi-ta-summary-row:last-child {
+    background: rgb(30 41 59 / 0.85);
+}
+
+.fi-ta-summary-row:last-child .farmadoc-summary-row-label .fi-ta-text-summary-label,
+.fi-ta-summary-row:last-child .fi-ta-summary-row-heading-cell {
+    color: rgb(15 23 42);
+    font-weight: 800;
+}
+
+html.fi.dark .fi-ta-summary-row:last-child .farmadoc-summary-row-label .fi-ta-text-summary-label,
+html.fi.dark .fi-ta-summary-row:last-child .fi-ta-summary-row-heading-cell {
+    color: rgb(248 250 252);
+}
+
 /* —— Roles: permisos de menú en detalle —— */
 .farmadoc-rol-perms {
     display: flex;

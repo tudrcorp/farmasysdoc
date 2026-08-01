@@ -24,6 +24,10 @@
             ->reject(fn (Column $column): bool => $column->getName() === $groupColumn)
             ->all();
     }
+
+    $firstSummaryColumnName = collect($columns)
+        ->first(fn (Column $column): bool => $column->hasSummary($query))
+        ?->getName();
 @endphp
 
 <tr {{ $attributes->class(['fi-ta-row fi-ta-summary-row']) }}>
@@ -65,6 +69,10 @@
                 if (! $alignment instanceof Alignment) {
                     $alignment = filled($alignment) ? (Alignment::tryFrom($alignment) ?? $alignment) : null;
                 }
+
+                $isFirstSummaryColumn = $column->hasSummary($query)
+                    && $firstSummaryColumnName !== null
+                    && $column->getName() === $firstSummaryColumnName;
             @endphp
 
             <td
@@ -78,6 +86,14 @@
                 @if ($loop->first && (! $extraHeadingColumn) && (! $groupsOnly))
                     {{ $heading }}
                 @elseif ((! $placeholderColumns) || $column->hasSummary($query))
+                    @if ($isFirstSummaryColumn && filled($heading) && (! $extraHeadingColumn) && (! $groupsOnly))
+                        <div class="fi-ta-text-summary farmadoc-summary-row-label">
+                            <span class="fi-ta-text-summary-label">
+                                {{ $heading }}
+                            </span>
+                        </div>
+                    @endif
+
                     @foreach ($column->getSummarizers($query) as $summarizer)
                         {{ $summarizer->query($query)->selectedState($selectedState) }}
                     @endforeach

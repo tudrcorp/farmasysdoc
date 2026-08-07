@@ -12,7 +12,6 @@ use App\Models\Purchase;
 use App\Models\Supplier;
 use App\Services\Audit\AuditLogger;
 use App\Services\Finance\AccountsPayablePaymentRegistrar;
-use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Finance\AccountsPayableBulkPaymentPayload;
 use App\Support\Finance\AccountsPayableInvoiceTaxSnapshot;
@@ -74,11 +73,23 @@ class AccountsPayablesTable
                     ->sortable()
                     ->wrap()
                     ->icon(Heroicon::Truck)
-                    ->iconColor('gray'),
+                    ->iconColor('gray')
+                    ->copyable()
+                    ->copyMessage('Proveedor copiado')
+                    ->tooltip('Clic para copiar el nombre del proveedor')
+                    ->extraAttributes([
+                        'class' => 'farmadoc-cxp-copyable',
+                    ]),
                 TextColumn::make('supplier_tax_id')
                     ->label('RIF')
                     ->searchable()
-                    ->toggleable(),
+                    ->toggleable()
+                    ->copyable()
+                    ->copyMessage('RIF copiado')
+                    ->tooltip('Clic para copiar el RIF')
+                    ->extraAttributes([
+                        'class' => 'farmadoc-cxp-copyable',
+                    ]),
                 TextColumn::make('supplier_invoice_number')
                     ->label('Nº factura')
                     ->searchable()
@@ -229,6 +240,9 @@ class AccountsPayablesTable
                     ->color('success')
                     ->state(fn (AccountsPayable $record): float => AccountsPayableInvoiceTaxSnapshot::amountPayableVes($record))
                     ->formatStateUsing(fn (float $state): string => self::formatBs($state))
+                    ->copyable()
+                    ->copyMessage('Total a pagar copiado')
+                    ->copyableState(fn (float $state): string => number_format($state, 2, ',', '.'))
                     ->description(function (AccountsPayable $record): ?string {
                         $retained = AccountsPayableInvoiceTaxSnapshot::for($record)->taxRetainedVes;
 
@@ -238,42 +252,16 @@ class AccountsPayablesTable
 
                         return 'Factura − '.self::formatBs((float) $retained);
                     })
-                    ->tooltip('Total factura (Bs, tasa emisión) menos el valor retenido por SENIAT.')
+                    ->tooltip('Clic para copiar. Total factura (Bs, tasa emisión) menos el valor retenido por SENIAT.')
+                    ->extraAttributes([
+                        'class' => 'farmadoc-cxp-copyable',
+                    ])
                     ->summarize(
                         CopyableSummarizer::make()
                             ->label('')
                             ->using(fn (CopyableSummarizer $summarizer): float => AccountsPayableInvoiceTaxSnapshot::sumAmountPayableForQuery(
                                 $summarizer->getQuery() ?? AccountsPayable::query()->whereKey([]),
                             ))
-                            ->formatStateUsing(fn ($state): string => self::formatBs((float) ($state ?? 0))),
-                    ),
-                TextColumn::make('current_balance_ves')
-                    ->label('Saldo al día (Bs)')
-                    ->alignEnd()
-                    ->formatStateUsing(fn ($state): string => self::formatBs((float) $state))
-                    ->weight('semibold')
-                    ->description(function (AccountsPayable $record): ?string {
-                        if ($record->last_balance_recalculated_at === null) {
-                            return null;
-                        }
-
-                        $parts = [
-                            'Act. '.$record->last_balance_recalculated_at
-                                ->timezone(config('app.timezone'))
-                                ->format('d/m/Y H:i'),
-                        ];
-
-                        $rate = self::todayBcvRate();
-                        if ($rate !== null && $rate > 0) {
-                            $parts[] = 'BCV '.number_format($rate, 4, ',', '.');
-                        }
-
-                        return implode(' · ', $parts);
-                    })
-                    ->tooltip('Total a pagar ÷ tasa BCV del registro × tasa BCV del día (use «Sincronizar saldos BCV» arriba).')
-                    ->summarize(
-                        CopyableSum::make()
-                            ->label('')
                             ->formatStateUsing(fn ($state): string => self::formatBs((float) ($state ?? 0))),
                     ),
                 TextColumn::make('last_balance_recalculated_at')
@@ -505,20 +493,6 @@ class AccountsPayablesTable
     private static function formatBs(float $amount): string
     {
         return 'Bs '.number_format($amount, 2, ',', '.');
-    }
-
-    private static ?float $todayBcvRateCache = null;
-
-    private static bool $todayBcvRateResolved = false;
-
-    private static function todayBcvRate(): ?float
-    {
-        if (! self::$todayBcvRateResolved) {
-            self::$todayBcvRateCache = app(VenezuelaOfficialUsdVesRateClient::class)->rateForDate(now());
-            self::$todayBcvRateResolved = true;
-        }
-
-        return self::$todayBcvRateCache;
     }
 
     private static function viewPurchaseFromInvoiceAction(): Action

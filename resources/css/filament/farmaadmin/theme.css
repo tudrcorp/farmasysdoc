@@ -4451,6 +4451,39 @@ html.fi.dark .farmadoc-summary-copyable:hover > span:not(.fi-ta-text-summary-lab
     color: rgb(147 197 253);
 }
 
+/* —— CxP: celdas copiables (proveedor, RIF, total a pagar) —— */
+.farmadoc-cxp-copyable {
+    cursor: pointer;
+    display: inline;
+    max-width: 100%;
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    transition: color 120ms ease;
+}
+
+.farmadoc-cxp-copyable:hover {
+    color: rgb(3 105 161);
+    background: transparent;
+    box-shadow: none;
+}
+
+.farmadoc-cxp-copyable:focus-visible {
+    outline: none;
+    color: rgb(3 105 161);
+    background: transparent;
+    box-shadow: none;
+}
+
+html.fi.dark .farmadoc-cxp-copyable:hover,
+html.fi.dark .farmadoc-cxp-copyable:focus-visible {
+    color: rgb(125 211 252);
+    background: transparent;
+    box-shadow: none;
+}
+
 /* —— Totales de tabla: hoja vs general —— */
 .fi-ta-summary-row .farmadoc-summary-row-label .fi-ta-text-summary-label {
     font-size: 0.7rem;

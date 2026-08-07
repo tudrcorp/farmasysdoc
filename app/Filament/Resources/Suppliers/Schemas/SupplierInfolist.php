@@ -2,11 +2,15 @@
 
 namespace App\Filament\Resources\Suppliers\Schemas;
 
+use App\Models\SupplierBankAccount;
 use Filament\Infolists\Components\IconEntry;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\FontWeight;
 use Filament\Support\Icons\Heroicon;
 
 class SupplierInfolist
@@ -156,6 +160,39 @@ class SupplierInfolist
                             ->placeholder('—')
                             ->columnSpanFull()
                             ->prose(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
+                Section::make('Cuentas bancarias')
+                    ->description('Cuentas registradas para transferencias o Pago Móvil.')
+                    ->icon(Heroicon::BuildingLibrary)
+                    ->schema([
+                        RepeatableEntry::make('bankAccounts')
+                            ->label('')
+                            ->placeholder('Sin cuentas bancarias registradas.')
+                            ->table([
+                                TableColumn::make('Banco'),
+                                TableColumn::make('Número de cuenta'),
+                                TableColumn::make('Teléfono de la cuenta'),
+                            ])
+                            ->schema([
+                                TextEntry::make('bank_code')
+                                    ->weight(FontWeight::Medium)
+                                    ->state(fn (SupplierBankAccount $record): string => $record->bankLabel())
+                                    ->copyable()
+                                    ->copyMessage('Banco copiado')
+                                    ->copyableState(fn (SupplierBankAccount $record): string => (string) $record->bank_code),
+                                TextEntry::make('account_number')
+                                    ->placeholder('—')
+                                    ->copyable()
+                                    ->copyMessage('Número de cuenta copiado'),
+                                TextEntry::make('phone')
+                                    ->placeholder('—')
+                                    ->copyable()
+                                    ->copyMessage('Teléfono de la cuenta copiado'),
+                            ])
+                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

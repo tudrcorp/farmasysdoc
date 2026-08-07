@@ -40,7 +40,7 @@ class AccountsPayablesTable
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => BranchAuthScope::apply($query)
-                ->with(['purchase.purchaseBook', 'purchase.supplier', 'branch']))
+                ->with(['purchase.purchaseBook', 'purchase.supplier.bankAccounts', 'branch']))
             ->columns([
                 TextColumn::make('status')
                     ->label('Estado')
@@ -340,6 +340,38 @@ class AccountsPayablesTable
             ])
             ->recordActions([
                 ViewAction::make(),
+                Action::make('viewSupplierBankDetails')
+                    ->label('Datos bancarios')
+                    ->icon(Heroicon::BuildingLibrary)
+                    ->color('info')
+                    ->modalWidth(Width::TwoExtraLarge)
+                    ->modalHeading(fn (AccountsPayable $record): string => 'Datos bancarios · '.($record->supplier_name ?: 'Proveedor'))
+                    ->modalDescription('RIF, total a pagar y cuentas del proveedor. Clic en cualquier dato para copiarlo.')
+                    ->modalIcon(Heroicon::BuildingLibrary)
+                    ->modalIconColor('info')
+                    ->modalContent(function (AccountsPayable $record): View {
+                        $supplier = self::resolveSupplierForAccountsPayable($record);
+                        $supplier?->loadMissing('bankAccounts');
+
+                        $taxId = filled($record->supplier_tax_id)
+                            ? (string) $record->supplier_tax_id
+                            : ($supplier?->tax_id);
+
+                        return view('filament.accounts-payables.supplier-bank-details-modal', [
+                            'accountsPayable' => $record,
+                            'supplier' => $supplier,
+                            'bankAccounts' => $supplier?->bankAccounts ?? collect(),
+                            'amountPayableVes' => AccountsPayableInvoiceTaxSnapshot::amountPayableVes($record),
+                            'supplierName' => filled($record->supplier_name)
+                                ? (string) $record->supplier_name
+                                : ($supplier?->displayName() ?? '—'),
+                            'supplierTaxId' => filled($taxId) ? (string) $taxId : null,
+                        ]);
+                    })
+                    ->modalSubmitAction(false)
+                    ->modalCancelAction(fn (Action $action): Action => $action
+                        ->label('Cerrar')
+                        ->color('gray')),
                 Action::make('registerPayment')
                     ->label('Registrar pago')
                     ->icon(Heroicon::Banknotes)
@@ -547,6 +579,43 @@ class AccountsPayablesTable
         return Purchase::query()
             ->where('supplier_invoice_number', $invoiceNumber)
             ->latest('id')
+            ->first();
+    }
+
+    private static function resolveSupplierForAccountsPayable(AccountsPayable $record): ?Supplier
+    {
+        $purchase = self::resolvePurchaseForAccountsPayable($record);
+        $purchase?->loadMissing('supplier');
+
+        if ($purchase?->supplier instanceof Supplier) {
+            return $purchase->supplier;
+        }
+
+        $taxId = trim((string) ($record->supplier_tax_id ?? ''));
+        if ($taxId !== '') {
+            $byTaxId = Supplier::query()
+                ->where('tax_id', $taxId)
+                ->orderByDesc('is_active')
+                ->orderBy('id')
+                ->first();
+
+            if ($byTaxId instanceof Supplier) {
+                return $byTaxId;
+            }
+        }
+
+        $name = trim((string) ($record->supplier_name ?? ''));
+        if ($name === '') {
+            return null;
+        }
+
+        return Supplier::query()
+            ->where(function (Builder $query) use ($name): void {
+                $query->where('legal_name', $name)
+                    ->orWhere('trade_name', $name);
+            })
+            ->orderByDesc('is_active')
+            ->orderBy('id')
             ->first();
     }
 }

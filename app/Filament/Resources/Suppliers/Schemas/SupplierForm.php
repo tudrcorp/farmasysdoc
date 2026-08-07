@@ -2,9 +2,11 @@
 
 namespace App\Filament\Resources\Suppliers\Schemas;
 
+use App\Enums\VenezuelanPagoMovilBank;
 use App\Models\City;
 use App\Models\Country;
 use App\Models\State;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -269,6 +271,91 @@ class SupplierForm
                             ->label('Términos de pago')
                             ->placeholder('Ej. contado, 30 días fecha factura, descuento pronto pago…')
                             ->rows(3)
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
+                Section::make('Cuentas bancarias')
+                    ->description('Puede registrar una o varias cuentas para transferencias o Pago Móvil al proveedor.')
+                    ->icon(Heroicon::BuildingLibrary)
+                    ->schema([
+                        Repeater::make('bankAccounts')
+                            ->relationship()
+                            ->label('')
+                            ->defaultItems(0)
+                            ->reorderable()
+                            ->orderColumn('sort_order')
+                            ->collapsible()
+                            ->cloneable()
+                            ->addActionLabel('Añadir cuenta bancaria')
+                            ->itemLabel(function (?array $state): ?string {
+                                if (! is_array($state)) {
+                                    return null;
+                                }
+
+                                $bankCode = (string) ($state['bank_code'] ?? '');
+                                $bank = VenezuelanPagoMovilBank::tryFrom($bankCode);
+                                $bankLabel = $bank?->optionLabel() ?? ($bankCode !== '' ? $bankCode : 'Banco');
+                                $account = filled($state['account_number'] ?? null)
+                                    ? preg_replace('/\D+/', '', (string) $state['account_number'])
+                                    : '';
+
+                                if ($account === '') {
+                                    return $bankLabel;
+                                }
+
+                                $suffix = strlen($account) > 4 ? substr($account, -4) : $account;
+
+                                return $bankLabel.' · ···'.$suffix;
+                            })
+                            ->schema([
+                                Grid::make([
+                                    'default' => 1,
+                                    'lg' => 2,
+                                ])->schema([
+                                    Select::make('bank_code')
+                                        ->label('Banco')
+                                        ->options(VenezuelanPagoMovilBank::optionsForSelect())
+                                        ->searchable()
+                                        ->native(false)
+                                        ->required()
+                                        ->placeholder('Seleccione el banco')
+                                        ->helperText('Se guarda con su código de 4 dígitos.')
+                                        ->prefixIcon(Heroicon::BuildingLibrary)
+                                        ->columnSpan(1),
+                                    TextInput::make('phone')
+                                        ->label('Teléfono de la cuenta')
+                                        ->tel()
+                                        ->placeholder('Ej. 04141234567')
+                                        ->helperText('Teléfono asociado a la cuenta (Pago Móvil / transferencias). Solo números.')
+                                        ->rule('regex:/^[0-9]+$/')
+                                        ->validationMessages([
+                                            'regex' => 'El teléfono de la cuenta solo puede contener números, sin espacios ni caracteres especiales.',
+                                        ])
+                                        ->dehydrateStateUsing(fn (?string $state): ?string => filled($state)
+                                            ? preg_replace('/[^0-9]/', '', $state)
+                                            : null)
+                                        ->maxLength(40)
+                                        ->prefixIcon(Heroicon::DevicePhoneMobile)
+                                        ->columnSpan(1),
+                                    TextInput::make('account_number')
+                                        ->label('Número de cuenta')
+                                        ->placeholder('Ej. 01020000000000000000')
+                                        ->required()
+                                        ->maxLength(30)
+                                        ->rule('regex:/^[0-9\s-]+$/')
+                                        ->validationMessages([
+                                            'regex' => 'El número de cuenta solo puede contener dígitos, espacios o guiones.',
+                                        ])
+                                        ->dehydrateStateUsing(fn (?string $state): ?string => filled($state)
+                                            ? preg_replace('/\D+/', '', $state)
+                                            : null)
+                                        ->helperText('Solo dígitos. Se normalizan al guardar.')
+                                        ->prefixIcon(Heroicon::Hashtag)
+                                        ->columnSpanFull(),
+                                ]),
+                            ])
                             ->columnSpanFull(),
                     ])
                     ->columns(1)

@@ -88,4 +88,14 @@ class Supplier extends Model
     {
         return $this->hasMany(Purchase::class);
     }
+
+    /**
+     * Cuentas bancarias del proveedor (una o varias).
+     *
+     * @return HasMany<SupplierBankAccount, $this>
+     */
+    public function bankAccounts(): HasMany
+    {
+        return $this->hasMany(SupplierBankAccount::class)->orderBy('sort_order')->orderBy('id');
+    }
 }

@@ -309,7 +309,7 @@ final class ApplyInventoryAdjustmentAction
             return 'Su sucursal asignada; el ajuste se aplicará en esta sucursal.';
         }
 
-        if ($user->hasGerenciaRole() && count($user->managedBranchIds()) > 1) {
+        if (count($user->restrictedBranchIdsForQueries()) > 1) {
             return 'Elija la sucursal donde aplicará el ajuste.';
         }
 

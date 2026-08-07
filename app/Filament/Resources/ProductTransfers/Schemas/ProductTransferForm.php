@@ -47,7 +47,7 @@ class ProductTransferForm
     }
 
     /**
-     * Sucursal solicitante (receptora): fija a la sucursal principal del usuario salvo GERENCIA con más de una sucursal en el pivote `branch_user`, que puede elegir entre ellas.
+     * Sucursal solicitante (receptora): fija a la sucursal del usuario salvo cuando tiene más de una sucursal de alcance.
      */
     protected static function shouldLockToBranchToUser(): bool
     {
@@ -57,11 +57,7 @@ class ProductTransferForm
             return false;
         }
 
-        if ($user->hasGerenciaRole() && count($user->managedBranchIds()) > 1) {
-            return false;
-        }
-
-        return filled($user->branch_id);
+        return count($user->restrictedBranchIdsForQueries()) <= 1;
     }
 
     public static function requestingBranchSelectHelperText(): string
@@ -71,8 +67,8 @@ class ProductTransferForm
         }
 
         $user = auth()->user();
-        if ($user instanceof User && $user->hasGerenciaRole() && count($user->managedBranchIds()) > 1) {
-            return 'Elija la sucursal solicitante entre las sucursales asignadas a su usuario.';
+        if ($user instanceof User && count($user->restrictedBranchIdsForQueries()) > 1) {
+            return 'Elija la sucursal solicitante entre las sucursales de su alcance.';
         }
 
         return 'Sucursal que recibirá la mercancía.';
@@ -92,8 +88,10 @@ class ProductTransferForm
             return;
         }
 
+        $ids = $user->restrictedBranchIdsForQueries();
+
         if (self::shouldLockToBranchToUser()) {
-            $expected = filled($user->branch_id) ? (int) $user->branch_id : null;
+            $expected = count($ids) === 1 ? $ids[0] : (filled($user->branch_id) ? (int) $user->branch_id : null);
             if ($expected !== null && $toBranchId !== $expected) {
                 throw ValidationException::withMessages([
                     'to_branch_id' => 'La sucursal solicitante no puede modificarse.',
@@ -103,13 +101,10 @@ class ProductTransferForm
             return;
         }
 
-        if ($user->hasGerenciaRole()) {
-            $ids = $user->managedBranchIds();
-            if (count($ids) > 1 && ! in_array($toBranchId, $ids, true)) {
-                throw ValidationException::withMessages([
-                    'to_branch_id' => 'Seleccione una sucursal destino entre las asignadas a su usuario.',
-                ]);
-            }
+        if (count($ids) > 1 && ! in_array($toBranchId, $ids, true)) {
+            throw ValidationException::withMessages([
+                'to_branch_id' => 'Seleccione una sucursal destino entre las de su alcance.',
+            ]);
         }
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\InventoryAudits\Pages;
 
+use App\Filament\Resources\InventoryAudits\Actions\InventoryAuditExpressAction;
 use App\Filament\Resources\InventoryAudits\InventoryAuditResource;
 use App\Models\Branch;
 use App\Models\ProductCategory;
@@ -29,6 +30,7 @@ class ListInventoryAudits extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            InventoryAuditExpressAction::make(),
             Action::make('openAudit')
                 ->label('Abrir auditoría')
                 ->icon(Heroicon::Plus)

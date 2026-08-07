@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Rols\Schemas;
 
+use App\Models\Branch;
 use App\Models\User;
 use App\Support\Filament\FarmaadminMenuAccessCatalog;
 use Filament\Forms\Components\CheckboxList;
@@ -95,6 +96,41 @@ class RolForm
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
+
+                Section::make('Sucursales de alcance')
+                    ->description('Opcional. Los usuarios con este rol heredarán acceso operativo a las sucursales marcadas (además de su sucursal propia o las de Gerencia, si aplica). Roles ADMINISTRADOR y DELIVERY siguen sin filtro por sucursal.')
+                    ->icon(Heroicon::BuildingOffice2)
+                    ->schema([
+                        CheckboxList::make('branch_ids')
+                            ->label('Sucursales permitidas')
+                            ->helperText('Puede seleccionar una o varias. Si no marca ninguna, el alcance sigue dependiendo solo de la sucursal del usuario.')
+                            ->options(fn (): array => Branch::query()
+                                ->where('is_active', true)
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->all())
+                            ->searchable()
+                            ->bulkToggleable()
+                            ->columns(2)
+                            ->hidden(fn (Get $get): bool => in_array(
+                                mb_strtoupper(trim((string) ($get('name') ?? ''))),
+                                ['ADMINISTRADOR', 'DELIVERY'],
+                                true,
+                            ))
+                            ->dehydrated(fn (Get $get): bool => ! in_array(
+                                mb_strtoupper(trim((string) ($get('name') ?? ''))),
+                                ['ADMINISTRADOR', 'DELIVERY'],
+                                true,
+                            ))
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull()
+                    ->visible(fn (Get $get): bool => ! in_array(
+                        mb_strtoupper(trim((string) ($get('name') ?? ''))),
+                        ['ADMINISTRADOR', 'DELIVERY'],
+                        true,
+                    )),
 
                 Section::make('Permisos de menú (experiencia iOS agrupada)')
                     ->description('El administrador decide qué módulos verá este rol. Los usuarios heredan estos permisos desde su rol.')

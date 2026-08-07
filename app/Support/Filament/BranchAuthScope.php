@@ -13,8 +13,8 @@ use Illuminate\Support\Facades\Auth;
 /**
  * Alcance por sucursal en paneles Filament:
  * - ADMINISTRADOR y rol DELIVERY: sin filtro por sucursal.
- * - GERENCIA: filas cuyo `branch_id` está en las sucursales asignadas (pivote `branch_user`).
- * - Resto: solo la sucursal del usuario (`branch_id`).
+ * - Resto: filas cuyo `branch_id` está en {@see User::restrictedBranchIdsForQueries()}
+ *   (unión de sucursales del rol vía `branch_rol`, pivote GERENCIA `branch_user` y/o `users.branch_id`).
  *
  * En ventas ({@see self::applyToSalesQuery()}), usuarios con rol CAJERO solo ven ventas cuyo `created_by` coincide con su usuario.
  */
@@ -69,8 +69,7 @@ final class BranchAuthScope
     /**
      * Alcance de ventas por sucursal:
      * - ADMINISTRADOR y DELIVERY: todas las sucursales.
-     * - GERENCIA: solo sucursales asignadas.
-     * - Resto: solo su sucursal principal.
+     * - Resto: solo sucursales de {@see User::restrictedBranchIdsForQueries()}.
      * - CAJERO: además, solo ventas creadas por el propio usuario.
      *
      * @param  Builder<Sale>  $query
@@ -130,7 +129,7 @@ final class BranchAuthScope
 
     /**
      * Selects y filtros de sucursal en Filament: administradores listan todas las sucursales activas;
-     * GERENCIA solo las asignadas en pivote; el resto solo su `branch_id`.
+     * el resto solo las de {@see User::restrictedBranchIdsForQueries()}.
      *
      * @param  Builder<Branch>  $query  Consulta sobre `branches` (p. ej. ya filtrada por `is_active` y orden).
      * @return Builder<Branch>
@@ -146,15 +145,9 @@ final class BranchAuthScope
             return $query;
         }
 
-        if ($user->hasGerenciaRole()) {
-            $ids = $user->managedBranchIds();
-            if ($ids !== []) {
-                return $query->whereIn($query->qualifyColumn('id'), $ids);
-            }
-        }
-
-        if (filled($user->branch_id)) {
-            return $query->whereKey((int) $user->branch_id);
+        $ids = $user->restrictedBranchIdsForQueries();
+        if ($ids !== []) {
+            return $query->whereIn($query->qualifyColumn('id'), $ids);
         }
 
         return $query->whereRaw('1 = 0');
@@ -170,13 +163,11 @@ final class BranchAuthScope
             return null;
         }
 
-        if ($user->hasGerenciaRole()) {
-            $ids = $user->managedBranchIds();
-            if ($ids !== []) {
-                return (int) min($ids);
-            }
+        $ids = $user->restrictedBranchIdsForQueries();
+        if ($ids !== []) {
+            return (int) min($ids);
         }
 
-        return filled($user->branch_id) ? (int) $user->branch_id : null;
+        return null;
     }
 }

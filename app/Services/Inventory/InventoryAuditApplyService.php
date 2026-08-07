@@ -276,34 +276,281 @@ final class InventoryAuditApplyService
     }
 
     /**
-     * @param  array{counted_quantity: float|int|string, new_cost_price?: float|int|string|null}  $data
+     * Línea del producto en una auditoría abierta de la sucursal (si existe).
+     */
+    public function findOpenAuditLineForProduct(int $branchId, int $productId): ?InventoryAuditLine
+    {
+        if ($branchId <= 0 || $productId <= 0) {
+            return null;
+        }
+
+        return InventoryAuditLine::query()
+            ->where('branch_id', $branchId)
+            ->where('product_id', $productId)
+            ->whereHas('inventoryAudit', function ($query): void {
+                $query->where('status', InventoryAuditStatus::Open);
+            })
+            ->with(['inventoryAudit:id,status,branch_id'])
+            ->first();
+    }
+
+    /**
+     * Quita una línea pendiente de una auditoría abierta para permitir Auditoría Express.
+     */
+    public function removePendingLineFromOpenAudit(
+        InventoryAuditLine $line,
+        ?Authenticatable $actor = null,
+    ): void {
+        DB::transaction(function () use ($line, $actor): void {
+            $line = InventoryAuditLine::query()
+                ->whereKey($line->getKey())
+                ->lockForUpdate()
+                ->first();
+
+            if (! $line instanceof InventoryAuditLine) {
+                throw ValidationException::withMessages([
+                    'product_id' => 'La línea de auditoría ya no existe.',
+                ]);
+            }
+
+            $this->assertActorMayAccessBranch((int) $line->branch_id, $actor);
+
+            $audit = InventoryAudit::query()
+                ->whereKey($line->inventory_audit_id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $audit instanceof InventoryAudit || ! $audit->isOpen()) {
+                throw ValidationException::withMessages([
+                    'product_id' => 'La auditoría ya no está abierta.',
+                ]);
+            }
+
+            if (! $line->isPending()) {
+                throw ValidationException::withMessages([
+                    'product_id' => 'El producto ya fue procesado en la auditoría abierta #'.$audit->getKey().'. Cierre esa auditoría antes de usar Auditoría Express.',
+                ]);
+            }
+
+            $lineId = (int) $line->getKey();
+            $auditId = (int) $audit->getKey();
+            $productId = (int) $line->product_id;
+            $branchId = (int) $line->branch_id;
+
+            $line->delete();
+
+            AuditLogger::record(
+                event: 'inventory_audit_line_removed_for_express',
+                description: 'Producto quitado de auditoría abierta para Auditoría Express',
+                auditableType: InventoryAudit::class,
+                auditableId: $auditId,
+                properties: [
+                    'module' => 'inventory_audits',
+                    'inventory_audit_id' => $auditId,
+                    'inventory_audit_line_id' => $lineId,
+                    'product_id' => $productId,
+                    'branch_id' => $branchId,
+                    'reason' => 'express_audit',
+                ],
+                user: $actor instanceof User ? $actor : null,
+            );
+        });
+    }
+
+    /**
+     * Auditoría individual (Express): misma lógica de actualización, fuera de un ciclo masivo.
+     *
+     * @param  array{
+     *     counted_quantity: float|int|string,
+     *     new_cost_price?: float|int|string|null,
+     *     product_category_id?: int|string|null
+     * }  $data
+     */
+    public function applyExpress(
+        int $branchId,
+        int $productId,
+        array $data,
+        ?Authenticatable $actor = null,
+    ): InventoryAudit {
+        if ($branchId <= 0) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Sucursal inválida.',
+            ]);
+        }
+
+        if ($productId <= 0) {
+            throw ValidationException::withMessages([
+                'product_id' => 'Seleccione un producto.',
+            ]);
+        }
+
+        $parsed = $this->parseApplyUpdatePayload($data);
+
+        return DB::transaction(function () use ($branchId, $productId, $parsed, $actor): InventoryAudit {
+            $this->assertActorMayAccessBranch($branchId, $actor);
+
+            $blockingLine = $this->findOpenAuditLineForProduct($branchId, $productId);
+            if ($blockingLine instanceof InventoryAuditLine) {
+                throw ValidationException::withMessages([
+                    'product_id' => 'Este producto está en la auditoría abierta #'.$blockingLine->inventory_audit_id.'. Quítelo de esa auditoría para auditarlo de forma individual.',
+                ]);
+            }
+
+            $inventory = Inventory::query()
+                ->where('branch_id', $branchId)
+                ->where('product_id', $productId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $inventory instanceof Inventory) {
+                throw ValidationException::withMessages([
+                    'product_id' => 'El producto no tiene inventario en la sucursal seleccionada.',
+                ]);
+            }
+
+            $product = Product::query()
+                ->whereKey($productId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $product instanceof Product) {
+                throw ValidationException::withMessages([
+                    'product_id' => 'Producto no encontrado.',
+                ]);
+            }
+
+            $actorId = $actor instanceof User ? (int) $actor->getKey() : null;
+            $actorLabel = self::actorLabel($actor);
+            $now = now();
+
+            $audit = InventoryAudit::query()->create([
+                'branch_id' => $branchId,
+                'product_category_id' => $product->product_category_id !== null
+                    ? (int) $product->product_category_id
+                    : null,
+                'status' => InventoryAuditStatus::Closed,
+                'started_by' => $actorId,
+                'started_at' => $now,
+                'closed_by' => $actorId,
+                'closed_at' => $now,
+                'notes' => 'Auditoría Express',
+            ]);
+
+            $systemCost = round(max(0.0, (float) ($product->cost_price ?? 0)), 2);
+
+            $line = InventoryAuditLine::query()->create([
+                'inventory_audit_id' => (int) $audit->getKey(),
+                'inventory_id' => (int) $inventory->getKey(),
+                'product_id' => $productId,
+                'branch_id' => $branchId,
+                'status' => InventoryAuditLineStatus::Pending,
+                'system_quantity' => round((float) $inventory->quantity, 3),
+                'system_cost_price' => $systemCost,
+                'cost_changed' => false,
+            ]);
+
+            $result = $this->applyCountedChangesToInventoryAndProduct(
+                inventory: $inventory,
+                product: $product,
+                countedQuantity: $parsed['counted_quantity'],
+                costProvided: $parsed['cost_provided'],
+                newCostPrice: $parsed['new_cost_price'],
+                categoryProvided: $parsed['category_provided'],
+                requestedCategoryId: $parsed['requested_category_id'],
+                actorLabel: $actorLabel,
+                movementNotes: 'Toma física · auditoría express #'.$audit->getKey(),
+                referenceType: $line->getMorphClass(),
+                referenceId: $line->getKey(),
+                noChangesMessage: 'No hay cambios que aplicar. Indique una cantidad, costo o categoría distinta.',
+            );
+
+            $line->forceFill([
+                'status' => InventoryAuditLineStatus::Updated,
+                'counted_quantity' => $result['counted_quantity'],
+                'new_cost_price' => $result['cost_changed'] ? $result['new_cost_price'] : null,
+                'quantity_delta' => $result['quantity_delta'],
+                'cost_changed' => $result['cost_changed'],
+                'inventory_movement_id' => $result['movement_id'],
+                'processed_by' => $actorId,
+                'processed_at' => $now,
+            ])->save();
+
+            $branch = Branch::query()->whereKey($branchId)->first();
+
+            InventoryAuditUpdate::query()->create([
+                'inventory_audit_id' => (int) $audit->getKey(),
+                'inventory_audit_line_id' => (int) $line->getKey(),
+                'branch_id' => $branchId,
+                'product_id' => (int) $product->getKey(),
+                'product_sku' => $product->sku,
+                'product_barcode' => $product->barcode,
+                'product_name' => (string) $product->name,
+                'branch_name' => (string) ($branch?->name ?? ''),
+                'previous_quantity' => $result['previous_quantity'],
+                'new_quantity' => $result['counted_quantity'],
+                'quantity_delta' => $result['quantity_delta'],
+                'previous_cost_price' => $result['previous_cost'],
+                'new_cost_price' => $result['cost_changed'] ? $result['new_cost_price'] : $result['previous_cost'],
+                'quantity_changed' => $result['quantity_changed'],
+                'cost_changed' => $result['cost_changed'],
+                'processed_by' => $actorId,
+                'processed_by_name' => $actor instanceof User
+                    ? ($actor->name ?? $actor->email ?? 'usuario')
+                    : 'sistema',
+                'processed_at' => $now,
+            ]);
+
+            AuditLogger::record(
+                event: 'inventory_audit_express_applied',
+                description: 'Auditoría Express aplicada',
+                auditableType: InventoryAudit::class,
+                auditableId: $audit->getKey(),
+                properties: [
+                    'module' => 'inventory_audits',
+                    'mode' => 'express',
+                    'inventory_audit_id' => (int) $audit->getKey(),
+                    'inventory_audit_line_id' => (int) $line->getKey(),
+                    'product_id' => (int) $product->getKey(),
+                    'branch_id' => $branchId,
+                    'previous_quantity' => $result['previous_quantity'],
+                    'new_quantity' => $result['counted_quantity'],
+                    'quantity_delta' => $result['quantity_delta'],
+                    'previous_cost_price' => $result['previous_cost'],
+                    'new_cost_price' => $result['cost_changed'] ? $result['new_cost_price'] : null,
+                    'quantity_changed' => $result['quantity_changed'],
+                    'cost_changed' => $result['cost_changed'],
+                    'category_changed' => $result['category_changed'],
+                    'previous_product_category_id' => $result['previous_category_id'],
+                    'new_product_category_id' => $result['category_changed']
+                        ? $result['new_category_id']
+                        : $result['previous_category_id'],
+                ],
+                user: $actor instanceof User ? $actor : null,
+            );
+
+            return $audit->fresh(['branch', 'productCategory']) ?? $audit;
+        });
+    }
+
+    /**
+     * @param  array{
+     *     counted_quantity: float|int|string,
+     *     new_cost_price?: float|int|string|null,
+     *     product_category_id?: int|string|null
+     * }  $data
      */
     public function applyUpdate(
         InventoryAuditLine $line,
         array $data,
         ?Authenticatable $actor = null,
     ): InventoryAuditLine {
-        $countedRaw = $data['counted_quantity'] ?? null;
-        if ($countedRaw === null || $countedRaw === '') {
-            throw ValidationException::withMessages([
-                'counted_quantity' => 'Indique la cantidad contada.',
-            ]);
-        }
+        $parsed = $this->parseApplyUpdatePayload($data);
 
-        $countedQuantity = round((float) $countedRaw, 3);
-        if ($countedQuantity < -0.0001) {
-            throw ValidationException::withMessages([
-                'counted_quantity' => 'La cantidad contada no puede ser negativa.',
-            ]);
-        }
-
-        $costProvided = array_key_exists('new_cost_price', $data)
-            && $data['new_cost_price'] !== null
-            && $data['new_cost_price'] !== '';
-
-        $newCostPrice = $costProvided ? round(max(0.0, (float) $data['new_cost_price']), 2) : null;
-
-        return DB::transaction(function () use ($line, $countedQuantity, $costProvided, $newCostPrice, $actor): InventoryAuditLine {
+        return DB::transaction(function () use (
+            $line,
+            $parsed,
+            $actor,
+        ): InventoryAuditLine {
             $line = InventoryAuditLine::query()
                 ->whereKey($line->getKey())
                 ->lockForUpdate()
@@ -339,70 +586,31 @@ final class InventoryAuditApplyService
                 ]);
             }
 
-            $previousQuantity = round((float) $inventory->quantity, 3);
-            $previousCost = round(max(0.0, (float) ($product->cost_price ?? 0)), 2);
-            $quantityDelta = round($countedQuantity - $previousQuantity, 3);
-
-            $costChanged = $costProvided && abs(($newCostPrice ?? 0) - $previousCost) > 0.00001;
-            $quantityChanged = abs($quantityDelta) > 0.0001;
-
-            if (! $quantityChanged && ! $costChanged) {
-                throw ValidationException::withMessages([
-                    'counted_quantity' => 'No hay cambios que aplicar. Use «Sin modificaciones» o indique una cantidad/costo distinto.',
-                ]);
-            }
-
             $actorId = $actor instanceof User ? (int) $actor->getKey() : null;
             $actorLabel = self::actorLabel($actor);
-            $movementId = null;
 
-            if ($quantityChanged) {
-                if ($quantityDelta < 0 && ! (bool) ($inventory->allow_negative_stock ?? false) && $countedQuantity < -0.0001) {
-                    throw ValidationException::withMessages([
-                        'counted_quantity' => 'La cantidad contada no puede ser negativa.',
-                    ]);
-                }
-
-                $inventory->forceFill([
-                    'quantity' => $countedQuantity,
-                    'last_movement_at' => now(),
-                    'last_stock_take_at' => now(),
-                    'updated_by' => $actorLabel,
-                ])->save();
-
-                $movement = InventoryMovement::query()->create([
-                    'product_id' => (int) $product->getKey(),
-                    'inventory_id' => (int) $inventory->getKey(),
-                    'movement_type' => InventoryMovementType::StockTake,
-                    'quantity' => $quantityDelta,
-                    'unit_cost' => $costChanged ? $newCostPrice : ($previousCost > 0 ? $previousCost : null),
-                    'reference_type' => $line->getMorphClass(),
-                    'reference_id' => $line->getKey(),
-                    'notes' => 'Toma física · auditoría de inventario #'.$line->inventory_audit_id,
-                    'created_by' => $actorLabel,
-                ]);
-                $movementId = (int) $movement->getKey();
-            } else {
-                $inventory->forceFill([
-                    'last_stock_take_at' => now(),
-                    'updated_by' => $actorLabel,
-                ])->save();
-            }
-
-            if ($costChanged && $newCostPrice !== null) {
-                $product->forceFill([
-                    'cost_price' => $newCostPrice,
-                    'updated_by' => $actorLabel,
-                ])->save();
-            }
+            $result = $this->applyCountedChangesToInventoryAndProduct(
+                inventory: $inventory,
+                product: $product,
+                countedQuantity: $parsed['counted_quantity'],
+                costProvided: $parsed['cost_provided'],
+                newCostPrice: $parsed['new_cost_price'],
+                categoryProvided: $parsed['category_provided'],
+                requestedCategoryId: $parsed['requested_category_id'],
+                actorLabel: $actorLabel,
+                movementNotes: 'Toma física · auditoría de inventario #'.$line->inventory_audit_id,
+                referenceType: $line->getMorphClass(),
+                referenceId: $line->getKey(),
+                noChangesMessage: 'No hay cambios que aplicar. Use «Sin modificaciones» o indique una cantidad, costo o categoría distinta.',
+            );
 
             $line->forceFill([
                 'status' => InventoryAuditLineStatus::Updated,
-                'counted_quantity' => $countedQuantity,
-                'new_cost_price' => $costChanged ? $newCostPrice : null,
-                'quantity_delta' => $quantityDelta,
-                'cost_changed' => $costChanged,
-                'inventory_movement_id' => $movementId,
+                'counted_quantity' => $result['counted_quantity'],
+                'new_cost_price' => $result['cost_changed'] ? $result['new_cost_price'] : null,
+                'quantity_delta' => $result['quantity_delta'],
+                'cost_changed' => $result['cost_changed'],
+                'inventory_movement_id' => $result['movement_id'],
                 'processed_by' => $actorId,
                 'processed_at' => now(),
             ])->save();
@@ -418,13 +626,13 @@ final class InventoryAuditApplyService
                 'product_barcode' => $product->barcode,
                 'product_name' => (string) $product->name,
                 'branch_name' => (string) ($branch?->name ?? ''),
-                'previous_quantity' => $previousQuantity,
-                'new_quantity' => $countedQuantity,
-                'quantity_delta' => $quantityDelta,
-                'previous_cost_price' => $previousCost,
-                'new_cost_price' => $costChanged ? $newCostPrice : $previousCost,
-                'quantity_changed' => $quantityChanged,
-                'cost_changed' => $costChanged,
+                'previous_quantity' => $result['previous_quantity'],
+                'new_quantity' => $result['counted_quantity'],
+                'quantity_delta' => $result['quantity_delta'],
+                'previous_cost_price' => $result['previous_cost'],
+                'new_cost_price' => $result['cost_changed'] ? $result['new_cost_price'] : $result['previous_cost'],
+                'quantity_changed' => $result['quantity_changed'],
+                'cost_changed' => $result['cost_changed'],
                 'processed_by' => $actorId,
                 'processed_by_name' => $actor instanceof User
                     ? ($actor->name ?? $actor->email ?? 'usuario')
@@ -442,19 +650,211 @@ final class InventoryAuditApplyService
                     'inventory_audit_id' => (int) $line->inventory_audit_id,
                     'product_id' => (int) $product->getKey(),
                     'branch_id' => (int) $line->branch_id,
-                    'previous_quantity' => $previousQuantity,
-                    'new_quantity' => $countedQuantity,
-                    'quantity_delta' => $quantityDelta,
-                    'previous_cost_price' => $previousCost,
-                    'new_cost_price' => $costChanged ? $newCostPrice : null,
-                    'quantity_changed' => $quantityChanged,
-                    'cost_changed' => $costChanged,
+                    'previous_quantity' => $result['previous_quantity'],
+                    'new_quantity' => $result['counted_quantity'],
+                    'quantity_delta' => $result['quantity_delta'],
+                    'previous_cost_price' => $result['previous_cost'],
+                    'new_cost_price' => $result['cost_changed'] ? $result['new_cost_price'] : null,
+                    'quantity_changed' => $result['quantity_changed'],
+                    'cost_changed' => $result['cost_changed'],
+                    'category_changed' => $result['category_changed'],
+                    'previous_product_category_id' => $result['previous_category_id'],
+                    'new_product_category_id' => $result['category_changed']
+                        ? $result['new_category_id']
+                        : $result['previous_category_id'],
                 ],
                 user: $actor instanceof User ? $actor : null,
             );
 
             return $line->fresh() ?? $line;
         });
+    }
+
+    /**
+     * @param  array{
+     *     counted_quantity: float|int|string,
+     *     new_cost_price?: float|int|string|null,
+     *     product_category_id?: int|string|null
+     * }  $data
+     * @return array{
+     *     counted_quantity: float,
+     *     cost_provided: bool,
+     *     new_cost_price: float|null,
+     *     category_provided: bool,
+     *     requested_category_id: int|null
+     * }
+     */
+    private function parseApplyUpdatePayload(array $data): array
+    {
+        $countedRaw = $data['counted_quantity'] ?? null;
+        if ($countedRaw === null || $countedRaw === '') {
+            throw ValidationException::withMessages([
+                'counted_quantity' => 'Indique la cantidad contada.',
+            ]);
+        }
+
+        $countedQuantity = round((float) $countedRaw, 3);
+        if ($countedQuantity < -0.0001) {
+            throw ValidationException::withMessages([
+                'counted_quantity' => 'La cantidad contada no puede ser negativa.',
+            ]);
+        }
+
+        $costProvided = array_key_exists('new_cost_price', $data)
+            && $data['new_cost_price'] !== null
+            && $data['new_cost_price'] !== '';
+
+        $newCostPrice = $costProvided ? round(max(0.0, (float) $data['new_cost_price']), 2) : null;
+
+        $categoryProvided = array_key_exists('product_category_id', $data)
+            && $data['product_category_id'] !== null
+            && $data['product_category_id'] !== '';
+
+        $requestedCategoryId = $categoryProvided ? (int) $data['product_category_id'] : null;
+        if ($categoryProvided) {
+            $this->assertProductCategoryIsActive($requestedCategoryId);
+        }
+
+        return [
+            'counted_quantity' => $countedQuantity,
+            'cost_provided' => $costProvided,
+            'new_cost_price' => $newCostPrice,
+            'category_provided' => $categoryProvided,
+            'requested_category_id' => $requestedCategoryId,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     previous_quantity: float,
+     *     counted_quantity: float,
+     *     quantity_delta: float,
+     *     quantity_changed: bool,
+     *     previous_cost: float,
+     *     new_cost_price: float|null,
+     *     cost_changed: bool,
+     *     previous_category_id: int|null,
+     *     new_category_id: int|null,
+     *     category_changed: bool,
+     *     movement_id: int|null
+     * }
+     */
+    private function applyCountedChangesToInventoryAndProduct(
+        Inventory $inventory,
+        Product $product,
+        float $countedQuantity,
+        bool $costProvided,
+        ?float $newCostPrice,
+        bool $categoryProvided,
+        ?int $requestedCategoryId,
+        string $actorLabel,
+        string $movementNotes,
+        ?string $referenceType,
+        mixed $referenceId,
+        string $noChangesMessage,
+    ): array {
+        $previousQuantity = round((float) $inventory->quantity, 3);
+        $previousCost = round(max(0.0, (float) ($product->cost_price ?? 0)), 2);
+        $previousCategoryId = $product->product_category_id !== null
+            ? (int) $product->product_category_id
+            : null;
+        $quantityDelta = round($countedQuantity - $previousQuantity, 3);
+
+        $costChanged = $costProvided && abs(($newCostPrice ?? 0) - $previousCost) > 0.00001;
+        $quantityChanged = abs($quantityDelta) > 0.0001;
+        $categoryChanged = $categoryProvided
+            && $requestedCategoryId !== null
+            && $requestedCategoryId !== $previousCategoryId;
+
+        if (! $quantityChanged && ! $costChanged && ! $categoryChanged) {
+            throw ValidationException::withMessages([
+                'counted_quantity' => $noChangesMessage,
+            ]);
+        }
+
+        $movementId = null;
+
+        if ($quantityChanged) {
+            if ($quantityDelta < 0 && ! (bool) ($inventory->allow_negative_stock ?? false) && $countedQuantity < -0.0001) {
+                throw ValidationException::withMessages([
+                    'counted_quantity' => 'La cantidad contada no puede ser negativa.',
+                ]);
+            }
+
+            $inventory->forceFill([
+                'quantity' => $countedQuantity,
+                'last_movement_at' => now(),
+                'last_stock_take_at' => now(),
+                'updated_by' => $actorLabel,
+            ])->save();
+
+            $movement = InventoryMovement::query()->create([
+                'product_id' => (int) $product->getKey(),
+                'inventory_id' => (int) $inventory->getKey(),
+                'movement_type' => InventoryMovementType::StockTake,
+                'quantity' => $quantityDelta,
+                'unit_cost' => $costChanged ? $newCostPrice : ($previousCost > 0 ? $previousCost : null),
+                'reference_type' => $referenceType,
+                'reference_id' => $referenceId,
+                'notes' => $movementNotes,
+                'created_by' => $actorLabel,
+            ]);
+            $movementId = (int) $movement->getKey();
+        } else {
+            $inventory->forceFill([
+                'last_stock_take_at' => now(),
+                'updated_by' => $actorLabel,
+            ])->save();
+        }
+
+        $productUpdates = [];
+
+        if ($categoryChanged && $requestedCategoryId !== null) {
+            $productUpdates['product_category_id'] = $requestedCategoryId;
+        }
+
+        if ($costChanged && $newCostPrice !== null) {
+            $productUpdates['cost_price'] = $newCostPrice;
+        }
+
+        if ($productUpdates !== []) {
+            $productUpdates['updated_by'] = $actorLabel;
+            $product->forceFill($productUpdates)->save();
+        }
+
+        return [
+            'previous_quantity' => $previousQuantity,
+            'counted_quantity' => $countedQuantity,
+            'quantity_delta' => $quantityDelta,
+            'quantity_changed' => $quantityChanged,
+            'previous_cost' => $previousCost,
+            'new_cost_price' => $costChanged ? $newCostPrice : null,
+            'cost_changed' => $costChanged,
+            'previous_category_id' => $previousCategoryId,
+            'new_category_id' => $categoryChanged ? $requestedCategoryId : $previousCategoryId,
+            'category_changed' => $categoryChanged,
+            'movement_id' => $movementId,
+        ];
+    }
+
+    private function assertProductCategoryIsActive(?int $productCategoryId): void
+    {
+        if ($productCategoryId === null || $productCategoryId <= 0) {
+            throw ValidationException::withMessages([
+                'product_category_id' => 'Seleccione una categoría válida.',
+            ]);
+        }
+
+        $exists = ProductCategory::query()
+            ->whereKey($productCategoryId)
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $exists) {
+            throw ValidationException::withMessages([
+                'product_category_id' => 'Categoría inválida (o inactiva).',
+            ]);
+        }
     }
 
     public function close(

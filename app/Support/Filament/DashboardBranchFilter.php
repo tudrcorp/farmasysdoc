@@ -166,18 +166,10 @@ final class DashboardBranchFilter
                 ->all();
         }
 
-        if ($user->hasGerenciaRole()) {
-            return array_values(array_unique(array_filter(array_map(
-                static fn (mixed $id): int => (int) $id,
-                $user->restrictedBranchIdsForQueries(),
-            ))));
-        }
-
-        if (filled($user->branch_id)) {
-            return [(int) $user->branch_id];
-        }
-
-        return [];
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): int => (int) $id,
+            $user->restrictedBranchIdsForQueries(),
+        ))));
     }
 
     private static function sessionKeyForCurrentUser(): string

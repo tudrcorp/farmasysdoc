@@ -100,12 +100,9 @@ final class NotifyOnPhysicalCashBoxOpen
             return false;
         }
 
-        if ($user->hasGerenciaRole()) {
-            return in_array($cashierBranchId, $user->managedBranchIds(), true);
-        }
-
-        if ($user->isManager() && ! $user->isAdministrator()) {
-            return filled($user->branch_id) && (int) $user->branch_id === $cashierBranchId;
+        $allowed = $user->restrictedBranchIdsForQueries();
+        if ($allowed !== []) {
+            return in_array($cashierBranchId, $allowed, true);
         }
 
         return false;

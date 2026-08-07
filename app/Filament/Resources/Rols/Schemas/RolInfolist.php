@@ -43,6 +43,25 @@ class RolInfolist
                     ->columns(1)
                     ->columnSpanFull(),
 
+                Section::make('Sucursales de alcance')
+                    ->description('Sucursales que heredan los usuarios con este rol (además de su asignación individual, si aplica).')
+                    ->icon(Heroicon::BuildingOffice2)
+                    ->schema([
+                        TextEntry::make('branches.name')
+                            ->label('Sucursales')
+                            ->badge()
+                            ->separator(',')
+                            ->placeholder('Sin sucursales asignadas al rol (el alcance depende del usuario)')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull()
+                    ->visible(fn (Rol $record): bool => ! in_array(
+                        mb_strtoupper((string) $record->name),
+                        ['ADMINISTRADOR', 'DELIVERY'],
+                        true,
+                    )),
+
                 Section::make('Ítems de menú permitidos')
                     ->description('Módulos que este rol puede ver en Farmaadmin, agrupados como en la edición del rol.')
                     ->icon(Heroicon::SquaresPlus)

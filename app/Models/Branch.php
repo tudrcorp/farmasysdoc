@@ -6,6 +6,7 @@ use App\Services\Pricing\BranchCategoryProfitMarginProvisioner;
 use Database\Factories\BranchFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Auth;
 
@@ -106,6 +107,16 @@ class Branch extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    /**
+     * Roles con alcance operativo en esta sucursal (pivote `branch_rol`).
+     *
+     * @return BelongsToMany<Rol, $this>
+     */
+    public function rols(): BelongsToMany
+    {
+        return $this->belongsToMany(Rol::class, 'branch_rol')->withTimestamps();
     }
 
     /**

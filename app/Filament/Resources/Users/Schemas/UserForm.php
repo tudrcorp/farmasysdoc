@@ -25,7 +25,7 @@ class UserForm
         return $schema
             ->components([
                 Section::make('Datos del usuario')
-                    ->description('Identificación en el panel. La sucursal aplica salvo rol Entregas (logística a nivel empresa). Con rol Gerencia puede asignarse una o varias sucursales de alcance.')
+                    ->description('Identificación en el panel. La sucursal aplica salvo rol Entregas. Con Gerencia puede asignar varias sucursales al usuario; además, las sucursales configuradas en el/los roles se suman al alcance operativo.')
                     ->icon(Heroicon::UserCircle)
                     ->schema([
                         Grid::make([

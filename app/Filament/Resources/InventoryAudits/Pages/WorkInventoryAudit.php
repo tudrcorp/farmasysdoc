@@ -4,15 +4,16 @@ namespace App\Filament\Resources\InventoryAudits\Pages;
 
 use App\Enums\InventoryAuditLineStatus;
 use App\Filament\Resources\InventoryAudits\InventoryAuditResource;
+use App\Filament\Resources\InventoryAudits\Support\InventoryAuditApplyUpdateForm;
 use App\Models\InventoryAudit;
 use App\Models\InventoryAuditLine;
 use App\Services\Inventory\InventoryAuditApplyService;
 use App\Support\Inventory\InventoryQuantityFormat;
 use Filament\Actions\Action;
-use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -112,7 +113,7 @@ class WorkInventoryAudit extends Page implements HasTable
             ->query(
                 InventoryAuditLine::query()
                     ->where('inventory_audit_id', $audit->getKey())
-                    ->with(['product:id,name,sku,barcode,cost_price'])
+                    ->with(['product:id,name,sku,barcode,cost_price,product_category_id,applies_vat'])
             )
             ->defaultSort('id')
             ->columns([
@@ -180,29 +181,31 @@ class WorkInventoryAudit extends Page implements HasTable
                     ->color('warning')
                     ->visible(fn (InventoryAuditLine $record): bool => $isOpen && $record->isPending())
                     ->modalHeading('Aplicar actualización')
-                    ->fillForm(fn (InventoryAuditLine $record): array => [
-                        'counted_quantity' => (float) $record->system_quantity,
-                        'new_cost_price' => null,
-                    ])
-                    ->form([
-                        TextInput::make('counted_quantity')
-                            ->label('Cantidad contada')
-                            ->numeric()
-                            ->required()
-                            ->minValue(0)
-                            ->step(0.001),
-                        TextInput::make('new_cost_price')
-                            ->label('Nuevo costo (opcional)')
-                            ->numeric()
-                            ->minValue(0)
-                            ->step(0.01)
-                            ->helperText('Déjelo vacío para no modificar el costo. Puede bajar el costo si corresponde.'),
-                    ])
+                    ->modalWidth(Width::Large)
+                    ->fillForm(function (InventoryAuditLine $record): array {
+                        $record->loadMissing('product');
+
+                        if ($record->product === null) {
+                            return [
+                                'counted_quantity' => (float) $record->system_quantity,
+                                'new_cost_price' => null,
+                            ];
+                        }
+
+                        return InventoryAuditApplyUpdateForm::fillFromProductAndBranch(
+                            product: $record->product,
+                            branchId: (int) $record->branch_id,
+                            systemQuantity: (float) $record->system_quantity,
+                            systemCostPrice: (float) $record->system_cost_price,
+                        );
+                    })
+                    ->form(InventoryAuditApplyUpdateForm::fields())
                     ->action(function (InventoryAuditLine $record, array $data): void {
                         try {
                             app(InventoryAuditApplyService::class)->applyUpdate($record, [
                                 'counted_quantity' => $data['counted_quantity'],
                                 'new_cost_price' => $data['new_cost_price'] ?? null,
+                                'product_category_id' => $data['product_category_id'] ?? null,
                             ], Auth::user());
                             Notification::make()->title('Producto actualizado')->success()->send();
                         } catch (ValidationException $e) {

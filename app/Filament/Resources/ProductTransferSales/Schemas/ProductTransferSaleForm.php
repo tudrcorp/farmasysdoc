@@ -48,11 +48,7 @@ class ProductTransferSaleForm
             return true;
         }
 
-        if ($user->hasGerenciaRole()) {
-            return count($user->managedBranchIds()) > 1;
-        }
-
-        return false;
+        return count($user->restrictedBranchIdsForQueries()) > 1;
     }
 
     /**

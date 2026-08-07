@@ -51,6 +51,27 @@ class RolsTable
                     ->wrap()
                     ->lineClamp(2)
                     ->tooltip(fn (Rol $record): string => self::permissionGroupsDescription($record)),
+                TextColumn::make('branches_count')
+                    ->label('Sucursales')
+                    ->counts('branches')
+                    ->alignEnd()
+                    ->badge()
+                    ->color(fn (int $state): string => match (true) {
+                        $state === 0 => 'gray',
+                        $state === 1 => 'info',
+                        default => 'success',
+                    })
+                    ->icon(Heroicon::BuildingOffice2)
+                    ->formatStateUsing(function (int $state, Rol $record): string {
+                        if (in_array(mb_strtoupper((string) $record->name), ['ADMINISTRADOR', 'DELIVERY'], true)) {
+                            return 'Todas';
+                        }
+
+                        return $state === 0 ? 'Ninguna' : (string) $state;
+                    })
+                    ->tooltip(fn (Rol $record): string => in_array(mb_strtoupper((string) $record->name), ['ADMINISTRADOR', 'DELIVERY'], true)
+                        ? 'Sin filtro por sucursal'
+                        : 'Sucursales asignadas a este rol'),
                 TextColumn::make('users_count')
                     ->label('Usuarios')
                     ->state(fn (Rol $record): int => User::query()

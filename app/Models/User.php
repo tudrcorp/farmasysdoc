@@ -209,6 +209,11 @@ class User extends Authenticatable implements FilamentUser
             }
         }
 
+        $roleBranchCount = count($this->roleBranchIds());
+        if ($roleBranchCount > 1) {
+            return 'Alcance · '.$roleBranchCount.' sucursales';
+        }
+
         return $this->branch?->name ?? 'Farmadoc®';
     }
 
@@ -253,7 +258,44 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * IDs de sucursales heredadas desde los roles activos del usuario (pivote `branch_rol`).
+     *
+     * @return list<int>
+     */
+    public function roleBranchIds(): array
+    {
+        $roles = $this->roles;
+
+        if (! is_array($roles) || $roles === []) {
+            return [];
+        }
+
+        $normalized = array_values(array_unique(array_filter(array_map(
+            static fn (mixed $role): string => is_string($role) ? mb_strtoupper(trim($role)) : '',
+            $roles,
+        ), static fn (string $role): bool => $role !== '')));
+
+        if ($normalized === []) {
+            return [];
+        }
+
+        return Rol::query()
+            ->whereIn('name', $normalized)
+            ->where('is_active', true)
+            ->with('branches:id')
+            ->get()
+            ->flatMap(static fn (Rol $rol) => $rol->branches->pluck('id'))
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
      * IDs de sucursal para filtros de listados (no usar si {@see self::isAdministrator()} o {@see self::isDeliveryUser()}).
+     *
+     * Unión de: sucursales del/los roles + alcance GERENCIA (`branch_user`) o `branch_id` del usuario.
      *
      * @return list<int>
      */
@@ -263,16 +305,23 @@ class User extends Authenticatable implements FilamentUser
             return [];
         }
 
-        if ($this->hasGerenciaRole()) {
-            $ids = $this->managedBranchIds();
-            if ($ids !== []) {
-                return $ids;
-            }
+        $ids = $this->roleBranchIds();
 
-            return filled($this->branch_id) ? [(int) $this->branch_id] : [];
+        if ($this->hasGerenciaRole()) {
+            $managed = $this->managedBranchIds();
+            if ($managed !== []) {
+                $ids = [...$ids, ...$managed];
+            } elseif (filled($this->branch_id)) {
+                $ids[] = (int) $this->branch_id;
+            }
+        } elseif (filled($this->branch_id)) {
+            $ids[] = (int) $this->branch_id;
         }
 
-        return filled($this->branch_id) ? [(int) $this->branch_id] : [];
+        return array_values(array_unique(array_filter(
+            $ids,
+            static fn (int $id): bool => $id > 0,
+        )));
     }
 
     /**

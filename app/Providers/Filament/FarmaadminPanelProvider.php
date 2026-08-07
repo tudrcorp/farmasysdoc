@@ -146,12 +146,21 @@ class FarmaadminPanelProvider extends PanelProvider
                     }
 
                     $user = Auth::user();
-
-                    if (! $user instanceof User || ! $user->canAccessFarmaadminMenuKey('bdv_pagomovil_conciliation')) {
+                    if (! $user instanceof User) {
                         return '';
                     }
 
-                    return Livewire::mount('filament.bdv-pagomovil-conciliation-fab', [], 'farmadoc-bdv-pm-fab');
+                    $bcvHtml = Livewire::mount('filament.bcv-exchange-rate-badge', [], 'farmadoc-bcv-rate-badge');
+                    $bdvHtml = '';
+
+                    if ($user->canAccessFarmaadminMenuKey('bdv_pagomovil_conciliation')) {
+                        $bdvHtml = Livewire::mount('filament.bdv-pagomovil-conciliation-fab', [], 'farmadoc-bdv-pm-fab');
+                    }
+
+                    return view('filament.farmaadmin.components.corner-fabs', [
+                        'bcvHtml' => $bcvHtml,
+                        'bdvHtml' => $bdvHtml,
+                    ])->render();
                 },
             )
             ->authMiddleware([

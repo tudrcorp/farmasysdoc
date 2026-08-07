@@ -349,6 +349,7 @@ class SalesTable
                             .', la venta quedará como «Cancelada» y se abrirá la impresión de la nota de crédito fiscal.')
                         ->modalSubmitActionLabel('Sí, anular venta')
                         ->visible(fn (Sale $record): bool => $record->status === SaleStatus::Completed
+                            && ! $record->isInternalBranchTransfer()
                             && Auth::user() instanceof User
                             && Auth::user()->canVoidSales())
                         ->action(function (Sale $record, Action $action): void {

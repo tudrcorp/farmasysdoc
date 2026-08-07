@@ -218,6 +218,7 @@ final class AllBranchesMonthlySalesStatsService
     private function baseSalesQuery(CarbonInterface $from, CarbonInterface $to): Builder
     {
         return Sale::query()
+            ->excludingInternalBranchTransfers()
             ->where('status', SaleStatus::Completed)
             ->whereNotNull('sold_at')
             ->whereNotNull('branch_id')

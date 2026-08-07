@@ -23,7 +23,7 @@ class MarketingAnalyticsService
      */
     public function completedSalesQuery(): Builder
     {
-        return Sale::query()->where('status', SaleStatus::Completed);
+        return Sale::query()->excludingInternalBranchTransfers()->where('status', SaleStatus::Completed);
     }
 
     /**
@@ -98,7 +98,9 @@ class MarketingAnalyticsService
     public function topProductsChart(int $limit = 10): array
     {
         $q = SaleItem::query()
-            ->whereHas('sale', fn (Builder $s) => $s->where('status', SaleStatus::Completed));
+            ->whereHas('sale', fn (Builder $s) => $s
+                ->excludingInternalBranchTransfers()
+                ->where('status', SaleStatus::Completed));
 
         $rows = $q
             ->selectRaw('COALESCE(NULLIF(TRIM(product_name_snapshot), ""), CONCAT("Producto #", product_id)) as pname, SUM(quantity) as qty')
@@ -168,6 +170,7 @@ class MarketingAnalyticsService
     {
         $row = SaleItem::query()
             ->whereHas('sale', fn (Builder $s) => $s
+                ->excludingInternalBranchTransfers()
                 ->where('status', SaleStatus::Completed)
                 ->where('branch_id', $branchId))
             ->selectRaw('COALESCE(NULLIF(TRIM(product_name_snapshot), ""), CONCAT("Producto #", product_id)) as pname, SUM(quantity) as qty')
@@ -258,6 +261,7 @@ class MarketingAnalyticsService
 
         $topProductRows = SaleItem::query()
             ->whereHas('sale', fn (Builder $s) => $s
+                ->excludingInternalBranchTransfers()
                 ->where('status', SaleStatus::Completed)
                 ->where('client_id', $client->id))
             ->selectRaw('COALESCE(NULLIF(TRIM(product_name_snapshot), ""), CONCAT("Producto #", product_id)) as pname, SUM(quantity) as qty')

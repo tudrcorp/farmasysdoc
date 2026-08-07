@@ -33,6 +33,12 @@ final class SaleVoidService
             ]);
         }
 
+        if ($sale->isInternalBranchTransfer()) {
+            throw ValidationException::withMessages([
+                'status' => 'Las ventas internas por traslado entre sucursales no se anulan desde ventas. Gestione el traslado en Inventario → Traslados de venta.',
+            ]);
+        }
+
         $actorLabel = $actor?->email
             ?? $actor?->name
             ?? 'sistema';

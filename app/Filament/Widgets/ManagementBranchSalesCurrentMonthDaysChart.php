@@ -272,6 +272,7 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
 
         $dateExpression = $this->dateGroupExpression();
         $rows = Sale::query()
+            ->excludingInternalBranchTransfers()
             ->where('status', SaleStatus::Completed)
             ->whereNotNull('sold_at')
             ->whereIn('branch_id', $branchIds)
@@ -441,6 +442,7 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
         }
 
         return round((float) Sale::query()
+            ->excludingInternalBranchTransfers()
             ->where('status', SaleStatus::Completed)
             ->whereNotNull('sold_at')
             ->whereIn('branch_id', $branchIds)
@@ -458,6 +460,7 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
         $day = Carbon::parse($dateKey);
 
         return round((float) Sale::query()
+            ->excludingInternalBranchTransfers()
             ->where('status', SaleStatus::Completed)
             ->whereNotNull('sold_at')
             ->whereIn('branch_id', $branchIds)

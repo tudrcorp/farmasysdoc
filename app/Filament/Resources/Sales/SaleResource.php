@@ -57,7 +57,9 @@ class SaleResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return BranchAuthScope::applyToSalesQuery(parent::getEloquentQuery());
+        // Incluye ventas internas por traslado para poder abrirlas desde el recurso de traslados.
+        // El listado y los totales las excluyen vía {@see SalesTable} / {@see BranchAuthScope::applyToSalesQuery()}.
+        return BranchAuthScope::applyToSalesQuery(parent::getEloquentQuery(), excludeInternalBranchTransfers: false);
     }
 
     public static function canCreate(): bool

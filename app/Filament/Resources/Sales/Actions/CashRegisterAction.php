@@ -29,6 +29,7 @@ use App\Services\Inventory\InventoryAuditOpenLineSyncService;
 use App\Services\Inventory\PosFefoAlertLogRegistrar;
 use App\Services\Inventory\PosInventoryStockFailureRegistrar;
 use App\Services\Sales\CacheaConciliationRegistrar;
+use App\Services\Sales\ClientCommercialDiscountResolver;
 use App\Support\Cash\PhysicalCashBoxBillingGate;
 use App\Support\Finance\DefaultIgtfRate;
 use App\Support\Finance\DefaultVatRate;
@@ -286,9 +287,19 @@ final class CashRegisterAction
                                             }
                                         }
                                         $total = self::formatMoney(self::computeLineTotalFromRowState($state, $get));
+                                        $clientId = filled($get('client_id')) ? (int) $get('client_id') : null;
+                                        $discountPercent = app(ClientCommercialDiscountResolver::class)->percentForClientId($clientId);
+                                        if ($discountPercent > 0.00001) {
+                                            $original = self::computeLineTotalFromRowState($state, $get);
+                                            $discounted = round($original * (1 - ($discountPercent / 100)), 2);
+                                            $total = '<span class="line-through opacity-70">'.self::formatMoney($original)
+                                                .'</span> → <span class="farmadoc-pos-repeater-item-total">'.self::formatMoney($discounted).'</span>';
+                                        } else {
+                                            $total = '<span class="farmadoc-pos-repeater-item-total">'.$total.'</span>';
+                                        }
 
                                         return new HtmlString(
-                                            e($title).$fefoBadgeHtml.' · <span class="farmadoc-pos-repeater-item-total">'.$total.'</span>'
+                                            e($title).$fefoBadgeHtml.' · '.$total
                                         );
                                     })
                                     ->extraAttributes([
@@ -1358,12 +1369,13 @@ final class CashRegisterAction
                     return;
                 }
 
-                $discountRequested = (float) ($data['discount_total'] ?? 0);
+                $clientIdForDiscount = filled($data['client_id'] ?? null) ? (int) $data['client_id'] : null;
+                $discountPercent = app(ClientCommercialDiscountResolver::class)->percentForClientId($clientIdForDiscount);
 
                 $pricing = self::finalizePosPricingFromValidLines(
                     $validLines,
                     $paymentMethod,
-                    $discountRequested,
+                    discountPercent: $discountPercent,
                 );
 
                 $subtotal = $pricing['subtotal'];
@@ -1421,6 +1433,8 @@ final class CashRegisterAction
                     $lineTotal = $pl['line_total'];
                     $lineCostTotal = round($qty * $unitCost, 2);
                     $grossProfit = round($lineTotal - $lineCostTotal, 2);
+                    $originalLineGross = round($qty * $unit, 2);
+                    $lineDiscountAmount = round(max(0.0, $originalLineGross - $lineSubtotal), 2);
 
                     $payloadItems[] = [
                         'product_id' => $productId,
@@ -1428,7 +1442,7 @@ final class CashRegisterAction
                         'quantity' => $qty,
                         'unit_price' => $unit,
                         'unit_cost' => $unitCost,
-                        'discount_amount' => 0.0,
+                        'discount_amount' => $lineDiscountAmount,
                         'line_subtotal' => $lineSubtotal,
                         'tax_amount' => $taxAmount,
                         'line_total' => $lineTotal,
@@ -3970,6 +3984,7 @@ final class CashRegisterAction
      *     tax_total: float,
      *     igtf_total: float,
      *     discount_total: float,
+     *     discount_percent: float,
      *     document_total: float,
      *     ves_tax_fraction: float,
      *     per_line: list<array{line_subtotal: float, tax_amount: float, line_total: float}>,
@@ -3978,7 +3993,8 @@ final class CashRegisterAction
     private static function finalizePosPricingFromValidLines(
         array $lines,
         string $paymentMethod,
-        float $discountRequested,
+        float $discountRequested = 0.0,
+        float $discountPercent = 0.0,
     ): array {
         if ($lines === []) {
             return [
@@ -3986,6 +4002,7 @@ final class CashRegisterAction
                 'tax_total' => 0.0,
                 'igtf_total' => 0.0,
                 'discount_total' => 0.0,
+                'discount_percent' => 0.0,
                 'document_total' => 0.0,
                 'ves_tax_fraction' => 0.0,
                 'per_line' => [],
@@ -4006,8 +4023,9 @@ final class CashRegisterAction
 
         $subtotal = round(array_sum($lineGross), 2);
 
-        $discountTotal = self::isUsdOnlyPaymentMethod($paymentMethod)
-            ? 0.0
+        $discountPercent = max(0.0, min(100.0, $discountPercent));
+        $discountTotal = $discountPercent > 0.00001
+            ? app(ClientCommercialDiscountResolver::class)->amountFromSubtotal($subtotal, $discountPercent)
             : max(0.0, round($discountRequested, 2));
 
         $discountTotal = min($discountTotal, $subtotal);
@@ -4065,6 +4083,7 @@ final class CashRegisterAction
             'tax_total' => $taxTotal,
             'igtf_total' => $igtfTotal,
             'discount_total' => $discountTotal,
+            'discount_percent' => $discountPercent,
             'document_total' => $documentTotal,
             'ves_tax_fraction' => 0.0,
             'per_line' => $perLine,
@@ -4348,6 +4367,7 @@ final class CashRegisterAction
      *         tax_total: float,
      *         igtf_total: float,
      *         discount_total: float,
+     *         discount_percent: float,
      *         document_total: float,
      *         ves_tax_fraction: float,
      *         per_line: list<array{line_subtotal: float, tax_amount: float, line_total: float}>,
@@ -4372,9 +4392,14 @@ final class CashRegisterAction
         }
 
         $paymentMethod = (string) ($get('payment_method') ?? 'punto_venta_ves');
-        $discountRequested = (float) ($get('discount_total') ?? 0);
+        $clientId = filled($get('client_id')) ? (int) $get('client_id') : null;
+        $discountPercent = app(ClientCommercialDiscountResolver::class)->percentForClientId($clientId);
 
-        return self::finalizePosPricingFromValidLines($valid, $paymentMethod, $discountRequested);
+        return self::finalizePosPricingFromValidLines(
+            $valid,
+            $paymentMethod,
+            discountPercent: $discountPercent,
+        );
     }
 
     private static function computeSaleTotal(Get $get): float
@@ -5212,7 +5237,12 @@ final class CashRegisterAction
             ? ' · Doc. '.$client->document_number
             : '';
 
-        return $client->name.$doc;
+        $discount = app(ClientCommercialDiscountResolver::class)->resolve((int) $clientId);
+        $discountLabel = filled($discount['label'] ?? null)
+            ? ' · Desc. '.$discount['label']
+            : '';
+
+        return $client->name.$doc.$discountLabel;
     }
 
     private static function clearPosQuickClientFields(Set $set): void
@@ -6015,10 +6045,14 @@ final class CashRegisterAction
         }
 
         $lines = [];
-        $lines[] = 'Subtotal '.self::formatMoney($p['subtotal']);
+        $lines[] = 'Precio original '.self::formatMoney($p['subtotal']);
 
         if ($p['discount_total'] > 0.00001) {
-            $lines[] = 'Descuento −'.self::formatMoney($p['discount_total']);
+            $percentLabel = ($p['discount_percent'] ?? 0) > 0.00001
+                ? ' ('.rtrim(rtrim(number_format((float) $p['discount_percent'], 2, '.', ''), '0'), '.').'%)'
+                : '';
+            $lines[] = 'Descuento'.$percentLabel.' −'.self::formatMoney($p['discount_total']);
+            $lines[] = 'Subtotal con descuento '.self::formatMoney(round($p['subtotal'] - $p['discount_total'], 2));
         }
 
         if ($p['tax_total'] > 0.00001) {

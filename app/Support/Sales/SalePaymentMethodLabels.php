@@ -44,6 +44,7 @@ final class SalePaymentMethodLabels
             'credito_cliente' => 'Crédito · CxC',
             'punto_venta_ves' => 'Punto de venta',
             'transfer_usd' => 'Transferencia USD',
+            'traslado_sucursal' => 'Traslado entre sucursales (costo)',
             'cash', 'efectivo' => 'Efectivo',
             'card', 'tarjeta', 'debit', 'credit' => 'Tarjeta',
             'transfer', 'transferencia', 'nequi', 'daviplata' => 'Transferencia / digital',

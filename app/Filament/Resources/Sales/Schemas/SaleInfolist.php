@@ -7,6 +7,7 @@ use App\Filament\Resources\AccountsReceivables\AccountsReceivableResource;
 use App\Filament\Resources\Branches\BranchResource;
 use App\Filament\Resources\Clients\ClientResource;
 use App\Models\Sale;
+use App\Support\Sales\InternalBranchTransferSale;
 use App\Support\Sales\PosPaymentMethodOptions;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\RepeatableEntry\TableColumn;
@@ -23,6 +24,19 @@ class SaleInfolist
     {
         return $schema
             ->components([
+                Section::make('Venta interna por traslado')
+                    ->description('Este documento registra el costo del inventario trasladado entre sucursales. No forma parte del listado de ventas ni de los totales de caja.')
+                    ->icon(Heroicon::ArrowsRightLeft)
+                    ->visible(fn (Sale $record): bool => InternalBranchTransferSale::is($record))
+                    ->schema([
+                        TextEntry::make('internal_transfer_notice')
+                            ->hiddenLabel()
+                            ->state('Método de pago: traslado entre sucursales (costo). Consulte el traslado asociado para el flujo operativo.')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
                 Section::make('Documento y partes')
                     ->description('Identificación de la venta, sucursal y cliente.')
                     ->icon(Heroicon::ShoppingBag)

@@ -138,6 +138,7 @@ final class PhysicalCashBoxShiftReportBuilder
 
         $query = Sale::query()
             ->with(['items', 'conciliationCachea'])
+            ->excludingInternalBranchTransfers()
             ->where('status', SaleStatus::Completed)
             ->whereIn('created_by', $creatorValues)
             ->whereRaw('COALESCE(sold_at, created_at) >= ?', [$openedAt])

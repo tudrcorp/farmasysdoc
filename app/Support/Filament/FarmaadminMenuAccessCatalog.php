@@ -29,6 +29,7 @@ class FarmaadminMenuAccessCatalog
             'purchase_books' => ['label' => 'Retenciones', 'route_name_fragment' => 'resources.purchase-books.', 'group' => 'Operaciones'],
             'deliveries' => ['label' => 'Entregas', 'route_name_fragment' => 'resources.deliveries.', 'group' => 'Operaciones'],
             'clients' => ['label' => 'Clientes', 'route_name_fragment' => 'resources.clients.', 'group' => 'Operaciones'],
+            'client_discounts' => ['label' => 'Descuentos de clientes', 'route_name_fragment' => 'descuentos-clientes', 'group' => 'Operaciones'],
             'partner_companies' => ['label' => 'Compañias aliadas', 'route_name_fragment' => 'resources.partner-companies.', 'group' => 'Aliados Comerciales'],
             'products' => ['label' => 'Productos', 'route_name_fragment' => 'resources.products.', 'group' => 'Inventario'],
             'products_edit' => ['label' => 'Editar producto', 'route_name_fragment' => 'resources.products.edit', 'group' => 'Inventario'],

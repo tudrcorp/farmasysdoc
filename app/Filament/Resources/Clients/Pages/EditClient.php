@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Clients\Pages;
 
 use App\Filament\Resources\Clients\ClientResource;
+use App\Services\Sales\ClientCommercialDiscountAssigner;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
@@ -22,6 +23,14 @@ class EditClient extends EditRecord
             ?? 'sistema';
 
         return $data;
+    }
+
+    protected function afterSave(): void
+    {
+        $percent = (float) ($this->record->customer_discount ?? 0);
+        if ($percent > 0.00001) {
+            app(ClientCommercialDiscountAssigner::class)->assignIndividual($this->record, $percent);
+        }
     }
 
     protected function getHeaderActions(): array

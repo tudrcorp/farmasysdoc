@@ -19,7 +19,7 @@ class ListProductTransferSales extends ListRecords
 
     public function getSubheading(): string|Htmlable|null
     {
-        return 'Pedidos de mercancía entre sucursales asociados a una venta; seguimiento de envío, delivery y cierre.';
+        return 'Ventas internas entre sucursales a costo. No aparecen en el listado de ventas ni en los totales de caja; se gestionan solo aquí.';
     }
 
     protected function getHeaderActions(): array

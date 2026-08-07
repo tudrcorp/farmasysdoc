@@ -14,13 +14,14 @@ use App\Models\SaleItem;
 use App\Models\User;
 use App\Support\Audit\ProductTransferSaleAuditLogger;
 use App\Support\ProductTransferStockValidator;
+use App\Support\Sales\InternalBranchTransferSale;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 final class ProductTransferCompletionService
 {
-    public const PAYMENT_METHOD_TRANSFER_SALE = 'traslado_sucursal';
+    public const PAYMENT_METHOD_TRANSFER_SALE = InternalBranchTransferSale::PAYMENT_METHOD;
 
     public const MANAGER_OUTSIDE_DESTINATION_BRANCH_MESSAGE = 'No puede realizar labores de gerencia fuera de su sucursal.';
 

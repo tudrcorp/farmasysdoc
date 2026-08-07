@@ -175,12 +175,12 @@ class ClientForm
                     ->columnSpanFull(),
 
                 Section::make('Condiciones comerciales')
-                    ->description('Descuento por cliente en porcentaje; el sistema puede usarlo al calcular ventas.')
+                    ->description('Descuento individual en porcentaje. Si el cliente está en un grupo de descuento, gestione el % desde Descuentos de clientes → Grupos (no puede tener ambos).')
                     ->icon(Heroicon::ReceiptPercent)
                     ->schema([
                         TextInput::make('customer_discount')
                             ->label('Descuento del cliente')
-                            ->helperText('Porcentaje entre 0 y 100. Use 0 si este cliente no tiene descuento acordado.')
+                            ->helperText('Porcentaje entre 0 y 100. Al guardar un valor > 0 se desvincula de cualquier grupo de descuento. Use 0 si no aplica o si el descuento es por grupo.')
                             ->numeric()
                             ->inputMode('decimal')
                             ->suffix('%')

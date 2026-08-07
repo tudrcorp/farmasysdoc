@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Enums\SaleStatus;
+use App\Support\Sales\InternalBranchTransferSale;
 use Database\Factories\SaleFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -111,5 +113,42 @@ class Sale extends Model
     public function physicalCashBoxMovements(): HasMany
     {
         return $this->hasMany(PhysicalCashBoxMovement::class);
+    }
+
+    /**
+     * Traslado que originó esta venta interna (si aplica).
+     *
+     * @return HasOne<ProductTransfer, $this>
+     */
+    public function productTransfer(): HasOne
+    {
+        return $this->hasOne(ProductTransfer::class);
+    }
+
+    public function isInternalBranchTransfer(): bool
+    {
+        return InternalBranchTransferSale::is($this);
+    }
+
+    /**
+     * Ventas de mostrador / caja (excluye ventas internas por traslado entre sucursales).
+     *
+     * @param  Builder<Sale>  $query
+     * @return Builder<Sale>
+     */
+    public function scopeExcludingInternalBranchTransfers(Builder $query): Builder
+    {
+        return InternalBranchTransferSale::excludeFromQuery($query);
+    }
+
+    /**
+     * Solo ventas internas generadas al completar un traslado entre sucursales.
+     *
+     * @param  Builder<Sale>  $query
+     * @return Builder<Sale>
+     */
+    public function scopeOnlyInternalBranchTransfers(Builder $query): Builder
+    {
+        return InternalBranchTransferSale::restrictQuery($query);
     }
 }

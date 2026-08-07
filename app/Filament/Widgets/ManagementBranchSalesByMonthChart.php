@@ -69,6 +69,7 @@ class ManagementBranchSalesByMonthChart extends ChartWidget
         $monthExpression = $this->monthGroupExpression();
         $totalCast = $this->totalCastExpression();
         $rows = Sale::query()
+            ->excludingInternalBranchTransfers()
             ->where('status', SaleStatus::Completed)
             ->whereNotNull('sold_at')
             ->whereIn('branch_id', $branchIds)
@@ -169,6 +170,7 @@ class ManagementBranchSalesByMonthChart extends ChartWidget
         }
 
         return round((float) Sale::query()
+            ->excludingInternalBranchTransfers()
             ->where('status', SaleStatus::Completed)
             ->whereNotNull('sold_at')
             ->whereIn('branch_id', $branchIds)

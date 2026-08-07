@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\ClientFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Client extends Model
@@ -63,5 +64,14 @@ class Client extends Model
     public function accountsReceivables(): HasMany
     {
         return $this->hasMany(AccountsReceivable::class);
+    }
+
+    /**
+     * @return BelongsToMany<ClientDiscountGroup, $this>
+     */
+    public function discountGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(ClientDiscountGroup::class, 'client_discount_group_client')
+            ->withTimestamps();
     }
 }

@@ -47,6 +47,7 @@ final class BranchDailyAverageTicketChartDataService
         $customerCountExpression = $this->customerCountExpression();
 
         $rows = Sale::query()
+            ->excludingInternalBranchTransfers()
             ->where('status', SaleStatus::Completed)
             ->whereNotNull('sold_at')
             ->whereIn('branch_id', $branchIds)

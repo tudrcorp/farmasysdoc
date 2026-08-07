@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\Order;
 use App\Models\Sale;
 use App\Models\User;
+use App\Support\Sales\InternalBranchTransferSale;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 
@@ -71,12 +72,17 @@ final class BranchAuthScope
      * - ADMINISTRADOR y DELIVERY: todas las sucursales.
      * - Resto: solo sucursales de {@see User::restrictedBranchIdsForQueries()}.
      * - CAJERO: además, solo ventas creadas por el propio usuario.
+     * - Por defecto excluye ventas internas por traslado ({@see InternalBranchTransferSale}).
      *
      * @param  Builder<Sale>  $query
      * @return Builder<Sale>
      */
-    public static function applyToSalesQuery(Builder $query): Builder
+    public static function applyToSalesQuery(Builder $query, bool $excludeInternalBranchTransfers = true): Builder
     {
+        if ($excludeInternalBranchTransfers) {
+            InternalBranchTransferSale::excludeFromQuery($query);
+        }
+
         $user = Auth::user();
         if (! $user instanceof User) {
             return $query;

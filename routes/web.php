@@ -1,9 +1,12 @@
 <?php
 
 use App\Http\Controllers\Dev\BdvConciliationTestController;
+use App\Http\Controllers\Finance\AccountsPayableBulkPaymentReportPdfController;
+use App\Http\Controllers\Finance\AccountsPayablePaymentReportPdfController;
 use App\Http\Controllers\FiscalReceiptController;
 use App\Http\Controllers\NominatimProxyController;
 use App\Http\Controllers\ProductTransfers\ProductTransferReportPdfController;
+use App\Http\Controllers\ProductTransfers\ProductTransferSaleReportPdfController;
 use App\Http\Controllers\PublicProductSearchController;
 use App\Http\Controllers\Purchases\PurchaseAnnulmentApprovalController;
 use App\Http\Controllers\Purchases\PurchaseBookRetentionVoucherPdfController;
@@ -70,12 +73,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('signed')
         ->name('product-transfers.report-pdf');
 
+    Route::get('product-transfer-sales/report-pdf', ProductTransferSaleReportPdfController::class)
+        ->middleware('signed')
+        ->name('product-transfer-sales.report-pdf');
+
     Route::get('purchases/{purchase}/document-pdf', PurchaseDocumentPdfController::class)
         ->name('purchases.document-pdf');
 
     Route::get('purchase-books/retention-voucher-pdf', PurchaseBookRetentionVoucherPdfController::class)
         ->middleware('signed')
         ->name('purchase-books.retention-voucher-pdf');
+
+    Route::get('accounts-payables/{accountsPayable}/payment-report-pdf', AccountsPayablePaymentReportPdfController::class)
+        ->middleware('signed')
+        ->name('accounts-payables.payment-report-pdf');
+
+    Route::get('accounts-payables/bulk-payment-report-pdf', AccountsPayableBulkPaymentReportPdfController::class)
+        ->middleware('signed')
+        ->name('accounts-payables.bulk-payment-report-pdf');
 
     Route::get('purchases/{purchase}/annulment-approve', [PurchaseAnnulmentApprovalController::class, 'show'])
         ->middleware('signed')

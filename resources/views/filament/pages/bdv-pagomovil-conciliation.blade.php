@@ -5,8 +5,8 @@
         <x-filament::section>
             <x-slot name="heading">Antes de conciliar</x-slot>
             <x-slot name="description">
-                Ingrese los datos exactos del comprobante de Pago Móvil del cliente. El teléfono destino corresponde al comercio
-                (sucursal). Entorno activo: <strong>{{ $environmentLabel }}</strong>.
+                Ingrese los datos exactos del comprobante de Pago Móvil del cliente. El teléfono del comercio se toma
+                automáticamente de la sucursal. Entorno activo: <strong>{{ $environmentLabel }}</strong>.
             </x-slot>
             <div class="flex flex-wrap gap-3">
                 @if ($canViewHistory)

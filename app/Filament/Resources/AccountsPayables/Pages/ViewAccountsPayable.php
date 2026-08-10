@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\AccountsPayables\Pages;
 
 use App\Filament\Resources\AccountsPayables\AccountsPayableResource;
+use App\Filament\Resources\AccountsPayables\Actions\DownloadAccountsPayablePaymentReportAction;
+use App\Filament\Resources\AccountsPayables\Actions\UploadAccountsPayablePaymentProofAction;
 use App\Filament\Resources\AccountsPayables\Support\AccountsPayablePaymentFormSchema;
 use App\Models\AccountsPayable;
 use App\Services\Audit\AuditLogger;
@@ -74,6 +76,8 @@ class ViewAccountsPayable extends ViewRecord
                             ->send();
                     }
                 }),
+            UploadAccountsPayablePaymentProofAction::make(),
+            DownloadAccountsPayablePaymentReportAction::make(),
         ];
     }
 

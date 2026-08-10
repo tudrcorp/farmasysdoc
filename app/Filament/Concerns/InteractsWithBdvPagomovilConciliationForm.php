@@ -38,6 +38,8 @@ trait InteractsWithBdvPagomovilConciliationForm
 
     public bool $lastSuccess = false;
 
+    public ?string $lastUserMessage = null;
+
     /**
      * @var list<array{id: int, name: string}>
      */
@@ -69,11 +71,17 @@ trait InteractsWithBdvPagomovilConciliationForm
     {
         $this->lastResult = null;
         $this->lastSuccess = false;
+        $this->lastUserMessage = null;
 
         $user = Filament::auth()->user();
         abort_unless($user instanceof User, 403);
 
         $allowedBranchIds = array_column($this->branchOptions, 'id');
+
+        $branchIdForPhone = $this->branchId ?? $service->defaultBranchIdForUser($user);
+        $this->telefonoDestino = $service->resolveCommercePhone(
+            $branchIdForPhone !== null ? (int) $branchIdForPhone : null,
+        );
 
         $rules = array_merge(
             (new GetMovementRequest)->rules(),
@@ -103,6 +111,9 @@ trait InteractsWithBdvPagomovilConciliationForm
             return;
         }
 
+        $this->telefonoDestino = $service->resolveCommercePhone($branchId);
+        $validated['telefonoDestino'] = $this->telefonoDestino;
+
         unset($validated['branchId']);
         $validated['branch_id'] = $branchId;
 
@@ -110,6 +121,7 @@ trait InteractsWithBdvPagomovilConciliationForm
 
         $this->lastResult = $outcome['panel'];
         $this->lastSuccess = $outcome['success'];
+        $this->lastUserMessage = $outcome['user_message'];
 
         AuditLogger::record(
             event: $outcome['success'] ? 'bdv_pagomovil_conciliation_ok' : 'bdv_pagomovil_conciliation_failed',
@@ -132,15 +144,12 @@ trait InteractsWithBdvPagomovilConciliationForm
 
         if ($outcome['success']) {
             $notification->success();
+            $this->dispatch('bdv-pm-conciliation-success');
         } else {
             $notification->danger()->persistent();
         }
 
         $notification->send();
-
-        if ($outcome['success']) {
-            $this->dispatch('bdv-pm-conciliation-success');
-        }
     }
 
     public function resetBdvPagomovilConciliationForm(BdvPagomovilConciliationService $service): void
@@ -156,6 +165,7 @@ trait InteractsWithBdvPagomovilConciliationForm
             'reqCed',
             'lastResult',
             'lastSuccess',
+            'lastUserMessage',
         ]);
 
         $this->fechaPago = now()->toDateString();

@@ -46,12 +46,6 @@
         'idPrefix' => $idPrefix,
     ])
     @include('filament.pages.partials.bdv-input', [
-        'name' => 'telefonoDestino',
-        'label' => 'Teléfono destino (comercio)',
-        'placeholder' => '04141234567',
-        'idPrefix' => $idPrefix,
-    ])
-    @include('filament.pages.partials.bdv-input', [
         'name' => 'referencia',
         'label' => 'Referencia',
         'placeholder' => '12345678',

@@ -101,8 +101,43 @@
                 </header>
 
                 <div class="farmadoc-bdv-pm-sheet__body">
-                    @if ($lastResult === null)
+                    @if ($bdvOutcomeOk && $lastResult !== null)
+                        @include('filament.partials.bdv-pagomovil-conciliation-result', [
+                            'lastResult' => $lastResult,
+                            'bdvOutcomeOk' => true,
+                        ])
+
+                        <div class="farmadoc-bdv-pm-sheet__actions">
+                            <button
+                                type="button"
+                                class="farmadoc-bdv-pm-sheet__btn farmadoc-bdv-pm-sheet__btn--primary"
+                                wire:click="resetForm"
+                            >
+                                Nueva conciliación
+                            </button>
+                            @if ($canViewHistory)
+                                <a
+                                    href="{{ $conciliationsUrl }}"
+                                    class="farmadoc-bdv-pm-sheet__btn farmadoc-bdv-pm-sheet__btn--ghost"
+                                >
+                                    Ver historial
+                                </a>
+                            @endif
+                        </div>
+                    @else
                         <form wire:submit.prevent="submitConciliation" class="farmadoc-bdv-pm-sheet__form">
+                            @if ($lastResult !== null && ! $bdvOutcomeOk)
+                                <div class="farmadoc-bdv-pm-result farmadoc-bdv-pm-result--fail farmadoc-bdv-pm-sheet__fail-banner" role="alert">
+                                    <p class="farmadoc-bdv-pm-result__title">No se concilió el pago</p>
+                                    @if (filled($lastUserMessage))
+                                        <p class="farmadoc-bdv-pm-result__subtitle">{{ $lastUserMessage }}</p>
+                                    @endif
+                                    <p class="farmadoc-bdv-pm-result__subtitle">
+                                        Corrija el dato necesario y vuelva a validar. Los campos se mantienen.
+                                    </p>
+                                </div>
+                            @endif
+
                             @include('filament.partials.bdv-pagomovil-conciliation-form-fields', [
                                 'idPrefix' => 'bdv-fab',
                                 'compact' => true,
@@ -129,29 +164,6 @@
                                 </button>
                             </div>
                         </form>
-                    @else
-                        @include('filament.partials.bdv-pagomovil-conciliation-result', [
-                            'lastResult' => $lastResult,
-                            'bdvOutcomeOk' => $bdvOutcomeOk,
-                        ])
-
-                        <div class="farmadoc-bdv-pm-sheet__actions">
-                            <button
-                                type="button"
-                                class="farmadoc-bdv-pm-sheet__btn farmadoc-bdv-pm-sheet__btn--primary"
-                                wire:click="resetForm"
-                            >
-                                Nueva conciliación
-                            </button>
-                            @if ($canViewHistory)
-                                <a
-                                    href="{{ $conciliationsUrl }}"
-                                    class="farmadoc-bdv-pm-sheet__btn farmadoc-bdv-pm-sheet__btn--ghost"
-                                >
-                                    Ver historial
-                                </a>
-                            @endif
-                        </div>
                     @endif
                 </div>
 

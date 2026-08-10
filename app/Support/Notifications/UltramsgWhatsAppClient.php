@@ -138,6 +138,14 @@ final class UltramsgWhatsAppClient
 
     public function resolvePhysicalCashBoxBannerImage(): ?string
     {
+        return $this->resolveFarmadocLogoImage();
+    }
+
+    /**
+     * Logo Farmadoc para encabezado de notificaciones WhatsApp (URL pública o base64).
+     */
+    public function resolveFarmadocLogoImage(): ?string
+    {
         $configuredUrl = trim((string) config('services.ultramsg.cash_box_banner_url', ''));
         if ($configuredUrl !== '') {
             return $configuredUrl;

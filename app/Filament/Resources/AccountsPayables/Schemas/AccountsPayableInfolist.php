@@ -9,6 +9,7 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\Storage;
 
 class AccountsPayableInfolist
 {
@@ -67,6 +68,19 @@ class AccountsPayableInfolist
                                     ->placeholder('—')
                                     ->visible(fn (mixed $record): bool => $record instanceof AccountsPayable
                                         && filled($record->payment_reference)),
+                                TextEntry::make('payment_proof_path')
+                                    ->label('Comprobante de pago')
+                                    ->icon(Heroicon::PaperClip)
+                                    ->formatStateUsing(fn (?string $state): string => filled($state)
+                                        ? (basename($state) ?: 'Ver archivo')
+                                        : '—')
+                                    ->url(fn (AccountsPayable $record): ?string => filled($record->payment_proof_path)
+                                        ? Storage::disk('public')->url($record->payment_proof_path)
+                                        : null)
+                                    ->openUrlInNewTab()
+                                    ->placeholder('Sin comprobante')
+                                    ->visible(fn (mixed $record): bool => $record instanceof AccountsPayable
+                                        && $record->status === AccountsPayableStatus::PAGADO),
                             ]),
                     ])
                     ->columnSpanFull(),

@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\AccountsPayables\Tables;
 
+use App\Filament\Resources\AccountsPayables\Actions\BulkDownloadAccountsPayablePaymentReportAction;
+use App\Filament\Resources\AccountsPayables\Actions\DownloadAccountsPayablePaymentReportAction;
+use App\Filament\Resources\AccountsPayables\Actions\UploadAccountsPayablePaymentProofAction;
 use App\Filament\Resources\AccountsPayables\Support\AccountsPayableBulkPaymentFormSchema;
 use App\Filament\Resources\AccountsPayables\Support\AccountsPayablePaymentFormSchema;
 use App\Filament\Resources\Branches\BranchResource;
@@ -17,6 +20,7 @@ use App\Support\Finance\AccountsPayableBulkPaymentPayload;
 use App\Support\Finance\AccountsPayableInvoiceTaxSnapshot;
 use App\Support\Finance\AccountsPayableStatus;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\ViewAction;
@@ -271,7 +275,10 @@ class AccountsPayablesTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->checkIfRecordIsSelectableUsing(
-                fn (AccountsPayable $record): bool => $record->status === AccountsPayableStatus::POR_PAGAR,
+                fn (AccountsPayable $record): bool => in_array($record->status, [
+                    AccountsPayableStatus::POR_PAGAR,
+                    AccountsPayableStatus::PAGADO,
+                ], true),
             )
             ->filters([
                 SelectFilter::make('status')
@@ -339,91 +346,98 @@ class AccountsPayablesTable
                     }),
             ])
             ->recordActions([
-                ViewAction::make(),
-                Action::make('viewSupplierBankDetails')
-                    ->label('Datos bancarios')
-                    ->icon(Heroicon::BuildingLibrary)
-                    ->color('info')
-                    ->modalWidth(Width::TwoExtraLarge)
-                    ->modalHeading(fn (AccountsPayable $record): string => 'Datos bancarios · '.($record->supplier_name ?: 'Proveedor'))
-                    ->modalDescription('RIF, total a pagar y cuentas del proveedor. Clic en cualquier dato para copiarlo.')
-                    ->modalIcon(Heroicon::BuildingLibrary)
-                    ->modalIconColor('info')
-                    ->modalContent(function (AccountsPayable $record): View {
-                        $supplier = self::resolveSupplierForAccountsPayable($record);
-                        $supplier?->loadMissing('bankAccounts');
+                ActionGroup::make([
+                    ViewAction::make()
+                        ->label('Ver')
+                        ->icon(Heroicon::Eye),
+                    Action::make('viewSupplierBankDetails')
+                        ->label('Datos bancarios')
+                        ->icon(Heroicon::BuildingLibrary)
+                        ->color('info')
+                        ->modalWidth(Width::TwoExtraLarge)
+                        ->modalHeading(fn (AccountsPayable $record): string => 'Datos bancarios · '.($record->supplier_name ?: 'Proveedor'))
+                        ->modalDescription('RIF, total a pagar y cuentas del proveedor. Clic en cualquier dato para copiarlo.')
+                        ->modalIcon(Heroicon::BuildingLibrary)
+                        ->modalIconColor('info')
+                        ->modalContent(function (AccountsPayable $record): View {
+                            $supplier = self::resolveSupplierForAccountsPayable($record);
+                            $supplier?->loadMissing('bankAccounts');
 
-                        $taxId = filled($record->supplier_tax_id)
-                            ? (string) $record->supplier_tax_id
-                            : ($supplier?->tax_id);
+                            $taxId = filled($record->supplier_tax_id)
+                                ? (string) $record->supplier_tax_id
+                                : ($supplier?->tax_id);
 
-                        return view('filament.accounts-payables.supplier-bank-details-modal', [
-                            'accountsPayable' => $record,
-                            'supplier' => $supplier,
-                            'bankAccounts' => $supplier?->bankAccounts ?? collect(),
-                            'amountPayableVes' => AccountsPayableInvoiceTaxSnapshot::amountPayableVes($record),
-                            'supplierName' => filled($record->supplier_name)
-                                ? (string) $record->supplier_name
-                                : ($supplier?->displayName() ?? '—'),
-                            'supplierTaxId' => filled($taxId) ? (string) $taxId : null,
-                        ]);
-                    })
-                    ->modalSubmitAction(false)
-                    ->modalCancelAction(fn (Action $action): Action => $action
-                        ->label('Cerrar')
-                        ->color('gray')),
-                Action::make('registerPayment')
-                    ->label('Registrar pago')
-                    ->icon(Heroicon::Banknotes)
-                    ->color('success')
-                    ->modalWidth(Width::Large)
-                    ->modalHeading('Registrar pago al proveedor')
-                    ->modalDescription(function (AccountsPayable $record): string {
-                        $usd = round((float) ($record->remaining_principal_usd ?? $record->purchase_total_usd), 2);
+                            return view('filament.accounts-payables.supplier-bank-details-modal', [
+                                'accountsPayable' => $record,
+                                'supplier' => $supplier,
+                                'bankAccounts' => $supplier?->bankAccounts ?? collect(),
+                                'amountPayableVes' => AccountsPayableInvoiceTaxSnapshot::amountPayableVes($record),
+                                'supplierName' => filled($record->supplier_name)
+                                    ? (string) $record->supplier_name
+                                    : ($supplier?->displayName() ?? '—'),
+                                'supplierTaxId' => filled($taxId) ? (string) $taxId : null,
+                            ]);
+                        })
+                        ->modalSubmitAction(false)
+                        ->modalCancelAction(fn (Action $action): Action => $action
+                            ->label('Cerrar')
+                            ->color('gray')),
+                    Action::make('registerPayment')
+                        ->label('Registrar pago')
+                        ->icon(Heroicon::Banknotes)
+                        ->color('success')
+                        ->modalWidth(Width::Large)
+                        ->modalHeading('Registrar pago al proveedor')
+                        ->modalDescription(function (AccountsPayable $record): string {
+                            $usd = round((float) ($record->remaining_principal_usd ?? $record->purchase_total_usd), 2);
 
-                        return 'Principal pendiente (USD): '.number_format($usd, 2, ',', '.')
-                            .'. Los montos en Bs deben cuadrar con la tasa BCV del día actual.';
-                    })
-                    ->visible(fn (AccountsPayable $record): bool => $record->status === AccountsPayableStatus::POR_PAGAR)
-                    ->fillForm(fn (AccountsPayable $record): array => AccountsPayablePaymentFormSchema::defaultStateForRecord($record))
-                    ->schema(AccountsPayablePaymentFormSchema::paymentFields(true))
-                    ->action(function (AccountsPayable $record, array $data): void {
-                        AuditLogger::record(
-                            event: 'filament_accounts_payable_single_payment_submit',
-                            description: 'CxP: el usuario envió el formulario de pago desde el listado.',
-                            auditableType: AccountsPayable::class,
-                            auditableId: (string) $record->getKey(),
-                            auditableLabel: $record->supplier_invoice_number,
-                            properties: [
-                                'payment_method' => $data['payment_method'] ?? null,
-                                'payment_form' => $data['payment_form'] ?? null,
-                            ],
-                        );
-
-                        try {
-                            app(AccountsPayablePaymentRegistrar::class)->register($record, $data);
-                            Notification::make()
-                                ->title('Pago registrado')
-                                ->body('Se actualizó la cuenta por pagar y quedó asentado en el histórico de compras.')
-                                ->success()
-                                ->send();
-                        } catch (ValidationException $e) {
-                            $first = collect($e->errors())->flatten()->first();
+                            return 'Principal pendiente (USD): '.number_format($usd, 2, ',', '.')
+                                .'. Los montos en Bs deben cuadrar con la tasa BCV del día actual.';
+                        })
+                        ->visible(fn (AccountsPayable $record): bool => $record->status === AccountsPayableStatus::POR_PAGAR)
+                        ->fillForm(fn (AccountsPayable $record): array => AccountsPayablePaymentFormSchema::defaultStateForRecord($record))
+                        ->schema(AccountsPayablePaymentFormSchema::paymentFields(true))
+                        ->action(function (AccountsPayable $record, array $data): void {
                             AuditLogger::record(
-                                event: 'filament_accounts_payable_single_payment_validation_failed',
-                                description: 'CxP: validación rechazó el pago desde el listado.',
+                                event: 'filament_accounts_payable_single_payment_submit',
+                                description: 'CxP: el usuario envió el formulario de pago desde el listado.',
                                 auditableType: AccountsPayable::class,
                                 auditableId: (string) $record->getKey(),
-                                properties: ['errors' => $e->errors()],
+                                auditableLabel: $record->supplier_invoice_number,
+                                properties: [
+                                    'payment_method' => $data['payment_method'] ?? null,
+                                    'payment_form' => $data['payment_form'] ?? null,
+                                ],
                             );
-                            Notification::make()
-                                ->title('No se pudo registrar el pago')
-                                ->body(is_string($first) ? $first : 'Revise los datos e intente de nuevo.')
-                                ->danger()
-                                ->send();
-                        }
-                    }),
+
+                            try {
+                                app(AccountsPayablePaymentRegistrar::class)->register($record, $data);
+                                Notification::make()
+                                    ->title('Pago registrado')
+                                    ->body('Se actualizó la cuenta por pagar y quedó asentado en el histórico de compras.')
+                                    ->success()
+                                    ->send();
+                            } catch (ValidationException $e) {
+                                $first = collect($e->errors())->flatten()->first();
+                                AuditLogger::record(
+                                    event: 'filament_accounts_payable_single_payment_validation_failed',
+                                    description: 'CxP: validación rechazó el pago desde el listado.',
+                                    auditableType: AccountsPayable::class,
+                                    auditableId: (string) $record->getKey(),
+                                    properties: ['errors' => $e->errors()],
+                                );
+                                Notification::make()
+                                    ->title('No se pudo registrar el pago')
+                                    ->body(is_string($first) ? $first : 'Revise los datos e intente de nuevo.')
+                                    ->danger()
+                                    ->send();
+                            }
+                        }),
+                    UploadAccountsPayablePaymentProofAction::make(),
+                    DownloadAccountsPayablePaymentReportAction::make(),
+                ]),
             ])
+            ->recordActionsColumnLabel('Acciones')
             ->toolbarActions([
                 BulkActionGroup::make([
                     BulkAction::make('registerBulkPayment')
@@ -517,6 +531,7 @@ class AccountsPayablesTable
                                     ->send();
                             }
                         }),
+                    BulkDownloadAccountsPayablePaymentReportAction::make(),
                 ]),
             ])
             ->defaultSort('issued_at', 'desc');

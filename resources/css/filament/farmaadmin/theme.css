@@ -3249,6 +3249,10 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
     background: rgb(127 29 29 / 0.35);
 }
 
+.farmadoc-bdv-pm-sheet__fail-banner {
+    margin-bottom: 1rem;
+}
+
 .farmadoc-bdv-pm-result__title {
     margin: 0;
     font-size: 0.9375rem;

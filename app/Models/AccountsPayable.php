@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AccountsPayable extends Model
 {
@@ -25,6 +26,7 @@ class AccountsPayable extends Model
         'due_at',
         'paid_at',
         'payment_reference',
+        'payment_proof_path',
         'supplier_invoice_number',
         'supplier_control_number',
         'supplier_tax_id',
@@ -70,5 +72,13 @@ class AccountsPayable extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * @return HasMany<PurchaseHistory, $this>
+     */
+    public function paymentHistories(): HasMany
+    {
+        return $this->hasMany(PurchaseHistory::class, 'accounts_payable_id');
     }
 }

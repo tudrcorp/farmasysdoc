@@ -200,20 +200,36 @@ class WorkInventoryAudit extends Page implements HasTable
                         );
                     })
                     ->form(InventoryAuditApplyUpdateForm::fields())
-                    ->action(function (InventoryAuditLine $record, array $data): void {
+                    ->tap(InventoryAuditApplyUpdateForm::configureOtpGatedModalSubmit(...))
+                    ->successNotificationTitle('Cambio aplicado con éxito')
+                    ->successNotification(
+                        Notification::make()
+                            ->success()
+                            ->title('Cambio aplicado con éxito')
+                            ->body('El producto fue actualizado correctamente.')
+                    )
+                    ->action(function (InventoryAuditLine $record, array $data, Action $action, $livewire): void {
                         try {
                             app(InventoryAuditApplyService::class)->applyUpdate($record, [
                                 'counted_quantity' => $data['counted_quantity'],
                                 'new_cost_price' => $data['new_cost_price'] ?? null,
                                 'product_category_id' => $data['product_category_id'] ?? null,
+                                'otp_code' => isset($data['otp_code']) ? (string) $data['otp_code'] : null,
                             ], Auth::user());
-                            Notification::make()->title('Producto actualizado')->success()->send();
                         } catch (ValidationException $e) {
                             Notification::make()
                                 ->title('No se pudo actualizar')
                                 ->body(collect($e->errors())->flatten()->first() ?: 'Error de validación.')
                                 ->danger()
                                 ->send();
+
+                            $action->halt();
+
+                            return;
+                        }
+
+                        if (is_object($livewire) && method_exists($livewire, 'unmountAction')) {
+                            $livewire->unmountAction();
                         }
                     }),
             ])

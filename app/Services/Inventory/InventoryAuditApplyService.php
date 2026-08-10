@@ -24,6 +24,10 @@ use RuntimeException;
 
 final class InventoryAuditApplyService
 {
+    public function __construct(
+        private readonly InventoryAuditOtpService $otpService,
+    ) {}
+
     public function open(
         int $branchId,
         ?Authenticatable $actor = null,
@@ -363,7 +367,8 @@ final class InventoryAuditApplyService
      * @param  array{
      *     counted_quantity: float|int|string,
      *     new_cost_price?: float|int|string|null,
-     *     product_category_id?: int|string|null
+     *     product_category_id?: int|string|null,
+     *     otp_code?: string|null
      * }  $data
      */
     public function applyExpress(
@@ -385,8 +390,9 @@ final class InventoryAuditApplyService
         }
 
         $parsed = $this->parseApplyUpdatePayload($data);
+        $otpCode = isset($data['otp_code']) ? (string) $data['otp_code'] : null;
 
-        return DB::transaction(function () use ($branchId, $productId, $parsed, $actor): InventoryAudit {
+        return DB::transaction(function () use ($branchId, $productId, $parsed, $actor, $otpCode): InventoryAudit {
             $this->assertActorMayAccessBranch($branchId, $actor);
 
             $blockingLine = $this->findOpenAuditLineForProduct($branchId, $productId);
@@ -418,6 +424,18 @@ final class InventoryAuditApplyService
                     'product_id' => 'Producto no encontrado.',
                 ]);
             }
+
+            $this->assertManagerOtpIfRequired(
+                actor: $actor,
+                otpCode: $otpCode,
+                inventory: $inventory,
+                product: $product,
+                countedQuantity: $parsed['counted_quantity'],
+                costProvided: $parsed['cost_provided'],
+                newCostPrice: $parsed['new_cost_price'],
+                categoryProvided: $parsed['category_provided'],
+                requestedCategoryId: $parsed['requested_category_id'],
+            );
 
             $actorId = $actor instanceof User ? (int) $actor->getKey() : null;
             $actorLabel = self::actorLabel($actor);
@@ -536,7 +554,8 @@ final class InventoryAuditApplyService
      * @param  array{
      *     counted_quantity: float|int|string,
      *     new_cost_price?: float|int|string|null,
-     *     product_category_id?: int|string|null
+     *     product_category_id?: int|string|null,
+     *     otp_code?: string|null
      * }  $data
      */
     public function applyUpdate(
@@ -545,11 +564,13 @@ final class InventoryAuditApplyService
         ?Authenticatable $actor = null,
     ): InventoryAuditLine {
         $parsed = $this->parseApplyUpdatePayload($data);
+        $otpCode = isset($data['otp_code']) ? (string) $data['otp_code'] : null;
 
         return DB::transaction(function () use (
             $line,
             $parsed,
             $actor,
+            $otpCode,
         ): InventoryAuditLine {
             $line = InventoryAuditLine::query()
                 ->whereKey($line->getKey())
@@ -585,6 +606,18 @@ final class InventoryAuditApplyService
                     'line' => 'Producto no encontrado.',
                 ]);
             }
+
+            $this->assertManagerOtpIfRequired(
+                actor: $actor,
+                otpCode: $otpCode,
+                inventory: $inventory,
+                product: $product,
+                countedQuantity: $parsed['counted_quantity'],
+                costProvided: $parsed['cost_provided'],
+                newCostPrice: $parsed['new_cost_price'],
+                categoryProvided: $parsed['category_provided'],
+                requestedCategoryId: $parsed['requested_category_id'],
+            );
 
             $actorId = $actor instanceof User ? (int) $actor->getKey() : null;
             $actorLabel = self::actorLabel($actor);
@@ -722,6 +755,60 @@ final class InventoryAuditApplyService
             'category_provided' => $categoryProvided,
             'requested_category_id' => $requestedCategoryId,
         ];
+    }
+
+    private function assertManagerOtpIfRequired(
+        ?Authenticatable $actor,
+        ?string $otpCode,
+        Inventory $inventory,
+        Product $product,
+        float $countedQuantity,
+        bool $costProvided,
+        ?float $newCostPrice,
+        bool $categoryProvided,
+        ?int $requestedCategoryId,
+    ): void {
+        if (! $actor instanceof User || ! $this->otpService->actorRequiresOtp($actor)) {
+            return;
+        }
+
+        if (! $this->payloadHasSensitiveChanges(
+            inventory: $inventory,
+            product: $product,
+            countedQuantity: $countedQuantity,
+            costProvided: $costProvided,
+            newCostPrice: $newCostPrice,
+            categoryProvided: $categoryProvided,
+            requestedCategoryId: $requestedCategoryId,
+        )) {
+            return;
+        }
+
+        $this->otpService->verifyAndConsume($actor, $otpCode);
+    }
+
+    private function payloadHasSensitiveChanges(
+        Inventory $inventory,
+        Product $product,
+        float $countedQuantity,
+        bool $costProvided,
+        ?float $newCostPrice,
+        bool $categoryProvided,
+        ?int $requestedCategoryId,
+    ): bool {
+        $previousQuantity = round((float) $inventory->quantity, 3);
+        $previousCost = round(max(0.0, (float) ($product->cost_price ?? 0)), 2);
+        $previousCategoryId = $product->product_category_id !== null
+            ? (int) $product->product_category_id
+            : null;
+
+        $quantityChanged = abs(round($countedQuantity - $previousQuantity, 3)) > 0.0001;
+        $costChanged = $costProvided && abs(($newCostPrice ?? 0) - $previousCost) > 0.00001;
+        $categoryChanged = $categoryProvided
+            && $requestedCategoryId !== null
+            && $requestedCategoryId !== $previousCategoryId;
+
+        return $quantityChanged || $costChanged || $categoryChanged;
     }
 
     /**

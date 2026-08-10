@@ -42,6 +42,14 @@ final class InventoryAuditExpressAction
             ->modalSubmitActionLabel('Aplicar')
             ->modalWidth(Width::Large)
             ->form(self::formSchema())
+            ->tap(fn (Action $action): Action => InventoryAuditApplyUpdateForm::configureOtpGatedModalSubmit($action, 'Guardar cambios'))
+            ->successNotificationTitle('Cambio aplicado con éxito')
+            ->successNotification(
+                Notification::make()
+                    ->success()
+                    ->title('Cambio aplicado con éxito')
+                    ->body('El producto fue actualizado correctamente.')
+            )
             ->action(self::submitAction(...));
     }
 
@@ -197,7 +205,7 @@ final class InventoryAuditExpressAction
         ];
     }
 
-    public static function submitAction(array $data): void
+    public static function submitAction(array $data, Action $action): void
     {
         if ((bool) ($data['_blocked_by_open_audit'] ?? false)) {
             Notification::make()
@@ -206,7 +214,7 @@ final class InventoryAuditExpressAction
                 ->warning()
                 ->send();
 
-            return;
+            $action->halt();
         }
 
         try {
@@ -217,21 +225,18 @@ final class InventoryAuditExpressAction
                     'counted_quantity' => $data['counted_quantity'] ?? null,
                     'new_cost_price' => $data['new_cost_price'] ?? null,
                     'product_category_id' => $data['product_category_id'] ?? null,
+                    'otp_code' => isset($data['otp_code']) ? (string) $data['otp_code'] : null,
                 ],
                 actor: Auth::user(),
             );
-
-            Notification::make()
-                ->title('Auditoría Express aplicada')
-                ->body('El producto fue actualizado y el movimiento quedó registrado en la traza.')
-                ->success()
-                ->send();
         } catch (ValidationException $e) {
             Notification::make()
                 ->title('No se pudo aplicar')
                 ->body(collect($e->errors())->flatten()->first() ?: 'Error de validación.')
                 ->danger()
                 ->send();
+
+            $action->halt();
         }
     }
 
@@ -250,6 +255,9 @@ final class InventoryAuditExpressAction
         $set('_current_cost_price', null);
         $set('_applies_vat', false);
         $set('_original_product_category_id', null);
+        $set('_product_name', null);
+        $set('_branch_name', null);
+        $set('otp_code', null);
     }
 
     private static function hydrateProductContext(int $productId, Get $get, Set $set): void
@@ -286,7 +294,7 @@ final class InventoryAuditExpressAction
         }
 
         $product = Product::query()
-            ->select(['id', 'cost_price', 'product_category_id', 'applies_vat'])
+            ->select(['id', 'name', 'cost_price', 'product_category_id', 'applies_vat'])
             ->whereKey($productId)
             ->first();
 

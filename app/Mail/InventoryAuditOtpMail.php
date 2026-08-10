@@ -12,11 +12,15 @@ class InventoryAuditOtpMail extends Mailable
 {
     use Queueable, SerializesModels;
 
+    /**
+     * @param  list<string>  $changes
+     */
     public function __construct(
         public string $otpCode,
         public string $managerName,
         public ?string $productName = null,
         public ?string $branchName = null,
+        public array $changes = [],
         public int $ttlMinutes = 3,
     ) {}
 

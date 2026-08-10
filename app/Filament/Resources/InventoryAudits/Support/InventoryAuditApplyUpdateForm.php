@@ -8,6 +8,7 @@ use App\Models\ProductCategory;
 use App\Models\User;
 use App\Services\Inventory\InventoryAuditOtpService;
 use App\Support\Inventory\InventoryFinancialPricingBreakdown;
+use App\Support\Inventory\InventoryQuantityFormat;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\OneTimeCodeInput;
@@ -64,6 +65,7 @@ final class InventoryAuditApplyUpdateForm
             Hidden::make('_current_cost_price')->dehydrated(false),
             Hidden::make('_applies_vat')->dehydrated(false),
             Hidden::make('_original_product_category_id')->dehydrated(false),
+            Hidden::make('_original_quantity')->dehydrated(false),
             Hidden::make('_product_name')->dehydrated(false),
             Hidden::make('_branch_name')->dehydrated(false),
             Placeholder::make('pricing_breakdown')
@@ -123,14 +125,23 @@ final class InventoryAuditApplyUpdateForm
                         }
 
                         try {
-                            app(InventoryAuditOtpService::class)->issue($user, [
-                                'product_name' => $get('_product_name'),
-                                'branch_name' => $get('_branch_name'),
-                            ]);
+                            $context = self::buildOtpIssueContext($get);
+
+                            if ($context['changes'] === []) {
+                                Notification::make()
+                                    ->title('Sin cambios para autorizar')
+                                    ->body('Indique una cantidad, costo o categoría distinta antes de solicitar el OTP.')
+                                    ->warning()
+                                    ->send();
+
+                                return;
+                            }
+
+                            app(InventoryAuditOtpService::class)->issue($user, $context);
 
                             Notification::make()
                                 ->title('Código OTP enviado')
-                                ->body('Se envió un código de 6 dígitos por email y WhatsApp a los administradores. Caduca en 3 minutos.')
+                                ->body('Se envió un código de 6 dígitos por email y WhatsApp a los administradores, con el detalle del cambio. Caduca en 3 minutos.')
                                 ->success()
                                 ->send();
                         } catch (ValidationException $e) {
@@ -149,6 +160,74 @@ final class InventoryAuditApplyUpdateForm
                 ->helperText('Ingrese el código de 6 dígitos. Es de un solo uso: al aplicar el cambio deberá solicitar otra clave.')
                 ->visible(fn (): bool => self::actorRequiresOtp())
                 ->dehydrated(fn (): bool => self::actorRequiresOtp()),
+        ];
+    }
+
+    /**
+     * Contexto del OTP: producto, sucursal y líneas de cambio solicitadas.
+     *
+     * @return array{
+     *     product_name: string|null,
+     *     branch_name: string|null,
+     *     changes: list<string>
+     * }
+     */
+    public static function buildOtpIssueContext(Get $get): array
+    {
+        $changes = [];
+
+        $originalQuantity = round((float) ($get('_original_quantity') ?? 0), 3);
+        $countedRaw = $get('counted_quantity');
+        if ($countedRaw !== null && $countedRaw !== '') {
+            $countedQuantity = round((float) $countedRaw, 3);
+            if (abs($countedQuantity - $originalQuantity) > 0.0001) {
+                $changes[] = 'Existencia: '
+                    .InventoryQuantityFormat::display($originalQuantity)
+                    .' → '
+                    .InventoryQuantityFormat::display($countedQuantity);
+            }
+        }
+
+        $originalCost = round((float) ($get('_current_cost_price') ?? 0), 2);
+        $newCostRaw = $get('new_cost_price');
+        if ($newCostRaw !== null && $newCostRaw !== '') {
+            $newCost = round(max(0.0, (float) $newCostRaw), 2);
+            if (abs($newCost - $originalCost) > 0.00001) {
+                $changes[] = 'Costo: '
+                    .number_format($originalCost, 2, ',', '.')
+                    .' → '
+                    .number_format($newCost, 2, ',', '.')
+                    .' USD';
+            }
+        }
+
+        $originalCategoryId = filled($get('_original_product_category_id'))
+            ? (int) $get('_original_product_category_id')
+            : null;
+        $requestedCategoryId = filled($get('product_category_id'))
+            ? (int) $get('product_category_id')
+            : null;
+
+        if (
+            $requestedCategoryId !== null
+            && $requestedCategoryId !== $originalCategoryId
+        ) {
+            $categoryNames = ProductCategory::query()
+                ->whereIn('id', array_values(array_filter([$originalCategoryId, $requestedCategoryId])))
+                ->pluck('name', 'id');
+
+            $from = $originalCategoryId !== null
+                ? (string) ($categoryNames[$originalCategoryId] ?? '#'.$originalCategoryId)
+                : 'Sin categoría';
+            $to = (string) ($categoryNames[$requestedCategoryId] ?? '#'.$requestedCategoryId);
+
+            $changes[] = 'Categoría: '.$from.' → '.$to;
+        }
+
+        return [
+            'product_name' => filled($get('_product_name')) ? (string) $get('_product_name') : null,
+            'branch_name' => filled($get('_branch_name')) ? (string) $get('_branch_name') : null,
+            'changes' => $changes,
         ];
     }
 
@@ -185,6 +264,7 @@ final class InventoryAuditApplyUpdateForm
      *     _current_cost_price: float,
      *     _applies_vat: bool,
      *     _original_product_category_id: int|null,
+     *     _original_quantity: float,
      *     _product_name: string,
      *     _branch_name: string,
      *     otp_code: null
@@ -210,6 +290,7 @@ final class InventoryAuditApplyUpdateForm
             '_current_cost_price' => round($systemCostPrice, 2),
             '_applies_vat' => (bool) ($product->applies_vat ?? false),
             '_original_product_category_id' => $categoryId,
+            '_original_quantity' => round($systemQuantity, 3),
             '_product_name' => (string) ($product->name ?? ''),
             '_branch_name' => $branchName,
             'otp_code' => null,

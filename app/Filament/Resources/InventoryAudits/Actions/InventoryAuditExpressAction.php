@@ -255,6 +255,7 @@ final class InventoryAuditExpressAction
         $set('_current_cost_price', null);
         $set('_applies_vat', false);
         $set('_original_product_category_id', null);
+        $set('_original_quantity', null);
         $set('_product_name', null);
         $set('_branch_name', null);
         $set('otp_code', null);

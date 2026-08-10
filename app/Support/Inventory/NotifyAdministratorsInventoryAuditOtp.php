@@ -15,11 +15,15 @@ final class NotifyAdministratorsInventoryAuditOtp
         private readonly UltramsgWhatsAppClient $ultramsgWhatsAppClient,
     ) {}
 
+    /**
+     * @param  list<string>  $changes
+     */
     public function notify(
         User $manager,
         string $otpCode,
         ?string $productName = null,
         ?string $branchName = null,
+        array $changes = [],
         int $ttlSeconds = 180,
     ): void {
         $admins = $this->resolveAdministrators();
@@ -39,6 +43,7 @@ final class NotifyAdministratorsInventoryAuditOtp
             managerLabel: $managerLabel,
             productName: $productName,
             branchName: $branchName,
+            changes: $changes,
             ttlMinutes: $ttlMinutes,
         );
 
@@ -54,7 +59,7 @@ final class NotifyAdministratorsInventoryAuditOtp
             : null;
 
         foreach ($admins as $admin) {
-            $this->sendEmail($admin, $otpCode, $managerLabel, $productName, $branchName, $ttlMinutes);
+            $this->sendEmail($admin, $otpCode, $managerLabel, $productName, $branchName, $changes, $ttlMinutes);
 
             if ($whatsAppEnabled) {
                 $this->sendWhatsApp($admin, $caption, $otpCode, $logoImage);
@@ -75,25 +80,22 @@ final class NotifyAdministratorsInventoryAuditOtp
     }
 
     /**
-     * Caption con logo (imagen aparte) y la clave en una línea aislada para copiar en iOS/Android.
+     * @param  list<string>  $changes
      */
     private function buildWhatsAppCaption(
         string $otpCode,
         string $managerLabel,
         ?string $productName,
         ?string $branchName,
+        array $changes,
         int $ttlMinutes,
     ): string {
         $lines = [
             '*FARMADOC*',
             'OTP — Auditoría de inventario',
             '',
-            'Clave (mantén pulsado para copiar):',
+            'Revise el cambio solicitado antes de compartir la clave.',
             '',
-            $otpCode,
-            '',
-            'Válido '.$ttlMinutes.' minutos · Un solo uso',
-            'Solicitado por: '.$managerLabel,
         ];
 
         if (filled($productName)) {
@@ -104,15 +106,38 @@ final class NotifyAdministratorsInventoryAuditOtp
             $lines[] = 'Sucursal: '.$branchName;
         }
 
+        $lines[] = 'Solicitado por: '.$managerLabel;
+        $lines[] = '';
+        $lines[] = '*Cambios solicitados:*';
+
+        if ($changes === []) {
+            $lines[] = '• (sin detalle de cambios)';
+        } else {
+            foreach ($changes as $change) {
+                $lines[] = '• '.$change;
+            }
+        }
+
+        $lines[] = '';
+        $lines[] = 'Clave (mantén pulsado para copiar):';
+        $lines[] = '';
+        $lines[] = $otpCode;
+        $lines[] = '';
+        $lines[] = 'Válido '.$ttlMinutes.' minutos · Un solo uso';
+
         return implode("\n", $lines);
     }
 
+    /**
+     * @param  list<string>  $changes
+     */
     private function sendEmail(
         User $admin,
         string $otpCode,
         string $managerLabel,
         ?string $productName,
         ?string $branchName,
+        array $changes,
         int $ttlMinutes,
     ): void {
         if (! filled($admin->email)) {
@@ -125,6 +150,7 @@ final class NotifyAdministratorsInventoryAuditOtp
                 managerName: $managerLabel,
                 productName: $productName,
                 branchName: $branchName,
+                changes: $changes,
                 ttlMinutes: $ttlMinutes,
             ));
         } catch (Throwable $exception) {

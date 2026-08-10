@@ -19,7 +19,11 @@ final class InventoryAuditOtpService
     /**
      * Genera un OTP de 6 dígitos, lo guarda hasheado en caché (TTL 3 min) y lo envía a administradores.
      *
-     * @param  array{product_name?: string|null, branch_name?: string|null}  $context
+     * @param  array{
+     *     product_name?: string|null,
+     *     branch_name?: string|null,
+     *     changes?: list<string>
+     * }  $context
      */
     public function issue(User $manager, array $context = []): string
     {
@@ -38,11 +42,18 @@ final class InventoryAuditOtpService
             self::TTL_SECONDS,
         );
 
+        /** @var list<string> $changes */
+        $changes = array_values(array_filter(
+            $context['changes'] ?? [],
+            fn (mixed $line): bool => is_string($line) && filled($line),
+        ));
+
         $this->notifier->notify(
             manager: $manager,
             otpCode: $code,
             productName: filled($context['product_name'] ?? null) ? (string) $context['product_name'] : null,
             branchName: filled($context['branch_name'] ?? null) ? (string) $context['branch_name'] : null,
+            changes: $changes,
             ttlSeconds: self::TTL_SECONDS,
         );
 

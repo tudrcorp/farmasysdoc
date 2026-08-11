@@ -135,7 +135,12 @@ final class SystemReportsCsvExporter
         $headers = ['usuario_email_o_nombre', 'cantidad_ventas', 'suma_total_documento', 'suma_pago_bs'];
         $rows = [];
         foreach ($agg as $r) {
-            $rows[] = [$r->created_by, $r->ventas, $r->total_usd, $r->total_bs];
+            $rows[] = [
+                $r->created_by,
+                $r->ventas,
+                $this->formatAmountEs($r->total_usd),
+                $this->formatAmountEs($r->total_bs),
+            ];
         }
 
         return $this->csvResponse('reporte-ventas-por-usuario-'.now()->format('YmdHis').'.csv', $headers, $rows);
@@ -154,7 +159,13 @@ final class SystemReportsCsvExporter
         $headers = ['branch_id', 'sucursal', 'cantidad_ventas', 'suma_total', 'suma_pago_bs'];
         $rows = [];
         foreach ($agg as $r) {
-            $rows[] = [$r->branch_id, $branches[$r->branch_id] ?? '', $r->ventas, $r->total_usd, $r->total_bs];
+            $rows[] = [
+                $r->branch_id,
+                $branches[$r->branch_id] ?? '',
+                $r->ventas,
+                $this->formatAmountEs($r->total_usd),
+                $this->formatAmountEs($r->total_bs),
+            ];
         }
 
         return $this->csvResponse('reporte-ventas-por-sucursal-'.now()->format('YmdHis').'.csv', $headers, $rows);
@@ -212,12 +223,12 @@ final class SystemReportsCsvExporter
             'TODAS LAS SUCURSALES',
             $globalVentas,
             $globalClientes,
-            round((float) ($globalAgg->total_documento ?? 0), 2),
-            $globalCobroUsd,
-            $globalCobroBs,
-            $globalCobroBsEnUsd,
-            $globalTotalGeneral,
-            $globalTicket,
+            $this->formatAmountEs($globalAgg->total_documento ?? 0),
+            $this->formatAmountEs($globalCobroUsd),
+            $this->formatAmountEs($globalCobroBs),
+            $this->formatAmountEs($globalCobroBsEnUsd),
+            $this->formatAmountEs($globalTotalGeneral),
+            $this->formatAmountEs($globalTicket),
             $from->toDateString(),
             $to->toDateString(),
         ]];
@@ -237,12 +248,12 @@ final class SystemReportsCsvExporter
                 $branches[$row->branch_id] ?? '',
                 (int) $row->ventas,
                 $clientes,
-                round((float) $row->total_documento, 2),
-                $cobroUsd,
-                $cobroBs,
-                $cobroBsEnUsd,
-                $totalGeneral,
-                $ticket,
+                $this->formatAmountEs($row->total_documento),
+                $this->formatAmountEs($cobroUsd),
+                $this->formatAmountEs($cobroBs),
+                $this->formatAmountEs($cobroBsEnUsd),
+                $this->formatAmountEs($totalGeneral),
+                $this->formatAmountEs($ticket),
                 $from->toDateString(),
                 $to->toDateString(),
             ];
@@ -583,7 +594,7 @@ final class SystemReportsCsvExporter
                     $branches[$row->branch_id] ?? $row->branch_id,
                     $row->client_id,
                     $clients[$row->client_id] ?? '',
-                    $row->total_comprado,
+                    $this->formatAmountEs($row->total_comprado),
                     $i,
                 ];
                 $i++;
@@ -613,7 +624,12 @@ final class SystemReportsCsvExporter
             $headers = ['categoria', 'product_id', 'cantidad', 'total_lineas'];
             $data = [];
             foreach ($agg as $r) {
-                $data[] = [$r->grupo, $r->product_id, $r->qty, $r->total];
+                $data[] = [
+                    $r->grupo,
+                    $r->product_id,
+                    $this->formatAmountEs($r->qty, 3),
+                    $this->formatAmountEs($r->total),
+                ];
             }
 
             return $this->csvResponse('reporte-productos-vendidos-categoria-'.now()->format('YmdHis').'.csv', $headers, $data);
@@ -636,8 +652,8 @@ final class SystemReportsCsvExporter
                 $branches[$r->branch_id] ?? $r->branch_id,
                 $r->product_id,
                 $products[$r->product_id] ?? '',
-                $r->qty,
-                $r->total,
+                $this->formatAmountEs($r->qty, 3),
+                $this->formatAmountEs($r->total),
             ];
         }
 

@@ -26,6 +26,7 @@ use Filament\Notifications\Notification;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\Summarizers\Sum;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -155,25 +156,45 @@ class SalesTable
                     ->alignEnd()
                     ->weight('bold')
                     ->icon(Heroicon::Banknotes)
-                    ->iconColor('gray'),
+                    ->iconColor('gray')
+                    ->summarize(
+                        Sum::make()
+                            ->money()
+                            ->label('Σ total'),
+                    ),
                 TextColumn::make('subtotal')
                     ->label('Subtotal')
                     ->money()
                     ->sortable()
                     ->alignEnd()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->summarize(
+                        Sum::make()
+                            ->money()
+                            ->label('Σ subtotal'),
+                    ),
                 TextColumn::make('tax_total')
                     ->label('Impuestos')
                     ->money()
                     ->sortable()
                     ->alignEnd()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->summarize(
+                        Sum::make()
+                            ->money()
+                            ->label('Σ impuestos'),
+                    ),
                 TextColumn::make('discount_total')
                     ->label('Descuentos')
                     ->money()
                     ->sortable()
                     ->alignEnd()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->summarize(
+                        Sum::make()
+                            ->money()
+                            ->label('Σ descuentos'),
+                    ),
                 TextColumn::make('payment_method')
                     ->label('Medio de pago')
                     ->formatStateUsing(fn (Sale $record): string => self::formatPaymentMethodCellForRecord($record))
@@ -194,7 +215,12 @@ class SalesTable
                     ->alignEnd()
                     ->placeholder('—')
                     ->icon(Heroicon::CurrencyDollar)
-                    ->iconColor('gray'),
+                    ->iconColor('gray')
+                    ->summarize(
+                        Sum::make()
+                            ->money('USD')
+                            ->label('Σ USD'),
+                    ),
                 TextColumn::make('payment_ves')
                     ->label('Pago Bs.')
                     ->formatStateUsing(fn ($state): string => $state !== null
@@ -204,7 +230,12 @@ class SalesTable
                     ->alignEnd()
                     ->placeholder('—')
                     ->icon(Heroicon::Banknotes)
-                    ->iconColor('gray'),
+                    ->iconColor('gray')
+                    ->summarize(
+                        Sum::make()
+                            ->label('Σ Bs.')
+                            ->formatStateUsing(fn ($state): string => 'Bs. '.number_format((float) ($state ?? 0), 2, ',', '.')),
+                    ),
                 TextColumn::make('bcv_ves_per_usd')
                     ->label('Tasa BCV')
                     ->tooltip('Bolívares por 1 USD aplicados al cobrar (referencia para validar el pago en Bs.)')

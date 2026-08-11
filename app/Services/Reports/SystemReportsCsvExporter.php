@@ -111,10 +111,10 @@ final class SystemReportsCsvExporter
                 $s->sale_number,
                 $s->branch?->name,
                 $s->client?->name,
-                $s->total,
-                $s->payment_usd,
-                $s->payment_ves,
-                $s->bcv_ves_per_usd,
+                $this->formatAmountEs($s->total),
+                $this->formatAmountEs($s->payment_usd),
+                $this->formatAmountEs($s->payment_ves),
+                $this->formatAmountEs($s->bcv_ves_per_usd, 6),
                 $s->sold_at?->toDateTimeString(),
                 $s->created_by,
             ];
@@ -1064,5 +1064,17 @@ final class SystemReportsCsvExporter
     private function formatDecimal(float $value, int $decimals = 2): string
     {
         return number_format($value, $decimals, '.', '');
+    }
+
+    /**
+     * Montos legibles para Excel/CSV en formato venezolano: miles con punto y decimales con coma.
+     */
+    private function formatAmountEs(mixed $value, int $decimals = 2): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        return number_format((float) $value, $decimals, ',', '.');
     }
 }

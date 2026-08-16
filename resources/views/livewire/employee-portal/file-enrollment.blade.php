@@ -67,30 +67,14 @@
                     </svg>
                     Inicio
                 </a>
-                <p class="ep-step">Expediente</p>
+                <p class="ep-step">Paso 1 de 4</p>
                 <div class="ep-header-actions">
                     @include('employee-portal.partials.menu-button')
                 </div>
             </div>
             <div class="ep-flow-intro">
-                <h1 class="ep-lead">Tu firma y tu huella</h1>
-                <p class="ep-text">Antes de guardarlas debes leer y aceptar los términos. Sin esa autorización no se puede registrar la firma ni la huella.</p>
-                <div class="ep-stack ep-intro-steps">
-                    <div class="ep-tile ep-glass">
-                        <span class="ep-card-icon" aria-hidden="true">1</span>
-                        <span class="ep-card-copy">
-                            <strong>Firma</strong>
-                            <span>Dibuja tu firma como en un papel.</span>
-                        </span>
-                    </div>
-                    <div class="ep-tile ep-glass">
-                        <span class="ep-card-icon" aria-hidden="true">2</span>
-                        <span class="ep-card-copy">
-                            <strong>Huella</strong>
-                            <span>Foto del pulgar, o un escaneo si estás en PC.</span>
-                        </span>
-                    </div>
-                </div>
+                <h1 class="ep-lead">Términos y condiciones</h1>
+                <p class="ep-text">Lee y acepta los términos. Sin esa autorización no se puede registrar tu firma ni tu huella.</p>
 
                 <section class="ep-terms ep-glass" aria-labelledby="ep-terms-title">
                     <h2 id="ep-terms-title" class="ep-terms-title">{{ $fileTermsTitle }}</h2>
@@ -116,7 +100,7 @@
                         wire:click="startEnrollment"
                         @disabled(! $acceptedFileTerms)
                     >
-                        Aceptar y empezar
+                        Aceptar y continuar
                     </button>
                 </div>
             </div>
@@ -132,7 +116,7 @@
                 </button>
                 <div>
                     <p class="ep-nav-title">Firma</p>
-                    <p class="ep-step">Paso 1 de 2</p>
+                    <p class="ep-step">Paso 2 de 4</p>
                 </div>
             </div>
             <p class="ep-text ep-desktop-only">Firma con el mouse o el trackpad. Si ya la tienes escaneada, súbela a la derecha.</p>
@@ -208,7 +192,7 @@
                 </button>
                 <div>
                     <p class="ep-nav-title">Huella</p>
-                    <p class="ep-step">Paso 2 de 2</p>
+                    <p class="ep-step">Paso 3 de 4</p>
                 </div>
             </div>
             <p class="ep-text ep-desktop-only">En el computador lo más simple es subir una foto o un escaneo. También puedes usar la cámara web.</p>
@@ -272,40 +256,6 @@
                 </aside>
             </div>
         </div>
-    @elseif ($step === 'review')
-        <div class="ep-screen" wire:key="review">
-            <div class="ep-nav">
-                <button type="button" class="ep-ghost" wire:click="goTo('fingerprint')">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" class="size-5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-                    </svg>
-                    Atrás
-                </button>
-                <p class="ep-nav-title">Revisar</p>
-            </div>
-            <h1 class="ep-lead">¿Se ve bien?</h1>
-            <p class="ep-text">Así quedará en tu expediente. Si algo no te convence, vuelve y repítelo.</p>
-            <div class="ep-review-grid">
-                <div class="ep-review-card ep-glass">
-                    <p>Firma</p>
-                    @if ($signaturePreviewUrl)
-                        <img src="{{ $signaturePreviewUrl }}" alt="Firma">
-                    @endif
-                    <button type="button" class="ep-ghost" wire:click="goTo('signature')">Cambiar firma</button>
-                </div>
-                <div class="ep-review-card ep-glass">
-                    <p>Huella</p>
-                    @if ($fingerprintPreviewUrl)
-                        <img src="{{ $fingerprintPreviewUrl }}" alt="Huella">
-                    @endif
-                    <button type="button" class="ep-ghost" wire:click="goTo('fingerprint')">Cambiar huella</button>
-                </div>
-            </div>
-            @error('review') <p class="ep-error">{{ $message }}</p> @enderror
-            <div class="ep-actions ep-actions--row">
-                <button type="button" class="ep-btn ep-btn--primary" wire:click="confirm">Confirmar y guardar</button>
-            </div>
-        </div>
     @else
         <div class="ep-screen" wire:key="done">
             <div class="ep-success">
@@ -315,8 +265,8 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                         </svg>
                     </div>
-                    <h1 class="ep-lead">Listo, {{ $employee->first_name }}</h1>
-                    <p class="ep-text">Tu firma y tu huella ya están en el expediente. Puedes cerrar esta pantalla.</p>
+                    <h1 class="ep-lead">Firma y huella cargadas</h1>
+                    <p class="ep-text">Tu firma y tu huella se cargaron con éxito. Ya quedaron en tu expediente y se usarán en tus recibos.</p>
                     <div class="ep-actions">
                         <a href="{{ route('employee-portal.home') }}" class="ep-btn ep-btn--primary" wire:navigate>Ir al inicio</a>
                     </div>

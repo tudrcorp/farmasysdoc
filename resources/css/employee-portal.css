@@ -1826,9 +1826,16 @@ html[data-theme="dark"] {
     .ep-glass,
     .ep-icon-btn,
     .ep-btn--secondary {
-        border-color: rgb(255 255 255 / 0.1);
+        border-color: rgb(255 255 255 / 0.08);
         background: rgb(15 23 42 / 0.45);
         color: #ecfeff;
+        box-shadow:
+            0 18px 50px -20px rgb(0 0 0 / 0.45),
+            inset 0 1px 0 rgb(255 255 255 / 0.06);
+    }
+
+    .ep-glass::before {
+        background: linear-gradient(180deg, rgb(255 255 255 / 0.05), transparent 42%);
     }
 
     .ep-ghost,
@@ -1837,9 +1844,10 @@ html[data-theme="dark"] {
     }
 
     .ep-menu-trigger {
-        border-color: rgb(255 255 255 / 0.12);
+        border-color: transparent;
         background: rgb(15 23 42 / 0.55);
         color: #ecfeff;
+        box-shadow: 0 8px 22px rgb(0 0 0 / 0.28);
     }
 
     .ep-menu-trigger.is-open {
@@ -1852,8 +1860,9 @@ html[data-theme="dark"] {
     }
 
     .ep-menu-sheet {
-        border-color: rgb(255 255 255 / 0.1);
+        border-color: transparent;
         background: rgb(15 23 42 / 0.78);
+        box-shadow: 0 -18px 60px rgb(0 0 0 / 0.45);
     }
 
     .ep-menu-kicker,

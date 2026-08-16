@@ -72,11 +72,15 @@ class FileEnrollment extends Component
 
     public function goTo(string $step): void
     {
-        if (! in_array($step, ['intro', 'signature', 'fingerprint', 'review', 'done', 'view'], true)) {
+        if ($step === 'review') {
+            $step = 'done';
+        }
+
+        if (! in_array($step, ['intro', 'signature', 'fingerprint', 'done', 'view'], true)) {
             return;
         }
 
-        if (in_array($step, ['intro', 'signature', 'fingerprint', 'review'], true) && ! $this->assertFileUnlocked()) {
+        if (in_array($step, ['intro', 'signature', 'fingerprint'], true) && ! $this->assertFileUnlocked()) {
             return;
         }
 
@@ -106,7 +110,7 @@ class FileEnrollment extends Component
             return;
         }
 
-        $this->goTo('review');
+        $this->goTo('done');
     }
 
     public function saveSignatureStroke(string $dataUrl): void
@@ -176,7 +180,7 @@ class FileEnrollment extends Component
         }
 
         $this->refreshPreviews();
-        $this->goTo('review');
+        $this->goTo('done');
     }
 
     public function saveFingerprintUpload(): void
@@ -210,19 +214,6 @@ class FileEnrollment extends Component
 
         $this->fingerprintUpload = null;
         $this->refreshPreviews();
-        $this->goTo('review');
-    }
-
-    public function confirm(): void
-    {
-        $employee = $this->employee();
-
-        if (! $employee->hasSignature() || ! $employee->hasFingerprint()) {
-            $this->addError('review', 'Todavía falta la firma o la huella.');
-
-            return;
-        }
-
         $this->goTo('done');
     }
 

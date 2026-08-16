@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Products\Tables;
 use App\Filament\Exports\ProductExporter;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\Supplier;
 use App\Support\Products\ProductDirectPriceAccess;
 use Filament\Actions\BulkAction;
@@ -14,13 +15,16 @@ use Filament\Actions\EditAction;
 use Filament\Actions\Exports\ExportColumn;
 use Filament\Actions\Exports\Models\Export;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\ToggleButtons;
+use Filament\Schemas\Components\Grid;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\TextInputColumn;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -283,50 +287,115 @@ class ProductsTable
             ->defaultPaginationPageOption(25)
             ->persistFiltersInSession()
             ->deferFilters(false)
+            ->filtersFormColumns(1)
+            ->filtersLayout(FiltersLayout::AboveContent)
             ->emptyStateHeading('Sin productos en el catálogo')
             ->emptyStateDescription('Crea un producto para registrar SKU, precios, categoría y datos regulatorios. Usa el botón «Crear» del encabezado.')
             ->emptyStateIcon(Heroicon::Cube)
             ->recordUrl(fn (Product $record): string => ProductResource::getUrl('view', ['record' => $record], isAbsolute: false))
             ->recordAction('view')
             ->filters([
-                TernaryFilter::make('is_active')
-                    ->label('Estado en catálogo')
-                    ->placeholder('Todos')
-                    ->trueLabel('Solo activos')
-                    ->falseLabel('Solo inactivos'),
-                TernaryFilter::make('requires_prescription')
-                    ->label('Fórmula médica')
-                    ->placeholder('Todos')
-                    ->trueLabel('Con receta obligatoria')
-                    ->falseLabel('Sin receta obligatoria'),
-                TernaryFilter::make('is_controlled_substance')
-                    ->label('Control farmacéutico')
-                    ->placeholder('Todos')
-                    ->trueLabel('Solo controlados')
-                    ->falseLabel('Sin control especial'),
-                SelectFilter::make('product_category_id')
-                    ->label('Categoría')
-                    ->relationship(
-                        name: 'productCategory',
-                        titleAttribute: 'name',
-                        modifyQueryUsing: fn (Builder $query): Builder => $query->where('is_active', true)->orderBy('name'),
-                    )
-                    ->multiple()
-                    ->searchable()
-                    ->preload(),
-                SelectFilter::make('supplier_id')
-                    ->label('Proveedor')
-                    ->relationship(
-                        name: 'supplier',
-                        titleAttribute: 'legal_name',
-                        modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('legal_name'),
-                    )
-                    ->getOptionLabelFromRecordUsing(
-                        fn (Supplier $record): string => $record->trade_name ?: $record->legal_name,
-                    )
-                    ->multiple()
-                    ->searchable()
-                    ->preload(),
+                Filter::make('product_view')
+                    ->label('Filtros')
+                    ->columnSpanFull()
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'md' => 2,
+                            'xl' => 3,
+                        ])->schema([
+                            self::iosSegment(
+                                'is_active',
+                                'Catálogo',
+                                [
+                                    'all' => 'Todos',
+                                    '1' => 'Activos',
+                                    '0' => 'Inactivos',
+                                ],
+                            ),
+                            self::iosSegment(
+                                'requires_prescription',
+                                'Fórmula médica',
+                                [
+                                    'all' => 'Todos',
+                                    '1' => 'Con receta',
+                                    '0' => 'Sin receta',
+                                ],
+                            ),
+                            self::iosSegment(
+                                'is_controlled_substance',
+                                'Controlado',
+                                [
+                                    'all' => 'Todos',
+                                    '1' => 'Sí',
+                                    '0' => 'No',
+                                ],
+                            ),
+                            Select::make('product_category_id')
+                                ->label('Categoría')
+                                ->placeholder('Todas')
+                                ->multiple()
+                                ->searchable()
+                                ->preload()
+                                ->native(false)
+                                ->options(fn (): array => ProductCategory::query()
+                                    ->where('is_active', true)
+                                    ->orderBy('name')
+                                    ->pluck('name', 'id')
+                                    ->all())
+                                ->extraAttributes(['class' => 'fi-hr-ios-select']),
+                            Select::make('supplier_id')
+                                ->label('Proveedor')
+                                ->placeholder('Todos')
+                                ->multiple()
+                                ->searchable()
+                                ->preload()
+                                ->native(false)
+                                ->options(fn (): array => Supplier::query()
+                                    ->where('is_active', true)
+                                    ->orderBy('legal_name')
+                                    ->get()
+                                    ->mapWithKeys(fn (Supplier $record): array => [
+                                        $record->getKey() => $record->trade_name ?: $record->legal_name,
+                                    ])
+                                    ->all())
+                                ->extraAttributes(['class' => 'fi-hr-ios-select']),
+                        ]),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        $isActive = $data['is_active'] ?? 'all';
+                        if ($isActive === '1') {
+                            $query->where('is_active', true);
+                        } elseif ($isActive === '0') {
+                            $query->where('is_active', false);
+                        }
+
+                        $requiresPrescription = $data['requires_prescription'] ?? 'all';
+                        if ($requiresPrescription === '1') {
+                            $query->where('requires_prescription', true);
+                        } elseif ($requiresPrescription === '0') {
+                            $query->where('requires_prescription', false);
+                        }
+
+                        $isControlled = $data['is_controlled_substance'] ?? 'all';
+                        if ($isControlled === '1') {
+                            $query->where('is_controlled_substance', true);
+                        } elseif ($isControlled === '0') {
+                            $query->where('is_controlled_substance', false);
+                        }
+
+                        $categoryIds = $data['product_category_id'] ?? [];
+                        if (is_array($categoryIds) && $categoryIds !== []) {
+                            $query->whereIn('product_category_id', $categoryIds);
+                        }
+
+                        $supplierIds = $data['supplier_id'] ?? [];
+                        if (is_array($supplierIds) && $supplierIds !== []) {
+                            $query->whereIn('supplier_id', $supplierIds);
+                        }
+
+                        return $query;
+                    }),
             ])
             ->recordActions([
                 ViewAction::make()
@@ -405,5 +474,21 @@ class ProductsTable
         }
 
         return $supplier->trade_name ?: $supplier->legal_name ?: '—';
+    }
+
+    /**
+     * @param  array<string, string>  $options
+     */
+    private static function iosSegment(string $name, string $label, array $options): ToggleButtons
+    {
+        return ToggleButtons::make($name)
+            ->label($label)
+            ->options($options)
+            ->grouped()
+            ->default('all')
+            ->extraAttributes([
+                'class' => 'fi-hr-ios-segment',
+                'data-segment-count' => (string) count($options),
+            ]);
     }
 }

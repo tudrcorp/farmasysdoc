@@ -15216,7 +15216,8 @@ html:not(.dark) .fi-hr-payroll-hero__stat--loan .fi-hr-payroll-hero__stat-sub {
 }
 
 /* —— RRHH: filtros iOS compartidos —— */
-.fi-hr-ios-filters-page .fi-ta-filters-above-content-ctn {
+.fi-hr-ios-filters-page .fi-ta-filters-above-content-ctn,
+.dark .fi-hr-ios-filters-page .fi-ta-ctn .fi-ta-filters-above-content-ctn {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;

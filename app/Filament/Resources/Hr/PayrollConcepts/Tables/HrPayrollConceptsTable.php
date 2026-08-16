@@ -7,7 +7,6 @@ use App\Enums\HrPayrollConceptBehavior;
 use App\Enums\HrPayrollConceptCurrency;
 use App\Enums\HrPayrollConceptType;
 use App\Models\HrPayrollConcept;
-use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -112,11 +111,7 @@ class HrPayrollConceptsTable
             ->defaultSort('name')
             ->persistFiltersInSession()
             ->deferFilters(false)
-            ->filtersLayout(FiltersLayout::AboveContentCollapsible)
-            ->filtersTriggerAction(fn (Action $action): Action => $action
-                ->button()
-                ->label('Filtros')
-                ->color('gray'))
+            ->filtersLayout(FiltersLayout::AboveContent)
             ->filtersFormColumns(1)
             ->filters([
                 Filter::make('concept_view')

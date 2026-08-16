@@ -5,7 +5,6 @@
             <span>Portal del empleado</span>
         </div>
         <div class="ep-topbar-actions">
-            @include('employee-portal.partials.theme-toggle')
             @include('employee-portal.partials.menu-button')
             <a href="{{ route('employee-portal.home') }}" class="ep-btn ep-btn--secondary ep-btn--compact" wire:navigate>Volver</a>
         </div>
@@ -38,7 +37,6 @@
                 Inicio
             </a>
             <p class="ep-step">Cuenta</p>
-            @include('employee-portal.partials.theme-toggle')
             @include('employee-portal.partials.menu-button')
         </div>
 

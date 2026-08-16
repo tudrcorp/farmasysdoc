@@ -5,7 +5,6 @@
             <span>Portal del empleado</span>
         </div>
         <div class="ep-topbar-actions">
-            @include('employee-portal.partials.theme-toggle')
             @include('employee-portal.partials.menu-button')
             <a href="{{ route('employee-portal.logout') }}" class="ep-btn ep-btn--secondary ep-btn--compact">Salir</a>
         </div>
@@ -16,7 +15,6 @@
             <img src="{{ asset('images/logos/favicon.png') }}" alt="Farmadoc">
             <span>Portal</span>
             <div class="ep-header-actions">
-                @include('employee-portal.partials.theme-toggle')
                 @include('employee-portal.partials.menu-button')
             </div>
         </div>

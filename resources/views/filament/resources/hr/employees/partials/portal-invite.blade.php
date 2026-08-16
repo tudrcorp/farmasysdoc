@@ -35,20 +35,4 @@
             <span x-show="copied" x-cloak>Copiado</span>
         </button>
     </div>
-
-    <div
-        x-data="{ copied: false }"
-        class="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-white/5"
-    >
-        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Acceso directo ({{ $days }} días)</p>
-        <p class="break-all font-mono text-xs">{{ $url }}</p>
-        <button
-            type="button"
-            class="mt-2 text-xs font-semibold text-cyan-700 dark:text-cyan-300"
-            @click="navigator.clipboard.writeText(@js($url)).then(() => { copied = true; setTimeout(() => copied = false, 1800) })"
-        >
-            <span x-show="!copied">Copiar acceso directo</span>
-            <span x-show="copied" x-cloak>Copiado</span>
-        </button>
-    </div>
 </div>

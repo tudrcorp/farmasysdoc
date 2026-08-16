@@ -4,23 +4,13 @@ namespace App\Services\Hr;
 
 use App\Models\Employee;
 use App\Support\Notifications\WhatsAppLink;
-use Illuminate\Support\Facades\URL;
+use App\Support\Qr\QrPngWithLogo;
 
 final class EmployeePortalLinkGenerator
 {
-    public function temporaryUrl(Employee $employee, int $days = 7): string
-    {
-        return URL::temporarySignedRoute(
-            'employee-portal.enter',
-            now()->addDays($days),
-            ['employee' => $employee->getKey()],
-            absolute: true,
-        );
-    }
-
     public function qrImageUrl(string $url, int $size = 240): string
     {
-        return 'https://api.qrserver.com/v1/create-qr-code/?size='.$size.'x'.$size.'&data='.rawurlencode($url);
+        return app(QrPngWithLogo::class)->dataUri($url, size: $size);
     }
 
     public function loginUrl(): string
@@ -28,35 +18,30 @@ final class EmployeePortalLinkGenerator
         return route('employee-portal.login', absolute: true);
     }
 
-    public function invitationMessage(Employee $employee, string $url, int $days = 7): string
+    public function invitationMessage(Employee $employee): string
     {
-        return "Hola {$employee->fullName()}, entra al portal de empleados de Farmadoc. Puedes entrar siempre con tu cédula o teléfono aquí:\n{$this->loginUrl()}\n\nTambién puedes usar este acceso directo (vence en {$days} días):\n{$url}";
+        return "Hola {$employee->fullName()}, entra al portal de empleados de Farmadoc con tu cédula o teléfono:\n{$this->loginUrl()}";
     }
 
     /**
      * @return array{
      *     employee: Employee,
-     *     url: string,
      *     qr: string,
      *     whatsappUrl: ?string,
      *     loginUrl: string,
-     *     expiresLabel: string,
-     *     days: int
+     *     expiresLabel: string
      * }
      */
-    public function inviteViewData(Employee $employee, int $days = 7): array
+    public function inviteViewData(Employee $employee): array
     {
-        $url = $this->temporaryUrl($employee, $days);
         $loginUrl = $this->loginUrl();
 
         return [
             'employee' => $employee,
-            'url' => $url,
             'loginUrl' => $loginUrl,
             'qr' => $this->qrImageUrl($loginUrl),
-            'whatsappUrl' => WhatsAppLink::buildWaMeUrl($employee->phone, $this->invitationMessage($employee, $url, $days)),
+            'whatsappUrl' => WhatsAppLink::buildWaMeUrl($employee->phone, $this->invitationMessage($employee)),
             'expiresLabel' => 'El portal está siempre disponible',
-            'days' => $days,
         ];
     }
 }

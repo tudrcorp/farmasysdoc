@@ -13,6 +13,17 @@ class ListUsers extends ListRecords
 
     protected static ?string $title = 'Listado de Usuarios';
 
+    /**
+     * @return array<string>
+     */
+    public function getPageClasses(): array
+    {
+        return [
+            ...parent::getPageClasses(),
+            'fi-hr-ios-filters-page',
+        ];
+    }
+
     protected function getHeaderActions(): array
     {
         return [

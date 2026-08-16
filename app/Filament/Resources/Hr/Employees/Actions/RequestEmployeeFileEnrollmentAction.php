@@ -61,7 +61,6 @@ final class RequestEmployeeFileEnrollmentAction
     {
         $digits = WhatsAppLink::normalizePhoneDigits($record->phone);
         $generator = app(EmployeePortalLinkGenerator::class);
-        $url = $generator->temporaryUrl($record);
 
         if ($digits === null) {
             Notification::make()
@@ -75,7 +74,7 @@ final class RequestEmployeeFileEnrollmentAction
 
         $sent = app(UltramsgWhatsAppClient::class)->sendTextMessage(
             $digits,
-            $generator->invitationMessage($record, $url),
+            $generator->invitationMessage($record),
         );
 
         if (! $sent) {

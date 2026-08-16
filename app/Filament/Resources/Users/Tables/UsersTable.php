@@ -12,13 +12,15 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\ToggleButtons;
+use Filament\Schemas\Components\Grid;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -187,65 +189,102 @@ class UsersTable
             ->defaultPaginationPageOption(25)
             ->persistFiltersInSession()
             ->deferFilters(false)
-            ->filtersFormColumns(2)
-            ->filtersLayout(FiltersLayout::AboveContentCollapsible)
+            ->filtersFormColumns(1)
+            ->filtersLayout(FiltersLayout::AboveContent)
             ->emptyStateHeading('Sin usuarios registrados')
             ->emptyStateDescription('Crea un usuario para asignar acceso al panel y vincularlo a una sucursal. Usa «Crear usuario» en el encabezado.')
             ->emptyStateIcon(Heroicon::UserGroup)
             ->recordUrl(fn (User $record): string => UserResource::getUrl('view', ['record' => $record], isAbsolute: false))
             ->recordAction('view')
             ->filters([
-                SelectFilter::make('branch_id')
-                    ->label('Sucursal')
-                    ->relationship(
-                        name: 'branch',
-                        titleAttribute: 'name',
-                        modifyQueryUsing: function (Builder $query): Builder {
-                            $query->where('is_active', true)->orderBy('name');
+                Filter::make('user_view')
+                    ->label('Filtros')
+                    ->columnSpanFull()
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'md' => 2,
+                            'xl' => 4,
+                        ])->schema([
+                            Select::make('branch_id')
+                                ->label('Sucursal')
+                                ->placeholder('Todas')
+                                ->multiple()
+                                ->searchable()
+                                ->preload()
+                                ->native(false)
+                                ->options(function (): array {
+                                    $query = Branch::query()->where('is_active', true)->orderBy('name');
+                                    $query = BranchAuthScope::applyToBranchFormSelect($query);
 
-                            return BranchAuthScope::applyToBranchFormSelect($query);
-                        },
-                    )
-                    ->getOptionLabelFromRecordUsing(
-                        fn (Branch $record): string => filled($record->code)
-                            ? $record->name.' ('.$record->code.')'
-                            : $record->name,
-                    )
-                    ->multiple()
-                    ->searchable()
-                    ->preload(),
-                TernaryFilter::make('email_verified')
-                    ->label('Correo verificado')
-                    ->placeholder('Todos')
-                    ->trueLabel('Solo verificados')
-                    ->falseLabel('Sin verificar')
-                    ->queries(
-                        true: fn (Builder $query) => $query->whereNotNull('email_verified_at'),
-                        false: fn (Builder $query) => $query->whereNull('email_verified_at'),
-                    ),
-                TernaryFilter::make('two_factor')
-                    ->label('Autenticación en dos pasos')
-                    ->placeholder('Todos')
-                    ->trueLabel('Con 2FA activa')
-                    ->falseLabel('Sin 2FA')
-                    ->queries(
-                        true: fn (Builder $query) => $query->whereNotNull('two_factor_confirmed_at'),
-                        false: fn (Builder $query) => $query->whereNull('two_factor_confirmed_at'),
-                    ),
-                SelectFilter::make('role')
-                    ->label('Rol')
-                    ->options(fn (): array => Rol::query()
-                        ->where('is_active', true)
-                        ->orderBy('name')
-                        ->get()
-                        ->mapWithKeys(fn (Rol $rol): array => [
-                            $rol->name => mb_strtoupper((string) $rol->name),
-                        ])
-                        ->all())
-                    ->query(function (Builder $query, array $data): void {
-                        if (filled($data['value'] ?? null)) {
-                            $query->whereJsonContains('roles', $data['value']);
+                                    return $query->get()
+                                        ->mapWithKeys(fn (Branch $record): array => [
+                                            $record->getKey() => filled($record->code)
+                                                ? $record->name.' ('.$record->code.')'
+                                                : $record->name,
+                                        ])
+                                        ->all();
+                                })
+                                ->extraAttributes(['class' => 'fi-hr-ios-select']),
+                            Select::make('role')
+                                ->label('Rol')
+                                ->placeholder('Todos')
+                                ->searchable()
+                                ->native(false)
+                                ->options(fn (): array => Rol::query()
+                                    ->where('is_active', true)
+                                    ->orderBy('name')
+                                    ->get()
+                                    ->mapWithKeys(fn (Rol $rol): array => [
+                                        $rol->name => mb_strtoupper((string) $rol->name),
+                                    ])
+                                    ->all())
+                                ->extraAttributes(['class' => 'fi-hr-ios-select']),
+                            self::iosSegment(
+                                'email_verified',
+                                'Correo verificado',
+                                [
+                                    'all' => 'Todos',
+                                    '1' => 'Sí',
+                                    '0' => 'No',
+                                ],
+                            ),
+                            self::iosSegment(
+                                'two_factor',
+                                '2FA',
+                                [
+                                    'all' => 'Todos',
+                                    '1' => 'Sí',
+                                    '0' => 'No',
+                                ],
+                            ),
+                        ]),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        $branchIds = $data['branch_id'] ?? [];
+                        if (is_array($branchIds) && $branchIds !== []) {
+                            $query->whereIn('branch_id', $branchIds);
                         }
+
+                        if (filled($data['role'] ?? null)) {
+                            $query->whereJsonContains('roles', $data['role']);
+                        }
+
+                        $emailVerified = $data['email_verified'] ?? 'all';
+                        if ($emailVerified === '1') {
+                            $query->whereNotNull('email_verified_at');
+                        } elseif ($emailVerified === '0') {
+                            $query->whereNull('email_verified_at');
+                        }
+
+                        $twoFactor = $data['two_factor'] ?? 'all';
+                        if ($twoFactor === '1') {
+                            $query->whereNotNull('two_factor_confirmed_at');
+                        } elseif ($twoFactor === '0') {
+                            $query->whereNull('two_factor_confirmed_at');
+                        }
+
+                        return $query;
                     }),
             ])
             ->recordActions([
@@ -290,5 +329,21 @@ class UsersTable
         }
 
         return [];
+    }
+
+    /**
+     * @param  array<string, string>  $options
+     */
+    private static function iosSegment(string $name, string $label, array $options): ToggleButtons
+    {
+        return ToggleButtons::make($name)
+            ->label($label)
+            ->options($options)
+            ->grouped()
+            ->default('all')
+            ->extraAttributes([
+                'class' => 'fi-hr-ios-segment',
+                'data-segment-count' => (string) count($options),
+            ]);
     }
 }

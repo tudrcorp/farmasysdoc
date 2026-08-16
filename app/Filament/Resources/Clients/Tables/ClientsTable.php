@@ -8,11 +8,13 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\ToggleButtons;
+use Filament\Schemas\Components\Grid;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -200,36 +202,70 @@ class ClientsTable
             ->defaultPaginationPageOption(25)
             ->persistFiltersInSession()
             ->deferFilters(false)
-            ->filtersFormColumns(2)
-            ->filtersLayout(FiltersLayout::AboveContentCollapsible)
+            ->filtersFormColumns(1)
+            ->filtersLayout(FiltersLayout::AboveContent)
             ->emptyStateHeading('No hay clientes')
             ->emptyStateDescription('Crea el primero para usarlo en ventas, pedidos y convenios.')
             ->emptyStateIcon(Heroicon::UserGroup)
             ->recordUrl(fn (Client $record): string => ClientResource::getUrl('view', ['record' => $record], isAbsolute: false))
             ->recordAction('view')
             ->filters([
-                SelectFilter::make('status')
-                    ->label('Estado')
-                    ->options([
-                        'active' => 'Activo',
-                        'inactive' => 'Inactivo',
-                        'blocked' => 'Bloqueado',
+                Filter::make('client_view')
+                    ->label('Filtros')
+                    ->columnSpanFull()
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'md' => 2,
+                            'xl' => 3,
+                        ])->schema([
+                            self::iosSegment(
+                                'status',
+                                'Estado',
+                                [
+                                    'all' => 'Todos',
+                                    'active' => 'Activo',
+                                    'inactive' => 'Inactivo',
+                                    'blocked' => 'Bloqueado',
+                                ],
+                            ),
+                            Select::make('document_type')
+                                ->label('Tipo de documento')
+                                ->placeholder('Todos')
+                                ->native(false)
+                                ->options(self::documentTypeOptions())
+                                ->extraAttributes(['class' => 'fi-hr-ios-select']),
+                            self::iosSegment(
+                                'has_sales',
+                                'Con ventas',
+                                [
+                                    'all' => 'Todos',
+                                    '1' => 'Sí',
+                                    '0' => 'No',
+                                ],
+                            ),
+                        ]),
                     ])
-                    ->native(false),
-                SelectFilter::make('document_type')
-                    ->label('Tipo de documento')
-                    ->options(self::documentTypeOptions())
-                    ->native(false)
-                    ->searchable(),
-                TernaryFilter::make('has_sales')
-                    ->label('Con ventas')
-                    ->placeholder('Todos')
-                    ->trueLabel('Al menos una venta')
-                    ->falseLabel('Sin ventas')
-                    ->queries(
-                        true: fn (Builder $query) => $query->has('sales'),
-                        false: fn (Builder $query) => $query->doesntHave('sales'),
-                    ),
+                    ->query(function (Builder $query, array $data): Builder {
+                        $status = $data['status'] ?? 'all';
+                        if (filled($status) && $status !== 'all') {
+                            $query->where('status', $status);
+                        }
+
+                        $documentType = $data['document_type'] ?? null;
+                        if (filled($documentType)) {
+                            $query->where('document_type', $documentType);
+                        }
+
+                        $hasSales = $data['has_sales'] ?? 'all';
+                        if ($hasSales === '1') {
+                            $query->has('sales');
+                        } elseif ($hasSales === '0') {
+                            $query->doesntHave('sales');
+                        }
+
+                        return $query;
+                    }),
             ])
             ->recordActions([
                 ViewAction::make()
@@ -313,5 +349,21 @@ class ClientsTable
         }
 
         return $line;
+    }
+
+    /**
+     * @param  array<string, string>  $options
+     */
+    private static function iosSegment(string $name, string $label, array $options): ToggleButtons
+    {
+        return ToggleButtons::make($name)
+            ->label($label)
+            ->options($options)
+            ->grouped()
+            ->default('all')
+            ->extraAttributes([
+                'class' => 'fi-hr-ios-segment',
+                'data-segment-count' => (string) count($options),
+            ]);
     }
 }

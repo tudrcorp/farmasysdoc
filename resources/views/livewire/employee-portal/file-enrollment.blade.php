@@ -5,7 +5,6 @@
             <span>Portal del empleado</span>
         </div>
         <div class="ep-topbar-actions">
-            @include('employee-portal.partials.theme-toggle')
             @include('employee-portal.partials.menu-button')
             <a href="{{ route('employee-portal.home') }}" class="ep-btn ep-btn--secondary ep-btn--compact" wire:navigate>Volver</a>
         </div>
@@ -22,7 +21,6 @@
                 </a>
                 <p class="ep-nav-title">Expediente</p>
                 <div class="ep-header-actions">
-                    @include('employee-portal.partials.theme-toggle')
                     @include('employee-portal.partials.menu-button')
                 </div>
             </div>
@@ -71,7 +69,6 @@
                 </a>
                 <p class="ep-step">Expediente</p>
                 <div class="ep-header-actions">
-                    @include('employee-portal.partials.theme-toggle')
                     @include('employee-portal.partials.menu-button')
                 </div>
             </div>
@@ -137,7 +134,6 @@
                     <p class="ep-nav-title">Firma</p>
                     <p class="ep-step">Paso 1 de 2</p>
                 </div>
-                @include('employee-portal.partials.theme-toggle')
             </div>
             <p class="ep-text ep-desktop-only">Firma con el mouse o el trackpad. Si ya la tienes escaneada, súbela a la derecha.</p>
             <p class="ep-text ep-mobile-only">Firma con el dedo dentro del recuadro. Si no te gusta, bórrala y vuelve a intentar.</p>
@@ -214,7 +210,6 @@
                     <p class="ep-nav-title">Huella</p>
                     <p class="ep-step">Paso 2 de 2</p>
                 </div>
-                @include('employee-portal.partials.theme-toggle')
             </div>
             <p class="ep-text ep-desktop-only">En el computador lo más simple es subir una foto o un escaneo. También puedes usar la cámara web.</p>
             <p class="ep-text ep-mobile-only">Acerca tu pulgar a la cámara hasta que llene el óvalo.</p>
@@ -287,7 +282,6 @@
                     Atrás
                 </button>
                 <p class="ep-nav-title">Revisar</p>
-                @include('employee-portal.partials.theme-toggle')
             </div>
             <h1 class="ep-lead">¿Se ve bien?</h1>
             <p class="ep-text">Así quedará en tu expediente. Si algo no te convence, vuelve y repítelo.</p>

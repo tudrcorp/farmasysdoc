@@ -3,9 +3,6 @@
         <div class="ep-brand">
             <img src="{{ asset('images/logos/favicon.png') }}" alt="Farmadoc">
             <span>Portal</span>
-            <div class="ep-header-actions">
-                @include('employee-portal.partials.theme-toggle')
-            </div>
         </div>
 
         <div class="ep-auth-body">

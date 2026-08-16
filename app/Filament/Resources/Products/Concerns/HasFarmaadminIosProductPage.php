@@ -11,6 +11,7 @@ trait HasFarmaadminIosProductPage
     {
         return array_merge(parent::getPageClasses(), [
             'fi-farmaadmin-ios-product-page',
+            'fi-hr-ios-filters-page',
         ]);
     }
 }

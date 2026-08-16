@@ -881,14 +881,6 @@ body.ep-menu-locked {
     overflow: hidden;
 }
 
-body.ep-menu-locked .ep-theme-toggle {
-    display: none;
-}
-
-body.ep-menu-locked .ep-menu-sheet .ep-theme-toggle {
-    display: inline-flex;
-}
-
 .ep-menu-trigger {
     position: relative;
     z-index: 32;

@@ -1,3 +1,58 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Language
+
+Responder siempre en español al usuario, incluidas explicaciones y resúmenes de cambios. El código, nombres de variables/métodos, commits y comentarios en el código se mantienen en inglés según las convenciones existentes del proyecto.
+
+## Project Overview
+
+Farmadoc (`farmasysdoc`) is a Laravel 13 + Filament 5 back-office system for a pharmacy chain operating in Venezuela: inventory/lots, sales, purchases, accounts payable/receivable, payroll/HR, fiscal receipts, product transfers between branches, delivery logistics, and marketing. A React Native (Expo) delivery-driver app lives in `mobile/farmadelivery` and talks to the Sanctum-protected `api/v1/delivery/*` routes. Third-party pharmacy partners integrate via token-authenticated `api/external/*` routes (see `App\Http\Middleware\AuthenticateApiClient` and the `ApiClient` model).
+
+Locale/currency context matters throughout: money amounts are tracked in both USD and VES (`*_usd`/`*_ves` columns), exchange rates come from `App\Services\Dolar` / `VenezuelaOfficialUsdVesRateClient`, and fiscal/tax logic follows Venezuelan SENIAT rules.
+
+## Commands
+
+```bash
+composer dev                          # runs server + queue:listen + pail + vite concurrently
+vendor/bin/pint --dirty --format agent   # format only changed PHP files (required after PHP edits)
+php artisan test --compact               # run full suite
+php artisan test --compact --filter=testName   # run a single test
+npm run dev / npm run build              # Vite (Tailwind v4 + JS assets)
+```
+
+The app is always served via Laravel Herd at `https://farmasysdoc.test` — never start `php artisan serve` or another web server for it; use the `get-absolute-url` Boost tool for links.
+
+**Do not run tests or test-adjacent DB operations yourself.** Per `.cursor/rules/no-agent-test-execution.mdc`, agents must not execute `php artisan test`, Pest/PHPUnit directly, `migrate:fresh`, `schema:dump`, or anything that triggers `RefreshDatabase`/`DatabaseMigrations`/`LazilyRefreshDatabase`, and must not create/edit/delete files under `tests/` — unless the user explicitly asks for it in that message. This overrides the generic "every change must be tested by running tests" guidance below: instead, write/update the test code and tell the user how to run it themselves.
+
+## Architecture
+
+### Two Filament panels
+- **`farmaadmin`** (`App\Providers\Filament\FarmaadminPanelProvider`, path `/farmaadmin`) — the main internal back-office. Resources/Pages/Widgets/Clusters are auto-discovered from `app/Filament/{Resources,Pages,Widgets,Clusters}`.
+- **`business-partners`** (`App\Providers\Filament\BusinessPartnersPanelProvider`, id/path `business-partners`) — a separate, self-contained panel for external partner companies with its own discovery roots under `app/Filament/BusinessPartners/{Resources,Pages}` and its own `Login` page. Partner accounts are `PartnerCompanyUser`, distinct from the internal `User` model.
+
+When adding a resource, check which panel it belongs to before creating it — the two panels are not interchangeable and use different auth guards/access rules.
+
+### Domain layering: Models → Services → Support → Filament/Livewire/Http
+- `app/Models` — Eloquent models (70+), one per business entity (Sale, Purchase, Inventory, PayrollPeriod, AccountsPayable, etc.). Financial models generally carry parallel `_usd`/`_ves` money columns.
+- `app/Services/{Sales,Purchases,Finance,Fiscal,Hr,Inventory,Dashboard,Marketing,Pricing,Dolar,BdvConciliation,Reports,Audit}` — domain services encapsulating business workflows that span multiple models (e.g. `PurchaseBookFromPurchaseSynchronizer`, `AccountsPayableFromPurchaseSynchronizer`, `SaleVoidService`, `PayrollCalculator`). Prefer extending/reusing an existing service in the matching domain folder over writing logic inline in a Filament resource or controller.
+- `app/Support/{...}` — lower-level helpers/value objects backing the services (Cash, Deliveries, Fiscal, Hr, Orders, Products, Purchases, Qr, etc.).
+- `app/Filament` — panel UI (forms/tables/actions) that calls into Services; avoid putting business logic directly in resource/page classes.
+- `app/Livewire/{Hr,EmployeePortal,Filament,Actions}` — standalone Livewire components outside Filament, notably the public-facing Employee Portal (`portal/*` routes, its own `employee.portal`/`employee.portal.guest` guard middleware and `Employee` model auth, not the `User` model).
+
+### Two synchronized ledgers per transaction
+Purchases and sales don't just write one record: creating/annulling a `Purchase` fans out to `PurchaseBook` (SENIAT-relevant fiscal book), `PurchaseLedger`, `PurchaseHistory`, and `AccountsPayable` via dedicated `*FromPurchaseSynchronizer` services — each keeps its own copy of derived monetary/fiscal fields in sync. When changing purchase or sale logic, check whether a synchronizer needs updating too, not just the source model.
+
+### SENIAT IVA retention (Venezuela tax rule)
+The retention percentage always comes from `suppliers.seniat_retention_percent` (never hardcode 75%/100%/other fixed values). Formula: `tax_retained_ves = tax_caused_ves × (seniat_retention_percent / 100)`. If a supplier has no percent configured, require it before proceeding rather than defaulting. `PurchaseBook` sync must read the percent from the purchase's supplier and persist both the percent and the computed retained amount; PDFs/widgets/totals must sum the already-computed retained value, not recompute with a different percent. (See `.cursor/rules/seniat-retention-from-supplier.mdc`.)
+
+### External API auth
+`api/external/*` routes use the `api.client` middleware (`AuthenticateApiClient`) with bearer tokens tied to an `ApiClient`/`PartnerCompany`, separate from the `auth:sanctum` guard used by the delivery-app routes (`api/v1/delivery/*`) and from Filament panel auth. Don't mix these three auth mechanisms up when adding endpoints.
+
+### Multi-currency & exchange rates
+`App\Services\Dolar` (config `config/dolar.php`) and `VenezuelaOfficialUsdVesRateClient` fetch the official BCV rate; `HrBcvRateResolver`/`HrUsdVesConverter` apply it to payroll. Always resolve rates through these services rather than querying an external endpoint directly.
+
 <laravel-boost-guidelines>
 === foundation rules ===
 
@@ -9,11 +64,12 @@ The Laravel Boost guidelines are specifically curated by Laravel maintainers for
 
 This application is a Laravel application and its main Laravel ecosystems package & versions are below. You are an expert with them all. Ensure you abide by these specific packages & versions.
 
-- php - 8.3
+- php - 8.4
 - filament/filament (FILAMENT) - v5
 - laravel/fortify (FORTIFY) - v1
 - laravel/framework (LARAVEL) - v13
 - laravel/prompts (PROMPTS) - v0
+- laravel/sanctum (SANCTUM) - v4
 - livewire/flux (FLUXUI_FREE) - v2
 - livewire/livewire (LIVEWIRE) - v4
 - laravel/boost (BOOST) - v2
@@ -33,6 +89,7 @@ This project has domain-specific skills available. You MUST activate the relevan
 - `livewire-development` — Use for any task or question involving Livewire. Activate if user mentions Livewire, wire: directives, or Livewire-specific concepts like wire:model, wire:click, wire:sort, or islands, invoke this skill. Covers building new components, debugging reactivity issues, real-time form validation, drag-and-drop, loading states, migrating from Livewire 3 to 4, converting component formats (SFC/MFC/class-based), and performance optimization. Do not use for non-Livewire reactive UI (React, Vue, Alpine-only, Inertia.js) or standard Laravel forms without Livewire.
 - `pest-testing` — Use this skill for Pest PHP testing in Laravel projects only. Trigger whenever any test is being written, edited, fixed, or refactored — including fixing tests that broke after a code change, adding assertions, converting PHPUnit to Pest, adding datasets, and TDD workflows. Always activate when the user asks how to write something in Pest, mentions test files or directories (tests/Feature, tests/Unit, tests/Browser), or needs browser testing, smoke testing multiple pages for JS errors, or architecture tests. Covers: it()/expect() syntax, datasets, mocking, browser testing (visit/click/fill), smoke testing, arch(), Livewire component tests, RefreshDatabase, and all Pest 4 features. Do not use for factories, seeders, migrations, controllers, models, or non-test PHP code.
 - `tailwindcss-development` — Always invoke when the user's message includes 'tailwind' in any form. Also invoke for: building responsive grid layouts (multi-column card grids, product grids), flex/grid page structures (dashboards with sidebars, fixed topbars, mobile-toggle navs), styling UI components (cards, tables, navbars, pricing sections, forms, inputs, badges), adding dark mode variants, fixing spacing or typography, and Tailwind v3/v4 work. The core use case: writing or fixing Tailwind utility classes in HTML templates (Blade, JSX, Vue). Skip for backend PHP logic, database queries, API routes, JavaScript with no HTML/CSS component, CSS file audits, build tool configuration, and vanilla CSS.
+- `fortify-development` — Laravel Fortify headless authentication backend development. Activate when implementing authentication features including login, registration, password reset, email verification, two-factor authentication (2FA/TOTP), profile updates, headless auth, authentication scaffolding, or auth guards in Laravel applications.
 
 ## Conventions
 
@@ -234,4 +291,163 @@ protected function isAccessible(User $user, ?string $path = null): bool
 - Run tests: `php artisan test --compact` or filter: `php artisan test --compact --filter=testName`.
 - Do NOT delete tests without approval.
 
+=== filament/filament rules ===
+
+## Filament
+
+- Filament is used by this application. Follow the existing conventions for how and where it is implemented.
+- Filament is a Server-Driven UI (SDUI) framework for Laravel that lets you define user interfaces in PHP using structured configuration objects. Built on Livewire, Alpine.js, and Tailwind CSS.
+- Use the `search-docs` tool for official documentation on Artisan commands, code examples, testing, relationships, and idiomatic practices. If `search-docs` is unavailable, refer to https://filamentphp.com/docs.
+
+### Artisan
+
+- Always use Filament-specific Artisan commands to create files. Find available commands with the `list-artisan-commands` tool, or run `php artisan --help`.
+- Always inspect required options before running a command, and always pass `--no-interaction`.
+
+### Patterns
+
+Always use static `make()` methods to initialize components. Most configuration methods accept a `Closure` for dynamic values.
+
+Use `Get $get` to read other form field values for conditional logic:
+
+<code-snippet name="Conditional form field visibility" lang="php">
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
+
+Select::make('type')
+    ->options(CompanyType::class)
+    ->required()
+    ->live(),
+
+TextInput::make('company_name')
+    ->required()
+    ->visible(fn (Get $get): bool => $get('type') === 'business'),
+
+</code-snippet>
+
+Use `state()` with a `Closure` to compute derived column values:
+
+<code-snippet name="Computed table column value" lang="php">
+use Filament\Tables\Columns\TextColumn;
+
+TextColumn::make('full_name')
+    ->state(fn (User $record): string => "{$record->first_name} {$record->last_name}"),
+
+</code-snippet>
+
+Actions encapsulate a button with an optional modal form and logic:
+
+<code-snippet name="Action with modal form" lang="php">
+use Filament\Actions\Action;
+use Filament\Forms\Components\TextInput;
+
+Action::make('updateEmail')
+    ->schema([
+        TextInput::make('email')
+            ->email()
+            ->required(),
+    ])
+    ->action(fn (array $data, User $record) => $record->update($data))
+
+</code-snippet>
+
+### Testing
+
+Always authenticate before testing panel functionality. Filament uses Livewire, so use `Livewire::test()` or `livewire()` (available when `pestphp/pest-plugin-livewire` is in `composer.json`):
+
+<code-snippet name="Table test" lang="php">
+use function Pest\Livewire\livewire;
+
+livewire(ListUsers::class)
+    ->assertCanSeeTableRecords($users)
+    ->searchTable($users->first()->name)
+    ->assertCanSeeTableRecords($users->take(1))
+    ->assertCanNotSeeTableRecords($users->skip(1));
+
+</code-snippet>
+
+<code-snippet name="Create resource test" lang="php">
+use function Pest\Laravel\assertDatabaseHas;
+use function Pest\Livewire\livewire;
+
+livewire(CreateUser::class)
+    ->fillForm([
+        'name' => 'Test',
+        'email' => 'test@example.com',
+    ])
+    ->call('create')
+    ->assertNotified()
+    ->assertRedirect();
+
+assertDatabaseHas(User::class, [
+    'name' => 'Test',
+    'email' => 'test@example.com',
+]);
+
+</code-snippet>
+
+<code-snippet name="Testing validation" lang="php">
+use function Pest\Livewire\livewire;
+
+livewire(CreateUser::class)
+    ->fillForm([
+        'name' => null,
+        'email' => 'invalid-email',
+    ])
+    ->call('create')
+    ->assertHasFormErrors([
+        'name' => 'required',
+        'email' => 'email',
+    ])
+    ->assertNotNotified();
+
+</code-snippet>
+
+<code-snippet name="Calling actions in pages" lang="php">
+use Filament\Actions\DeleteAction;
+use function Pest\Livewire\livewire;
+
+livewire(EditUser::class, ['record' => $user->id])
+    ->callAction(DeleteAction::class)
+    ->assertNotified()
+    ->assertRedirect();
+
+</code-snippet>
+
+<code-snippet name="Calling actions in tables" lang="php">
+use Filament\Actions\Testing\TestAction;
+use function Pest\Livewire\livewire;
+
+livewire(ListUsers::class)
+    ->callAction(TestAction::make('promote')->table($user), [
+        'role' => 'admin',
+    ])
+    ->assertNotified();
+
+</code-snippet>
+
+### Correct Namespaces
+
+- Form fields (`TextInput`, `Select`, etc.): `Filament\Forms\Components\`
+- Infolist entries (`TextEntry`, `IconEntry`, etc.): `Filament\Infolists\Components\`
+- Layout components (`Grid`, `Section`, `Fieldset`, `Tabs`, `Wizard`, etc.): `Filament\Schemas\Components\`
+- Schema utilities (`Get`, `Set`, etc.): `Filament\Schemas\Components\Utilities\`
+- Actions (`DeleteAction`, `CreateAction`, etc.): `Filament\Actions\`. Never use `Filament\Tables\Actions\`, `Filament\Forms\Actions\`, or any other sub-namespace for actions.
+- Icons: `Filament\Support\Icons\Heroicon` enum (e.g., `Heroicon::PencilSquare`)
+
+### Common Mistakes
+
+- **Never assume public file visibility.** File visibility is `private` by default. Always use `->visibility('public')` when public access is needed.
+- **Never assume full-width layout.** `Grid`, `Section`, and `Fieldset` do not span all columns by default. Explicitly set column spans when needed.
+
+=== laravel/fortify rules ===
+
+# Laravel Fortify
+
+- Fortify is a headless authentication backend that provides authentication routes and controllers for Laravel applications.
+- IMPORTANT: Always use the `search-docs` tool for detailed Laravel Fortify patterns and documentation.
+- IMPORTANT: Activate `developing-with-fortify` skill when working with Fortify authentication features.
+
 </laravel-boost-guidelines>
+</content>

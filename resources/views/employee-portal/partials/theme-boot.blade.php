@@ -25,35 +25,55 @@
     :root,
     html[data-theme="light"] {
         --ep-page-bg: #eef8fb;
+        --page-bg:
+            radial-gradient(120% 80% at 0% 0%, rgb(165 243 252 / 0.7), transparent 52%),
+            radial-gradient(90% 70% at 100% 10%, rgb(252 228 34 / 0.28), transparent 46%),
+            radial-gradient(80% 60% at 80% 100%, rgb(45 212 191 / 0.35), transparent 50%),
+            linear-gradient(180deg, #eef8fb 0%, #f7f4ee 48%, #e7f6f6 100%);
     }
 
     html[data-theme="dark"] {
         color-scheme: dark;
         --ep-page-bg: #07141c;
+        --page-bg:
+            radial-gradient(90% 70% at 10% 0%, rgb(8 145 178 / 0.28), transparent 50%),
+            radial-gradient(80% 60% at 100% 20%, rgb(250 204 21 / 0.08), transparent 46%),
+            linear-gradient(180deg, #07141c 0%, #07141c 100%);
     }
 
     * { box-sizing: border-box; }
 
     html, body {
-        height: 100%;
         margin: 0;
-        background: var(--ep-page-bg);
+        min-height: 100%;
+        min-height: 100svh;
+        min-height: 100dvh;
+        min-height: 100lvh;
+        background: var(--page-bg);
+        background-color: var(--ep-page-bg);
     }
 
     body {
-        background: var(--ep-page-bg);
-        overflow: hidden;
+        overflow: auto;
         -webkit-font-smoothing: antialiased;
     }
 
-    .ep-device {
-        min-height: 100dvh;
+    .ep-ambient {
+        position: fixed;
+        top: 0;
+        right: 0;
+        left: 0;
         width: 100%;
-        position: relative;
+        height: 100lvh;
+        min-height: 100lvh;
+        background: var(--page-bg);
+        pointer-events: none;
     }
 
-    @media (max-width: 900px) {
-        body { overflow: auto; }
+    .ep-device {
+        min-height: 100lvh;
+        width: 100%;
+        position: relative;
     }
 </style>
 <script>

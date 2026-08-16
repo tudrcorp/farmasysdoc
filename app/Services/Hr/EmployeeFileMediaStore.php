@@ -12,37 +12,38 @@ final class EmployeeFileMediaStore
 {
     public const MAX_BYTES = 2_097_152;
 
+    public function __construct(
+        private EmployeeFileBackgroundRemover $backgroundRemover,
+    ) {}
+
     public function storeSignatureFromDataUrl(Employee $employee, string $dataUrl): void
     {
-        $this->storeDataUrl($employee, $dataUrl, 'employees/signatures', 'signature_path');
+        $this->storeDataUrl($employee, $dataUrl, 'employees/signatures', 'signature_path', EmployeeFileBackgroundRemover::SIGNATURE);
     }
 
     public function storeFingerprintFromDataUrl(Employee $employee, string $dataUrl): void
     {
-        $this->storeDataUrl($employee, $dataUrl, 'employees/fingerprints', 'fingerprint_path');
+        $this->storeDataUrl($employee, $dataUrl, 'employees/fingerprints', 'fingerprint_path', EmployeeFileBackgroundRemover::FINGERPRINT);
     }
 
     public function storeSignatureUpload(Employee $employee, UploadedFile $file): void
     {
-        $this->storeUpload($employee, $file, 'employees/signatures', 'signature_path');
+        $this->storeUpload($employee, $file, 'employees/signatures', 'signature_path', EmployeeFileBackgroundRemover::SIGNATURE);
     }
 
     public function storeFingerprintUpload(Employee $employee, UploadedFile $file): void
     {
-        $this->storeUpload($employee, $file, 'employees/fingerprints', 'fingerprint_path');
+        $this->storeUpload($employee, $file, 'employees/fingerprints', 'fingerprint_path', EmployeeFileBackgroundRemover::FINGERPRINT);
     }
 
-    private function storeDataUrl(Employee $employee, string $dataUrl, string $directory, string $attribute): void
+    private function storeDataUrl(Employee $employee, string $dataUrl, string $directory, string $attribute, string $mode): void
     {
-        [$binary, $extension] = $this->decodeImageDataUrl($dataUrl);
+        [$binary] = $this->decodeImageDataUrl($dataUrl);
         $this->assertValidImageBinary($binary);
-
-        $path = $directory.'/'.$employee->getKey().'_'.Str::uuid().'.'.$extension;
-        Storage::disk('public')->put($path, $binary);
-        $this->replacePath($employee, $attribute, $path);
+        $this->storePng($employee, $this->backgroundRemover->toTransparentPng($binary, $mode), $directory, $attribute);
     }
 
-    private function storeUpload(Employee $employee, UploadedFile $file, string $directory, string $attribute): void
+    private function storeUpload(Employee $employee, UploadedFile $file, string $directory, string $attribute, string $mode): void
     {
         if (! $file->isValid()) {
             throw ValidationException::withMessages([
@@ -50,14 +51,22 @@ final class EmployeeFileMediaStore
             ]);
         }
 
-        $path = $file->store($directory, 'public');
+        $binary = file_get_contents($file->getRealPath());
 
-        if (! is_string($path) || $path === '') {
+        if (! is_string($binary) || $binary === '') {
             throw ValidationException::withMessages([
-                'image' => 'No se pudo guardar el archivo.',
+                'image' => 'No se pudo leer el archivo.',
             ]);
         }
 
+        $this->assertValidImageBinary($binary);
+        $this->storePng($employee, $this->backgroundRemover->toTransparentPng($binary, $mode), $directory, $attribute);
+    }
+
+    private function storePng(Employee $employee, string $png, string $directory, string $attribute): void
+    {
+        $path = $directory.'/'.$employee->getKey().'_'.Str::uuid().'.png';
+        Storage::disk('public')->put($path, $png);
         $this->replacePath($employee, $attribute, $path);
     }
 

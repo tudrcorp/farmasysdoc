@@ -200,8 +200,7 @@ document.addEventListener('alpine:init', () => {
             exportCanvas.width = Math.round(rect.width * 2);
             exportCanvas.height = Math.round(rect.height * 2);
             const context = exportCanvas.getContext('2d');
-            context.fillStyle = '#ffffff';
-            context.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+            context.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
             context.drawImage(canvas, 0, 0, exportCanvas.width, exportCanvas.height);
             this.$wire.saveSignatureStroke(exportCanvas.toDataURL('image/png'));
         },
@@ -276,7 +275,7 @@ document.addEventListener('alpine:init', () => {
                 900,
                 900,
             );
-            this.preview = canvas.toDataURL('image/jpeg', 0.86);
+            this.preview = canvas.toDataURL('image/png');
         },
         retake() {
             this.preview = null;

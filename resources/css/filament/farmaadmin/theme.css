@@ -14925,7 +14925,8 @@ html:not(.dark) .fi-hr-employee-hero__stat-sub {
     color: rgb(100 116 139);
 }
 
-.fi-hr-employee-signature-img {
+.fi-hr-employee-signature-img,
+.fi-hr-employee-fingerprint-img {
     max-height: 8.75rem;
     width: auto;
     max-width: 22rem;
@@ -14936,7 +14937,8 @@ html:not(.dark) .fi-hr-employee-hero__stat-sub {
     box-shadow: 0 8px 20px rgb(15 23 42 / 0.08);
 }
 
-html.fi.dark .fi-hr-employee-signature-img {
+html.fi.dark .fi-hr-employee-signature-img,
+html.fi.dark .fi-hr-employee-fingerprint-img {
     background: rgb(248 250 252);
     box-shadow: 0 8px 20px rgb(0 0 0 / 0.28);
 }

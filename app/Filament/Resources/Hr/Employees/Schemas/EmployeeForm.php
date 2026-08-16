@@ -3,17 +3,21 @@
 namespace App\Filament\Resources\Hr\Employees\Schemas;
 
 use App\Enums\EmployeeBankAccountType;
+use App\Enums\HrPayCurrencyBucket;
 use App\Enums\VenezuelanPagoMovilBank;
 use App\Services\Hr\HrBcvRateResolver;
 use App\Services\Hr\HrUsdVesConverter;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\HtmlString;
@@ -79,6 +83,42 @@ class EmployeeForm
                     ])
                     ->columnSpanFull(),
 
+                Section::make('Firma y huella')
+                    ->icon(Heroicon::PencilSquare)
+                    ->description('Imágenes del expediente para recibos y documentos de nómina. También se pueden pedir al empleado desde el portal.')
+                    ->schema([
+                        FileUpload::make('signature_path')
+                            ->label('Firma del empleado')
+                            ->helperText('Opcional. Suba una foto o escaneo de la firma manuscrita (PNG, JPG o WEBP).')
+                            ->image()
+                            ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
+                            ->imageEditor()
+                            ->imageEditorAspectRatios([
+                                null,
+                                '3:1',
+                                '4:1',
+                            ])
+                            ->panelLayout('integrated')
+                            ->disk('public')
+                            ->directory('employees/signatures')
+                            ->visibility('public')
+                            ->maxSize(2048)
+                            ->columnSpanFull(),
+                        FileUpload::make('fingerprint_path')
+                            ->label('Huella dactilar')
+                            ->helperText('Opcional. Foto o escaneo de la huella (PNG, JPG o WEBP). El empleado también puede cargarla desde el portal.')
+                            ->image()
+                            ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
+                            ->imageEditor()
+                            ->panelLayout('integrated')
+                            ->disk('public')
+                            ->directory('employees/fingerprints')
+                            ->visibility('public')
+                            ->maxSize(2048)
+                            ->columnSpanFull(),
+                    ])
+                    ->columnSpanFull(),
+
                 Section::make('Datos bancarios')
                     ->icon(Heroicon::BuildingLibrary)
                     ->description('Cuenta para depositar el pago en bolívares u otras transferencias de nómina.')
@@ -111,7 +151,7 @@ class EmployeeForm
 
                 Section::make('Sueldo y salario')
                     ->icon(Heroicon::Banknotes)
-                    ->description('El sueldo mensual se divide en dos pagos quincenales (15 y cierre de mes).')
+                    ->description('El sueldo en USD se usa para el pago quincenal. El sueldo de ley se carga en bolívares y es independiente.')
                     ->schema([
                         Grid::make(2)->schema([
                             TextInput::make('monthly_salary_usd')
@@ -123,6 +163,15 @@ class EmployeeForm
                                 ->prefix('US$')
                                 ->live(onBlur: true)
                                 ->helperText(fn (Get $get): HtmlString|string => self::vesHint($get('monthly_salary_usd'))),
+                            TextInput::make('legal_salary_ves')
+                                ->label('Sueldo de ley (VES)')
+                                ->numeric()
+                                ->minValue(0.01)
+                                ->step(0.01)
+                                ->required()
+                                ->prefix('Bs')
+                                ->live(onBlur: true)
+                                ->helperText(fn (Get $get): string => self::legalSalaryHint($get('legal_salary_ves'))),
                             Toggle::make('is_active')
                                 ->label('Empleado activo')
                                 ->default(true)
@@ -136,34 +185,90 @@ class EmployeeForm
                     ->description(fn (Get $get): string => self::biweeklyBaseDescription($get('monthly_salary_usd')))
                     ->schema([
                         Grid::make(2)->schema([
-                            TextInput::make('first_half_usd_cash')
-                                ->label('USD efectivo — 1.ª quincena (día 15)')
-                                ->numeric()
-                                ->minValue(0)
-                                ->step(0.01)
-                                ->required()
-                                ->default(0)
-                                ->prefix('US$')
-                                ->live(onBlur: true)
-                                ->rule(fn (Get $get): \Closure => self::usdCashMaxRule($get))
-                                ->helperText(fn (Get $get): HtmlString|string => self::remainderHint(
-                                    $get('monthly_salary_usd'),
-                                    $get('first_half_usd_cash'),
-                                )),
-                            TextInput::make('second_half_usd_cash')
-                                ->label('USD efectivo — 2.ª quincena (fin de mes)')
-                                ->numeric()
-                                ->minValue(0)
-                                ->step(0.01)
-                                ->required()
-                                ->default(0)
-                                ->prefix('US$')
-                                ->live(onBlur: true)
-                                ->rule(fn (Get $get): \Closure => self::usdCashMaxRule($get))
-                                ->helperText(fn (Get $get): HtmlString|string => self::remainderHint(
-                                    $get('monthly_salary_usd'),
-                                    $get('second_half_usd_cash'),
-                                )),
+                            Fieldset::make('1.ª quincena (día 15)')
+                                ->schema([
+                                    Radio::make('first_half_pay_currency')
+                                        ->label('Moneda de pago')
+                                        ->options(HrPayCurrencyBucket::paymentOptions())
+                                        ->inline()
+                                        ->required()
+                                        ->default(HrPayCurrencyBucket::Ves->value)
+                                        ->live()
+                                        ->afterStateUpdated(function (mixed $state, Set $set): void {
+                                            if (self::isVesCurrency($state)) {
+                                                $set('first_half_usd_cash', 0);
+                                            }
+                                        })
+                                        ->helperText(function (Get $get): HtmlString|string {
+                                            if (self::isUsdCurrency($get('first_half_pay_currency'))) {
+                                                return '';
+                                            }
+
+                                            return self::fortnightPayHint(
+                                                $get('monthly_salary_usd'),
+                                                $get('first_half_pay_currency'),
+                                                0,
+                                            );
+                                        }),
+                                    TextInput::make('first_half_usd_cash')
+                                        ->label('Monto en dólares')
+                                        ->numeric()
+                                        ->minValue(0)
+                                        ->step(0.01)
+                                        ->default(0)
+                                        ->prefix('US$')
+                                        ->live(onBlur: true)
+                                        ->visible(fn (Get $get): bool => self::isUsdCurrency($get('first_half_pay_currency')))
+                                        ->dehydrated()
+                                        ->rule(fn (Get $get): \Closure => self::usdCashMaxRule($get))
+                                        ->helperText(fn (Get $get): HtmlString|string => self::fortnightPayHint(
+                                            $get('monthly_salary_usd'),
+                                            $get('first_half_pay_currency'),
+                                            $get('first_half_usd_cash'),
+                                        )),
+                                ]),
+                            Fieldset::make('2.ª quincena (fin de mes)')
+                                ->schema([
+                                    Radio::make('second_half_pay_currency')
+                                        ->label('Moneda de pago')
+                                        ->options(HrPayCurrencyBucket::paymentOptions())
+                                        ->inline()
+                                        ->required()
+                                        ->default(HrPayCurrencyBucket::Ves->value)
+                                        ->live()
+                                        ->afterStateUpdated(function (mixed $state, Set $set): void {
+                                            if (self::isVesCurrency($state)) {
+                                                $set('second_half_usd_cash', 0);
+                                            }
+                                        })
+                                        ->helperText(function (Get $get): HtmlString|string {
+                                            if (self::isUsdCurrency($get('second_half_pay_currency'))) {
+                                                return '';
+                                            }
+
+                                            return self::fortnightPayHint(
+                                                $get('monthly_salary_usd'),
+                                                $get('second_half_pay_currency'),
+                                                0,
+                                            );
+                                        }),
+                                    TextInput::make('second_half_usd_cash')
+                                        ->label('Monto en dólares')
+                                        ->numeric()
+                                        ->minValue(0)
+                                        ->step(0.01)
+                                        ->default(0)
+                                        ->prefix('US$')
+                                        ->live(onBlur: true)
+                                        ->visible(fn (Get $get): bool => self::isUsdCurrency($get('second_half_pay_currency')))
+                                        ->dehydrated()
+                                        ->rule(fn (Get $get): \Closure => self::usdCashMaxRule($get))
+                                        ->helperText(fn (Get $get): HtmlString|string => self::fortnightPayHint(
+                                            $get('monthly_salary_usd'),
+                                            $get('second_half_pay_currency'),
+                                            $get('second_half_usd_cash'),
+                                        )),
+                                ]),
                         ]),
                     ])
                     ->columnSpanFull(),
@@ -173,12 +278,12 @@ class EmployeeForm
     private static function biweeklyBaseDescription(mixed $monthlySalary): string
     {
         if (! is_numeric($monthlySalary) || (float) $monthlySalary <= 0) {
-            return 'Indique el sueldo mensual. La base de cada quincena es sueldo ÷ 2; el resto de esa base (tras el USD efectivo) se paga en bolívares a tasa BCV.';
+            return 'Indique el sueldo mensual. Luego elija la moneda y, si paga en dólares, el monto en USD; el resto de la base se paga en bolívares.';
         }
 
         $base = number_format(round((float) $monthlySalary / 2, 2), 2, ',', '.');
 
-        return "Base quincenal: US$ {$base}. Configure cuánto de esa base se paga en efectivo USD; el resto va en Bs a tasa BCV.";
+        return "Base quincenal: US$ {$base}. Cargue solo el monto en dólares; si no indica ninguno, toda la quincena se paga en bolívares.";
     }
 
     private static function usdCashMaxRule(Get $get): \Closure
@@ -200,26 +305,73 @@ class EmployeeForm
         };
     }
 
-    private static function remainderHint(mixed $monthlySalary, mixed $usdCash): HtmlString|string
+    private static function fortnightPayHint(mixed $monthlySalary, mixed $currency, mixed $usdCash): HtmlString|string
     {
         if (! is_numeric($monthlySalary) || (float) $monthlySalary <= 0) {
-            return 'Resto de la base quincenal en bolívares (tasa BCV).';
+            return 'Indique el sueldo mensual para ver el cálculo de esta quincena.';
         }
 
         $base = round((float) $monthlySalary / 2, 2);
-        $cash = is_numeric($usdCash) ? max(0, (float) $usdCash) : 0.0;
+        $cash = self::isUsdCurrency($currency) && is_numeric($usdCash)
+            ? min(max(0, (float) $usdCash), $base)
+            : 0.0;
         $remainderUsd = round(max(0, $base - $cash), 2);
 
-        $rate = app(HrBcvRateResolver::class)->resolveForDate(now());
-        if ($rate === null) {
-            return 'Resto en Bs: US$ '.number_format($remainderUsd, 2, ',', '.').' (tasa BCV no disponible).';
+        if ($cash <= 0) {
+            return self::vesEquivalentHint(
+                $base,
+                'Sin monto en dólares: toda la quincena se paga en bolívares',
+            );
         }
 
-        $ves = number_format(HrUsdVesConverter::toVes($remainderUsd, $rate), 2, ',', '.');
+        if ($remainderUsd <= 0) {
+            return new HtmlString('Toda la base se paga en dólares: <strong>US$ '.number_format($cash, 2, ',', '.').'</strong>.');
+        }
 
-        return new HtmlString(
-            'Resto en Bs: <strong>US$ '.number_format($remainderUsd, 2, ',', '.').'</strong> ≈ <strong>Bs '.$ves.'</strong>',
+        return self::vesEquivalentHint(
+            $remainderUsd,
+            'Diferencia en dólares (se paga en bolívares)',
         );
+    }
+
+    private static function vesEquivalentHint(float $usd, string $prefix): HtmlString
+    {
+        $usdLabel = number_format($usd, 2, ',', '.');
+        $rate = app(HrBcvRateResolver::class)->resolveForDate(now());
+
+        if ($rate === null) {
+            return new HtmlString("{$prefix}: <strong>US$ {$usdLabel}</strong> (tasa BCV no disponible).");
+        }
+
+        $ves = number_format(HrUsdVesConverter::toVes($usd, $rate), 2, ',', '.');
+
+        return new HtmlString("{$prefix}: <strong>US$ {$usdLabel}</strong> ≈ <strong>Bs {$ves}</strong>");
+    }
+
+    private static function isUsdCurrency(mixed $currency): bool
+    {
+        if ($currency instanceof HrPayCurrencyBucket) {
+            return $currency === HrPayCurrencyBucket::Usd;
+        }
+
+        return HrPayCurrencyBucket::tryFrom((string) $currency) === HrPayCurrencyBucket::Usd;
+    }
+
+    private static function isVesCurrency(mixed $currency): bool
+    {
+        return ! self::isUsdCurrency($currency);
+    }
+
+    private static function legalSalaryHint(mixed $ves): string
+    {
+        if (! is_numeric($ves) || (float) $ves <= 0) {
+            return 'Monto mensual en bolívares. No se calcula desde el sueldo en USD ni con la tasa BCV.';
+        }
+
+        $monthly = number_format((float) $ves, 2, ',', '.');
+        $biweekly = number_format(round((float) $ves / 2, 2), 2, ',', '.');
+
+        return "Sueldo de ley: Bs {$monthly} · quincenal: Bs {$biweekly}.";
     }
 
     private static function vesHint(mixed $usd): HtmlString|string

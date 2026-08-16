@@ -3,10 +3,15 @@
 namespace App\Models;
 
 use App\Enums\PayrollPeriodStatus;
+use App\Services\Hr\PayrollPeriodVisibility;
+use Carbon\CarbonInterface;
 use Database\Factories\PayrollPeriodFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class PayrollPeriod extends Model
 {
@@ -78,11 +83,65 @@ class PayrollPeriod extends Model
         );
     }
 
+    public function visibilityStartsOn(): CarbonInterface
+    {
+        return app(PayrollPeriodVisibility::class)->windowStart($this);
+    }
+
+    public function visibilityEndsOn(): CarbonInterface
+    {
+        return app(PayrollPeriodVisibility::class)->windowEnd($this);
+    }
+
+    /**
+     * @param  Builder<PayrollPeriod>  $query
+     * @return Builder<PayrollPeriod>
+     */
+    public function scopeUpcoming(Builder $query): Builder
+    {
+        return $query
+            ->whereDate('period_date', '>=', now()->toDateString())
+            ->orderBy('period_date');
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    public static function upcomingGroupedOptions(): array
+    {
+        $grouped = [];
+
+        self::query()
+            ->upcoming()
+            ->orderBy('year')
+            ->orderBy('period_number')
+            ->get()
+            ->each(function (PayrollPeriod $period) use (&$grouped): void {
+                $grouped[(string) $period->year][$period->id] = sprintf(
+                    '%s · %s · %s',
+                    $period->halfLabel(),
+                    Str::ucfirst($period->period_date->locale('es')->translatedFormat('F')),
+                    $period->period_date->format('d/m/Y'),
+                );
+            });
+
+        return $grouped;
+    }
+
     /**
      * @return HasMany<PayrollLine, $this>
      */
     public function lines(): HasMany
     {
         return $this->hasMany(PayrollLine::class);
+    }
+
+    /**
+     * @return BelongsToMany<HrPayrollConcept, $this>
+     */
+    public function payrollConcepts(): BelongsToMany
+    {
+        return $this->belongsToMany(HrPayrollConcept::class, 'hr_payroll_concept_payroll_period')
+            ->withTimestamps();
     }
 }

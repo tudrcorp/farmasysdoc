@@ -14925,6 +14925,22 @@ html:not(.dark) .fi-hr-employee-hero__stat-sub {
     color: rgb(100 116 139);
 }
 
+.fi-hr-employee-signature-img {
+    max-height: 8.75rem;
+    width: auto;
+    max-width: 22rem;
+    object-fit: contain;
+    padding: 0.65rem 1.1rem;
+    border-radius: 0.95rem;
+    background: rgb(255 255 255);
+    box-shadow: 0 8px 20px rgb(15 23 42 / 0.08);
+}
+
+html.fi.dark .fi-hr-employee-signature-img {
+    background: rgb(248 250 252);
+    box-shadow: 0 8px 20px rgb(0 0 0 / 0.28);
+}
+
 /* —— RRHH: detalle de nómina —— */
 .fi-hr-payroll-detail {
     display: grid;
@@ -15190,6 +15206,638 @@ html:not(.dark) .fi-hr-payroll-hero__stat--minus .fi-hr-payroll-hero__stat-sub {
 
 html:not(.dark) .fi-hr-payroll-hero__stat--loan .fi-hr-payroll-hero__stat-sub {
     color: rgb(185 28 28);
+}
+
+.fi-hr-payroll-list {
+    display: grid;
+    gap: 1rem;
+}
+
+/* —— RRHH: filtros iOS compartidos —— */
+.fi-hr-ios-filters-page .fi-ta-filters-above-content-ctn {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 0 0 0.9rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+.fi-hr-ios-filters-page .fi-ta-filters-trigger-action-ctn {
+    order: -1;
+    align-self: flex-start;
+}
+
+.fi-hr-ios-filters-page .fi-ta-filters-trigger-action-ctn .fi-btn {
+    min-height: 2.15rem;
+    padding: 0.42rem 0.95rem;
+    border: 0.5px solid rgb(255 255 255 / 0.12);
+    border-radius: 0.9rem;
+    background:
+        linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.05)),
+        rgb(22 27 38 / 0.62);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.16),
+        0 6px 16px rgb(0 0 0 / 0.16);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    font-size: 0.78rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: rgb(226 232 240);
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-ta-filters-trigger-action-ctn .fi-btn {
+    border-color: rgb(15 23 42 / 0.08);
+    background:
+        linear-gradient(180deg, rgb(255 255 255 / 0.86), rgb(255 255 255 / 0.62));
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.9),
+        0 6px 14px rgb(15 23 42 / 0.06);
+    color: rgb(51 65 85);
+}
+
+.fi-hr-ios-filters-page .fi-ta-filters-above-content-ctn.fi-open .fi-ta-filters-trigger-action-ctn .fi-btn {
+    color: rgb(45 212 191);
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-ta-filters-above-content-ctn.fi-open .fi-ta-filters-trigger-action-ctn .fi-btn {
+    color: rgb(13 148 136);
+}
+
+.fi-hr-ios-filters-page .fi-ta-filters {
+    border-radius: 1.25rem;
+    padding: 0.95rem 1.05rem 1.05rem;
+    background:
+        linear-gradient(165deg, rgb(252 228 34 / 0.08), transparent 48%),
+        rgb(22 27 38 / 0.72);
+    border: 1px solid rgb(255 255 255 / 0.08);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.06),
+        0 10px 28px rgb(0 0 0 / 0.22);
+    backdrop-filter: saturate(180%) blur(22px);
+    -webkit-backdrop-filter: saturate(180%) blur(22px);
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-ta-filters {
+    background:
+        linear-gradient(165deg, rgb(252 228 34 / 0.14), transparent 50%),
+        rgb(255 255 255 / 0.86);
+    border-color: rgb(15 23 42 / 0.08);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.9),
+        0 10px 28px rgb(15 23 42 / 0.06);
+}
+
+.fi-hr-ios-filters-page .fi-ta-filters-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 0 0 0.85rem;
+    padding: 0 0.1rem 0.7rem;
+    border-bottom: 1px solid rgb(255 255 255 / 0.08);
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-ta-filters-header {
+    border-bottom-color: rgb(15 23 42 / 0.07);
+}
+
+.fi-hr-ios-filters-page .fi-ta-filters-heading {
+    margin: 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(226 232 240);
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-ta-filters-heading {
+    color: rgb(71 85 105);
+}
+
+.fi-hr-ios-filters-page .fi-ta-filters-header .fi-link {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: rgb(45 212 191);
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-ta-filters-header .fi-link {
+    color: rgb(13 148 136);
+}
+
+.fi-hr-ios-filters-page .fi-ta-filters .fi-sc-grid,
+.fi-hr-ios-filters-page .fi-ta-filters .fi-grid {
+    gap: 0.95rem 1rem;
+}
+
+.fi-hr-ios-filters-page .fi-ta-filters .fi-fo-field-wrp {
+    gap: 0.45rem;
+}
+
+.fi-hr-ios-filters-page .fi-ta-filters .fi-fo-field-wrp-label {
+    margin: 0;
+    padding: 0 0.15rem;
+    font-size: 0.68rem;
+    font-weight: 650;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: rgb(148 163 184);
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-ta-filters .fi-fo-field-wrp-label {
+    color: rgb(100 116 139);
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-select,
+.fi-hr-ios-filters-page .fi-fo-select {
+    min-height: 2.55rem;
+    border: 0;
+    border-radius: 0.9rem;
+    background: rgb(118 118 128 / 0.2);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.08),
+        inset 0 0 0 0.5px rgb(255 255 255 / 0.05);
+    backdrop-filter: saturate(160%) blur(10px);
+    -webkit-backdrop-filter: saturate(160%) blur(10px);
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-hr-ios-select,
+html:not(.dark) .fi-hr-ios-filters-page .fi-fo-select {
+    background: rgb(118 118 128 / 0.12);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.65),
+        inset 0 0 0 0.5px rgb(15 23 42 / 0.05);
+}
+
+.fi-hr-ios-filters-page .fi-fo-select .fi-select-input,
+.fi-hr-ios-filters-page .fi-fo-select .fi-select-input-btn {
+    min-height: 2.55rem;
+    padding-inline: 0.85rem;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: rgb(226 232 240);
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-fo-select .fi-select-input,
+html:not(.dark) .fi-hr-ios-filters-page .fi-fo-select .fi-select-input-btn {
+    color: rgb(28 28 30);
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment.fi-fo-toggle-buttons,
+.fi-hr-ios-filters-page .fi-hr-ios-segment.fi-btn-group {
+    --segment-count: 3;
+    --segment-index: 0;
+    --segment-pad: 0.2rem;
+    --segment-gap: 0.2rem;
+    --segment-thumb-scale: 1;
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    width: 100%;
+    align-items: stretch;
+    gap: var(--segment-gap);
+    padding: var(--segment-pad);
+    overflow: visible;
+    border-radius: 0.9rem;
+    background: rgb(118 118 128 / 0.2);
+    border: 0;
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.08),
+        inset 0 0 0 0.5px rgb(255 255 255 / 0.05);
+    backdrop-filter: saturate(160%) blur(10px);
+    -webkit-backdrop-filter: saturate(160%) blur(10px);
+    transition: transform 0.34s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment[data-segment-count='4'] {
+    --segment-count: 4;
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment:has(.fi-fo-toggle-buttons-input:nth-of-type(1):checked) {
+    --segment-index: 0;
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment:has(.fi-fo-toggle-buttons-input:nth-of-type(2):checked) {
+    --segment-index: 1;
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment:has(.fi-fo-toggle-buttons-input:nth-of-type(3):checked) {
+    --segment-index: 2;
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment:has(.fi-fo-toggle-buttons-input:nth-of-type(4):checked) {
+    --segment-index: 3;
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-hr-ios-segment.fi-btn-group {
+    background: rgb(118 118 128 / 0.12);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.65),
+        inset 0 0 0 0.5px rgb(15 23 42 / 0.05);
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment::before,
+.fi-hr-ios-filters-page .fi-hr-ios-segment::after {
+    content: '';
+    position: absolute;
+    z-index: 0;
+    top: var(--segment-pad);
+    bottom: var(--segment-pad);
+    left: var(--segment-pad);
+    width: calc(
+        (100% - (2 * var(--segment-pad)) - ((var(--segment-count) - 1) * var(--segment-gap)))
+        / var(--segment-count)
+    );
+    border-radius: 0.72rem;
+    transform: translate3d(
+            calc(var(--segment-index) * (100% + var(--segment-gap))),
+            0,
+            0
+        )
+        scale(var(--segment-thumb-scale));
+    transform-origin: center;
+    transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+    will-change: transform;
+    pointer-events: none;
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment::before {
+    background:
+        linear-gradient(180deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.07) 46%, rgb(255 255 255 / 0.1)),
+        rgb(255 255 255 / 0.07);
+    border: 0.5px solid rgb(255 255 255 / 0.16);
+    box-shadow:
+        0 6px 16px rgb(0 0 0 / 0.16),
+        0 0 14px rgb(252 228 34 / 0.03),
+        inset 0 1px 0 rgb(255 255 255 / 0.28),
+        inset 0 -1px 0 rgb(255 255 255 / 0.04),
+        inset 1px 0 0 rgb(255 186 214 / 0.08),
+        inset -1px 0 0 rgb(164 216 255 / 0.07);
+    backdrop-filter: blur(16px) saturate(150%) brightness(1.02);
+    -webkit-backdrop-filter: blur(16px) saturate(150%) brightness(1.02);
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-hr-ios-segment::before {
+    background:
+        linear-gradient(180deg, rgb(255 255 255 / 0.72), rgb(255 255 255 / 0.48) 48%, rgb(255 255 255 / 0.6));
+    border-color: rgb(255 255 255 / 0.55);
+    box-shadow:
+        0 6px 14px rgb(15 23 42 / 0.07),
+        0 0 12px rgb(252 228 34 / 0.04),
+        inset 0 1px 0 rgb(255 255 255 / 0.7),
+        inset 0 -1px 0 rgb(255 255 255 / 0.18),
+        inset 1px 0 0 rgb(255 186 214 / 0.07),
+        inset -1px 0 0 rgb(125 198 255 / 0.08);
+    backdrop-filter: blur(18px) saturate(145%) brightness(1.01);
+    -webkit-backdrop-filter: blur(18px) saturate(145%) brightness(1.01);
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment::after {
+    z-index: 0;
+    background:
+        radial-gradient(120% 80% at 18% 0%, rgb(255 255 255 / 0.32), transparent 46%),
+        linear-gradient(
+            118deg,
+            transparent 8%,
+            rgb(255 255 255 / 0.18) 22%,
+            rgb(252 228 34 / 0.07) 36%,
+            transparent 52%,
+            rgb(186 230 255 / 0.06) 68%,
+            transparent 84%
+        );
+    background-size: 100% 100%, 240% 100%;
+    background-position: 0 0, calc(var(--segment-index) * 42%) 0;
+    mix-blend-mode: screen;
+    opacity: 0.48;
+    transition:
+        transform 0.5s cubic-bezier(0.32, 0.72, 0, 1),
+        background-position 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.35s ease;
+    animation: fi-hr-concept-glass-caustic 5.6s ease-in-out infinite;
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-hr-ios-segment::after {
+    mix-blend-mode: soft-light;
+    opacity: 0.5;
+    background:
+        radial-gradient(120% 80% at 18% 0%, rgb(255 255 255 / 0.55), transparent 48%),
+        linear-gradient(
+            118deg,
+            transparent 8%,
+            rgb(255 255 255 / 0.36) 22%,
+            rgb(252 228 34 / 0.1) 36%,
+            transparent 52%,
+            rgb(125 198 255 / 0.08) 68%,
+            transparent 84%
+        );
+    background-size: 100% 100%, 240% 100%;
+    background-position: 0 0, calc(var(--segment-index) * 42%) 0;
+}
+
+@keyframes fi-hr-concept-glass-caustic {
+    0%,
+    100% {
+        filter: brightness(1) saturate(1);
+    }
+
+    50% {
+        filter: brightness(1.04) saturate(1.06);
+    }
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment:has(.fi-btn:active) {
+    --segment-thumb-scale: 0.965;
+    transform: scale(0.992);
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment:has(.fi-btn:active)::before {
+    backdrop-filter: blur(18px) saturate(160%) brightness(1.05);
+    -webkit-backdrop-filter: blur(18px) saturate(160%) brightness(1.05);
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment:has(.fi-btn:active)::after {
+    opacity: 0.62;
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment .fi-btn {
+    position: relative;
+    z-index: 1;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 2.15rem;
+    margin: 0;
+    padding: 0.38rem 0.45rem;
+    border: 0;
+    border-radius: 0.7rem;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: rgb(174 174 178);
+    transition:
+        color 0.28s cubic-bezier(0.32, 0.72, 0, 1),
+        font-weight 0.28s ease,
+        letter-spacing 0.28s ease,
+        opacity 0.28s ease;
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-hr-ios-segment .fi-btn {
+    color: rgb(99 99 102);
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment .fi-fo-toggle-buttons-input:not(:checked) + .fi-btn {
+    background: transparent !important;
+    border: 0;
+    box-shadow: none !important;
+    color: rgb(174 174 178);
+    font-weight: 550;
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-hr-ios-segment .fi-fo-toggle-buttons-input:not(:checked) + .fi-btn {
+    color: rgb(99 99 102);
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment .fi-fo-toggle-buttons-input:not(:checked) + .fi-btn:hover {
+    color: rgb(226 232 240);
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-hr-ios-segment .fi-fo-toggle-buttons-input:not(:checked) + .fi-btn:hover {
+    color: rgb(28 28 30);
+}
+
+.fi-hr-ios-filters-page .fi-hr-ios-segment .fi-fo-toggle-buttons-input:checked + .fi-btn {
+    background: transparent !important;
+    border: 0;
+    color: #fff;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    box-shadow: none !important;
+    text-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+}
+
+html:not(.dark) .fi-hr-ios-filters-page .fi-hr-ios-segment .fi-fo-toggle-buttons-input:checked + .fi-btn {
+    background: transparent !important;
+    color: rgb(28 28 30);
+    box-shadow: none !important;
+    text-shadow: 0 1px 0 rgb(255 255 255 / 0.55);
+}
+
+.fi-hr-ios-filters-page .fi-ta-content {
+    animation: fi-hr-concept-table-settle 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes fi-hr-concept-table-settle {
+    0% {
+        opacity: 0.62;
+        transform: translateY(4px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fi-hr-ios-filters-page .fi-hr-ios-segment,
+    .fi-hr-ios-filters-page .fi-hr-ios-segment::before,
+    .fi-hr-ios-filters-page .fi-hr-ios-segment::after,
+    .fi-hr-ios-filters-page .fi-hr-ios-segment .fi-btn,
+    .fi-hr-ios-filters-page .fi-ta-content {
+        transition: none;
+        animation: none;
+    }
+
+    .fi-hr-ios-filters-page .fi-hr-ios-segment,
+    .fi-hr-ios-filters-page .fi-ta-content {
+        transform: none;
+        filter: none;
+    }
+}
+
+.fi-hr-ios-filters-page .fi-ta-filters-actions-ctn,
+.fi-hr-ios-filters-page .fi-ta-filter-indicators {
+    display: none;
+}
+
+.fi-hr-payroll-visibility {
+    display: grid;
+    gap: 0.9rem;
+    border-radius: 1.15rem;
+    padding: 1.1rem 1.2rem 1.15rem;
+    background:
+        linear-gradient(160deg, rgb(252 228 34 / 0.12), transparent 55%),
+        rgb(15 23 42 / 0.55);
+    border: 1px solid rgb(252 228 34 / 0.22);
+}
+
+html:not(.dark) .fi-hr-payroll-visibility {
+    background:
+        linear-gradient(160deg, rgb(252 228 34 / 0.18), transparent 55%),
+        rgb(255 255 255 / 0.92);
+    border-color: rgb(202 138 4 / 0.28);
+}
+
+.fi-hr-payroll-visibility__details {
+    min-width: 0;
+}
+
+.fi-hr-payroll-visibility__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.85rem;
+    cursor: pointer;
+    list-style: none;
+}
+
+.fi-hr-payroll-visibility__summary::-webkit-details-marker {
+    display: none;
+}
+
+.fi-hr-payroll-visibility__summary-text {
+    display: grid;
+    min-width: 0;
+    gap: 0.15rem;
+}
+
+.fi-hr-payroll-visibility__eyebrow {
+    margin: 0;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: rgb(252 211 77);
+}
+
+html:not(.dark) .fi-hr-payroll-visibility__eyebrow {
+    color: rgb(161 98 7);
+}
+
+.fi-hr-payroll-visibility__title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    color: rgb(248 250 252);
+}
+
+html:not(.dark) .fi-hr-payroll-visibility__title {
+    color: rgb(15 23 42);
+}
+
+.fi-hr-payroll-visibility__hint {
+    font-size: 0.8rem;
+    color: rgb(148 163 184);
+}
+
+html:not(.dark) .fi-hr-payroll-visibility__hint {
+    color: rgb(100 116 139);
+}
+
+.fi-hr-payroll-visibility__details[open] .fi-hr-payroll-visibility__hint {
+    display: none;
+}
+
+.fi-hr-payroll-visibility__chevron {
+    flex: none;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-right: 2px solid currentcolor;
+    border-bottom: 2px solid currentcolor;
+    color: rgb(252 211 77);
+    transform: rotate(45deg);
+    transition: transform 0.15s ease;
+}
+
+html:not(.dark) .fi-hr-payroll-visibility__chevron {
+    color: rgb(161 98 7);
+}
+
+.fi-hr-payroll-visibility__details[open] .fi-hr-payroll-visibility__chevron {
+    transform: rotate(225deg);
+}
+
+.fi-hr-payroll-visibility__lead,
+.fi-hr-payroll-visibility__rules {
+    margin: 0.55rem 0 0;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: rgb(203 213 225);
+}
+
+html:not(.dark) .fi-hr-payroll-visibility__lead,
+html:not(.dark) .fi-hr-payroll-visibility__rules {
+    color: rgb(51 65 85);
+}
+
+.fi-hr-payroll-visibility__rules {
+    display: grid;
+    gap: 0.4rem;
+    padding-left: 1.1rem;
+}
+
+.fi-hr-payroll-visibility__overdue {
+    border-radius: 0.9rem;
+    padding: 0.85rem 1rem;
+    background: rgb(245 158 11 / 0.14);
+    border: 1px solid rgb(245 158 11 / 0.32);
+}
+
+html:not(.dark) .fi-hr-payroll-visibility__overdue {
+    background: rgb(255 251 235);
+    border-color: rgb(251 191 36 / 0.55);
+}
+
+.fi-hr-payroll-visibility__overdue-label {
+    margin: 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(252 211 77);
+}
+
+html:not(.dark) .fi-hr-payroll-visibility__overdue-label {
+    color: rgb(180 83 9);
+}
+
+.fi-hr-payroll-visibility__overdue-value {
+    margin: 0.2rem 0 0;
+    font-size: 1.25rem;
+    font-weight: 750;
+    letter-spacing: -0.03em;
+    color: rgb(254 243 199);
+}
+
+html:not(.dark) .fi-hr-payroll-visibility__overdue-value {
+    color: rgb(146 64 14);
+}
+
+.fi-hr-payroll-visibility__overdue-meta {
+    margin: 0.2rem 0 0;
+    font-size: 0.86rem;
+    color: rgb(226 232 240);
+}
+
+html:not(.dark) .fi-hr-payroll-visibility__overdue-meta {
+    color: rgb(87 83 78);
 }
 
 .fi-hr-line-items {

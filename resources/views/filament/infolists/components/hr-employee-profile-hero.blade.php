@@ -8,6 +8,7 @@
     $isActive = (bool) ($data['is_active'] ?? false);
     $monthlyUsd = $data['monthly_usd'] ?? '—';
     $monthlyVes = $data['monthly_ves'] ?? null;
+    $legalSalaryVes = $data['legal_salary_ves'] ?? null;
     $biweeklyUsd = $data['biweekly_usd'] ?? '—';
     $biweeklyVes = $data['biweekly_ves'] ?? null;
     $rateLabel = $data['rate_label'] ?? null;
@@ -66,6 +67,9 @@
             <p class="fi-hr-employee-hero__stat-value">{{ $monthlyUsd }}</p>
             @if (filled($monthlyVes))
                 <p class="fi-hr-employee-hero__stat-sub">{{ $monthlyVes }}</p>
+            @endif
+            @if (filled($legalSalaryVes))
+                <p class="fi-hr-employee-hero__stat-sub">Sueldo de ley {{ $legalSalaryVes }}</p>
             @endif
             @if (filled($rateLabel))
                 <p class="fi-hr-employee-hero__stat-hint">{{ $rateLabel }}</p>

@@ -34,6 +34,8 @@ class HrDeductionResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::MinusCircle;
 
+    protected static bool $shouldRegisterNavigation = false;
+
     public static function form(Schema $schema): Schema
     {
         return HrDeductionForm::configure($schema);

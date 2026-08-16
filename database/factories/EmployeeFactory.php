@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\HrPayCurrencyBucket;
 use App\Models\Branch;
 use App\Models\Employee;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -26,6 +27,9 @@ class EmployeeFactory extends Factory
             'email' => fake()->unique()->safeEmail(),
             'address' => fake()->streetAddress(),
             'monthly_salary_usd' => fake()->randomFloat(2, 200, 800),
+            'legal_salary_ves' => fake()->randomFloat(2, 15_000, 80_000),
+            'first_half_pay_currency' => HrPayCurrencyBucket::Ves,
+            'second_half_pay_currency' => HrPayCurrencyBucket::Ves,
             'first_half_usd_cash' => 0,
             'second_half_usd_cash' => 0,
             'branch_id' => Branch::factory(),

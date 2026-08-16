@@ -4,11 +4,17 @@ namespace App\Filament\Resources\Hr\PayrollPeriods\Pages;
 
 use App\Filament\Resources\Hr\PayrollPeriods\PayrollPeriodResource;
 use App\Services\Hr\PayrollPeriodGenerator;
+use App\Services\Hr\PayrollPeriodVisibility;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\EmbeddedTable;
+use Filament\Schemas\Components\RenderHook;
+use Filament\Schemas\Components\View as SchemaView;
+use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Contracts\Support\Htmlable;
 use Throwable;
 
@@ -28,7 +34,59 @@ class ListPayrollPeriods extends ListRecords
 
     public function getSubheading(): string|Htmlable|null
     {
-        return '24 periodos al año · pago el día 15 y al cierre de cada mes. Ordenados del periodo 1 al 24.';
+        return 'Solo se muestra el periodo pendiente de calcular. Use los filtros para consultar otro periodo o un estatus distinto.';
+    }
+
+    public function content(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                SchemaView::make('filament.resources.hr.payroll-periods.partials.visibility-notice')
+                    ->viewData(fn (): array => $this->visibilityNotice())
+                    ->columnSpanFull(),
+                $this->getTabsContentComponent(),
+                RenderHook::make(PanelsRenderHook::RESOURCE_PAGES_LIST_RECORDS_TABLE_BEFORE),
+                EmbeddedTable::make(),
+                RenderHook::make(PanelsRenderHook::RESOURCE_PAGES_LIST_RECORDS_TABLE_AFTER),
+            ]);
+    }
+
+    /**
+     * @return array{
+     *     graceDays: int,
+     *     overdueLabel: ?string,
+     *     remainingDays: ?int,
+     *     visibleUntil: ?string
+     * }
+     */
+    public function visibilityNotice(): array
+    {
+        $visibility = app(PayrollPeriodVisibility::class);
+        $overdue = $visibility->overduePeriod();
+        $remaining = $overdue !== null
+            ? $visibility->remainingVisibilityDays($overdue)
+            : null;
+
+        return [
+            'graceDays' => PayrollPeriodVisibility::GRACE_DAYS,
+            'overdueLabel' => $overdue !== null
+                ? $overdue->halfLabel().' · '.$overdue->monthLabel()
+                : null,
+            'remainingDays' => $remaining,
+            'visibleUntil' => $overdue?->visibilityEndsOn()->format('d/m/Y'),
+        ];
+    }
+
+    /**
+     * @return array<string>
+     */
+    public function getPageClasses(): array
+    {
+        return [
+            ...parent::getPageClasses(),
+            'fi-hr-payroll-list-page',
+            'fi-hr-ios-filters-page',
+        ];
     }
 
     protected function getHeaderActions(): array

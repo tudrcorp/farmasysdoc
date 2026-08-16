@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Hr\Assignments\Tables;
 use App\Enums\HrRecurrence;
 use App\Models\HrAssignment;
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
@@ -64,6 +65,7 @@ class HrAssignmentsTable
             ])
             ->recordActions([
                 EditAction::make(),
+                DeleteAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

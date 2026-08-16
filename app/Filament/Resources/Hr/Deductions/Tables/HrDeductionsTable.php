@@ -6,6 +6,7 @@ use App\Enums\HrPayCurrencyBucket;
 use App\Enums\HrRecurrence;
 use App\Models\HrDeduction;
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
@@ -78,6 +79,7 @@ class HrDeductionsTable
             ])
             ->recordActions([
                 EditAction::make(),
+                DeleteAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

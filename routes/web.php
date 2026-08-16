@@ -4,6 +4,9 @@ use App\Http\Controllers\Dev\BdvConciliationTestController;
 use App\Http\Controllers\Finance\AccountsPayableBulkPaymentReportPdfController;
 use App\Http\Controllers\Finance\AccountsPayablePaymentReportPdfController;
 use App\Http\Controllers\FiscalReceiptController;
+use App\Http\Controllers\Hr\EmployeePortalEntryController;
+use App\Http\Controllers\Hr\EmployeePortalLogoutController;
+use App\Http\Controllers\Hr\EmployeePortalPayrollReceiptController;
 use App\Http\Controllers\NominatimProxyController;
 use App\Http\Controllers\ProductTransfers\ProductTransferReportPdfController;
 use App\Http\Controllers\ProductTransfers\ProductTransferSaleReportPdfController;
@@ -14,10 +17,32 @@ use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
 use App\Http\Controllers\Reports\SystemReportsDownloadController;
 use App\Http\Controllers\Sales\CashRegisterClosePdfController;
 use App\Http\Middleware\EnsureSystemReportsAccess;
+use App\Livewire\EmployeePortal\Account;
+use App\Livewire\EmployeePortal\FileEnrollment;
+use App\Livewire\EmployeePortal\Home;
+use App\Livewire\EmployeePortal\Login;
+use App\Livewire\EmployeePortal\Receipts;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
+
+Route::prefix('portal')->name('employee-portal.')->group(function (): void {
+    Route::get('ingresar/{employee}', EmployeePortalEntryController::class)->name('enter');
+
+    Route::middleware('employee.portal.guest')->group(function (): void {
+        Route::livewire('entrar', Login::class)->name('login');
+    });
+
+    Route::middleware('employee.portal')->group(function (): void {
+        Route::get('salir', EmployeePortalLogoutController::class)->name('logout');
+        Route::livewire('/', Home::class)->name('home');
+        Route::livewire('expediente', FileEnrollment::class)->name('file');
+        Route::livewire('cuenta', Account::class)->name('account');
+        Route::livewire('recibos', Receipts::class)->name('receipts');
+        Route::get('recibos/{receipt}/descargar', EmployeePortalPayrollReceiptController::class)->name('receipts.download');
+    });
+});
 Route::view('/docs/api', 'public.api-docs')->name('public.api-docs');
 Route::get('/buscar-productos', PublicProductSearchController::class)->name('public.products.search');
 Route::get('/sitemap.xml', function () {

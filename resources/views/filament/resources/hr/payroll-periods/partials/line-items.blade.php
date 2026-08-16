@@ -140,7 +140,7 @@
                     US$ {{ number_format((float) $line->cash_paid_usd, 2, ',', '.') }}
                 </p>
                 <p class="fi-hr-line-items__pay-hint">
-                    Porción bruta US$ {{ number_format((float) $line->usd_cash_portion, 2, ',', '.') }}
+                    Porción {{ number_format((float) $line->usd_cash_portion, 2, ',', '.') }} USD
                 </p>
             </div>
             <div class="fi-hr-line-items__pay-card fi-hr-line-items__pay-card--ves">
@@ -149,7 +149,8 @@
                     Bs {{ number_format((float) $line->cash_paid_ves, 2, ',', '.') }}
                 </p>
                 <p class="fi-hr-line-items__pay-hint">
-                    Porción US$ {{ number_format((float) $line->ves_portion_usd, 2, ',', '.') }} × BCV
+                    Porción US$ {{ number_format((float) $line->ves_portion_usd, 2, ',', '.') }}
+                    · Bs {{ number_format((float) $line->ves_portion_usd * (float) $line->bcv_ves_per_usd, 2, ',', '.') }}
                 </p>
             </div>
         </div>

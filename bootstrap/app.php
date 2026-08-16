@@ -3,6 +3,8 @@
 use App\Http\Middleware\AuthenticateApiClient;
 use App\Http\Middleware\ConditionalConvertEmptyStringsToNull;
 use App\Http\Middleware\ConditionalTrimStrings;
+use App\Http\Middleware\EnsureEmployeePortalAccess;
+use App\Http\Middleware\EnsureEmployeePortalGuest;
 use App\Http\Middleware\EnsureLocalEnvironment;
 use App\Support\Livewire\LivewireRequestPayload;
 use Illuminate\Console\Scheduling\Schedule;
@@ -50,6 +52,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'api.client' => AuthenticateApiClient::class,
             'local' => EnsureLocalEnvironment::class,
+            'employee.portal' => EnsureEmployeePortalAccess::class,
+            'employee.portal.guest' => EnsureEmployeePortalGuest::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

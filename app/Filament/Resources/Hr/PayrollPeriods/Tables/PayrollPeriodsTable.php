@@ -7,16 +7,21 @@ use App\Filament\Resources\Hr\PayrollPeriods\PayrollPeriodResource;
 use App\Models\PayrollPeriod;
 use App\Services\Hr\HrBcvRateResolver;
 use App\Services\Hr\PayrollCalculator;
+use App\Services\Hr\PayrollPeriodVisibility;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\ToggleButtons;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Grid;
 use Filament\Support\Enums\FontWeight;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
-use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Throwable;
 
 class PayrollPeriodsTable
@@ -26,14 +31,14 @@ class PayrollPeriodsTable
         return $table
             ->defaultSort('period_date', 'asc')
             ->striped()
-            ->paginated([12, 24, 48])
-            ->defaultPaginationPageOption(24)
+            ->paginated(false)
             ->persistFiltersInSession()
-            ->filtersLayout(FiltersLayout::AboveContentCollapsible)
-            ->filtersFormColumns(2)
+            ->deferFilters(false)
+            ->filtersLayout(FiltersLayout::AboveContent)
+            ->filtersFormColumns(1)
             ->searchPlaceholder('Buscar por nº de periodo o fecha…')
-            ->emptyStateHeading('No hay periodos de nómina')
-            ->emptyStateDescription('Genera los 24 periodos del año con el botón «Generar periodos del año».')
+            ->emptyStateHeading('No hay un periodo visible hoy')
+            ->emptyStateDescription('Solo se muestra el periodo pendiente de calcular. Para ver otro, elija periodo o estatus en los filtros.')
             ->emptyStateIcon(Heroicon::CalendarDays)
             ->recordUrl(fn (PayrollPeriod $record): string => PayrollPeriodResource::getUrl('detail', ['record' => $record]))
             ->columns([
@@ -67,6 +72,16 @@ class PayrollPeriodsTable
                     ->description(fn (PayrollPeriod $record): string => $record->isMonthEnd()
                         ? 'Cierre de mes'
                         : 'Mitad de mes'),
+
+                TextColumn::make('visibility')
+                    ->label('Visibilidad')
+                    ->state(fn (PayrollPeriod $record): string => self::visibilityState($record)['label'])
+                    ->badge()
+                    ->color(fn (PayrollPeriod $record): string => self::visibilityState($record)['color'])
+                    ->icon(fn (PayrollPeriod $record): Heroicon => self::visibilityState($record)['color'] === 'warning'
+                        ? Heroicon::Clock
+                        : Heroicon::CheckCircle)
+                    ->description(fn (PayrollPeriod $record): string => self::visibilityState($record)['description']),
 
                 TextColumn::make('status')
                     ->label('Estatus')
@@ -138,20 +153,73 @@ class PayrollPeriodsTable
                         : null),
             ])
             ->filters([
-                SelectFilter::make('year')
-                    ->label('Año')
-                    ->options(fn (): array => PayrollPeriod::query()
-                        ->select('year')
-                        ->distinct()
-                        ->orderBy('year')
-                        ->pluck('year', 'year')
-                        ->all())
-                    ->default((string) now()->year)
-                    ->selectablePlaceholder(false),
-                SelectFilter::make('status')
-                    ->label('Estatus')
-                    ->options(PayrollPeriodStatus::options())
-                    ->multiple(),
+                Filter::make('payroll_view')
+                    ->label('Filtros')
+                    ->columnSpanFull()
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'md' => 2,
+                        ])->schema([
+                            Select::make('period_id')
+                                ->label('Periodo')
+                                ->placeholder('Vigente')
+                                ->searchable()
+                                ->preload()
+                                ->native(false)
+                                ->options(fn (): array => self::consultPeriodOptions())
+                                ->extraAttributes(['class' => 'fi-hr-ios-select']),
+                            ToggleButtons::make('status')
+                                ->label('Estatus')
+                                ->options([
+                                    'vigente' => 'Vigente',
+                                    ...PayrollPeriodStatus::options(),
+                                ])
+                                ->grouped()
+                                ->default('vigente')
+                                ->extraAttributes([
+                                    'class' => 'fi-hr-ios-segment',
+                                    'data-segment-count' => '4',
+                                ]),
+                        ]),
+                    ])
+                    ->baseQuery(function (Builder $query, array $data): Builder {
+                        $statuses = self::selectedStatuses($data['status'] ?? 'vigente');
+
+                        $periodId = filled($data['period_id'] ?? null)
+                            ? (int) $data['period_id']
+                            : null;
+
+                        return app(PayrollPeriodVisibility::class)->constrainList(
+                            $query,
+                            $periodId,
+                            $statuses,
+                        );
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+                        $periodId = $data['period_id'] ?? null;
+
+                        if (filled($periodId)) {
+                            $period = PayrollPeriod::query()->find((int) $periodId);
+                            $indicators[] = $period instanceof PayrollPeriod
+                                ? 'Periodo '.$period->label()
+                                : 'Periodo consultado';
+                        }
+
+                        $status = $data['status'] ?? 'vigente';
+                        $statuses = self::selectedStatuses($status);
+
+                        if ($statuses !== []) {
+                            $labels = array_map(
+                                fn (string $value): string => PayrollPeriodStatus::tryFrom($value)?->label() ?? $value,
+                                $statuses,
+                            );
+                            $indicators[] = 'Estatus: '.implode(', ', $labels);
+                        }
+
+                        return $indicators;
+                    }),
             ])
             ->recordActions([
                 Action::make('detail')
@@ -180,7 +248,7 @@ class PayrollPeriodsTable
                                 }),
                         ])
                         ->modalHeading(fn (PayrollPeriod $record): string => 'Calcular '.$record->label())
-                        ->modalDescription('Se recalcularán todos los empleados activos con asignaciones, deducciones y préstamos aplicables.')
+                        ->modalDescription('Se recalcularán los empleados activos con el sueldo quincenal en USD, sus asignaciones y deducciones, los conceptos del negocio aplicables y los préstamos.')
                         ->action(function (PayrollPeriod $record, array $data): void {
                             try {
                                 $manual = isset($data['manual_rate']) && is_numeric($data['manual_rate'])
@@ -219,6 +287,61 @@ class PayrollPeriodsTable
                     ->button()
                     ->color('gray'),
             ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function selectedStatuses(mixed $status): array
+    {
+        if (is_array($status)) {
+            return array_values(array_filter(
+                array_map(fn (mixed $value): string => (string) $value, $status),
+                fn (string $value): bool => $value !== '' && $value !== 'vigente',
+            ));
+        }
+
+        if (! is_string($status) || $status === '' || $status === 'vigente') {
+            return [];
+        }
+
+        return [$status];
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    private static function consultPeriodOptions(): array
+    {
+        $grouped = [];
+
+        PayrollPeriod::query()
+            ->orderByDesc('year')
+            ->orderBy('period_number')
+            ->get()
+            ->each(function (PayrollPeriod $period) use (&$grouped): void {
+                $status = $period->status instanceof PayrollPeriodStatus
+                    ? $period->status->label()
+                    : (PayrollPeriodStatus::tryFrom((string) $period->status)?->label() ?? '—');
+
+                $grouped[(string) $period->year][$period->id] = sprintf(
+                    '#%d · %s · %s · %s',
+                    $period->period_number,
+                    $period->period_date->format('d/m/Y'),
+                    $period->halfLabel(),
+                    $status,
+                );
+            });
+
+        return $grouped;
+    }
+
+    /**
+     * @return array{label: string, color: string, description: string}
+     */
+    private static function visibilityState(PayrollPeriod $record): array
+    {
+        return app(PayrollPeriodVisibility::class)->tableState($record);
     }
 
     private static function usd(float $amount): string

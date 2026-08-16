@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\EmployeeBankAccountType;
+use App\Enums\HrPayCurrencyBucket;
 use App\Enums\VenezuelanPagoMovilBank;
 use Database\Factories\EmployeeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -30,11 +31,24 @@ class Employee extends Model
         'bank_code',
         'bank_account_type',
         'photo_path',
+        'signature_path',
+        'fingerprint_path',
+        'file_terms_accepted_at',
         'monthly_salary_usd',
+        'legal_salary_ves',
+        'first_half_pay_currency',
+        'second_half_pay_currency',
         'first_half_usd_cash',
         'second_half_usd_cash',
         'branch_id',
         'is_active',
+    ];
+
+    /**
+     * @var list<string>
+     */
+    protected $hidden = [
+        'portal_password',
     ];
 
     /**
@@ -45,9 +59,14 @@ class Employee extends Model
         return [
             'bank_account_type' => EmployeeBankAccountType::class,
             'monthly_salary_usd' => 'decimal:2',
+            'legal_salary_ves' => 'decimal:2',
+            'first_half_pay_currency' => HrPayCurrencyBucket::class,
+            'second_half_pay_currency' => HrPayCurrencyBucket::class,
             'first_half_usd_cash' => 'decimal:2',
             'second_half_usd_cash' => 'decimal:2',
             'is_active' => 'boolean',
+            'file_terms_accepted_at' => 'datetime',
+            'portal_password' => 'hashed',
         ];
     }
 
@@ -65,13 +84,43 @@ class Employee extends Model
         return $this->bank()?->optionLabel();
     }
 
+    protected static function booted(): void
+    {
+        static::saving(function (Employee $employee): void {
+            $employee->syncUsdCashPortions();
+        });
+    }
+
     public function biweeklyBaseUsd(): float
     {
         return round((float) $this->monthly_salary_usd / 2, 2);
     }
 
+    public function hasLegalSalary(): bool
+    {
+        return $this->legal_salary_ves !== null && (float) $this->legal_salary_ves > 0;
+    }
+
+    public function biweeklyLegalSalaryVes(): float
+    {
+        return round((float) ($this->legal_salary_ves ?? 0) / 2, 2);
+    }
+
+    public function payCurrencyForPeriod(bool $isMonthEnd): HrPayCurrencyBucket
+    {
+        if ($this->usdCashForPeriod($isMonthEnd) <= 0) {
+            return HrPayCurrencyBucket::Ves;
+        }
+
+        $currency = $isMonthEnd
+            ? $this->second_half_pay_currency
+            : $this->first_half_pay_currency;
+
+        return $currency ?? HrPayCurrencyBucket::Usd;
+    }
+
     /**
-     * USD efectivo configurado para la quincena del periodo (1.ª = día 15, 2.ª = fin de mes).
+     * USD efectivo cargado para la quincena. Si es 0, toda la base se paga en bolívares.
      */
     public function usdCashForPeriod(bool $isMonthEnd): float
     {
@@ -82,9 +131,49 @@ class Employee extends Model
         return round(min(max(0, $configured), $this->biweeklyBaseUsd()), 2);
     }
 
+    public function syncUsdCashPortions(): void
+    {
+        $base = $this->biweeklyBaseUsd();
+
+        $first = $this->normalizedUsdCash((float) $this->first_half_usd_cash, $base, $this->first_half_pay_currency);
+        $second = $this->normalizedUsdCash((float) $this->second_half_usd_cash, $base, $this->second_half_pay_currency);
+
+        $this->first_half_usd_cash = $first;
+        $this->second_half_usd_cash = $second;
+        $this->first_half_pay_currency = $first > 0 ? HrPayCurrencyBucket::Usd : HrPayCurrencyBucket::Ves;
+        $this->second_half_pay_currency = $second > 0 ? HrPayCurrencyBucket::Usd : HrPayCurrencyBucket::Ves;
+    }
+
+    private function normalizedUsdCash(float $amount, float $base, mixed $currency): float
+    {
+        if (($currency ?? HrPayCurrencyBucket::Ves) === HrPayCurrencyBucket::Ves) {
+            return 0.0;
+        }
+
+        return round(min(max(0, $amount), $base), 2);
+    }
+
     public function fullName(): string
     {
         return trim("{$this->first_name} {$this->last_name}");
+    }
+
+    public function formattedNationalId(): ?string
+    {
+        $raw = trim((string) $this->national_id);
+        if ($raw === '') {
+            return null;
+        }
+
+        $upper = mb_strtoupper($raw, 'UTF-8');
+        $letter = str_starts_with($upper, 'E') ? 'E' : 'V';
+        $digits = preg_replace('/\D/', '', $upper) ?? '';
+
+        if ($digits === '') {
+            return $raw;
+        }
+
+        return $letter.'-'.number_format((int) $digits, 0, ',', '.');
     }
 
     public function initials(): string
@@ -109,6 +198,58 @@ class Employee extends Model
         }
 
         return Storage::disk('public')->url((string) $this->photo_path);
+    }
+
+    public function hasSignature(): bool
+    {
+        return filled($this->signature_path);
+    }
+
+    public function signatureUrl(): ?string
+    {
+        if (! $this->hasSignature()) {
+            return null;
+        }
+
+        return Storage::disk('public')->url((string) $this->signature_path);
+    }
+
+    public function hasFingerprint(): bool
+    {
+        return filled($this->fingerprint_path);
+    }
+
+    public function fingerprintUrl(): ?string
+    {
+        if (! $this->hasFingerprint()) {
+            return null;
+        }
+
+        return Storage::disk('public')->url((string) $this->fingerprint_path);
+    }
+
+    public function hasCompleteEmployeeFile(): bool
+    {
+        return $this->hasSignature() && $this->hasFingerprint();
+    }
+
+    public function hasAcceptedFileTerms(): bool
+    {
+        return $this->file_terms_accepted_at !== null;
+    }
+
+    public function acceptFileTerms(): void
+    {
+        if ($this->hasAcceptedFileTerms()) {
+            return;
+        }
+
+        $this->forceFill(['file_terms_accepted_at' => now()])->save();
+    }
+
+    public function hasPortalPassword(): bool
+    {
+        return filled($this->portal_password);
     }
 
     /**
@@ -168,5 +309,13 @@ class Employee extends Model
     public function payrollLines(): HasMany
     {
         return $this->hasMany(PayrollLine::class);
+    }
+
+    /**
+     * @return HasMany<HrPayrollReceipt, $this>
+     */
+    public function payrollReceipts(): HasMany
+    {
+        return $this->hasMany(HrPayrollReceipt::class);
     }
 }

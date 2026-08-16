@@ -20,7 +20,7 @@ enum PayrollPeriodStatus: string
     public function filamentColor(): string
     {
         return match ($this) {
-            self::Draft => 'gray',
+            self::Draft => 'danger',
             self::Calculated => 'warning',
             self::Closed => 'success',
         };

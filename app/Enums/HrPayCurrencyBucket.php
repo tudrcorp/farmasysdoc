@@ -15,6 +15,22 @@ enum HrPayCurrencyBucket: string
         };
     }
 
+    public function paymentLabel(): string
+    {
+        return match ($this) {
+            self::Usd => 'Dólares',
+            self::Ves => 'Bolívares',
+        };
+    }
+
+    public function filamentColor(): string
+    {
+        return match ($this) {
+            self::Usd => 'success',
+            self::Ves => 'info',
+        };
+    }
+
     /**
      * @return array<string, string>
      */
@@ -23,6 +39,19 @@ enum HrPayCurrencyBucket: string
         $out = [];
         foreach (self::cases() as $case) {
             $out[$case->value] = $case->label();
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function paymentOptions(): array
+    {
+        $out = [];
+        foreach (self::cases() as $case) {
+            $out[$case->value] = $case->paymentLabel();
         }
 
         return $out;

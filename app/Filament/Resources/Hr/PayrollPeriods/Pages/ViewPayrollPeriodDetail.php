@@ -5,11 +5,17 @@ namespace App\Filament\Resources\Hr\PayrollPeriods\Pages;
 use App\Enums\PayrollPeriodStatus;
 use App\Filament\Resources\Hr\Employees\EmployeeResource;
 use App\Filament\Resources\Hr\PayrollPeriods\PayrollPeriodResource;
+use App\Models\HrPayrollReceipt;
 use App\Models\PayrollLine;
 use App\Models\PayrollPeriod;
 use App\Services\Hr\HrBcvRateResolver;
+use App\Services\Hr\HrUsdVesConverter;
 use App\Services\Hr\PayrollCalculator;
 use App\Services\Hr\PayrollPeriodReportExporter;
+use App\Services\Hr\PayrollReceiptAvailability;
+use App\Services\Hr\PayrollReceiptIssuer;
+use App\Services\Hr\PayrollReceiptPdfFactory;
+use App\Services\Hr\PayrollReceiptSender;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\TextInput;
@@ -105,6 +111,7 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
                         }),
                 ])
                 ->modalHeading(fn (): string => 'Calcular '.$this->getRecord()->label())
+                ->modalDescription('Se recalcularán los empleados activos con el sueldo quincenal en USD, sus asignaciones y deducciones, los conceptos del negocio aplicables y los préstamos.')
                 ->action(function (array $data): void {
                     try {
                         /** @var PayrollPeriod $period */
@@ -324,7 +331,7 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
                     ->sortable()
                     ->weight(FontWeight::SemiBold)
                     ->formatStateUsing(fn ($state): string => self::usd((float) $state))
-                    ->description(fn (PayrollLine $record): string => self::usd((float) $record->usd_cash_portion).' bruto')
+                    ->description(fn (PayrollLine $record): string => 'Porción '.self::usd((float) $record->usd_cash_portion))
                     ->color('success'),
 
                 TextColumn::make('cash_paid_ves')
@@ -333,7 +340,7 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
                     ->sortable()
                     ->weight(FontWeight::SemiBold)
                     ->formatStateUsing(fn ($state): string => self::ves((float) $state))
-                    ->description(fn (PayrollLine $record): string => self::usd((float) $record->ves_portion_usd).' × BCV')
+                    ->description(fn (PayrollLine $record): string => self::vesPortionDescription($record))
                     ->color('info'),
 
                 TextColumn::make('net_usd')
@@ -383,6 +390,86 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
                     ))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Cerrar'),
+                Action::make('downloadReceipt')
+                    ->label('Recibo')
+                    ->icon(Heroicon::DocumentText)
+                    ->color('info')
+                    ->visible(fn (): bool => $this->monthlyReceiptIsAvailable($period))
+                    ->action(function (PayrollLine $record) {
+                        try {
+                            return app(PayrollReceiptPdfFactory::class)->download(
+                                $this->receiptForLine($record),
+                            );
+                        } catch (Throwable $e) {
+                            Notification::make()
+                                ->title('No se pudo generar el recibo')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return null;
+                        }
+                    }),
+                Action::make('sendReceipt')
+                    ->label('Enviar recibo')
+                    ->icon(Heroicon::PaperAirplane)
+                    ->color('success')
+                    ->visible(fn (): bool => $this->monthlyReceiptIsAvailable($period))
+                    ->requiresConfirmation()
+                    ->modalHeading('Enviar recibo mensual')
+                    ->modalDescription('Se enviará el recibo de ley del mes al correo y al WhatsApp del empleado.')
+                    ->modalSubmitActionLabel('Enviar')
+                    ->action(function (PayrollLine $record): void {
+                        try {
+                            $receipt = $this->receiptForLine($record);
+                        } catch (Throwable $e) {
+                            Notification::make()
+                                ->title('No se pudo generar el recibo')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        $result = app(PayrollReceiptSender::class)->send($receipt);
+                        $parts = [];
+                        if ($result['email']) {
+                            $parts[] = 'correo';
+                        }
+                        if ($result['whatsapp']) {
+                            $parts[] = 'WhatsApp';
+                        }
+
+                        if ($parts === []) {
+                            Notification::make()
+                                ->title('No se pudo enviar el recibo')
+                                ->body(implode(' ', array_filter([
+                                    $result['email_error'],
+                                    $result['whatsapp_error'],
+                                ])))
+                                ->danger()
+                                ->persistent()
+                                ->send();
+
+                            return;
+                        }
+
+                        $body = 'Enviado por '.implode(' y ', $parts).'.';
+                        $warnings = array_filter([
+                            $result['email'] ? null : $result['email_error'],
+                            $result['whatsapp'] ? null : $result['whatsapp_error'],
+                        ]);
+                        if ($warnings !== []) {
+                            $body .= ' '.implode(' ', $warnings);
+                        }
+
+                        Notification::make()
+                            ->title('Recibo enviado')
+                            ->body($body)
+                            ->success()
+                            ->send();
+                    }),
                 ActionGroup::make([
                     Action::make('viewEmployee')
                         ->label('Ver empleado')
@@ -397,6 +484,31 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
             ]);
     }
 
+    private function monthlyReceiptIsAvailable(PayrollPeriod $period): bool
+    {
+        return app(PayrollReceiptAvailability::class)->isAvailable(
+            (int) $period->period_date->year,
+            (int) $period->period_date->month,
+        );
+    }
+
+    private function receiptForLine(PayrollLine $record): HrPayrollReceipt
+    {
+        $record->loadMissing(['employee.branch', 'period']);
+        $employee = $record->employee;
+        $period = $record->period ?? $this->getRecord();
+
+        if ($employee === null || ! $period instanceof PayrollPeriod) {
+            throw new \RuntimeException('La línea de nómina no tiene empleado o periodo.');
+        }
+
+        return app(PayrollReceiptIssuer::class)->issueForEmployeeMonth(
+            $employee,
+            (int) $period->period_date->year,
+            (int) $period->period_date->month,
+        );
+    }
+
     private static function usd(float $amount): string
     {
         return 'US$ '.number_format($amount, 2, ',', '.');
@@ -405,6 +517,14 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
     private static function ves(float $amount): string
     {
         return 'Bs '.number_format($amount, 2, ',', '.');
+    }
+
+    private static function vesPortionDescription(PayrollLine $record): string
+    {
+        $portionUsd = (float) $record->ves_portion_usd;
+        $portionVes = HrUsdVesConverter::toVes($portionUsd, (float) $record->bcv_ves_per_usd);
+
+        return self::ves($portionVes).' · '.self::usd($portionUsd).' × BCV';
     }
 
     private static function employeeContactSummary(PayrollLine $record): ?string

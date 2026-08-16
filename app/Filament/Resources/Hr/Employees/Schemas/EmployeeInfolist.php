@@ -14,6 +14,7 @@ use App\Models\HrLoan;
 use App\Services\Hr\HrBcvRateResolver;
 use App\Services\Hr\HrUsdVesConverter;
 use Filament\Infolists\Components\IconEntry;
+use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
@@ -86,6 +87,38 @@ class EmployeeInfolist
                     ])
                     ->columnSpanFull(),
 
+                Section::make('Firma y huella')
+                    ->description('Imágenes del expediente para recibos y documentos.')
+                    ->icon(Heroicon::PencilSquare)
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'md' => 2,
+                        ])->schema([
+                            ImageEntry::make('signature_path')
+                                ->label('Firma')
+                                ->disk('public')
+                                ->visibility('public')
+                                ->height(140)
+                                ->placeholder('Sin firma registrada')
+                                ->extraImgAttributes([
+                                    'class' => 'fi-hr-employee-signature-img',
+                                    'alt' => 'Firma del empleado',
+                                ]),
+                            ImageEntry::make('fingerprint_path')
+                                ->label('Huella')
+                                ->disk('public')
+                                ->visibility('public')
+                                ->height(140)
+                                ->placeholder('Sin huella registrada')
+                                ->extraImgAttributes([
+                                    'class' => 'fi-hr-employee-fingerprint-img',
+                                    'alt' => 'Huella del empleado',
+                                ]),
+                        ]),
+                    ])
+                    ->columnSpanFull(),
+
                 Section::make('Contacto')
                     ->description('Medios para notificaciones y coordinación.')
                     ->icon(Heroicon::Phone)
@@ -148,7 +181,7 @@ class EmployeeInfolist
                     ->columnSpanFull(),
 
                 Section::make('Compensación')
-                    ->description('Sueldo mensual y su equivalente quincenal según tasa BCV del día.')
+                    ->description('El sueldo de ley se carga en bolívares. El equivalente VES del sueldo en USD es solo referencia BCV.')
                     ->icon(Heroicon::Banknotes)
                     ->schema([
                         Grid::make([
@@ -161,16 +194,31 @@ class EmployeeInfolist
                                 ->weight(FontWeight::SemiBold)
                                 ->size(TextSize::Large)
                                 ->formatStateUsing(fn ($state): string => 'US$ '.number_format((float) $state, 2, ',', '.')),
+                            TextEntry::make('legal_salary_ves')
+                                ->label('Sueldo de ley (VES)')
+                                ->icon(Heroicon::Scale)
+                                ->weight(FontWeight::SemiBold)
+                                ->size(TextSize::Large)
+                                ->placeholder('—')
+                                ->formatStateUsing(fn ($state): string => filled($state)
+                                    ? 'Bs '.number_format((float) $state, 2, ',', '.')
+                                    : '—'),
                             TextEntry::make('monthly_salary_ves')
-                                ->label('Equivalente mensual (VES)')
+                                ->label('Equivalente mensual USD → VES')
                                 ->icon(Heroicon::Banknotes)
                                 ->state(fn (Employee $record): string => self::vesLabel((float) $record->monthly_salary_usd)),
+                            TextEntry::make('biweekly_legal_salary_ves')
+                                ->label('Sueldo de ley quincenal (VES)')
+                                ->icon(Heroicon::Scale)
+                                ->state(fn (Employee $record): string => $record->hasLegalSalary()
+                                    ? 'Bs '.number_format($record->biweeklyLegalSalaryVes(), 2, ',', '.')
+                                    : '—'),
                             TextEntry::make('biweekly_salary_usd')
                                 ->label('Base quincenal (USD)')
                                 ->icon(Heroicon::CalendarDays)
                                 ->state(fn (Employee $record): string => 'US$ '.number_format($record->biweeklyBaseUsd(), 2, ',', '.')),
                             TextEntry::make('biweekly_salary_ves')
-                                ->label('Base quincenal (VES)')
+                                ->label('Base quincenal USD → VES')
                                 ->icon(Heroicon::CalendarDays)
                                 ->state(fn (Employee $record): string => self::vesLabel($record->biweeklyBaseUsd())),
                         ]),
@@ -178,34 +226,46 @@ class EmployeeInfolist
                     ->columnSpanFull(),
 
                 Section::make('Forma de pago por quincena')
-                    ->description('Cuánto de la base quincenal se paga en efectivo USD; el resto en bolívares a tasa BCV.')
+                    ->description('Monto en dólares de cada quincena. Si no hay USD, toda la base se paga en bolívares a tasa BCV.')
                     ->icon(Heroicon::CurrencyDollar)
                     ->schema([
                         Grid::make([
                             'default' => 1,
                             'md' => 2,
                         ])->schema([
+                            TextEntry::make('first_half_pay_currency')
+                                ->label('1.ª quincena (día 15)')
+                                ->badge()
+                                ->state(fn (Employee $record): HrPayCurrencyBucket => $record->payCurrencyForPeriod(false))
+                                ->formatStateUsing(fn ($state): string => self::payCurrencyLabel($state))
+                                ->color(fn ($state): string => self::payCurrencyColor($state)),
+                            TextEntry::make('second_half_pay_currency')
+                                ->label('2.ª quincena (fin de mes)')
+                                ->badge()
+                                ->state(fn (Employee $record): HrPayCurrencyBucket => $record->payCurrencyForPeriod(true))
+                                ->formatStateUsing(fn ($state): string => self::payCurrencyLabel($state))
+                                ->color(fn ($state): string => self::payCurrencyColor($state)),
                             TextEntry::make('first_half_usd_cash')
                                 ->label('1.ª quincena — USD efectivo')
-                                ->icon(Heroicon::Banknotes)
+                                ->icon(Heroicon::CurrencyDollar)
                                 ->formatStateUsing(fn ($state): string => 'US$ '.number_format((float) $state, 2, ',', '.')),
-                            TextEntry::make('first_half_ves_remainder')
-                                ->label('1.ª quincena — resto en Bs')
-                                ->icon(Heroicon::CalendarDays)
-                                ->state(fn (Employee $record): string => self::halfPayDescription(
-                                    $record->biweeklyBaseUsd(),
-                                    (float) $record->first_half_usd_cash,
-                                )),
                             TextEntry::make('second_half_usd_cash')
                                 ->label('2.ª quincena — USD efectivo')
-                                ->icon(Heroicon::Banknotes)
+                                ->icon(Heroicon::CurrencyDollar)
                                 ->formatStateUsing(fn ($state): string => 'US$ '.number_format((float) $state, 2, ',', '.')),
-                            TextEntry::make('second_half_ves_remainder')
-                                ->label('2.ª quincena — resto en Bs')
-                                ->icon(Heroicon::CalendarDays)
+                            TextEntry::make('first_half_ves_remainder')
+                                ->label('1.ª quincena — diferencia en Bs')
+                                ->icon(Heroicon::Banknotes)
                                 ->state(fn (Employee $record): string => self::halfPayDescription(
                                     $record->biweeklyBaseUsd(),
-                                    (float) $record->second_half_usd_cash,
+                                    $record->usdCashForPeriod(false),
+                                )),
+                            TextEntry::make('second_half_ves_remainder')
+                                ->label('2.ª quincena — diferencia en Bs')
+                                ->icon(Heroicon::Banknotes)
+                                ->state(fn (Employee $record): string => self::halfPayDescription(
+                                    $record->biweeklyBaseUsd(),
+                                    $record->usdCashForPeriod(true),
                                 )),
                         ]),
                     ])
@@ -379,6 +439,9 @@ class EmployeeInfolist
             'email' => $record->email,
             'monthly_usd' => 'US$ '.number_format($monthly, 2, ',', '.'),
             'monthly_ves' => $rate ? 'Bs '.number_format(HrUsdVesConverter::toVes($monthly, $rate), 2, ',', '.') : null,
+            'legal_salary_ves' => $record->hasLegalSalary()
+                ? 'Bs '.number_format((float) $record->legal_salary_ves, 2, ',', '.')
+                : null,
             'biweekly_usd' => 'US$ '.number_format($biweekly, 2, ',', '.'),
             'biweekly_ves' => $rate ? 'Bs '.number_format(HrUsdVesConverter::toVes($biweekly, $rate), 2, ',', '.') : null,
             'rate_label' => $rate ? 'Tasa BCV '.number_format($rate, 4, ',', '.') : 'Tasa BCV no disponible',
@@ -400,12 +463,38 @@ class EmployeeInfolist
             .' · tasa '.number_format($rate, 4, ',', '.');
     }
 
+    private static function payCurrencyLabel(mixed $state): string
+    {
+        if ($state instanceof HrPayCurrencyBucket) {
+            return $state->paymentLabel();
+        }
+
+        return HrPayCurrencyBucket::tryFrom((string) $state)?->paymentLabel() ?? '—';
+    }
+
+    private static function payCurrencyColor(mixed $state): string
+    {
+        $bucket = $state instanceof HrPayCurrencyBucket
+            ? $state
+            : HrPayCurrencyBucket::tryFrom((string) $state);
+
+        return $bucket?->filamentColor() ?? 'gray';
+    }
+
     private static function halfPayDescription(float $baseUsd, float $usdCash): string
     {
         $cash = min(max(0, $usdCash), $baseUsd);
         $remainder = round(max(0, $baseUsd - $cash), 2);
 
-        return 'Resto en Bs: US$ '.number_format($remainder, 2, ',', '.').' · '.self::vesLabel($remainder);
+        if ($cash <= 0) {
+            return 'Toda la quincena en bolívares: US$ '.number_format($baseUsd, 2, ',', '.').' · '.self::vesLabel($baseUsd);
+        }
+
+        if ($remainder <= 0) {
+            return 'Toda la quincena en dólares: US$ '.number_format($cash, 2, ',', '.');
+        }
+
+        return 'Diferencia en USD: US$ '.number_format($remainder, 2, ',', '.').' · '.self::vesLabel($remainder);
     }
 
     private static function bucketLabel(mixed $state): string

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Hr\Employees\Tables;
 
+use App\Filament\Resources\Hr\Employees\Actions\RequestEmployeeFileEnrollmentAction;
 use App\Models\Employee;
 use App\Services\Hr\HrBcvRateResolver;
 use App\Services\Hr\HrUsdVesConverter;
@@ -75,6 +76,14 @@ class EmployeesTable
                         return "US$ {$usd}\nBs {$ves}";
                     })
                     ->wrap(),
+                TextColumn::make('legal_salary_ves')
+                    ->label('Sueldo de ley')
+                    ->alignEnd()
+                    ->placeholder('—')
+                    ->formatStateUsing(fn ($state): string => filled($state)
+                        ? 'Bs '.number_format((float) $state, 2, ',', '.')
+                        : '—')
+                    ->toggleable(),
                 IconColumn::make('is_active')
                     ->label('Activo')
                     ->boolean(),
@@ -94,6 +103,7 @@ class EmployeesTable
             ])
             ->recordActions([
                 ViewAction::make(),
+                RequestEmployeeFileEnrollmentAction::make(),
                 EditAction::make(),
             ])
             ->toolbarActions([

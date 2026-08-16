@@ -64,6 +64,7 @@ class Home extends Component
             'employee' => $employee,
             'greeting' => $this->greeting(),
             'fileComplete' => $employee->hasCompleteEmployeeFile(),
+            'hasPortalPassword' => $employee->hasPortalPassword(),
         ]);
     }
 }

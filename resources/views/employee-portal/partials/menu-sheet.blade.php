@@ -90,7 +90,12 @@
     <p id="ep-menu-heading" class="ep-menu-kicker">Menú</p>
 
     @if ($employee)
-        <div class="ep-menu-user">
+        <a
+            href="{{ route('employee-portal.profile') }}"
+            class="ep-menu-user{{ $active === 'profile' ? ' is-active' : '' }}"
+            wire:navigate
+            @click="close()"
+        >
             <div class="ep-avatar ep-menu-avatar">
                 @if ($employee->hasPhoto())
                     <img src="{{ $employee->photoUrl() }}" alt="">
@@ -102,7 +107,16 @@
                 <strong>{{ $employee->fullName() }}</strong>
                 <span>C.I. {{ $employee->national_id }}@if ($employee->branch?->name) · {{ $employee->branch->name }}@endif</span>
             </div>
-        </div>
+            @if ($active === 'profile')
+                <span class="ep-menu-check" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.4" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                </span>
+            @else
+                <span class="ep-menu-chevron" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                </span>
+            @endif
+        </a>
     @endif
 
     <div class="ep-menu-theme">

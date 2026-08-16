@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\EmployeeBankAccountType;
 use App\Enums\HrPayCurrencyBucket;
 use App\Enums\VenezuelanPagoMovilBank;
+use App\Support\Notifications\WhatsAppLink;
 use Database\Factories\EmployeeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -250,6 +251,34 @@ class Employee extends Model
     public function hasPortalPassword(): bool
     {
         return filled($this->portal_password);
+    }
+
+    public function hasPortalEmail(): bool
+    {
+        return filled($this->email) && filter_var($this->email, FILTER_VALIDATE_EMAIL) !== false;
+    }
+
+    public function maskedPortalEmail(): ?string
+    {
+        if (! $this->hasPortalEmail()) {
+            return null;
+        }
+
+        [$local, $domain] = explode('@', (string) $this->email, 2);
+        $visible = mb_substr($local, 0, 1);
+
+        return $visible.'***@'.$domain;
+    }
+
+    public function maskedPortalPhone(): ?string
+    {
+        $digits = WhatsAppLink::normalizePhoneDigits($this->phone);
+
+        if ($digits === null) {
+            return null;
+        }
+
+        return '***'.substr($digits, -4);
     }
 
     /**

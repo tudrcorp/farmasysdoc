@@ -11,7 +11,56 @@
         </div>
     </header>
 
-    @if ($step === 'intro')
+    @if ($step === 'view')
+        <div class="ep-screen" wire:key="file-view">
+            <div class="ep-nav">
+                <a href="{{ route('employee-portal.home') }}" class="ep-ghost" wire:navigate>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" class="size-5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                    </svg>
+                    Inicio
+                </a>
+                <p class="ep-nav-title">Expediente</p>
+                <div class="ep-header-actions">
+                    @include('employee-portal.partials.theme-toggle')
+                    @include('employee-portal.partials.menu-button')
+                </div>
+            </div>
+            <h1 class="ep-lead">Tu firma y tu huella</h1>
+            <p class="ep-text">Estas imágenes ya están en tu expediente y se usan en tus recibos.</p>
+            <div class="ep-review-grid">
+                <div class="ep-review-card ep-glass">
+                    <p>Firma</p>
+                    @if ($signaturePreviewUrl)
+                        <img src="{{ $signaturePreviewUrl }}" alt="Firma">
+                    @endif
+                </div>
+                <div class="ep-review-card ep-glass">
+                    <p>Huella</p>
+                    @if ($fingerprintPreviewUrl)
+                        <img src="{{ $fingerprintPreviewUrl }}" alt="Huella">
+                    @endif
+                </div>
+            </div>
+            <div class="ep-actions ep-actions--row">
+                <button type="button" class="ep-btn ep-btn--secondary" wire:click="requestFileChange">
+                    Cambiar firma o huella
+                </button>
+            </div>
+        </div>
+
+        @if ($showChangeNotice)
+            <div class="ep-sheet-backdrop" wire:click="closeChangeNotice" wire:key="file-change-backdrop"></div>
+            <div class="ep-sheet ep-glass" wire:key="file-change-sheet" role="dialog" aria-modal="true" aria-labelledby="ep-file-change-title">
+                <div class="ep-sheet-handle"></div>
+                <h2 id="ep-file-change-title" class="ep-lead" style="font-size: 1.45rem;">Cambio de expediente</h2>
+                <p class="ep-text">Para cambiar tu firma o tu huella debes comunicarte con Recursos Humanos y explicar el motivo del cambio. Ellos se encargan de actualizar tu expediente.</p>
+                <div class="ep-actions">
+                    <button type="button" class="ep-btn ep-btn--primary" wire:click="closeChangeNotice">Entendido</button>
+                </div>
+            </div>
+        @endif
+    @elseif ($step === 'intro')
         <div class="ep-screen" wire:key="intro">
             <div class="ep-nav">
                 <a href="{{ route('employee-portal.home') }}" class="ep-ghost" wire:navigate>

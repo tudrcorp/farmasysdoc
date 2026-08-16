@@ -23,6 +23,8 @@ class Account extends Component
 
     public bool $saved = false;
 
+    public bool $justCreated = false;
+
     public function employee(): Employee
     {
         $employee = app(EmployeePortalAccess::class)->employee();
@@ -34,6 +36,7 @@ class Account extends Component
     public function save(EmployeePortalAuthenticator $authenticator): void
     {
         $this->saved = false;
+        $this->justCreated = false;
         $employee = $this->employee();
         $hasPassword = $employee->hasPortalPassword();
 
@@ -63,11 +66,13 @@ class Account extends Component
         $authenticator->setPassword($employee, $this->password);
         $this->reset('currentPassword', 'password', 'passwordConfirmation');
         $this->saved = true;
+        $this->justCreated = ! $hasPassword;
     }
 
     public function remove(EmployeePortalAuthenticator $authenticator): void
     {
         $this->saved = false;
+        $this->justCreated = false;
         $employee = $this->employee();
 
         if (! $employee->hasPortalPassword()) {

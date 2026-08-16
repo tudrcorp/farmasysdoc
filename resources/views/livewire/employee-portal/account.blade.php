@@ -11,6 +11,24 @@
         </div>
     </header>
 
+    @if ($justCreated)
+        <div class="ep-screen" wire:key="account-created">
+            <div class="ep-success">
+                <div>
+                    <div class="ep-check" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.4" stroke="currentColor" class="size-10">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                        </svg>
+                    </div>
+                    <h1 class="ep-lead">Clave creada</h1>
+                    <p class="ep-text">Tu clave se creó de forma exitosa. La próxima vez que entres al portal te la pediremos después de tu cédula o teléfono.</p>
+                    <div class="ep-actions">
+                        <a href="{{ route('employee-portal.home') }}" class="ep-btn ep-btn--primary" wire:navigate>Ir al inicio</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @else
     <div class="ep-screen" wire:key="account">
         <div class="ep-nav ep-mobile-only">
             <a href="{{ route('employee-portal.home') }}" class="ep-ghost" wire:navigate>
@@ -73,6 +91,7 @@
             </form>
         </div>
     </div>
+    @endif
 
     @include('employee-portal.partials.menu-sheet', ['active' => 'account'])
 </div>

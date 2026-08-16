@@ -32,14 +32,24 @@ class FileEnrollment extends Component
 
     public bool $acceptedFileTerms = false;
 
+    public bool $showChangeNotice = false;
+
     public function mount(): void
     {
         $this->acceptedFileTerms = $this->employee()->hasAcceptedFileTerms();
         $this->refreshPreviews();
+
+        if ($this->employee()->hasCompleteEmployeeFile()) {
+            $this->step = 'view';
+        }
     }
 
     public function startEnrollment(): void
     {
+        if (! $this->assertFileUnlocked()) {
+            return;
+        }
+
         $this->validate([
             'acceptedFileTerms' => ['accepted'],
         ], [
@@ -50,13 +60,27 @@ class FileEnrollment extends Component
         $this->goTo('signature');
     }
 
+    public function requestFileChange(): void
+    {
+        $this->showChangeNotice = true;
+    }
+
+    public function closeChangeNotice(): void
+    {
+        $this->showChangeNotice = false;
+    }
+
     public function goTo(string $step): void
     {
-        if (! in_array($step, ['intro', 'signature', 'fingerprint', 'review', 'done'], true)) {
+        if (! in_array($step, ['intro', 'signature', 'fingerprint', 'review', 'done', 'view'], true)) {
             return;
         }
 
-        if ($step !== 'intro' && ! $this->employee()->hasAcceptedFileTerms()) {
+        if (in_array($step, ['intro', 'signature', 'fingerprint', 'review'], true) && ! $this->assertFileUnlocked()) {
+            return;
+        }
+
+        if (! in_array($step, ['intro', 'view'], true) && ! $this->employee()->hasAcceptedFileTerms()) {
             $this->addError('acceptedFileTerms', 'Debes aceptar los términos y condiciones para continuar.');
             $this->step = 'intro';
 
@@ -69,7 +93,7 @@ class FileEnrollment extends Component
 
     public function keepExistingSignature(): void
     {
-        if (! $this->employee()->hasSignature()) {
+        if (! $this->assertFileUnlocked() || ! $this->employee()->hasSignature()) {
             return;
         }
 
@@ -78,7 +102,7 @@ class FileEnrollment extends Component
 
     public function keepExistingFingerprint(): void
     {
-        if (! $this->employee()->hasFingerprint()) {
+        if (! $this->assertFileUnlocked() || ! $this->employee()->hasFingerprint()) {
             return;
         }
 
@@ -87,7 +111,7 @@ class FileEnrollment extends Component
 
     public function saveSignatureStroke(string $dataUrl): void
     {
-        if (! $this->assertFileTermsAccepted()) {
+        if (! $this->assertFileUnlocked() || ! $this->assertFileTermsAccepted()) {
             return;
         }
 
@@ -105,7 +129,7 @@ class FileEnrollment extends Component
 
     public function saveSignatureUpload(): void
     {
-        if (! $this->assertFileTermsAccepted()) {
+        if (! $this->assertFileUnlocked() || ! $this->assertFileTermsAccepted()) {
             return;
         }
 
@@ -139,7 +163,7 @@ class FileEnrollment extends Component
 
     public function saveFingerprintCapture(string $dataUrl): void
     {
-        if (! $this->assertFileTermsAccepted()) {
+        if (! $this->assertFileUnlocked() || ! $this->assertFileTermsAccepted()) {
             return;
         }
 
@@ -157,7 +181,7 @@ class FileEnrollment extends Component
 
     public function saveFingerprintUpload(): void
     {
-        if (! $this->assertFileTermsAccepted()) {
+        if (! $this->assertFileUnlocked() || ! $this->assertFileTermsAccepted()) {
             return;
         }
 
@@ -221,6 +245,18 @@ class FileEnrollment extends Component
             'fileTermsParagraphs' => EmployeeFileTerms::paragraphs(),
             'fileTermsAcceptanceLabel' => EmployeeFileTerms::acceptanceLabel(),
         ]);
+    }
+
+    private function assertFileUnlocked(): bool
+    {
+        if (! $this->employee()->hasCompleteEmployeeFile()) {
+            return true;
+        }
+
+        $this->step = 'view';
+        $this->showChangeNotice = true;
+
+        return false;
     }
 
     private function assertFileTermsAccepted(): bool

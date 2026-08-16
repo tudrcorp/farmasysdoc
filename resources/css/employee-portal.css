@@ -616,6 +616,62 @@
     border-radius: 0.9rem;
 }
 
+.ep-profile-hero {
+    display: grid;
+    justify-items: center;
+    margin: 0.35rem 0 1.25rem;
+    text-align: center;
+}
+
+.ep-profile-hero .ep-lead {
+    margin: 0.85rem 0 0.35rem;
+}
+
+.ep-profile-hero .ep-text {
+    margin: 0;
+}
+
+.ep-profile-photo {
+    width: 7.25rem;
+    height: 7.25rem;
+    font-size: 1.85rem;
+    box-shadow: 0 16px 36px rgb(13 148 136 / 0.32);
+}
+
+.ep-info-list {
+    overflow: hidden;
+    margin: 0;
+    border-radius: 1.35rem;
+}
+
+.ep-info-row {
+    display: grid;
+    gap: 0.18rem;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid rgb(15 23 42 / 0.06);
+}
+
+.ep-info-row:last-child {
+    border-bottom: 0;
+}
+
+.ep-info-row dt {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 750;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.ep-info-row dd {
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    word-break: break-word;
+}
+
 .ep-success {
     display: grid;
     flex: 1;
@@ -825,6 +881,14 @@ body.ep-menu-locked {
     overflow: hidden;
 }
 
+body.ep-menu-locked .ep-theme-toggle {
+    display: none;
+}
+
+body.ep-menu-locked .ep-menu-sheet .ep-theme-toggle {
+    display: inline-flex;
+}
+
 .ep-menu-trigger {
     position: relative;
     z-index: 32;
@@ -997,6 +1061,22 @@ body.ep-menu-locked {
     border: 1px solid rgb(255 255 255 / 0.5);
     border-radius: 1.25rem;
     background: rgb(255 255 255 / 0.42);
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.ep-menu-user.is-active {
+    background: rgb(8 145 178 / 0.1);
+}
+
+.ep-menu-user:active {
+    background: rgb(8 145 178 / 0.12);
+}
+
+.ep-menu-user:focus-visible {
+    outline: 2px solid #0891b2;
+    outline-offset: 2px;
 }
 
 .ep-menu-avatar {
@@ -1007,6 +1087,7 @@ body.ep-menu-locked {
 
 .ep-menu-user-copy {
     min-width: 0;
+    flex: 1;
 }
 
 .ep-menu-user-copy strong {
@@ -1327,6 +1408,19 @@ body.ep-menu-locked {
 .ep-field input:focus {
     border-color: rgb(14 116 144 / 0.45);
     box-shadow: 0 0 0 4px rgb(8 145 178 / 0.12);
+}
+
+.ep-otp-input {
+    letter-spacing: 0.35em;
+    text-align: center;
+    font-size: 1.35rem;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+}
+
+.ep-card-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
 }
 
 .ep-toast {
@@ -1685,7 +1779,8 @@ body.ep-menu-locked {
             inset 0 1px 0 rgb(255 255 255 / 0.18);
     }
 
-    .ep-menu-item:hover {
+    .ep-menu-item:hover,
+    .ep-menu-user:hover {
         background: rgb(8 145 178 / 0.08);
     }
 
@@ -1791,9 +1886,19 @@ html[data-theme="dark"] {
     }
 
     .ep-menu-item.is-active,
-    .ep-menu-item:active {
+    .ep-menu-item:active,
+    .ep-menu-user.is-active,
+    .ep-menu-user:active {
         background: rgb(103 232 249 / 0.1);
         color: #67e8f9;
+    }
+
+    .ep-info-row {
+        border-bottom-color: rgb(255 255 255 / 0.06);
+    }
+
+    .ep-info-row dt {
+        color: #94a3b8;
     }
 
     .ep-menu-check {

@@ -27,23 +27,11 @@
                 <h1 class="ep-name">{{ $employee->first_name }}</h1>
                 <p class="ep-text ep-desktop-only">Desde aquí completas tu expediente y, más adelante, vas a pedir constancias, vacaciones y permisos.</p>
             </div>
-            <div class="ep-profile ep-glass">
-                <div class="ep-avatar">
-                    @if ($employee->hasPhoto())
-                        <img src="{{ $employee->photoUrl() }}" alt="">
-                    @else
-                        {{ $employee->initials() }}
-                    @endif
-                </div>
-                <div>
-                    <h2>{{ $employee->fullName() }}</h2>
-                    <p>C.I. {{ $employee->national_id }} · {{ $employee->branch?->name }}</p>
-                </div>
-            </div>
         </div>
 
         <p class="ep-section-label">Tu expediente</p>
         <div class="ep-stack">
+        @unless ($fileComplete)
         <a href="{{ route('employee-portal.file') }}" class="ep-card-btn ep-card-btn--featured ep-glass" wire:navigate>
             <span class="ep-card-icon" aria-hidden="true">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-6">
@@ -52,18 +40,11 @@
             </span>
             <span class="ep-card-copy">
                 <strong>Firma y huella</strong>
-                <span>
-                    @if ($fileComplete)
-                        Ya están en tu expediente. Puedes actualizarlas cuando quieras.
-                    @else
-                        Fírmalo con el dedo y toma la foto de tu huella. Toma menos de un minuto.
-                    @endif
-                </span>
+                <span>Fírmalo con el dedo y toma la foto de tu huella. Toma menos de un minuto.</span>
             </span>
-            <span @class(['ep-pill', 'ep-pill--ok' => $fileComplete, 'ep-pill--warn' => ! $fileComplete])>
-                {{ $fileComplete ? 'Listo' : 'Pendiente' }}
-            </span>
+            <span class="ep-pill ep-pill--warn">Pendiente</span>
         </a>
+        @endunless
 
         <a href="{{ route('employee-portal.receipts') }}" class="ep-card-btn ep-glass" wire:navigate>
             <span class="ep-card-icon" aria-hidden="true">
@@ -78,6 +59,7 @@
             <span class="ep-pill">PDF</span>
         </a>
 
+        @unless ($hasPortalPassword)
         <a href="{{ route('employee-portal.account') }}" class="ep-card-btn ep-glass" wire:navigate>
             <span class="ep-card-icon" aria-hidden="true">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-6">
@@ -86,18 +68,11 @@
             </span>
             <span class="ep-card-copy">
                 <strong>Tu clave</strong>
-                <span>
-                    @if ($employee->hasPortalPassword())
-                        Ya protegiste tu portal. Puedes cambiarla cuando quieras.
-                    @else
-                        Opcional. Si la creas, nadie entra solo con tu cédula o teléfono.
-                    @endif
-                </span>
+                <span>Opcional. Si la creas, nadie entra solo con tu cédula o teléfono.</span>
             </span>
-            <span @class(['ep-pill', 'ep-pill--ok' => $employee->hasPortalPassword(), 'ep-pill--warn' => ! $employee->hasPortalPassword()])>
-                {{ $employee->hasPortalPassword() ? 'Activa' : 'Sin clave' }}
-            </span>
+            <span class="ep-pill ep-pill--warn">Sin clave</span>
         </a>
+        @endunless
         </div>
 
         <p class="ep-section-label">Próximamente</p>

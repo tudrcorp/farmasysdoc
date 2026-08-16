@@ -21,6 +21,7 @@ use App\Livewire\EmployeePortal\Account;
 use App\Livewire\EmployeePortal\FileEnrollment;
 use App\Livewire\EmployeePortal\Home;
 use App\Livewire\EmployeePortal\Login;
+use App\Livewire\EmployeePortal\Profile;
 use App\Livewire\EmployeePortal\Receipts;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
@@ -37,6 +38,7 @@ Route::prefix('portal')->name('employee-portal.')->group(function (): void {
     Route::middleware('employee.portal')->group(function (): void {
         Route::get('salir', EmployeePortalLogoutController::class)->name('logout');
         Route::livewire('/', Home::class)->name('home');
+        Route::livewire('perfil', Profile::class)->name('profile');
         Route::livewire('expediente', FileEnrollment::class)->name('file');
         Route::livewire('cuenta', Account::class)->name('account');
         Route::livewire('recibos', Receipts::class)->name('receipts');

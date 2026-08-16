@@ -36,7 +36,7 @@ final class EmployeeFileBackgroundRemover
         imagesavealpha($png, true);
         imagefilledrectangle($png, 0, 0, $width, $height, imagecolorallocatealpha($png, 0, 0, 0, 127));
 
-        $isSignature = $mode === self::ModeSignature;
+        $isSignature = $mode === self::SIGNATURE;
 
         for ($y = 0; $y < $height; $y++) {
             for ($x = 0; $x < $width; $x++) {

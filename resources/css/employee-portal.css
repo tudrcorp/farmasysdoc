@@ -34,12 +34,6 @@
     .ep-body {
         overflow: auto;
     }
-
-    .ep-menu-trigger {
-        position: fixed;
-        top: calc(0.75rem + env(safe-area-inset-top));
-        right: 1.15rem;
-    }
 }
 
 .ep-ambient {
@@ -643,6 +637,7 @@
 .ep-topbar-actions {
     display: flex;
     align-items: center;
+    align-self: center;
     gap: 0.5rem;
     margin-left: auto;
 }

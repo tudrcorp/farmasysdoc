@@ -125,6 +125,67 @@
     <strong>Turno:</strong> {{ $opened_at_label }} — {{ $closed_at_label }}
 </div>
 
+@php
+    $detail = $close_detail;
+@endphp
+
+<h2>Resumen del turno</h2>
+<table>
+    <tbody>
+    <tr>
+        <td>Total de ventas</td>
+        <td class="num">{{ number_format($detail['sale_count'], 0, ',', '.') }}</td>
+    </tr>
+    <tr>
+        <td>Total ventas USD</td>
+        <td class="num">$ {{ number_format($detail['total_usd'], 2, ',', '.') }}</td>
+    </tr>
+    <tr>
+        <td>Total ventas VES</td>
+        <td class="num">Bs. {{ number_format($detail['total_ves'], 2, ',', '.') }}</td>
+    </tr>
+    </tbody>
+</table>
+
+<h2>Detalle de ventas</h2>
+<table>
+    <thead>
+    <tr>
+        <th>Concepto</th>
+        <th class="num">Monto</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+        <td><strong>Total Punto de Venta</strong></td>
+        <td class="num"><strong>Bs. {{ number_format($detail['punto_venta_ves'], 2, ',', '.') }}</strong></td>
+    </tr>
+    @forelse ($detail['pos_terminals'] as $terminal)
+        <tr>
+            <td style="padding-left: 18px;">{{ $terminal['label'] }}</td>
+            <td class="num">Bs. {{ number_format($terminal['amount_ves'], 2, ',', '.') }}</td>
+        </tr>
+    @empty
+        <tr>
+            <td style="padding-left: 18px;" class="muted">Sin puntos de venta asociados a la sucursal</td>
+            <td class="num">Bs. 0,00</td>
+        </tr>
+    @endforelse
+    <tr>
+        <td><strong>Total Pago Móvil</strong></td>
+        <td class="num"><strong>Bs. {{ number_format($detail['pago_movil_ves'], 2, ',', '.') }}</strong></td>
+    </tr>
+    <tr>
+        <td><strong>Total USD</strong></td>
+        <td class="num"><strong>$ {{ number_format($detail['usd_methods_total'], 2, ',', '.') }}</strong></td>
+    </tr>
+    <tr>
+        <td><strong>Total VES</strong></td>
+        <td class="num"><strong>Bs. {{ number_format($detail['ves_methods_total'], 2, ',', '.') }}</strong></td>
+    </tr>
+    </tbody>
+</table>
+
 <h2>Totales por tipo de pago</h2>
 <p class="muted" style="margin: 0 0 8px 0;">Agrupación por forma de pago registrada en cada venta completada del período.</p>
 @if (count($payment_breakdown) === 0)

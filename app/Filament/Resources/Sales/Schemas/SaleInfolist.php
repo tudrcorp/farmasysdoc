@@ -153,6 +153,12 @@ class SaleInfolist
                                     )
                                         ? null
                                         : Heroicon::CreditCard),
+                                TextEntry::make('posTerminal')
+                                    ->label('Punto de venta')
+                                    ->state(fn (Sale $record): string => $record->posTerminal?->displayLabel() ?? '—')
+                                    ->placeholder('—')
+                                    ->icon(Heroicon::BuildingLibrary)
+                                    ->visible(fn (Sale $record): bool => $record->pos_terminal_id !== null),
                                 TextEntry::make('payment_usd')
                                     ->label('Pago USD')
                                     ->money('USD')

@@ -42,7 +42,7 @@ class SalesTable
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => BranchAuthScope::applyToSalesQuery($query)
-                ->with(['branch', 'client', 'items', 'conciliationCachea'])
+                ->with(['branch', 'client', 'items', 'conciliationCachea', 'posTerminal'])
                 ->withCount('items'))
             ->columns([
                 TextColumn::make('sale_number')
@@ -208,6 +208,13 @@ class SalesTable
                         : Heroicon::CreditCard)
                     ->iconColor('gray')
                     ->toggleable(),
+                TextColumn::make('posTerminal.code')
+                    ->label('Punto de venta')
+                    ->description(fn (Sale $record): ?string => $record->posTerminal?->bankLabel())
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->icon(Heroicon::BuildingLibrary)
+                    ->iconColor('gray'),
                 TextColumn::make('payment_usd')
                     ->label('Pago USD')
                     ->money('USD')

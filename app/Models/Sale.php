@@ -31,6 +31,7 @@ class Sale extends Model
         'discount_total',
         'total',
         'payment_method',
+        'pos_terminal_id',
         'payment_usd',
         'payment_ves',
         'bcv_ves_per_usd',
@@ -69,6 +70,14 @@ class Sale extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * @return BelongsTo<PosTerminal, $this>
+     */
+    public function posTerminal(): BelongsTo
+    {
+        return $this->belongsTo(PosTerminal::class);
     }
 
     /**

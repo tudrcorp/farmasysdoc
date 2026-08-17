@@ -46,6 +46,7 @@ class FarmaadminMenuAccessCatalog
             'product_transfer_sales' => ['label' => 'Traslados de venta', 'route_name_fragment' => 'resources.product-transfer-sales.', 'group' => 'Inventario'],
             'suppliers' => ['label' => 'Proveedores', 'route_name_fragment' => 'resources.suppliers.', 'group' => 'Inventario'],
             'branches' => ['label' => 'Sucursales', 'route_name_fragment' => 'resources.branches.', 'group' => 'Configuración'],
+            'pos_terminals' => ['label' => 'Puntos de venta', 'route_name_fragment' => 'resources.pos-terminals.', 'group' => 'Configuración'],
             'roles' => ['label' => 'Roles', 'route_name_fragment' => 'resources.roles.', 'group' => 'Configuración'],
             'branch_sales_goals' => ['label' => 'Metas de ventas', 'route_name_fragment' => 'resources.branch-sales-goals.', 'group' => 'Configuración'],
             'users' => ['label' => 'Usuarios', 'route_name_fragment' => 'resources.users.', 'group' => 'Configuración'],

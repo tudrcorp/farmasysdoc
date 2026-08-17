@@ -26,6 +26,16 @@ final class PhysicalCashBoxShiftPaymentTotalsPdfGenerator
      *         payment_usd: float,
      *         payment_ves: float,
      *     },
+     *     close_detail: array{
+     *         sale_count: int,
+     *         total_usd: float,
+     *         total_ves: float,
+     *         punto_venta_ves: float,
+     *         pos_terminals: list<array{id: int|null, label: string, amount_ves: float}>,
+     *         pago_movil_ves: float,
+     *         usd_methods_total: float,
+     *         ves_methods_total: float,
+     *     },
      * }  $report
      */
     public function generate(array $report): string
@@ -41,6 +51,7 @@ final class PhysicalCashBoxShiftPaymentTotalsPdfGenerator
             'cashier_name' => $report['cashier_name'],
             'opened_at_label' => $report['opened_at_label'],
             'closed_at_label' => $report['closed_at_label'],
+            'close_detail' => $report['close_detail'],
             'payment_breakdown' => $report['payment_breakdown'],
             'payment_breakdown_totals' => $report['payment_breakdown_totals'],
             'pdf_logo_data_uri' => $pdfLogoDataUri,

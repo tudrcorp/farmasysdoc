@@ -338,6 +338,67 @@ final class MixedPosPaymentSupport
             .number_format((float) $split['amount_2'], 2, '.', ',').' Bs. ('.$label2.')';
     }
 
+    /**
+     * @return array{punto_venta_ves: float, pago_movil: float, efectivo_ves: float, transfer_ves: float}|null
+     */
+    public static function vesSplitAmountsFromSaleNotes(?string $notes): ?array
+    {
+        if (! is_string($notes) || ! str_contains($notes, 'Pago múltiple VES:')) {
+            return null;
+        }
+
+        $amounts = [
+            'punto_venta_ves' => 0.0,
+            'pago_movil' => 0.0,
+            'efectivo_ves' => 0.0,
+            'transfer_ves' => 0.0,
+        ];
+
+        $labelToMethod = [
+            'punto de venta' => 'punto_venta_ves',
+            'pago movil' => 'pago_movil',
+            'efectivo ves' => 'efectivo_ves',
+            'transferencia ves' => 'transfer_ves',
+        ];
+
+        if (preg_match_all('/([\d.,]+)\s*Bs\.\s*\(([^)]+)\)/u', $notes, $matches, PREG_SET_ORDER) === false) {
+            return null;
+        }
+
+        if ($matches === []) {
+            return null;
+        }
+
+        foreach ($matches as $match) {
+            $method = $labelToMethod[mb_strtolower(trim($match[2]))] ?? null;
+            if ($method === null) {
+                continue;
+            }
+
+            $amounts[$method] = round($amounts[$method] + self::parseDecimalAmount($match[1]), 2);
+        }
+
+        return $amounts;
+    }
+
+    private static function parseDecimalAmount(string $raw): float
+    {
+        $normalized = trim($raw);
+
+        if (str_contains($normalized, ',') && str_contains($normalized, '.')) {
+            if (strrpos($normalized, ',') > strrpos($normalized, '.')) {
+                $normalized = str_replace('.', '', $normalized);
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                $normalized = str_replace(',', '', $normalized);
+            }
+        } elseif (str_contains($normalized, ',')) {
+            $normalized = str_replace(',', '.', $normalized);
+        }
+
+        return is_numeric($normalized) ? (float) $normalized : 0.0;
+    }
+
     private static function normalizeVesMethod(mixed $method): string
     {
         $key = is_string($method) ? strtolower(trim($method)) : '';

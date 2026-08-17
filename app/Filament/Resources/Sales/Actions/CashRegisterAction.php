@@ -38,6 +38,7 @@ use App\Support\Inventory\NearExpiryLotAlert;
 use App\Support\Sales\CacheaPosPaymentSupport;
 use App\Support\Sales\MixedPosPaymentSupport;
 use App\Support\Sales\PosPaymentMethodOptions;
+use App\Support\Sales\PosTerminalCheckout;
 use App\Support\Sales\ProductUnitPricingForBranch;
 use App\Support\Sales\SalesBillingAccess;
 use DateTimeInterface;
@@ -883,56 +884,43 @@ final class CashRegisterAction
                                             })
                                             ->native(false)
                                             ->prefixIcon(Heroicon::CreditCard),
+                                        Select::make('pos_terminal_id')
+                                            ->label('Punto de venta a utilizar')
+                                            ->options(fn (): array => PosTerminalCheckout::optionsForAuthenticatedCashier())
+                                            ->getOptionLabelUsing(function (?string $value): ?string {
+                                                if (blank($value)) {
+                                                    return null;
+                                                }
+
+                                                return PosTerminalCheckout::optionsForAuthenticatedCashier()[(int) $value] ?? null;
+                                            })
+                                            ->placeholder('Seleccione el punto de venta')
+                                            ->helperText('Obligatorio. Solo se listan los puntos activos de su sucursal.')
+                                            ->searchable()
+                                            ->native(false)
+                                            ->prefixIcon(Heroicon::BuildingLibrary)
+                                            ->markAsRequired(fn (Get $get): bool => self::formUsesPointOfSale($get))
+                                            ->rules(fn (Get $get): array => [
+                                                Rule::requiredIf(fn (): bool => self::formUsesPointOfSale($get)),
+                                            ])
+                                            ->validationMessages([
+                                                'required_if' => 'Debe seleccionar el punto de venta que va a utilizar.',
+                                                'required' => 'Debe seleccionar el punto de venta que va a utilizar.',
+                                            ])
+                                            ->visible(fn (Get $get): bool => self::formUsesPointOfSale($get)),
+                                        Placeholder::make('pos_terminal_missing_hint')
+                                            ->hiddenLabel()
+                                            ->content('No hay puntos de venta activos en su sucursal. Un administrador debe cargarlos en Configuración → Puntos de venta antes de cobrar por este medio.')
+                                            ->visible(fn (Get $get): bool => self::formUsesPointOfSale($get)
+                                                && PosTerminalCheckout::optionsForAuthenticatedCashier() === []),
                                         TextInput::make('card_last4')
                                             ->label('Últimos 4 dígitos de la tarjeta')
                                             ->helperText('recibe 4 digitos')
                                             ->inputMode('numeric')
                                             // Sin ->required(): evita el atributo HTML `required` y el tooltip nativo del navegador (poco contraste).
-                                            ->markAsRequired(function (Get $get): bool {
-                                                if ($get('payment_method') === 'punto_venta_ves') {
-                                                    return true;
-                                                }
-
-                                                if ($get('payment_method') === PosPaymentMethodOptions::CACHEA) {
-                                                    return CacheaPosPaymentSupport::usesPointOfSaleComplement(
-                                                        PosPaymentMethodOptions::CACHEA,
-                                                        [
-                                                            'cachea_paid_amount' => $get('cachea_paid_amount'),
-                                                            'cachea_complement_payment_method' => $get('cachea_complement_payment_method'),
-                                                        ],
-                                                        self::computeSaleTotal($get),
-                                                    );
-                                                }
-
-                                                if ($get('payment_method') !== 'mixed') {
-                                                    return false;
-                                                }
-
-                                                return self::mixedPaymentUsesPointOfSaleFromGet($get);
-                                            })
+                                            ->markAsRequired(fn (Get $get): bool => self::formUsesPointOfSale($get))
                                             ->rules(fn (Get $get): array => [
-                                                Rule::requiredIf(function () use ($get): bool {
-                                                    if ($get('payment_method') === 'punto_venta_ves') {
-                                                        return true;
-                                                    }
-
-                                                    if ($get('payment_method') === PosPaymentMethodOptions::CACHEA) {
-                                                        return CacheaPosPaymentSupport::usesPointOfSaleComplement(
-                                                            PosPaymentMethodOptions::CACHEA,
-                                                            [
-                                                                'cachea_paid_amount' => $get('cachea_paid_amount'),
-                                                                'cachea_complement_payment_method' => $get('cachea_complement_payment_method'),
-                                                            ],
-                                                            self::computeSaleTotal($get),
-                                                        );
-                                                    }
-
-                                                    if ($get('payment_method') !== 'mixed') {
-                                                        return false;
-                                                    }
-
-                                                    return self::mixedPaymentUsesPointOfSaleFromGet($get);
-                                                }),
+                                                Rule::requiredIf(fn (): bool => self::formUsesPointOfSale($get)),
                                                 'regex:/^\d{4}$/',
                                             ])
                                             ->regex('/^\d{4}$/')
@@ -941,28 +929,7 @@ final class CashRegisterAction
                                                 'required' => 'Debe indicar los últimos 4 dígitos de la tarjeta para Punto de Venta.',
                                                 'regex' => 'Ingrese exactamente 4 dígitos numéricos.',
                                             ])
-                                            ->visible(function (Get $get): bool {
-                                                if ($get('payment_method') === 'punto_venta_ves') {
-                                                    return true;
-                                                }
-
-                                                if ($get('payment_method') === PosPaymentMethodOptions::CACHEA) {
-                                                    return CacheaPosPaymentSupport::usesPointOfSaleComplement(
-                                                        PosPaymentMethodOptions::CACHEA,
-                                                        [
-                                                            'cachea_paid_amount' => $get('cachea_paid_amount'),
-                                                            'cachea_complement_payment_method' => $get('cachea_complement_payment_method'),
-                                                        ],
-                                                        self::computeSaleTotal($get),
-                                                    );
-                                                }
-
-                                                if ($get('payment_method') !== 'mixed') {
-                                                    return false;
-                                                }
-
-                                                return self::mixedPaymentUsesPointOfSaleFromGet($get);
-                                            }),
+                                            ->visible(fn (Get $get): bool => self::formUsesPointOfSale($get)),
                                         Toggle::make('mixed_use_usd_portion')
                                             ->label('Parte del pago en US$')
                                             ->helperText('Combine dólares con el saldo en bolívares.')
@@ -1640,14 +1607,38 @@ final class CashRegisterAction
                     }
                 }
 
-                if (
-                    (
-                        self::usesPointOfSaleForVesPortion($paymentMethod, $mixedVesPaymentMethod, $data, $documentTotal, $vesUsdRate)
-                        || CacheaPosPaymentSupport::usesPointOfSaleComplement($paymentMethod, $data, $documentTotal)
-                    )
-                    && $paymentVes > 0.00001
-                    && ! preg_match('/^\d{4}$/', $cardLast4)
-                ) {
+                $requiresPosTerminal = (
+                    self::usesPointOfSaleForVesPortion($paymentMethod, $mixedVesPaymentMethod, $data, $documentTotal, $vesUsdRate)
+                    || CacheaPosPaymentSupport::usesPointOfSaleComplement($paymentMethod, $data, $documentTotal)
+                ) && $paymentVes > 0.00001;
+
+                $resolvedPosTerminal = $requiresPosTerminal
+                    ? PosTerminalCheckout::findActiveForBranch($branchId, $data['pos_terminal_id'] ?? null)
+                    : null;
+
+                if ($requiresPosTerminal && $resolvedPosTerminal === null) {
+                    $hasBranchTerminals = PosTerminalCheckout::optionsForBranch($branchId) !== [];
+                    AuditLogger::record(
+                        'pos_caja_sale_blocked',
+                        'Caja · No se registró la venta: punto de venta no seleccionado',
+                        properties: [
+                            'module' => 'pos_caja',
+                            'reason' => $hasBranchTerminals ? 'punto_venta_sin_terminal' : 'punto_venta_sin_terminales_sucursal',
+                        ],
+                    );
+                    Notification::make()
+                        ->title($hasBranchTerminals ? 'Seleccione el punto de venta' : 'No hay puntos de venta')
+                        ->body($hasBranchTerminals
+                            ? 'Para cobrar por Punto de Venta debe indicar qué punto de su sucursal va a utilizar.'
+                            : 'No hay puntos de venta activos en su sucursal. Un administrador debe cargarlos en Configuración → Puntos de venta.')
+                        ->danger()
+                        ->send();
+                    $action->halt();
+
+                    return;
+                }
+
+                if ($requiresPosTerminal && ! preg_match('/^\d{4}$/', $cardLast4)) {
                     AuditLogger::record(
                         'pos_caja_sale_blocked',
                         'Caja · No se registró la venta: datos de tarjeta POS incompletos',
@@ -1663,18 +1654,20 @@ final class CashRegisterAction
                     return;
                 }
 
+                $posTerminalCode = filled($resolvedPosTerminal?->code) ? (string) $resolvedPosTerminal->code : null;
+
                 if ($paymentMethod === 'punto_venta_ves') {
-                    $paymentReference = 'POS ****'.$cardLast4;
+                    $paymentReference = ($posTerminalCode !== null ? 'POS '.$posTerminalCode : 'POS').' ****'.$cardLast4;
                 } elseif (
                     $paymentMethod === PosPaymentMethodOptions::CACHEA
                     && CacheaPosPaymentSupport::usesPointOfSaleComplement($paymentMethod, $data, $documentTotal)
                 ) {
-                    $paymentReference = 'CACHEA POS ****'.$cardLast4;
+                    $paymentReference = ($posTerminalCode !== null ? 'CACHEA POS '.$posTerminalCode : 'CACHEA POS').' ****'.$cardLast4;
                 } elseif (
                     $paymentMethod === 'mixed'
                     && MixedPosPaymentSupport::vesPortionUsesPointOfSale($data, $documentTotal, $vesUsdRate)
                 ) {
-                    $paymentReference = 'MIXTO POS ****'.$cardLast4;
+                    $paymentReference = ($posTerminalCode !== null ? 'MIXTO POS '.$posTerminalCode : 'MIXTO POS').' ****'.$cardLast4;
                 }
 
                 $shouldRequireReference = PosPaymentMethodOptions::requiresPaymentReference($paymentMethod)
@@ -1730,7 +1723,7 @@ final class CashRegisterAction
                 ]);
 
                 try {
-                    $sale = DB::transaction(function () use ($branchId, $data, $payloadItems, $lines, $products, $subtotal, $taxTotal, $igtfTotal, $discountTotal, $documentTotal, $actor, $paymentMethod, $paymentUsd, $paymentVes, $paymentReference, $bcvVesPerUsd, $generateAccountsReceivable, $vesUsdRate): Sale {
+                    $sale = DB::transaction(function () use ($branchId, $data, $payloadItems, $lines, $products, $subtotal, $taxTotal, $igtfTotal, $discountTotal, $documentTotal, $actor, $paymentMethod, $paymentUsd, $paymentVes, $paymentReference, $bcvVesPerUsd, $generateAccountsReceivable, $vesUsdRate, $resolvedPosTerminal): Sale {
                         $qtyByProduct = [];
                         foreach ($lines as $row) {
                             $pid = (int) $row['product_id'];
@@ -1788,6 +1781,10 @@ final class CashRegisterAction
 
                         if (SchemaFacade::hasColumn('sales', 'efectivo_usd_caja_meta')) {
                             $saleAttributes['efectivo_usd_caja_meta'] = null;
+                        }
+
+                        if (SchemaFacade::hasColumn('sales', 'pos_terminal_id')) {
+                            $saleAttributes['pos_terminal_id'] = $resolvedPosTerminal?->id;
                         }
 
                         $sale = Sale::query()->create($saleAttributes);
@@ -4253,6 +4250,30 @@ final class CashRegisterAction
         );
     }
 
+    private static function formUsesPointOfSale(Get $get): bool
+    {
+        if ($get('payment_method') === 'punto_venta_ves') {
+            return true;
+        }
+
+        if ($get('payment_method') === PosPaymentMethodOptions::CACHEA) {
+            return CacheaPosPaymentSupport::usesPointOfSaleComplement(
+                PosPaymentMethodOptions::CACHEA,
+                [
+                    'cachea_paid_amount' => $get('cachea_paid_amount'),
+                    'cachea_complement_payment_method' => $get('cachea_complement_payment_method'),
+                ],
+                self::computeSaleTotal($get),
+            );
+        }
+
+        if ($get('payment_method') !== 'mixed') {
+            return false;
+        }
+
+        return self::mixedPaymentUsesPointOfSaleFromGet($get);
+    }
+
     private static function mountMixedPagoMovilConciliationFromGet(Get $get, Component $component): void
     {
         if (! self::mixedPaymentUsesPagoMovilFromGet($get)) {
@@ -5516,6 +5537,7 @@ final class CashRegisterAction
             'cachea_paid_amount' => null,
             'cachea_complement_payment_method' => 'efectivo_usd',
             'bdv_pm_conciliated' => false,
+            'pos_terminal_id' => null,
             'card_last4' => null,
             'mixed_usd_paid' => null,
             'reference' => null,

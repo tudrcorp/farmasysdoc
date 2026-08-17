@@ -126,4 +126,12 @@ class Branch extends Model
     {
         return $this->hasMany(Employee::class);
     }
+
+    /**
+     * @return HasMany<PosTerminal, $this>
+     */
+    public function posTerminals(): HasMany
+    {
+        return $this->hasMany(PosTerminal::class);
+    }
 }

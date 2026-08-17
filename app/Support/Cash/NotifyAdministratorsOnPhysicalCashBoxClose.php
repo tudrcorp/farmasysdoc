@@ -118,13 +118,23 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
      *         payment_usd: float,
      *         payment_ves: float,
      *     },
+     *     close_detail: array{
+     *         sale_count: int,
+     *         total_usd: float,
+     *         total_ves: float,
+     *         punto_venta_ves: float,
+     *         pos_terminals: list<array{id: int|null, label: string, amount_ves: float}>,
+     *         pago_movil_ves: float,
+     *         usd_methods_total: float,
+     *         ves_methods_total: float,
+     *     },
      * }  $report
      */
     private function buildCaption(array $report): string
     {
-        $summary = $report['summary'];
+        $detail = $report['close_detail'];
 
-        return implode("\n", [
+        $lines = [
             'CIERRE DE CAJA FISICA',
             (string) config('app.name'),
             '',
@@ -137,12 +147,26 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
             'Cierre:'.$report['closed_at_label'],
             '',
             '[ RESUMEN ]',
-            'Ventas:'.$this->formatInteger($summary['sale_count']),
-            'Total ventas: USD '.$this->formatMoney($summary['grand_total']),
+            'Total de ventas:'.$this->formatInteger($detail['sale_count']),
+            'Total ventas USD: '.$this->formatMoney($detail['total_usd']),
+            'Total ventas VES: Bs. '.$this->formatMoney($detail['total_ves']),
             '',
-            'Reporte automatico al cerrar caja fisica.',
-            'Adjunto: totales por tipo de pago (PDF).',
-        ]);
+            '[ DETALLE ]',
+            'Total Punto de Venta: Bs. '.$this->formatMoney($detail['punto_venta_ves']),
+        ];
+
+        foreach ($detail['pos_terminals'] as $terminal) {
+            $lines[] = $terminal['label'].': Bs. '.$this->formatMoney((float) $terminal['amount_ves']);
+        }
+
+        $lines[] = 'Total Pago Movil: Bs. '.$this->formatMoney($detail['pago_movil_ves']);
+        $lines[] = 'Total USD: '.$this->formatMoney($detail['usd_methods_total']);
+        $lines[] = 'Total VES: Bs. '.$this->formatMoney($detail['ves_methods_total']);
+        $lines[] = '';
+        $lines[] = 'Reporte automatico al cerrar caja fisica.';
+        $lines[] = 'Adjunto: totales por tipo de pago (PDF).';
+
+        return implode("\n", $lines);
     }
 
     /**

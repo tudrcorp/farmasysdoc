@@ -319,7 +319,7 @@ final class InventoryAuditExpressAction
             return;
         }
 
-        $systemCost = round(max(0.0, (float) ($product->cost_price ?? $inventory->cost_price ?? 0)), 2);
+        $systemCost = round(max(0.0, (float) ($inventory->cost_price ?? $product->cost_price ?? 0)), 2);
         $filled = InventoryAuditApplyUpdateForm::fillFromProductAndBranch(
             product: $product,
             branchId: $branchId,

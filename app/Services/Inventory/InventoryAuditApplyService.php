@@ -797,13 +797,12 @@ final class InventoryAuditApplyService
         ?int $requestedCategoryId,
     ): bool {
         $previousQuantity = round((float) $inventory->quantity, 3);
-        $previousCost = round(max(0.0, (float) ($product->cost_price ?? 0)), 2);
         $previousCategoryId = $product->product_category_id !== null
             ? (int) $product->product_category_id
             : null;
 
         $quantityChanged = abs(round($countedQuantity - $previousQuantity, 3)) > 0.0001;
-        $costChanged = $costProvided && abs(($newCostPrice ?? 0) - $previousCost) > 0.00001;
+        $costChanged = $this->resolveCostChange($inventory, $product, $costProvided, $newCostPrice)['cost_changed'];
         $categoryChanged = $categoryProvided
             && $requestedCategoryId !== null
             && $requestedCategoryId !== $previousCategoryId;
@@ -841,13 +840,15 @@ final class InventoryAuditApplyService
         string $noChangesMessage,
     ): array {
         $previousQuantity = round((float) $inventory->quantity, 3);
-        $previousCost = round(max(0.0, (float) ($product->cost_price ?? 0)), 2);
+        $previousProductCost = round(max(0.0, (float) ($product->cost_price ?? 0)), 2);
+        $costChange = $this->resolveCostChange($inventory, $product, $costProvided, $newCostPrice);
+        $previousCost = $costChange['previous_cost'];
+        $costChanged = $costChange['cost_changed'];
         $previousCategoryId = $product->product_category_id !== null
             ? (int) $product->product_category_id
             : null;
         $quantityDelta = round($countedQuantity - $previousQuantity, 3);
 
-        $costChanged = $costProvided && abs(($newCostPrice ?? 0) - $previousCost) > 0.00001;
         $quantityChanged = abs($quantityDelta) > 0.0001;
         $categoryChanged = $categoryProvided
             && $requestedCategoryId !== null
@@ -860,6 +861,10 @@ final class InventoryAuditApplyService
         }
 
         $movementId = null;
+        $inventoryFill = [
+            'last_stock_take_at' => now(),
+            'updated_by' => $actorLabel,
+        ];
 
         if ($quantityChanged) {
             if ($quantityDelta < 0 && ! (bool) ($inventory->allow_negative_stock ?? false) && $countedQuantity < -0.0001) {
@@ -868,13 +873,17 @@ final class InventoryAuditApplyService
                 ]);
             }
 
-            $inventory->forceFill([
-                'quantity' => $countedQuantity,
-                'last_movement_at' => now(),
-                'last_stock_take_at' => now(),
-                'updated_by' => $actorLabel,
-            ])->save();
+            $inventoryFill['quantity'] = $countedQuantity;
+            $inventoryFill['last_movement_at'] = now();
+        }
 
+        if ($costChanged && $newCostPrice !== null) {
+            $inventoryFill['cost_price'] = $newCostPrice;
+        }
+
+        $inventory->forceFill($inventoryFill)->save();
+
+        if ($quantityChanged) {
             $movement = InventoryMovement::query()->create([
                 'product_id' => (int) $product->getKey(),
                 'inventory_id' => (int) $inventory->getKey(),
@@ -887,11 +896,6 @@ final class InventoryAuditApplyService
                 'created_by' => $actorLabel,
             ]);
             $movementId = (int) $movement->getKey();
-        } else {
-            $inventory->forceFill([
-                'last_stock_take_at' => now(),
-                'updated_by' => $actorLabel,
-            ])->save();
         }
 
         $productUpdates = [];
@@ -900,7 +904,7 @@ final class InventoryAuditApplyService
             $productUpdates['product_category_id'] = $requestedCategoryId;
         }
 
-        if ($costChanged && $newCostPrice !== null) {
+        if ($costChanged && $newCostPrice !== null && abs($newCostPrice - $previousProductCost) > 0.00001) {
             $productUpdates['cost_price'] = $newCostPrice;
         }
 
@@ -921,6 +925,34 @@ final class InventoryAuditApplyService
             'new_category_id' => $categoryChanged ? $requestedCategoryId : $previousCategoryId,
             'category_changed' => $categoryChanged,
             'movement_id' => $movementId,
+        ];
+    }
+
+    /**
+     * @return array{previous_cost: float, cost_changed: bool}
+     */
+    private function resolveCostChange(
+        Inventory $inventory,
+        Product $product,
+        bool $costProvided,
+        ?float $newCostPrice,
+    ): array {
+        $previousProductCost = round(max(0.0, (float) ($product->cost_price ?? 0)), 2);
+        $previousInventoryCost = round(max(0.0, (float) ($inventory->cost_price ?? 0)), 2);
+        $previousCost = $previousInventoryCost > 0.00001
+            ? $previousInventoryCost
+            : $previousProductCost;
+
+        $costChanged = $costProvided
+            && $newCostPrice !== null
+            && (
+                abs($newCostPrice - $previousProductCost) > 0.00001
+                || abs($newCostPrice - $previousInventoryCost) > 0.00001
+            );
+
+        return [
+            'previous_cost' => $previousCost,
+            'cost_changed' => $costChanged,
         ];
     }
 

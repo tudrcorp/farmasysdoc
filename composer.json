@@ -52,6 +52,10 @@
             "Composer\\Config::disableProcessTimeout",
             "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1 --timeout=0\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=server,queue,logs,vite --kill-others"
         ],
+        "worker": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php artisan queue:work database --queue=mail,default,broadcasts --sleep=3 --tries=3 --backoff=30 --timeout=900 --memory=512 --max-time=3600 --max-jobs=200 --rest=1"
+        ],
         "lint": [
             "pint --parallel"
         ],

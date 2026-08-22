@@ -1,0 +1,59 @@
+# Farmadoc — worker de cola (systemd, Debian).
+#
+# Instalar:
+#   sudo cp deploy/systemd/farmadoc-worker.service /etc/systemd/system/farmadoc-worker.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now farmadoc-worker.service
+#
+# Ajusta WorkingDirectory, ExecStart y User al path/usuario reales
+# (mismo usuario que php-fpm, normalmente www-data).
+# No uses EnvironmentFile=.env: Laravel ya carga el .env al arrancar.
+
+[Unit]
+Description=Farmadoc queue worker
+Documentation=https://laravel.com/docs/queues
+After=network-online.target mysql.service mariadb.service
+Wants=network-online.target
+# No uses Requires=mysql: si la BD es remota el worker no debe depender de un unit local.
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/farmasysdoc
+UMask=0002
+
+# queue:work (no listen): arranca el framework una vez.
+# mail primero para que un broadcast no retrase reportes de CxP.
+# --max-time/--max-jobs reciclan el proceso (exit 0) → Restart=always lo levanta.
+ExecStart=/usr/bin/php /var/www/farmasysdoc/artisan queue:work database --queue=mail,default,broadcasts --sleep=3 --tries=3 --backoff=30 --timeout=900 --memory=512 --max-time=3600 --max-jobs=200 --rest=1
+
+# SIGTERM = parada limpia de Laravel (termina el job en curso).
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=960
+Restart=always
+RestartSec=3
+
+# Menos prioridad que nginx/php-fpm; tope por si DomPDF se dispara.
+Nice=10
+MemoryMax=768M
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=farmadoc-worker
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/farmasysdoc/storage /var/www/farmasysdoc/bootstrap/cache
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

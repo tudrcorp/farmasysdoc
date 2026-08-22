@@ -18,9 +18,18 @@ class ProcessMarketingBroadcastJob implements ShouldQueue
 {
     use Queueable;
 
+    public int $tries = 1;
+
+    public int $timeout = 900;
+
+    public bool $failOnTimeout = true;
+
     public function __construct(
         public MarketingBroadcast $broadcast,
-    ) {}
+    ) {
+        $this->onQueue('broadcasts');
+        $this->afterCommit();
+    }
 
     public function handle(MarketingSegmentClientResolver $segmentResolver): void
     {

@@ -13,11 +13,19 @@ class SendAccountsPayableBulkPaymentReportMailJob implements ShouldQueue
 
     public int $tries = 3;
 
+    public int $timeout = 300;
+
+    /**
+     * @var list<int>
+     */
+    public array $backoff = [30, 90];
+
     /**
      * @param  list<int>  $accountsPayableIds
      */
     public function __construct(public array $accountsPayableIds)
     {
+        $this->onQueue('mail');
         $this->afterCommit();
     }
 

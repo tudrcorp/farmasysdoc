@@ -334,7 +334,7 @@ class SaleInfolist
             'efectivo_ves' => 'Efectivo VES',
             'transfer_ves' => 'Transferencia VES',
             'zelle' => 'Zelle',
-            'cachea' => 'Cachea',
+            'cachea' => 'Cashea',
             'pago_movil' => 'Pago Movil',
             'mixed' => 'Pago Multiple',
             'credito_cliente' => 'Crédito · cuenta por cobrar',

@@ -63,17 +63,17 @@ final class CacheaConciliationRegistrar
         ?User $user = null,
     ): ConciliationCachea {
         if (! PosPaymentMethodOptions::isCachea($sale->payment_method)) {
-            throw new RuntimeException('La venta no está marcada como pago Cachea.');
+            throw new RuntimeException('La venta no está marcada como pago Cashea.');
         }
 
         $cacheaPaid = CacheaPosPaymentSupport::paidAmountFromData($data);
         if ($cacheaPaid <= 0.00001) {
-            throw new RuntimeException('No se registró la conciliación Cachea: falta el monto pagado con Cachea.');
+            throw new RuntimeException('No se registró la conciliación Cashea: falta el monto pagado con Cashea.');
         }
 
         $documentTotal = round((float) $sale->total, 2);
         if ($cacheaPaid > $documentTotal + 0.02) {
-            throw new RuntimeException('No se registró la conciliación Cachea: el monto Cachea supera el total de la venta.');
+            throw new RuntimeException('No se registró la conciliación Cashea: el monto Cashea supera el total de la venta.');
         }
 
         $breakdown = CacheaPosPaymentSupport::breakdown($documentTotal, $data, $vesUsdRate);

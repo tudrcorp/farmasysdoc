@@ -17,7 +17,7 @@ return new class extends Migration
                 ->default(ConciliationCacheaCollectionStatus::PendingCollection->value)
                 ->after('reference')
                 ->index()
-                ->comment('Cobro del resto pendiente de Cachea: por cobrar o ya recibido por la farmacia');
+                ->comment('Cobro del resto pendiente de Cashea: por cobrar o ya recibido por la farmacia');
             $table->timestamp('collection_status_at')
                 ->nullable()
                 ->after('collection_status')

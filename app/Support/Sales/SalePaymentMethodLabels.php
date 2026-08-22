@@ -38,7 +38,7 @@ final class SalePaymentMethodLabels
             'efectivo_ves' => 'Efectivo VES',
             'transfer_ves' => 'Transferencia VES',
             'zelle' => 'Zelle',
-            'cachea' => 'Cachea',
+            'cachea' => 'Cashea',
             'pago_movil' => 'Pago móvil',
             'mixed' => 'Pago múltiple',
             'credito_cliente' => 'Crédito · CxC',

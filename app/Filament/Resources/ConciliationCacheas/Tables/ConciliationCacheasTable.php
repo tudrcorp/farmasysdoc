@@ -83,7 +83,7 @@ class ConciliationCacheasTable
                             ->label('Σ ventas'),
                     ),
                 TextColumn::make('cachea_paid_amount')
-                    ->label('Pagado Cachea')
+                    ->label('Pagado Cashea')
                     ->money('USD')
                     ->sortable()
                     ->alignEnd()
@@ -164,8 +164,8 @@ class ConciliationCacheasTable
             ->persistFiltersInSession()
             ->deferFilters(false)
             ->poll('15s')
-            ->emptyStateHeading('Sin conciliaciones Cachea por cobrar')
-            ->emptyStateDescription('Las ventas con Cachea aparecen aquí con estatus «Monto por cobrar». Cuando Cachea le pague a la farmacia, selecciónelas y use la acción masiva «Marcar monto recibido».')
+            ->emptyStateHeading('Sin conciliaciones Cashea por cobrar')
+            ->emptyStateDescription('Las ventas con Cashea aparecen aquí con estatus «Monto por cobrar». Cuando Cashea le pague a la farmacia, selecciónelas y use la acción masiva «Marcar monto recibido».')
             ->emptyStateIcon(Heroicon::QueueList)
             ->recordUrl(fn (ConciliationCachea $record): string => ConciliationCacheaResource::getUrl('view', ['record' => $record], isAbsolute: false))
             ->recordAction('view')
@@ -239,7 +239,7 @@ class ConciliationCacheasTable
                         ->icon(Heroicon::CheckBadge)
                         ->color('success')
                         ->requiresConfirmation()
-                        ->modalHeading('Confirmar cobro de Cachea')
+                        ->modalHeading('Confirmar cobro de Cashea')
                         ->modalDescription('Los registros seleccionados pasarán a estatus «Monto recibido» y dejarán de mostrarse en este listado. Los datos se conservan en el sistema.')
                         ->modalSubmitActionLabel('Confirmar')
                         ->visible(fn (): bool => Auth::user() instanceof User && Auth::user()->isAdministrator())

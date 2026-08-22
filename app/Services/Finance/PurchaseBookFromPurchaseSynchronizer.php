@@ -8,6 +8,7 @@ use App\Models\PurchaseBook;
 use App\Services\Audit\AuditLogger;
 use App\Support\Finance\DefaultVatRate;
 use App\Support\Fiscal\VenezuelanRifFormatter;
+use App\Support\Purchases\PurchaseBookVoucherNumberAllocator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ final class PurchaseBookFromPurchaseSynchronizer
 {
     public function __construct(
         private readonly PurchaseMonetarySnapshotBuilder $snapshotBuilder,
+        private readonly PurchaseBookVoucherNumberAllocator $voucherNumberAllocator,
     ) {}
 
     public function syncFromPurchase(Purchase $purchase): ?PurchaseBook
@@ -107,8 +109,6 @@ final class PurchaseBookFromPurchaseSynchronizer
             ?? Auth::user()?->name
             ?? 'sistema';
 
-        $initialVoucher = (int) config('fiscal.purchase_book.initial_voucher_number', 20260700000058);
-
         $book = DB::transaction(function () use (
             $purchase,
             $taxPeriod,
@@ -124,7 +124,6 @@ final class PurchaseBookFromPurchaseSynchronizer
             $supplierAddress,
             $invoiceNumber,
             $actor,
-            $initialVoucher,
         ): PurchaseBook {
             $again = PurchaseBook::query()
                 ->where('purchase_id', $purchase->id)
@@ -134,13 +133,12 @@ final class PurchaseBookFromPurchaseSynchronizer
                 return $again;
             }
 
-            $lastVoucher = PurchaseBook::query()
+            PurchaseBook::query()
                 ->orderByDesc('voucher_number')
                 ->lockForUpdate()
                 ->first();
-            $voucherNumber = $lastVoucher !== null
-                ? ((int) $lastVoucher->voucher_number) + 1
-                : $initialVoucher;
+
+            $voucherNumber = $this->voucherNumberAllocator->nextForInvoiceDate($invoiceDate);
 
             $lastOperation = PurchaseBook::query()
                 ->where('tax_period', $taxPeriod)

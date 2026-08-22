@@ -114,6 +114,10 @@ final class AccountsPayablePaymentReportBuilder
      *         paid_at: string,
      *         has_payment_proof: bool,
      *         tax_retained_ves: float|null,
+     *         payment_method: string,
+     *         payment_form: string,
+     *         bcv_rate: float|null,
+     *         payments: Collection<int, array<string, mixed>>,
      *     }>,
      *     count: int,
      *     total_amount_payable_ves: float,
@@ -122,6 +126,10 @@ final class AccountsPayablePaymentReportBuilder
      *     total_tax_retained_ves: float,
      *     generated_at: string,
      *     generated_by: string,
+     *     payment_method: string,
+     *     payment_form: string,
+     *     payment_reference: string|null,
+     *     paid_at: string,
      * }
      */
     public function buildMany(Collection $accountsPayables, ?User $actor = null): array
@@ -135,6 +143,10 @@ final class AccountsPayablePaymentReportBuilder
             ->values()
             ->map(function (AccountsPayable $accountsPayable) use ($actor): array {
                 $detail = $this->build($accountsPayable, $actor);
+                $lastPayment = $detail['payments']->last();
+                if (! is_array($lastPayment)) {
+                    $lastPayment = [];
+                }
 
                 return [
                     'accounts_payable' => $accountsPayable,
@@ -145,12 +157,19 @@ final class AccountsPayablePaymentReportBuilder
                     'total_paid_ves' => $detail['total_paid_ves'],
                     'payment_reference' => filled($accountsPayable->payment_reference)
                         ? (string) $accountsPayable->payment_reference
-                        : null,
-                    'paid_at' => $accountsPayable->paid_at?->format('d/m/Y H:i') ?? '—',
+                        : ($lastPayment['payment_reference'] ?? null),
+                    'paid_at' => $accountsPayable->paid_at?->format('d/m/Y H:i')
+                        ?? ($lastPayment['paid_at'] ?? '—'),
                     'has_payment_proof' => $detail['has_payment_proof'],
                     'tax_retained_ves' => $detail['tax_snapshot']->taxRetainedVes,
+                    'payment_method' => (string) ($lastPayment['payment_method'] ?? '—'),
+                    'payment_form' => (string) ($lastPayment['payment_form'] ?? '—'),
+                    'bcv_rate' => isset($lastPayment['bcv_rate']) ? (float) $lastPayment['bcv_rate'] : null,
+                    'payments' => $detail['payments'],
                 ];
             });
+
+        $firstRow = $rows->first();
 
         return [
             'rows' => $rows,
@@ -165,6 +184,10 @@ final class AccountsPayablePaymentReportBuilder
             'generated_by' => $actor instanceof User
                 ? (string) ($actor->email ?? $actor->name ?? 'usuario_'.$actor->getKey())
                 : 'sistema',
+            'payment_method' => is_array($firstRow) ? (string) ($firstRow['payment_method'] ?? '—') : '—',
+            'payment_form' => is_array($firstRow) ? (string) ($firstRow['payment_form'] ?? '—') : '—',
+            'payment_reference' => is_array($firstRow) ? ($firstRow['payment_reference'] ?? null) : null,
+            'paid_at' => is_array($firstRow) ? (string) ($firstRow['paid_at'] ?? '—') : '—',
         ];
     }
 }

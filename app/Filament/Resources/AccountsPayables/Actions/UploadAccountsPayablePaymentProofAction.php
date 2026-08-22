@@ -2,11 +2,11 @@
 
 namespace App\Filament\Resources\AccountsPayables\Actions;
 
+use App\Filament\Resources\AccountsPayables\Support\AccountsPayablePaymentFormSchema;
 use App\Models\AccountsPayable;
 use App\Services\Audit\AuditLogger;
 use App\Support\Finance\AccountsPayableStatus;
 use Filament\Actions\Action;
-use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
@@ -33,23 +33,7 @@ final class UploadAccountsPayablePaymentProofAction
                 'payment_proof_path' => self::record($action)?->payment_proof_path,
             ])
             ->schema([
-                FileUpload::make('payment_proof_path')
-                    ->label('Archivo del comprobante')
-                    ->helperText('Formatos: JPG, PNG, WebP o PDF. Máximo 5 MB.')
-                    ->disk('public')
-                    ->directory('accounts-payables/payment-proofs')
-                    ->visibility('public')
-                    ->acceptedFileTypes([
-                        'image/jpeg',
-                        'image/png',
-                        'image/webp',
-                        'application/pdf',
-                    ])
-                    ->maxSize(5120)
-                    ->downloadable()
-                    ->openable()
-                    ->required()
-                    ->columnSpanFull(),
+                AccountsPayablePaymentFormSchema::paymentProofUpload(required: true),
             ])
             ->action(function (array $data, Action $action): void {
                 $record = self::record($action);

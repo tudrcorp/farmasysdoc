@@ -309,7 +309,7 @@ final class ThermalFiscalReceiptFormatter
             'transfer_ves' => 'TRANSF. VES',
             'pago_movil' => 'PAGO MOVIL',
             'zelle' => 'ZELLE',
-            'cachea' => 'CACHEA',
+            'cachea' => 'CASHEA',
             'mixed' => 'PAGO MULTIPLE',
             'transfer_usd' => 'T. TRANSFER USD',
             default => 'PAGO: '.Str::upper((string) ($method ?? '—')),

@@ -5,10 +5,9 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\AccountsPayable;
 use App\Models\User;
+use App\Services\Finance\AccountsPayablePaymentReportPdfFactory;
 use App\Support\Filament\BranchAuthScope;
-use App\Support\Finance\AccountsPayablePaymentReportBuilder;
 use App\Support\Finance\AccountsPayableStatus;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -17,7 +16,7 @@ final class AccountsPayablePaymentReportPdfController extends Controller
     public function __invoke(
         Request $request,
         AccountsPayable $accountsPayable,
-        AccountsPayablePaymentReportBuilder $builder,
+        AccountsPayablePaymentReportPdfFactory $factory,
     ): Response {
         $this->authorizeAccess($request, $accountsPayable);
 
@@ -25,29 +24,9 @@ final class AccountsPayablePaymentReportPdfController extends Controller
             abort(422, 'El reporte detallado solo está disponible para cuentas por pagar en estado «Pagado».');
         }
 
-        $payload = $builder->build($accountsPayable, $request->user() instanceof User ? $request->user() : null);
+        $actor = $request->user() instanceof User ? $request->user() : null;
 
-        $logoPath = public_path('images/logos/farmadoc-ligth.png');
-        $payload['pdf_logo_data_uri'] = is_readable($logoPath)
-            ? 'data:image/png;base64,'.base64_encode((string) file_get_contents($logoPath))
-            : null;
-
-        $invoice = preg_replace(
-            '/[^A-Za-z0-9._-]+/',
-            '-',
-            (string) ($accountsPayable->supplier_invoice_number ?: $accountsPayable->getKey()),
-        ) ?: 'cxp';
-
-        $payload['pdf_document_ref'] = strtoupper(substr(hash(
-            'sha256',
-            (string) $accountsPayable->getKey().'|'.($accountsPayable->paid_at?->toIso8601String() ?? '').'|'.($payload['generated_at'] ?? '')
-        ), 0, 10));
-
-        $filename = 'reporte-pago-cxp-'.$invoice.'.pdf';
-
-        return Pdf::loadView('pdf.accounts-payable-payment-report', $payload)
-            ->setPaper('a4', 'portrait')
-            ->download($filename);
+        return $factory->download($accountsPayable, $actor);
     }
 
     private function authorizeAccess(Request $request, AccountsPayable $accountsPayable): void

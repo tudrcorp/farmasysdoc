@@ -2,6 +2,8 @@
 
 namespace App\Services\Finance;
 
+use App\Jobs\SendAccountsPayableBulkPaymentReportMailJob;
+use App\Jobs\SendAccountsPayablePaymentReportMailJob;
 use App\Models\AccountsPayable;
 use App\Models\Purchase;
 use App\Models\PurchaseHistory;
@@ -13,6 +15,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -36,6 +39,7 @@ final class AccountsPayablePaymentRegistrar
      *     amount_paid_ves: float|string,
      *     payment_reference?: string|null,
      *     notes?: string|null,
+     *     payment_proof_path?: mixed,
      * }  $data
      */
     public function register(AccountsPayable $accountsPayable, array $data, ?User $actor = null): PurchaseHistory
@@ -43,12 +47,16 @@ final class AccountsPayablePaymentRegistrar
         $actor ??= Auth::user();
         $actorLabel = $this->actorLabel($actor);
 
-        return DB::transaction(function () use ($accountsPayable, $data, $actorLabel): PurchaseHistory {
+        $history = DB::transaction(function () use ($accountsPayable, $data, $actorLabel): PurchaseHistory {
             /** @var AccountsPayable $ap */
             $ap = AccountsPayable::query()->whereKey($accountsPayable->getKey())->lockForUpdate()->firstOrFail();
 
             return $this->applyAfterLock($ap, $data, $actorLabel);
         });
+
+        SendAccountsPayablePaymentReportMailJob::dispatch((int) $accountsPayable->getKey());
+
+        return $history;
     }
 
     /**
@@ -61,6 +69,7 @@ final class AccountsPayablePaymentRegistrar
      *     paid_at: string|\DateTimeInterface,
      *     payment_reference?: string|null,
      *     notes?: string|null,
+     *     payment_proof_path?: mixed,
      * }  $sharedData
      * @return list<PurchaseHistory>
      */
@@ -86,7 +95,7 @@ final class AccountsPayablePaymentRegistrar
         $rateFx = $this->bcvRateForCurrentDayOrFail();
 
         try {
-            return DB::transaction(function () use ($accountsPayables, $sharedData, $actorLabel, $rateFx): array {
+            $histories = DB::transaction(function () use ($accountsPayables, $sharedData, $actorLabel, $rateFx): array {
                 $sorted = $accountsPayables->unique('id')->sortBy('id');
                 $histories = [];
 
@@ -153,6 +162,10 @@ final class AccountsPayablePaymentRegistrar
             );
             throw $e;
         }
+
+        $this->dispatchBulkPaymentReportMails($histories);
+
+        return $histories;
     }
 
     /**
@@ -164,6 +177,7 @@ final class AccountsPayablePaymentRegistrar
      *     amount_paid_ves: float|string,
      *     payment_reference?: string|null,
      *     notes?: string|null,
+     *     payment_proof_path?: mixed,
      * }  $data
      */
     private function applyAfterLock(AccountsPayable $ap, array $data, string $actorLabel): PurchaseHistory
@@ -258,6 +272,8 @@ final class AccountsPayablePaymentRegistrar
             $ap->payment_reference = $paymentRef;
         }
 
+        $this->applyOptionalPaymentProof($ap, $data['payment_proof_path'] ?? null);
+
         $ap->saveQuietly();
 
         AuditLogger::forModel(
@@ -288,6 +304,7 @@ final class AccountsPayablePaymentRegistrar
                 'amount_paid_ves' => $amountPaidVes,
                 'amount_paid_usd' => $paidUsd,
                 'payment_reference' => $paymentRef,
+                'payment_proof_path' => $ap->payment_proof_path,
                 'bcv_rate_at_payment' => $rateFx,
                 'remaining_principal_usd_after' => $newRemainingUsd,
                 'current_balance_ves_after' => $newCurrentBalanceVes,
@@ -340,5 +357,85 @@ final class AccountsPayablePaymentRegistrar
         $s = trim((string) $value);
 
         return $s === '' ? null : mb_substr($s, 0, 255);
+    }
+
+    private function applyOptionalPaymentProof(AccountsPayable $ap, mixed $value): void
+    {
+        $newPath = $this->normalizePaymentProofPath($value);
+        if ($newPath === null) {
+            return;
+        }
+
+        $previousPath = $ap->payment_proof_path;
+        $ap->payment_proof_path = $newPath;
+
+        if (
+            filled($previousPath)
+            && $previousPath !== $newPath
+            && Storage::disk('public')->exists((string) $previousPath)
+        ) {
+            Storage::disk('public')->delete((string) $previousPath);
+        }
+    }
+
+    private function normalizePaymentProofPath(mixed $value): ?string
+    {
+        if (is_array($value)) {
+            $first = reset($value);
+            $value = is_string($first) ? $first : null;
+        }
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $path = trim($value);
+
+        return $path === '' ? null : mb_substr($path, 0, 512);
+    }
+
+    /**
+     * @param  list<PurchaseHistory>  $histories
+     */
+    private function dispatchBulkPaymentReportMails(array $histories): void
+    {
+        $ids = array_values(array_unique(array_filter(
+            array_map(
+                static fn (PurchaseHistory $history): int => (int) ($history->accounts_payable_id ?? 0),
+                $histories,
+            ),
+            static fn (int $id): bool => $id > 0,
+        )));
+
+        if ($ids === []) {
+            return;
+        }
+
+        $records = AccountsPayable::query()
+            ->whereKey($ids)
+            ->with(['purchase.supplier'])
+            ->get();
+
+        $grouped = [];
+        foreach ($records as $record) {
+            $email = $record->supplierNotificationEmail();
+            if ($email === null) {
+                AuditLogger::record(
+                    event: 'accounts_payable_bulk_payment_report_mail_skipped',
+                    description: 'CxP masivo: no se encoló el reporte porque el proveedor no tiene correo.',
+                    auditableType: AccountsPayable::class,
+                    auditableId: (string) $record->getKey(),
+                    auditableLabel: $record->supplier_invoice_number,
+                );
+
+                continue;
+            }
+
+            $grouped[$email][] = (int) $record->getKey();
+        }
+
+        foreach ($grouped as $accountsPayableIds) {
+            SendAccountsPayableBulkPaymentReportMailJob::dispatch($accountsPayableIds);
+        }
     }
 }

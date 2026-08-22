@@ -107,7 +107,7 @@ final class AccountsPayableBulkPaymentFormSchema
                 ->icon(Heroicon::Banknotes)
                 ->compact()
                 ->visible(fn (Get $get): bool => blank($get('_bulk_error')))
-                ->schema(AccountsPayablePaymentFormSchema::paymentFields(false))
+                ->schema(AccountsPayablePaymentFormSchema::paymentFields(false, true))
                 ->columnSpanFull(),
         ];
     }
@@ -129,6 +129,7 @@ final class AccountsPayableBulkPaymentFormSchema
                 'paid_at' => now(),
                 'payment_reference' => '',
                 'notes' => null,
+                'payment_proof_path' => null,
             ];
         }
 
@@ -143,6 +144,7 @@ final class AccountsPayableBulkPaymentFormSchema
             'paid_at' => now(),
             'payment_reference' => '',
             'notes' => null,
+            'payment_proof_path' => null,
         ];
     }
 

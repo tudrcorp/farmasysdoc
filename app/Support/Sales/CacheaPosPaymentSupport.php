@@ -32,7 +32,7 @@ final class CacheaPosPaymentSupport
 
     public static function remainderStatusLabel(float $remainder): string
     {
-        return $remainder > 0.00001 ? 'Pendiente Cachea' : 'Liquidado';
+        return $remainder > 0.00001 ? 'Pendiente Cashea' : 'Liquidado';
     }
 
     public static function remainderStatusColor(float $remainder): string
@@ -75,6 +75,11 @@ final class CacheaPosPaymentSupport
         return round(max(0.0, $documentTotalUsd - self::normalizePaidAmount($cacheaPaidUsd)), 2);
     }
 
+    public static function vesEquivalentOfUsd(float $amountUsd, float $vesUsdRate): float
+    {
+        return round(max(0.0, $amountUsd) * max(0.0, $vesUsdRate), 2);
+    }
+
     public static function complementMethodFromGet(Get $get): string
     {
         return self::normalizeComplementMethod((string) ($get('cachea_complement_payment_method') ?? 'efectivo_usd'));
@@ -96,6 +101,7 @@ final class CacheaPosPaymentSupport
      *     complement_payment_method: string,
      *     payment_usd: float,
      *     payment_ves: float,
+     *     payment_ves_equivalent: float,
      * }
      */
     public static function breakdown(float $documentTotalUsd, array $data, float $vesUsdRate): array
@@ -108,12 +114,15 @@ final class CacheaPosPaymentSupport
             ? self::resolveComplementAmounts($remainder, $complement, $vesUsdRate)
             : [0.0, 0.0];
 
+        $paymentUsd = round($cacheaPaid + $complementUsd, 2);
+
         return [
             'cachea_paid_amount' => $cacheaPaid,
             'remainder' => $remainder,
             'complement_payment_method' => $complement,
-            'payment_usd' => round($cacheaPaid + $complementUsd, 2),
+            'payment_usd' => $paymentUsd,
             'payment_ves' => $complementVes,
+            'payment_ves_equivalent' => self::vesEquivalentOfUsd($paymentUsd, $vesUsdRate),
         ];
     }
 

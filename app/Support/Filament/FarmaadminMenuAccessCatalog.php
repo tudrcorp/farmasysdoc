@@ -19,7 +19,7 @@ class FarmaadminMenuAccessCatalog
             'sales_void' => ['label' => 'Anular ventas', 'route_name_fragment' => '__permission_sales_void__', 'group' => 'Operaciones'],
             'physical_cash_box' => ['label' => 'Caja física (vueltos)', 'route_name_fragment' => 'pages.caja-fisica', 'group' => 'Operaciones'],
             'physical_cash_box_movements' => ['label' => 'Movimientos caja física', 'route_name_fragment' => 'resources.physical-cash-box-movements.', 'group' => 'Operaciones'],
-            'cachea_conciliations' => ['label' => 'Conciliaciones Cachea', 'route_name_fragment' => 'resources.conciliation-cacheas.', 'group' => 'Operaciones'],
+            'cachea_conciliations' => ['label' => 'Conciliaciones Cashea', 'route_name_fragment' => 'resources.conciliation-cacheas.', 'group' => 'Operaciones'],
             'bdv_pagomovil_conciliation' => ['label' => 'Conciliaciones BDV', 'route_name_fragment' => 'pages.conciliacion-pagomovil-bdv', 'group' => 'Operaciones'],
             'purchases' => ['label' => 'Compras', 'route_name_fragment' => 'resources.purchases.', 'group' => 'Operaciones'],
             'accounts_receivable' => ['label' => 'Cuentas por cobrar', 'route_name_fragment' => 'resources.accounts-receivables.', 'group' => 'Operaciones'],

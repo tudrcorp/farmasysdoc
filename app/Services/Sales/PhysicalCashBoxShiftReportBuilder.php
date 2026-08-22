@@ -456,9 +456,7 @@ final class PhysicalCashBoxShiftReportBuilder
         $complement = (string) ($cachea?->complement_payment_method ?? '');
         $remainderUsd = round((float) ($cachea?->remainder ?? 0), 2);
         $rate = self::resolveVesUsdRate($sale);
-        $complementVes = $resolved['ves'] > 0.00001
-            ? $resolved['ves']
-            : round($remainderUsd * $rate, 2);
+        $complementVes = round($remainderUsd * $rate, 2);
 
         $posVes = 0.0;
         $pmVes = 0.0;

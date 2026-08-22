@@ -705,8 +705,8 @@ final class CashRegisterAction
                                                 'class' => 'farmadoc-pos-payment-toggle-row rounded-xl border border-zinc-300/60 bg-zinc-50/30 px-3 py-2.5 dark:border-white/20 dark:bg-white/5',
                                             ]),
                                         TextInput::make('cachea_paid_amount')
-                                            ->label('Monto pagado con Cachea')
-                                            ->helperText('Indique el monto que el cliente pagó por Cachea (USD).')
+                                            ->label('Monto Inicial del Cliente')
+                                            ->helperText('Indique el monto que el cliente pagó por Cashea (USD).')
                                             ->numeric()
                                             ->minValue(0.01)
                                             ->step(0.01)
@@ -719,14 +719,14 @@ final class CashRegisterAction
                                                 'min:0.01',
                                             ])
                                             ->validationMessages([
-                                                'required' => 'Indique el monto pagado con Cachea.',
-                                                'min' => 'El monto Cachea debe ser mayor a cero.',
+                                                'required' => 'Indique el monto inicial del cliente.',
+                                                'min' => 'El monto inicial del cliente debe ser mayor a cero.',
                                             ])
                                             ->dehydrated(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN))
                                             ->visible(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)),
                                         Select::make('cachea_complement_payment_method')
-                                            ->label('Forma de pago del resto')
-                                            ->helperText('Aplica al saldo pendiente después del pago Cachea.')
+                                            ->label('Metodo de Pago')
+                                            ->helperText('Aplica al saldo pendiente después del pago Cashea.')
                                             ->options(CacheaPosPaymentSupport::complementOptions())
                                             ->default('efectivo_usd')
                                             ->required()
@@ -782,7 +782,7 @@ final class CashRegisterAction
                                                 ]);
                                             }),
                                         TextEntry::make('cachea_remainder_preview')
-                                            ->label('Resto · pendiente Cachea')
+                                            ->label('Financiamiento Cashea')
                                             ->state(function (Get $get): string {
                                                 $total = self::computeSaleTotal($get);
                                                 $remainder = CacheaPosPaymentSupport::remainder(
@@ -792,7 +792,7 @@ final class CashRegisterAction
 
                                                 return self::formatMoney($remainder);
                                             })
-                                            ->helperText('Diferencia entre el total de la venta y el monto Cachea registrado.')
+                                            ->helperText('Diferencia entre el total de la venta y el monto Cashea registrado.')
                                             ->dehydrated(false)
                                             ->visible(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)),
                                         Toggle::make('generate_accounts_receivable')
@@ -1155,14 +1155,14 @@ final class CashRegisterAction
                                             ->columnSpanFull(),
                                         TextInput::make('reference')
                                             ->label('Referencia de pago')
-                                            ->helperText('Obligatoria para transferencia VES, Zelle, complemento Cachea o pagos mixtos con parte en bolívares. En Pago Móvil la referencia se indica en la ventana de conciliación BDV.')
+                                            ->helperText('Obligatoria para transferencia VES, Zelle, complemento Cashea o pagos mixtos con parte en bolívares. En Pago Móvil la referencia se indica en la ventana de conciliación BDV.')
                                             ->maxLength(255)
                                             ->markAsRequired(fn (Get $get): bool => self::posRequiresPaymentReference($get))
                                             ->rules(fn (Get $get): array => [
                                                 Rule::requiredIf(fn (): bool => self::posRequiresPaymentReference($get)),
                                             ])
                                             ->validationMessages([
-                                                'required' => 'Debe indicar una referencia de pago para transferencia VES, Zelle, complemento Cachea o la parte en bolívares del pago mixto.',
+                                                'required' => 'Debe indicar una referencia de pago para transferencia VES, Zelle, complemento Cashea o la parte en bolívares del pago mixto.',
                                             ])
                                             ->visible(fn (Get $get): bool => self::posRequiresPaymentReference($get)),
                                     ]),
@@ -1430,8 +1430,8 @@ final class CashRegisterAction
                     $cacheaPaid = CacheaPosPaymentSupport::paidAmountFromData($data);
                     if ($cacheaPaid <= 0.00001) {
                         Notification::make()
-                            ->title('Indique el monto Cachea')
-                            ->body('Debe registrar el monto pagado por el cliente con Cachea.')
+                            ->title('Indique el monto Cashea')
+                            ->body('Debe registrar el monto pagado por el cliente con Cashea.')
                             ->danger()
                             ->send();
 
@@ -1440,8 +1440,8 @@ final class CashRegisterAction
 
                     if ($cacheaPaid > $documentTotal + 0.02) {
                         Notification::make()
-                            ->title('Monto Cachea inválido')
-                            ->body('El monto pagado con Cachea no puede superar el total de la venta ('.self::formatMoney($documentTotal).').')
+                            ->title('Monto Cashea inválido')
+                            ->body('El monto pagado con Cashea no puede superar el total de la venta ('.self::formatMoney($documentTotal).').')
                             ->danger()
                             ->send();
 
@@ -1471,7 +1471,8 @@ final class CashRegisterAction
                 $requiresVesUsdRate = ($paymentMethod === 'mixed'
                     ? MixedPosPaymentSupport::requiresVesConversion($documentTotal, $data)
                     : self::requiresVesConversion($paymentMethod, $documentTotal, (float) ($data['mixed_usd_paid'] ?? 0)))
-                    || ($paymentMethod === 'efectivo_usd' && $documentTotal > 0.00001);
+                    || ($paymentMethod === 'efectivo_usd' && $documentTotal > 0.00001)
+                    || ($cacheaBreakdown !== null && $cacheaBreakdown['payment_usd'] > 0.00001);
 
                 if ($cacheaBreakdown !== null && $cacheaBreakdown['remainder'] > 0.00001) {
                     $requiresVesUsdRate = $requiresVesUsdRate || in_array(
@@ -1493,7 +1494,7 @@ final class CashRegisterAction
 
                 if ($cacheaBreakdown !== null) {
                     $paymentUsd = $cacheaBreakdown['payment_usd'];
-                    $paymentVes = $cacheaBreakdown['payment_ves'];
+                    $paymentVes = $cacheaBreakdown['payment_ves_equivalent'];
                 } else {
                     if ($paymentMethod === 'mixed') {
                         $mixedBreakdown = MixedPosPaymentSupport::breakdown($documentTotal, $vesUsdRate, $data);
@@ -1511,7 +1512,9 @@ final class CashRegisterAction
 
                 $pagoMovilVesAmount = $paymentMethod === 'mixed'
                     ? MixedPosPaymentSupport::pagoMovilVesAmount($data, $documentTotal, $vesUsdRate)
-                    : $paymentVes;
+                    : ($cacheaBreakdown !== null
+                        ? $cacheaBreakdown['payment_ves']
+                        : $paymentVes);
 
                 if (
                     (
@@ -1662,7 +1665,7 @@ final class CashRegisterAction
                     $paymentMethod === PosPaymentMethodOptions::CACHEA
                     && CacheaPosPaymentSupport::usesPointOfSaleComplement($paymentMethod, $data, $documentTotal)
                 ) {
-                    $paymentReference = ($posTerminalCode !== null ? 'CACHEA POS '.$posTerminalCode : 'CACHEA POS').' ****'.$cardLast4;
+                    $paymentReference = ($posTerminalCode !== null ? 'CASHEA POS '.$posTerminalCode : 'CASHEA POS').' ****'.$cardLast4;
                 } elseif (
                     $paymentMethod === 'mixed'
                     && MixedPosPaymentSupport::vesPortionUsesPointOfSale($data, $documentTotal, $vesUsdRate)
@@ -1680,7 +1683,7 @@ final class CashRegisterAction
                 if ($shouldRequireReference && $paymentReference === '') {
                     Notification::make()
                         ->title('Indique la referencia de pago')
-                        ->body('La referencia es obligatoria para transferencia VES, Zelle, complemento Cachea o la parte en bolívares del pago mixto.')
+                        ->body('La referencia es obligatoria para transferencia VES, Zelle, complemento Cashea o la parte en bolívares del pago mixto.')
                         ->danger()
                         ->send();
 
@@ -1919,7 +1922,7 @@ final class CashRegisterAction
                 if ($sale->payment_method === PosPaymentMethodOptions::CACHEA) {
                     $conciliation = $sale->conciliationCachea;
                     if ($conciliation !== null) {
-                        $saleSuccessBody .= ' · Resto Cachea '.self::formatMoney((float) $conciliation->remainder).'.';
+                        $saleSuccessBody .= ' · Resto Cashea '.self::formatMoney((float) $conciliation->remainder).'.';
                     }
                 }
                 if (PhysicalCashBoxMovement::query()
@@ -4163,7 +4166,7 @@ final class CashRegisterAction
 
             return [
                 'payment_usd' => $breakdown['payment_usd'],
-                'payment_ves' => $breakdown['payment_ves'],
+                'payment_ves' => $breakdown['payment_ves_equivalent'],
             ];
         }
 
@@ -5389,7 +5392,7 @@ final class CashRegisterAction
      * @return array<string, mixed>
      */
     /**
-     * Campos Cachea pueden perderse al deshidratar controles deshabilitados u ocultos;
+     * Campos Cashea pueden perderse al deshidratar controles deshabilitados u ocultos;
      * normaliza flags y recupera montos desde el formulario montado en Livewire.
      *
      * @param  array<string, mixed>  $data

@@ -16,7 +16,7 @@ class ConciliationCacheaInfolist
     {
         return $schema
             ->components([
-                Section::make('Conciliación Cachea')
+                Section::make('Conciliación Cashea')
                     ->icon(Heroicon::Banknotes)
                     ->schema([
                         Grid::make([
@@ -40,14 +40,14 @@ class ConciliationCacheaInfolist
                                     ->label('Total venta')
                                     ->money('USD'),
                                 TextEntry::make('cachea_paid_amount')
-                                    ->label('Pagado con Cachea')
+                                    ->label('Pagado con Cashea')
                                     ->money('USD'),
                                 TextEntry::make('remainder')
-                                    ->label('Resto · pendiente Cachea')
+                                    ->label('Financiamiento Cashea')
                                     ->money('USD')
                                     ->color('warning'),
                                 TextEntry::make('collection_status')
-                                    ->label('Estatus de cobro Cachea')
+                                    ->label('Estatus de cobro Cashea')
                                     ->badge()
                                     ->formatStateUsing(fn (?ConciliationCacheaCollectionStatus $state): string => $state?->label() ?? '—')
                                     ->color(fn (?ConciliationCacheaCollectionStatus $state): string => $state?->badgeColor() ?? 'gray'),
@@ -61,7 +61,7 @@ class ConciliationCacheaInfolist
                                     ->placeholder('—')
                                     ->visible(fn ($record): bool => $record->collection_status === ConciliationCacheaCollectionStatus::AmountReceived),
                                 TextEntry::make('complement_payment_method')
-                                    ->label('Forma de pago del resto')
+                                    ->label('Metodo de Pago')
                                     ->formatStateUsing(fn (?string $state): string => CacheaPosPaymentSupport::complementLabel($state)),
                                 TextEntry::make('reference')
                                     ->label('Referencia')

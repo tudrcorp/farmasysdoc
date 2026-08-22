@@ -27,7 +27,7 @@ final class PosPaymentMethodOptions
     }
 
     /**
-     * Opciones visibles del select «Cobro» en la caja (Cachea se activa con el toggle dedicado).
+     * Opciones visibles del select «Cobro» en la caja (Cashea se activa con el toggle dedicado).
      *
      * @return array<string, string>
      */
@@ -52,7 +52,7 @@ final class PosPaymentMethodOptions
         }
 
         if ($value === self::CACHEA) {
-            return 'Cachea';
+            return 'Cashea';
         }
 
         return self::posCobroOptions()[$value] ?? $value;
@@ -97,8 +97,8 @@ final class PosPaymentMethodOptions
         $src = e(asset(self::CACHEA_LOGO));
 
         return '<span class="farmadoc-sales-cachea-payment">'
-            .'<img src="'.$src.'" alt="Cachea" class="farmadoc-sales-cachea-payment__icon" loading="lazy" decoding="async" />'
-            .'<span class="farmadoc-sales-cachea-payment__label">Cachea</span>'
+            .'<img src="'.$src.'" alt="Cashea" class="farmadoc-sales-cachea-payment__icon" loading="lazy" decoding="async" />'
+            .'<span class="farmadoc-sales-cachea-payment__label">Cashea</span>'
             .'</span>';
     }
 
@@ -120,7 +120,7 @@ final class PosPaymentMethodOptions
 
         return new HtmlString(
             '<span class="farmadoc-cachea-page-heading">'
-            .'<img src="'.$src.'" alt="Cachea" class="farmadoc-cachea-page-heading__icon" loading="lazy" decoding="async" />'
+            .'<img src="'.$src.'" alt="Cashea" class="farmadoc-cachea-page-heading__icon" loading="lazy" decoding="async" />'
             .'<span class="farmadoc-cachea-page-heading__title">'.e($title).'</span>'
             .'</span>'
         );
@@ -132,8 +132,8 @@ final class PosPaymentMethodOptions
 
         return new HtmlString(
             '<span class="farmadoc-pos-cachea-toggle-label">'
-            .'<img src="'.$src.'" alt="Cachea" class="farmadoc-pos-cachea-toggle-label__icon" loading="lazy" decoding="async" />'
-            .'<span class="farmadoc-pos-cachea-toggle-label__text">Pagar con Cachea</span>'
+            .'<img src="'.$src.'" alt="Cashea" class="farmadoc-pos-cachea-toggle-label__icon" loading="lazy" decoding="async" />'
+            .'<span class="farmadoc-pos-cachea-toggle-label__text">Pagar con Cashea</span>'
             .'</span>'
         );
     }

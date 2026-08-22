@@ -26,11 +26,11 @@ class ConciliationCacheaResource extends Resource
 
     protected static ?string $model = ConciliationCachea::class;
 
-    protected static ?string $navigationLabel = 'Conciliaciones Cachea';
+    protected static ?string $navigationLabel = 'Conciliaciones Cashea';
 
-    protected static ?string $modelLabel = 'conciliación Cachea';
+    protected static ?string $modelLabel = 'conciliación Cashea';
 
-    protected static ?string $pluralModelLabel = 'conciliaciones Cachea';
+    protected static ?string $pluralModelLabel = 'conciliaciones Cashea';
 
     protected static ?int $navigationSort = 46;
 

@@ -5,10 +5,9 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\AccountsPayable;
 use App\Models\User;
+use App\Services\Finance\AccountsPayablePaymentReportPdfFactory;
 use App\Support\Filament\BranchAuthScope;
-use App\Support\Finance\AccountsPayablePaymentReportBuilder;
 use App\Support\Finance\AccountsPayableStatus;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Symfony\Component\HttpFoundation\Response;
@@ -19,7 +18,7 @@ final class AccountsPayableBulkPaymentReportPdfController extends Controller
 
     public function __invoke(
         Request $request,
-        AccountsPayablePaymentReportBuilder $builder,
+        AccountsPayablePaymentReportPdfFactory $factory,
     ): Response {
         $user = $request->user();
         if (! $user instanceof User) {
@@ -58,23 +57,7 @@ final class AccountsPayableBulkPaymentReportPdfController extends Controller
             abort(422, 'El reporte masivo solo incluye cuentas por pagar en estado «Pagado».');
         }
 
-        $payload = $builder->buildMany($records, $user);
-
-        $logoPath = public_path('images/logos/farmadoc-ligth.png');
-        $payload['pdf_logo_data_uri'] = is_readable($logoPath)
-            ? 'data:image/png;base64,'.base64_encode((string) file_get_contents($logoPath))
-            : null;
-
-        $payload['pdf_document_ref'] = strtoupper(substr(hash(
-            'sha256',
-            implode(',', $ids).'|'.($payload['generated_at'] ?? '').'|'.($payload['generated_by'] ?? '')
-        ), 0, 10));
-
-        $filename = 'reporte-pagos-cxp-'.now()->format('Y-m-d-His').'.pdf';
-
-        return Pdf::loadView('pdf.accounts-payable-bulk-payment-report', $payload)
-            ->setPaper('a4', 'landscape')
-            ->download($filename);
+        return $factory->downloadMany($records, $user);
     }
 
     /**

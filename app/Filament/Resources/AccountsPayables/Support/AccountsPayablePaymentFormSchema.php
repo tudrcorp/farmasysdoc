@@ -8,6 +8,7 @@ use App\Support\Purchases\PurchaseHistoryPaymentForm;
 use App\Support\Purchases\PurchaseHistoryPaymentMethod;
 use Filament\Forms\Components\Component;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -20,7 +21,7 @@ final class AccountsPayablePaymentFormSchema
     /**
      * @return list<Component>
      */
-    public static function paymentFields(bool $includeAmountInputs = true): array
+    public static function paymentFields(bool $includeAmountInputs = true, bool $includeOptionalPaymentProof = false): array
     {
         $base = [
             Select::make('payment_method')
@@ -68,7 +69,44 @@ final class AccountsPayablePaymentFormSchema
                 ->maxLength(2000),
         ];
 
+        if ($includeOptionalPaymentProof) {
+            $tail[] = self::paymentProofUpload(
+                required: false,
+                helperText: $includeAmountInputs
+                    ? 'Opcional. JPG, PNG, WebP o PDF. Máximo 5 MB. Puede registrar el pago sin adjuntar archivo.'
+                    : 'Opcional. JPG, PNG, WebP o PDF. Máximo 5 MB. Si lo carga, se asocia a todas las cuentas de este pago.',
+            );
+        }
+
         return array_merge($base, $amounts, $tail);
+    }
+
+    public static function paymentProofUpload(bool $required = false, ?string $helperText = null): FileUpload
+    {
+        $upload = FileUpload::make('payment_proof_path')
+            ->label($required ? 'Archivo del comprobante' : 'Documento del pago')
+            ->helperText($helperText ?? ($required
+                ? 'Formatos: JPG, PNG, WebP o PDF. Máximo 5 MB.'
+                : 'Opcional. JPG, PNG, WebP o PDF. Máximo 5 MB. Puede registrar el pago sin adjuntar archivo.'))
+            ->disk('public')
+            ->directory('accounts-payables/payment-proofs')
+            ->visibility('public')
+            ->acceptedFileTypes([
+                'image/jpeg',
+                'image/png',
+                'image/webp',
+                'application/pdf',
+            ])
+            ->maxSize(5120)
+            ->downloadable()
+            ->openable()
+            ->columnSpanFull();
+
+        if ($required) {
+            $upload->required();
+        }
+
+        return $upload;
     }
 
     /**
@@ -88,6 +126,7 @@ final class AccountsPayablePaymentFormSchema
             'amount_paid_ves' => $ves,
             'payment_reference' => '',
             'notes' => null,
+            'payment_proof_path' => null,
         ];
     }
 }

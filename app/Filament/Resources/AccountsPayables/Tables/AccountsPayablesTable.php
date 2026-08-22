@@ -396,7 +396,7 @@ class AccountsPayablesTable
                         })
                         ->visible(fn (AccountsPayable $record): bool => $record->status === AccountsPayableStatus::POR_PAGAR)
                         ->fillForm(fn (AccountsPayable $record): array => AccountsPayablePaymentFormSchema::defaultStateForRecord($record))
-                        ->schema(AccountsPayablePaymentFormSchema::paymentFields(true))
+                        ->schema(AccountsPayablePaymentFormSchema::paymentFields(true, true))
                         ->action(function (AccountsPayable $record, array $data): void {
                             AuditLogger::record(
                                 event: 'filament_accounts_payable_single_payment_submit',
@@ -412,9 +412,13 @@ class AccountsPayablesTable
 
                             try {
                                 app(AccountsPayablePaymentRegistrar::class)->register($record, $data);
+                                $record->refresh();
                                 Notification::make()
                                     ->title('Pago registrado')
-                                    ->body('Se actualizó la cuenta por pagar y quedó asentado en el histórico de compras.')
+                                    ->body('Se actualizó la cuenta por pagar y quedó asentado en el histórico de compras.'
+                                        .($record->supplierNotificationEmail() !== null
+                                            ? ' El reporte en PDF se enviará al correo del proveedor.'
+                                            : ''))
                                     ->success()
                                     ->send();
                             } catch (ValidationException $e) {
@@ -495,6 +499,7 @@ class AccountsPayablesTable
                                 'paid_at' => $data['paid_at'] ?? null,
                                 'payment_reference' => $data['payment_reference'] ?? null,
                                 'notes' => $data['notes'] ?? null,
+                                'payment_proof_path' => $data['payment_proof_path'] ?? null,
                             ];
 
                             AuditLogger::record(
@@ -509,9 +514,16 @@ class AccountsPayablesTable
 
                             try {
                                 app(AccountsPayablePaymentRegistrar::class)->registerBulkFullSettlement($records, $shared);
+                                $willEmail = $records->contains(
+                                    static fn (mixed $record): bool => $record instanceof AccountsPayable
+                                        && $record->supplierNotificationEmail() !== null,
+                                );
                                 Notification::make()
                                     ->title('Pagos registrados')
-                                    ->body('Se actualizaron '.count($payload->selectedLines).' cuenta(s) por pagar y el histórico de compras.')
+                                    ->body('Se actualizaron '.count($payload->selectedLines).' cuenta(s) por pagar y el histórico de compras.'
+                                        .($willEmail
+                                            ? ' El reporte en PDF se enviará al correo de cada proveedor.'
+                                            : ''))
                                     ->success()
                                     ->send();
                             } catch (ValidationException $e) {

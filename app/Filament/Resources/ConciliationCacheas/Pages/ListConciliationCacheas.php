@@ -15,13 +15,13 @@ class ListConciliationCacheas extends ListRecords
 
     protected static string $resource = ConciliationCacheaResource::class;
 
-    protected static ?string $title = 'Conciliaciones Cachea';
+    protected static ?string $title = 'Conciliaciones Cashea';
 
-    protected ?string $subheading = 'Ventas con pago Cachea en caja. Gerencia ve solo montos por cobrar de sus sucursales asignadas; el administrador puede marcar cobros recibidos con la acción masiva.';
+    protected ?string $subheading = 'Ventas con pago Cashea en caja. Gerencia ve solo montos por cobrar de sus sucursales asignadas; el administrador puede marcar cobros recibidos con la acción masiva.';
 
     public function getHeading(): string|Htmlable
     {
-        return PosPaymentMethodOptions::cacheaPageHeadingHtml(static::$title ?? 'Conciliaciones Cachea');
+        return PosPaymentMethodOptions::cacheaPageHeadingHtml(static::$title ?? 'Conciliaciones Cashea');
     }
 
     /**

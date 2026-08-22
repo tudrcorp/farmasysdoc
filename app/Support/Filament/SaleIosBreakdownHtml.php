@@ -278,7 +278,7 @@ final class SaleIosBreakdownHtml
             'punto_venta_ves' => 'Punto de venta',
             'transfer_ves' => 'Transferencia VES',
             'zelle' => 'Zelle',
-            'cachea' => 'Cachea',
+            'cachea' => 'Cashea',
             'pago_movil' => 'Pago móvil',
             'mixed' => 'Pago mixto',
             'transfer_usd' => 'Transferencias USD',

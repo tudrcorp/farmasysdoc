@@ -81,4 +81,29 @@ class AccountsPayable extends Model
     {
         return $this->hasMany(PurchaseHistory::class, 'accounts_payable_id');
     }
+
+    /**
+     * Correo del proveedor para notificar el pago (email principal o de contacto).
+     */
+    public function supplierNotificationEmail(): ?string
+    {
+        $this->loadMissing('purchase.supplier');
+        $supplier = $this->purchase?->supplier;
+        if (! $supplier instanceof Supplier) {
+            return null;
+        }
+
+        foreach ([$supplier->email, $supplier->contact_email] as $candidate) {
+            if (! filled($candidate)) {
+                continue;
+            }
+
+            $email = trim((string) $candidate);
+            if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return $email;
+            }
+        }
+
+        return null;
+    }
 }

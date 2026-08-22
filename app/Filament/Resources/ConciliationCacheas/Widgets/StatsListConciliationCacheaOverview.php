@@ -28,9 +28,9 @@ class StatsListConciliationCacheaOverview extends StatsOverviewWidget
      */
     protected int|array|null $columns = ['@sm' => 1, '@md' => 2, '@lg' => 4];
 
-    protected ?string $heading = 'Resumen Cachea';
+    protected ?string $heading = 'Resumen Cashea';
 
-    protected ?string $description = 'Totales según los filtros activos de la tabla. El resto pendiente es lo que la farmacia debe recibir de Cachea.';
+    protected ?string $description = 'Totales según los filtros activos de la tabla. El resto pendiente es lo que la farmacia debe recibir de Cashea.';
 
     /**
      * @return array<Stat>
@@ -62,8 +62,8 @@ class StatsListConciliationCacheaOverview extends StatsOverviewWidget
                 ->color('gray')
                 ->icon(Heroicon::DocumentCurrencyDollar)
                 ->extraAttributes(['class' => 'farmadoc-cachea-stat-tone-sales']),
-            Stat::make('Pagado con Cachea', Number::currency($cacheaPaid, 'USD', 'en', 2))
-                ->description('Abonado por el cliente vía Cachea')
+            Stat::make('Pagado con Cashea', Number::currency($cacheaPaid, 'USD', 'en', 2))
+                ->description('Abonado por el cliente vía Cashea')
                 ->descriptionIcon(Heroicon::CheckBadge)
                 ->descriptionColor('success')
                 ->color('success')
@@ -71,7 +71,7 @@ class StatsListConciliationCacheaOverview extends StatsOverviewWidget
                 ->extraAttributes(['class' => 'farmadoc-cachea-stat-tone-paid']),
             Stat::make('Resto pendiente', Number::currency($remainder, 'USD', 'en', 2))
                 ->description($remainder > 0.00001
-                    ? 'Por cobrar a Cachea'
+                    ? 'Por cobrar a Cashea'
                     : 'Nada pendiente en el criterio')
                 ->descriptionIcon($remainder > 0.00001 ? Heroicon::ExclamationTriangle : Heroicon::CheckCircle)
                 ->descriptionColor($remainder > 0.00001 ? 'warning' : 'success')

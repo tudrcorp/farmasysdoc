@@ -36,7 +36,7 @@ class ViewAccountsPayable extends ViewRecord
                 ->visible(fn (): bool => $this->getRecord() instanceof AccountsPayable
                     && $this->getRecord()->status === AccountsPayableStatus::POR_PAGAR)
                 ->fillForm(fn (): array => AccountsPayablePaymentFormSchema::defaultStateForRecord($this->requireAccountsPayableRecord()))
-                ->schema(AccountsPayablePaymentFormSchema::paymentFields(true))
+                ->schema(AccountsPayablePaymentFormSchema::paymentFields(true, true))
                 ->action(function (array $data): void {
                     $record = $this->requireAccountsPayableRecord();
 
@@ -57,7 +57,10 @@ class ViewAccountsPayable extends ViewRecord
                         $record->refresh();
                         Notification::make()
                             ->title('Pago registrado')
-                            ->body('Quedó asentado en el histórico de compras y la cuenta por pagar se actualizó.')
+                            ->body('Quedó asentado en el histórico de compras y la cuenta por pagar se actualizó.'
+                                .($record->supplierNotificationEmail() !== null
+                                    ? ' El reporte en PDF se enviará al correo del proveedor.'
+                                    : ''))
                             ->success()
                             ->send();
                     } catch (ValidationException $e) {

@@ -66,6 +66,37 @@
             padding-top: 5px;
         }
         .muted { color: #666; font-size: 6.5pt; }
+        h2 {
+            font-size: 9.5pt;
+            color: #0e5c5f;
+            margin: 14px 0 6px 0;
+            border-bottom: 1px solid #0e5c5f;
+            padding-bottom: 2px;
+        }
+        .invoice-block {
+            margin: 8px 0 12px 0;
+            border: 1px solid #cfe6e7;
+            padding: 8px 10px;
+            page-break-inside: avoid;
+        }
+        .invoice-block h3 {
+            font-size: 8.5pt;
+            color: #0e5c5f;
+            margin: 0 0 6px 0;
+        }
+        table.lines {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 7pt;
+        }
+        table.lines th, table.lines td {
+            border: 1px solid #ccc;
+            padding: 3px 4px;
+        }
+        table.lines th {
+            background: #f0fafb;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -75,7 +106,10 @@
         @endif
         <h1>Reporte masivo de pagos — Cuentas por pagar</h1>
         <div class="meta">
-            {{ $count }} registro(s) pagado(s)
+            {{ $count }} factura(s) cancelada(s)
+            · Método: {{ $payment_method ?? '—' }}
+            · Forma: {{ $payment_form ?? '—' }}
+            · Fecha: {{ $paid_at ?? '—' }}
             · Generado: {{ $generated_at }}
             · Usuario: {{ $generated_by }}
             · Ref. {{ $pdf_document_ref ?? '—' }}
@@ -97,6 +131,7 @@
                 <th class="num" style="width: 8%;">Pagado USD</th>
                 <th class="num" style="width: 9%;">Pagado Bs</th>
                 <th style="width: 8%;">Referencia</th>
+                <th style="width: 9%;">Método</th>
                 <th class="center" style="width: 5%;">Comp.</th>
             </tr>
         </thead>
@@ -130,6 +165,7 @@
                             <div class="muted">{{ \Illuminate\Support\Str::limit((string) $ap->notes, 60) }}</div>
                         @endif
                     </td>
+                    <td>{{ $row['payment_method'] ?? '—' }}</td>
                     <td class="center">{{ $row['has_payment_proof'] ? 'Sí' : 'No' }}</td>
                 </tr>
             @endforeach
@@ -156,6 +192,67 @@
             </tr>
         </table>
     </div>
+
+    <h2>Detalle de cada factura cancelada</h2>
+    @foreach ($rows as $row)
+        @php
+            /** @var \App\Models\AccountsPayable $ap */
+            $ap = $row['accounts_payable'];
+            $payments = $row['payments'] ?? collect();
+        @endphp
+        <div class="invoice-block">
+            <h3>
+                Factura {{ $ap->supplier_invoice_number ?: '—' }}
+                · Control {{ $ap->supplier_control_number ?: '—' }}
+                · {{ $ap->supplier_name ?: '—' }}
+                · {{ $ap->supplier_tax_id ?: '—' }}
+            </h3>
+            <div class="muted" style="margin-bottom: 5px;">
+                OC {{ $row['purchase_number'] ?: '—' }}
+                · {{ $row['branch_name'] }}
+                · {{ $row['payment_form'] ?? '—' }}
+                @if (! empty($row['bcv_rate']))
+                    · BCV {{ number_format((float) $row['bcv_rate'], 4, ',', '.') }}
+                @endif
+            </div>
+            @if ($payments->isEmpty())
+                <div class="muted">Sin movimientos de pago en el histórico.</div>
+            @else
+                <table class="lines">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Método</th>
+                            <th>Forma</th>
+                            <th class="num">USD</th>
+                            <th class="num">Bs</th>
+                            <th class="num">Tasa BCV</th>
+                            <th>Referencia</th>
+                            <th class="num">Retenido Bs</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($payments as $payment)
+                            <tr>
+                                <td>{{ $payment['paid_at'] }}</td>
+                                <td>{{ $payment['payment_method'] }}</td>
+                                <td>{{ $payment['payment_form'] }}</td>
+                                <td class="num">{{ number_format($payment['amount_paid_usd'], 2, ',', '.') }}</td>
+                                <td class="num">{{ number_format($payment['amount_paid_ves'], 2, ',', '.') }}</td>
+                                <td class="num">
+                                    {{ $payment['bcv_rate'] !== null ? number_format((float) $payment['bcv_rate'], 4, ',', '.') : '—' }}
+                                </td>
+                                <td>{{ $payment['payment_reference'] ?: '—' }}</td>
+                                <td class="num">
+                                    {{ $payment['retention_amount_ves'] !== null ? number_format((float) $payment['retention_amount_ves'], 2, ',', '.') : '—' }}
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
+        </div>
+    @endforeach
 
     <div class="footer">
         Documento de respaldo interno · Farmadoc® · Solo incluye cuentas por pagar en estado Pagado.

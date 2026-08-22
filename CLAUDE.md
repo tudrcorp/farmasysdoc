@@ -6,52 +6,128 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Responder siempre en español al usuario, incluidas explicaciones y resúmenes de cambios. El código, nombres de variables/métodos, commits y comentarios en el código se mantienen en inglés según las convenciones existentes del proyecto.
 
+Excepción: los textos que ve el usuario final (labels de Filament, `->label()`, `modelLabel`, notificaciones, mensajes de validación, vistas Blade, etiquetas de enums) van en español, siguiendo lo que ya hacen los archivos vecinos.
+
 ## Project Overview
 
-Farmadoc (`farmasysdoc`) is a Laravel 13 + Filament 5 back-office system for a pharmacy chain operating in Venezuela: inventory/lots, sales, purchases, accounts payable/receivable, payroll/HR, fiscal receipts, product transfers between branches, delivery logistics, and marketing. A React Native (Expo) delivery-driver app lives in `mobile/farmadelivery` and talks to the Sanctum-protected `api/v1/delivery/*` routes. Third-party pharmacy partners integrate via token-authenticated `api/external/*` routes (see `App\Http\Middleware\AuthenticateApiClient` and the `ApiClient` model).
+Farmadoc (`farmasysdoc`) is a Laravel 13 + Filament 5 back-office system for a pharmacy chain operating in Venezuela: inventory/lots (FEFO), sales/POS, purchases, accounts payable/receivable, payroll & HR, fiscal receipts, product transfers between branches, delivery logistics, bank conciliation (BDV / Cashea), and marketing.
 
-Locale/currency context matters throughout: money amounts are tracked in both USD and VES (`*_usd`/`*_ves` columns), exchange rates come from `App\Services\Dolar` / `VenezuelaOfficialUsdVesRateClient`, and fiscal/tax logic follows Venezuelan SENIAT rules.
+Satellite clients:
+- `mobile/farmadelivery` — React Native (Expo, TypeScript) delivery-driver app, talks to the Sanctum-protected `api/v1/delivery/*` routes.
+- Third-party pharmacy partners integrate via token-authenticated `api/external/*` routes (`App\Http\Middleware\AuthenticateApiClient` + the `ApiClient` model).
+- A public storefront (`/`, `/buscar-productos`, `/docs/api`, `/sitemap.xml`) served by plain controllers/Blade.
+
+Locale/currency context matters throughout: money is tracked in both USD and VES (`*_usd`/`*_ves` column pairs), exchange rates come from `App\Services\Dolar\*` / `VenezuelaOfficialUsdVesRateClient`, and fiscal/tax logic follows Venezuelan SENIAT rules. App locale is `es`, timezone `America/Caracas`.
 
 ## Commands
 
 ```bash
-composer dev                          # runs server + queue:listen + pail + vite concurrently
-vendor/bin/pint --dirty --format agent   # format only changed PHP files (required after PHP edits)
-php artisan test --compact               # run full suite
-php artisan test --compact --filter=testName   # run a single test
-npm run dev / npm run build              # Vite (Tailwind v4 + JS assets)
+composer dev                              # server + queue:listen + pail + vite concurrently
+composer lint                             # pint --parallel over the whole codebase
+vendor/bin/pint --dirty --format agent    # format only changed PHP files (required after PHP edits)
+php artisan test --compact                # full suite
+php artisan test --compact --filter=name  # single test
+npm run dev / npm run build               # Vite (Tailwind v4 + JS assets)
 ```
 
 The app is always served via Laravel Herd at `https://farmasysdoc.test` — never start `php artisan serve` or another web server for it; use the `get-absolute-url` Boost tool for links.
 
 **Do not run tests or test-adjacent DB operations yourself.** Per `.cursor/rules/no-agent-test-execution.mdc`, agents must not execute `php artisan test`, Pest/PHPUnit directly, `migrate:fresh`, `schema:dump`, or anything that triggers `RefreshDatabase`/`DatabaseMigrations`/`LazilyRefreshDatabase`, and must not create/edit/delete files under `tests/` — unless the user explicitly asks for it in that message. This overrides the generic "every change must be tested by running tests" guidance below: instead, write/update the test code and tell the user how to run it themselves.
 
+Domain maintenance commands live in `app/Console/Commands` (`accounts-payable:recalculate-current-balances` — also scheduled daily at 07:00 America/Caracas in `bootstrap/app.php`; FEFO lot seeding/sync; inventory CSV imports; purchase fiscal backfill; WhatsApp cash-box smoke tests). Check there before writing a new one-off script.
+
 ## Architecture
 
-### Two Filament panels
-- **`farmaadmin`** (`App\Providers\Filament\FarmaadminPanelProvider`, path `/farmaadmin`) — the main internal back-office. Resources/Pages/Widgets/Clusters are auto-discovered from `app/Filament/{Resources,Pages,Widgets,Clusters}`.
-- **`business-partners`** (`App\Providers\Filament\BusinessPartnersPanelProvider`, id/path `business-partners`) — a separate, self-contained panel for external partner companies with its own discovery roots under `app/Filament/BusinessPartners/{Resources,Pages}` and its own `Login` page. Partner accounts are `PartnerCompanyUser`, distinct from the internal `User` model.
+### Five distinct auth mechanisms
+Do not mix these up when adding routes, resources or endpoints:
 
-When adding a resource, check which panel it belongs to before creating it — the two panels are not interchangeable and use different auth guards/access rules.
+| Surface | Guard / middleware | Identity model |
+| --- | --- | --- |
+| `farmaadmin` Filament panel (`/farmaadmin`) | `web` + Filament `Authenticate` | `User` |
+| `business-partners` Filament panel | its own panel guard | `PartnerCompanyUser` |
+| Employee Portal (`portal/*`) | `employee.portal` / `employee.portal.guest` | `Employee` |
+| Delivery app (`api/v1/delivery/*`) | `auth:sanctum` | `User` (delivery role) |
+| Partner API (`api/external/*`) | `api.client` (`AuthenticateApiClient`) | `ApiClient` / `PartnerCompany` |
+
+Middleware aliases are registered in `bootstrap/app.php`.
+
+### Two Filament panels
+- **`farmaadmin`** (`App\Providers\Filament\FarmaadminPanelProvider`, path `/farmaadmin`, `->default()`) — the main internal back-office. Resources/Pages/Widgets/Clusters are auto-discovered from `app/Filament/{Resources,Pages,Widgets,Clusters}`. Navigation groups are declared in the provider (`configuration`, `operations`, `hr`, `marketing`, `inventory`, `commercial_allies`, `reports`); its auth middleware stack adds `EnsureCashierShiftNotLocked`, `EnsureFarmaadminMenuAccess` and `AuditFarmaadminHttpActivity`.
+- **`business-partners`** (`App\Providers\Filament\BusinessPartnersPanelProvider`) — a separate, self-contained panel for external partner companies with its own discovery roots under `app/Filament/BusinessPartners/{Resources,Pages}` and its own `Login` page.
+
+When adding a resource, check which panel it belongs to first — the two are not interchangeable.
+
+### Filament resource file layout
+Each resource is a folder, not a single file. Follow the existing shape (see `app/Filament/Resources/Sales/`):
+
+```
+Resources/<Plural>/
+  <Model>Resource.php      # only wiring: model, labels, icon, navigationGroup, pages
+  Schemas/<Model>Form.php  # form schema
+  Schemas/<Model>Infolist.php
+  Tables/<Model>sTable.php
+  Pages/{List,Create,Edit,View}<Model>.php
+  Actions/…                # custom Filament actions
+  Widgets/…                # resource-scoped stats/charts
+  Support/…                # shared form-schema builders
+```
+
+Cross-resource behaviour lives in traits under `app/Filament/Resources/Concerns` (`AdministratorOnlyFarmaadminAccess`, `ChecksConfigurationAccess`, `RestrictsAccessForDeliveryUsers`).
+
+Note: `Resources/Roles/RoleResource` is a thin subclass of `Resources/Rols/RolResource` kept so route names read `resources.roles.*`. Edit the `Rols/` implementation, not the alias.
 
 ### Domain layering: Models → Services → Support → Filament/Livewire/Http
-- `app/Models` — Eloquent models (70+), one per business entity (Sale, Purchase, Inventory, PayrollPeriod, AccountsPayable, etc.). Financial models generally carry parallel `_usd`/`_ves` money columns.
-- `app/Services/{Sales,Purchases,Finance,Fiscal,Hr,Inventory,Dashboard,Marketing,Pricing,Dolar,BdvConciliation,Reports,Audit}` — domain services encapsulating business workflows that span multiple models (e.g. `PurchaseBookFromPurchaseSynchronizer`, `AccountsPayableFromPurchaseSynchronizer`, `SaleVoidService`, `PayrollCalculator`). Prefer extending/reusing an existing service in the matching domain folder over writing logic inline in a Filament resource or controller.
-- `app/Support/{...}` — lower-level helpers/value objects backing the services (Cash, Deliveries, Fiscal, Hr, Orders, Products, Purchases, Qr, etc.).
-- `app/Filament` — panel UI (forms/tables/actions) that calls into Services; avoid putting business logic directly in resource/page classes.
-- `app/Livewire/{Hr,EmployeePortal,Filament,Actions}` — standalone Livewire components outside Filament, notably the public-facing Employee Portal (`portal/*` routes, its own `employee.portal`/`employee.portal.guest` guard middleware and `Employee` model auth, not the `User` model).
+- `app/Models` — 71 Eloquent models, one per business entity. Financial models generally carry parallel `_usd`/`_ves` money columns.
+- `app/Services/{Sales,Purchases,Finance,Fiscal,Hr,Inventory,Dashboard,Marketing,Pricing,Dolar,BdvConciliation,Reports,Audit}` — domain services encapsulating workflows that span multiple models (`PurchaseBookFromPurchaseSynchronizer`, `SaleVoidService`, `PayrollCalculator`, `InventoryAuditApplyService`…). Prefer extending/reusing an existing service in the matching domain folder over writing logic inline in a Filament resource or controller.
+- `app/Support/{...}` — lower-level helpers/value objects backing the services (Cash, Deliveries, Filament, Filesystem, Finance, Fiscal, Hr, Inventory, Livewire, Maps, Notifications, Orders, Partners, Products, ProductTransfers, Purchases, Qr, Sales, Storefront, Users).
+- `app/Enums` — ~35 backed enums for statuses and typed domain vocabulary (`SaleStatus`, `OrderStatus`, `PurchaseStatus`, `ProductTransferStatus`, `Hr*`, `Marketing*`…). New status columns should get an enum + Spanish labels; `tests/Unit/EnumSpanishLabelsTest.php` guards those labels.
+- `app/Filament` — panel UI that calls into Services; avoid putting business logic directly in resource/page classes.
+- `app/Livewire/{Actions,EmployeePortal,Filament,Hr}` — standalone Livewire components outside Filament: the public Employee Portal, plus panel-injected widgets (`BcvExchangeRateBadge`, `BdvPagomovilConciliationFab`) mounted through `PanelsRenderHook` in the panel provider.
+- `app/Http/Controllers` — thin controllers, mostly PDF/report endpoints and the external + delivery APIs.
+
+### Authorization: roles, menu keys, and branch scope
+There is no Spatie permissions package. Access control is homegrown and has three layers:
+
+1. **Roles** — `Rol` model (`rols` table, name stored upper-cased) with an `allowed_menu_items` JSON column, related to branches through the `branch_rol` pivot. `User::isAdministrator()/isManager()/isCashier()/isCoordinator()/isDeliveryUser()` and friends read from it.
+2. **Menu keys** — `App\Support\Filament\FarmaadminMenuAccessCatalog` is the single catalog mapping a menu key (`sales`, `purchases`, `hr_employees`, …) to a route-name fragment. `EnsureFarmaadminMenuAccess` enforces it on every `filament.farmaadmin.*` route, and `User::canAccessFarmaadminMenuKey()` gates UI. **Any new panel resource/page must be registered in this catalog**, or it becomes invisible/inaccessible to non-administrators. Keys prefixed `__permission_*__` (e.g. `sales_void`, `product_direct_price`) are permission flags with no route of their own.
+3. **Branch scope** — `App\Support\Filament\BranchAuthScope` narrows table queries to `User::restrictedBranchIdsForQueries()` (union of role branches via `branch_rol`, GERENCIA branches via `branch_user`, and `users.branch_id`). Administrators and delivery users see everything; users with no branches get `whereRaw('1 = 0')`; cashiers additionally only see sales they created. Apply it in `getEloquentQuery()` on any new branch-scoped resource instead of hand-rolling a filter.
 
 ### Two synchronized ledgers per transaction
-Purchases and sales don't just write one record: creating/annulling a `Purchase` fans out to `PurchaseBook` (SENIAT-relevant fiscal book), `PurchaseLedger`, `PurchaseHistory`, and `AccountsPayable` via dedicated `*FromPurchaseSynchronizer` services — each keeps its own copy of derived monetary/fiscal fields in sync. When changing purchase or sale logic, check whether a synchronizer needs updating too, not just the source model.
+Purchases and sales don't just write one record: creating/annulling a `Purchase` fans out to `PurchaseBook` (SENIAT fiscal book), `PurchaseLedger`, `PurchaseHistory`, and `AccountsPayable` via dedicated `*FromPurchaseSynchronizer` services in `app/Services/Finance`, each keeping its own copy of derived monetary/fiscal fields. Sales fan out to `AccountsReceivableFromSaleRegistrar` and inventory movements. When changing purchase or sale logic, check whether a synchronizer needs updating too, not just the source model.
 
 ### SENIAT IVA retention (Venezuela tax rule)
-The retention percentage always comes from `suppliers.seniat_retention_percent` (never hardcode 75%/100%/other fixed values). Formula: `tax_retained_ves = tax_caused_ves × (seniat_retention_percent / 100)`. If a supplier has no percent configured, require it before proceeding rather than defaulting. `PurchaseBook` sync must read the percent from the purchase's supplier and persist both the percent and the computed retained amount; PDFs/widgets/totals must sum the already-computed retained value, not recompute with a different percent. (See `.cursor/rules/seniat-retention-from-supplier.mdc`.)
+The retention percentage always comes from `suppliers.seniat_retention_percent` (never hardcode 75%/100%/other fixed values). Formula: `tax_retained_ves = tax_caused_ves × (seniat_retention_percent / 100)`. If a supplier has no percent configured, require it before proceeding rather than defaulting. `PurchaseBook` sync must read the percent from the purchase's supplier and persist both the percent and the computed retained amount; PDFs/widgets/totals must sum the already-computed retained value, not recompute with a different percent. (See `.cursor/rules/seniat-retention-from-supplier.mdc`.) Retention-agent identity and voucher numbering live in `config/fiscal.php`.
 
-### External API auth
-`api/external/*` routes use the `api.client` middleware (`AuthenticateApiClient`) with bearer tokens tied to an `ApiClient`/`PartnerCompany`, separate from the `auth:sanctum` guard used by the delivery-app routes (`api/v1/delivery/*`) and from Filament panel auth. Don't mix these three auth mechanisms up when adding endpoints.
+### Tax rates come from the DB, not config
+`config/orders.php` (`default_vat_rate_percent`, `default_igtf_rate_percent`) is only a fallback. The effective IVA/IGTF rates live in the single-row `financial_settings` table (`FinancialSetting::current()`, edited on the "Administración financiera" page) and are read through `App\Support\Finance\DefaultVatRate` / `DefaultIgtfRate`, which cache and invalidate on save. Read rates through those helpers.
 
 ### Multi-currency & exchange rates
-`App\Services\Dolar` (config `config/dolar.php`) and `VenezuelaOfficialUsdVesRateClient` fetch the official BCV rate; `HrBcvRateResolver`/`HrUsdVesConverter` apply it to payroll. Always resolve rates through these services rather than querying an external endpoint directly.
+`App\Services\Dolar\{DolarApiDolaresService,DolarApiEstadoService}` (config `config/dolar.php`) and `Finance\VenezuelaOfficialUsdVesRateClient` fetch the official BCV rate; `HrBcvRateResolver`/`HrUsdVesConverter` apply it to payroll. Always resolve rates through these services rather than calling an external endpoint directly.
+
+### Inventory: FEFO lots
+Stock is tracked both as aggregate `Inventory` rows and as `ProductLot` / `InventoryLotBalance` records dispatched First-Expired-First-Out. `app/Services/Inventory` holds the dispatch (`FefoLotSaleDispatchService`, `FefoLotTransferDispatchService`), sync (`InventoryLotBalanceSyncService`), audit (`InventoryAuditApplyService`, OTP-protected) and POS alerting (`PosFefoAlertLogRegistrar`) pieces. Near-expiry thresholds and alert dedupe windows are in `config/inventory.php`.
+
+### Cashier shift locking
+After closing the physical cash box, a cashier is locked out until the next daily unlock hour (`config/cashier_shift.php`), enforced by `EnsureCashierShiftNotLocked` in the panel's auth middleware; administrators can override from the "Acceso cajeros (turno)" page.
+
+### Audit trail
+Two complementary mechanisms, both writing `AuditLog` rows via `App\Services\Audit\AuditLogger`:
+- `AuditModelObserver` on the models listed in `config/audit.php` (`models` key) records created/updated/deleted.
+- `AuditFarmaadminHttpActivity` records panel navigation, throttled per user+route by `audit.http_log_window_seconds`.
+
+To audit a new model, add it to `config/audit.php` rather than wiring an observer by hand.
+
+### PDFs, mail and WhatsApp
+PDFs use `barryvdh/laravel-dompdf` with Blade views under `resources/views/pdf`, generated by `*PdfFactory`/`*PdfGenerator` services and served by controllers in `app/Http/Controllers/{Finance,Purchases,Sales,ProductTransfers,Reports}`. Most report URLs are `->middleware('signed')` — generate them with `URL::signedRoute()`, not `route()`. Mailables in `app/Mail` are dispatched through queued jobs in `app/Jobs`. WhatsApp delivery goes through `App\Support\Notifications\UltramsgWhatsAppClient` / `WhatsAppLink`.
+
+### Livewire request normalization quirk
+`TrimStrings` and `ConvertEmptyStringsToNull` are removed from the global stack and replaced by `ConditionalTrimStrings`/`ConditionalConvertEmptyStringsToNull`, which skip Livewire payloads (`App\Support\Livewire\LivewireRequestPayload`) to avoid corrupting component state. Don't re-add the framework defaults.
+
+## Testing
+
+Pest 4 with `tests/Feature` (majority) and `tests/Unit`. `phpunit.xml` runs against in-memory SQLite with `APP_LOCALE=es`, array mail/cache/session and `QUEUE_CONNECTION=sync` — assertions about UI text should expect Spanish. Filament coverage lives in `tests/Feature/Filament` and uses `livewire()` component tests; external API coverage in `tests/Feature/Api`.
+
+Remember the rule above: write or update tests, but let the user run them.
 
 <laravel-boost-guidelines>
 === foundation rules ===
@@ -450,4 +526,3 @@ livewire(ListUsers::class)
 - IMPORTANT: Activate `developing-with-fortify` skill when working with Fortify authentication features.
 
 </laravel-boost-guidelines>
-</content>

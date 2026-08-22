@@ -1,55 +1,73 @@
 @php
     $seoBaseUrl = rtrim((string) config('app.url', 'https://farmasysdoc.farmadoc.net'), '/');
     $seoCanonical = $seoBaseUrl.'/';
-    $seoTitle = 'FarmaSysDoc | Gestion farmaceutica, ventas e inventario';
-    $seoDescription = 'FarmaSysDoc de Farmadoc: plataforma de gestion farmaceutica para ventas, inventario, compras, caja y reportes operativos.';
+    $seoTitle = 'Farmadoc | Farmacia en línea, medicinas y entrega';
+    $seoDescription = 'Compra medicinas, vitaminas y productos de salud en Farmadoc. Entrega rápida, productos originales y atención farmacéutica en Venezuela.';
     $seoImage = asset('images/logos/favicon.png');
+    $categories = is_array($categories ?? null) ? $categories : [];
+    $bestsellers = is_array($bestsellers ?? null) ? $bestsellers : [];
+    $offers = is_array($offers ?? null) ? $offers : [];
+    $offersEyebrow = $offersEyebrow ?? 'Para ti';
+    $offersTitle = $offersTitle ?? 'Recomendados para ti';
+    $whatsappUrl = $whatsappUrl ?? 'https://wa.me/584127018390';
+    $whatsappDisplay = $whatsappDisplay ?? '0412-701-8390';
+    $ordersEmail = $ordersEmail ?? 'pedidos@farmadoc.net';
+    $storefrontBoot = is_array($storefrontBoot ?? null) ? $storefrontBoot : [
+        'searchEndpoint' => route('public.products.search'),
+        'checkoutEndpoint' => route('storefront.checkout'),
+        'whatsappUrl' => $whatsappUrl,
+        'ordersEmail' => $ordersEmail,
+    ];
+    $fallbackCategories = [
+        ['name' => 'Medicinas', 'slug' => 'medicinas', 'image_url' => null, 'product_count' => 0, 'is_medication' => true],
+        ['name' => 'Salud', 'slug' => 'salud', 'image_url' => null, 'product_count' => 0, 'is_medication' => false],
+        ['name' => 'Cuidado personal', 'slug' => 'cuidado-personal', 'image_url' => null, 'product_count' => 0, 'is_medication' => false],
+        ['name' => 'Dispositivos', 'slug' => 'dispositivos', 'image_url' => null, 'product_count' => 0, 'is_medication' => false],
+        ['name' => 'Vitaminas', 'slug' => 'vitaminas', 'image_url' => null, 'product_count' => 0, 'is_medication' => false],
+        ['name' => 'Mamá y bebé', 'slug' => 'mama-bebe', 'image_url' => null, 'product_count' => 0, 'is_medication' => false],
+        ['name' => 'Bienestar', 'slug' => 'bienestar', 'image_url' => null, 'product_count' => 0, 'is_medication' => false],
+        ['name' => 'Ofertas', 'slug' => 'ofertas', 'image_url' => null, 'product_count' => 0, 'is_medication' => false],
+    ];
+    $shopCategories = $categories !== [] ? $categories : $fallbackCategories;
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="scroll-smooth">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
-        <meta name="googlebot" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
-        <meta name="author" content="Farmadoc" />
-        <meta name="theme-color" content="#18ACB2" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="{{ config('app.name') }}" />
+        <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+        <meta name="author" content="Farmadoc">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
+        <meta name="theme-color" content="#18ACB2">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-title" content="{{ config('app.name') }}">
         <title>{{ $seoTitle }}</title>
         <meta name="description" content="{{ $seoDescription }}">
-        <link rel="canonical" href="{{ $seoCanonical }}" />
-        <link rel="alternate" hreflang="es-VE" href="{{ $seoCanonical }}" />
-        <link rel="alternate" hreflang="x-default" href="{{ $seoCanonical }}" />
-        <meta property="og:type" content="website" />
-        <meta property="og:site_name" content="{{ config('app.name') }}" />
-        <meta property="og:locale" content="es_VE" />
-        <meta property="og:title" content="{{ $seoTitle }}" />
-        <meta property="og:description" content="{{ $seoDescription }}" />
-        <meta property="og:url" content="{{ $seoCanonical }}" />
-        <meta property="og:image" content="{{ $seoImage }}" />
-        <meta property="og:image:type" content="image/png" />
-        <meta property="og:image:width" content="1024" />
-        <meta property="og:image:height" content="1024" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="{{ $seoTitle }}" />
-        <meta name="twitter:description" content="{{ $seoDescription }}" />
-        <meta name="twitter:image" content="{{ $seoImage }}" />
+        <link rel="canonical" href="{{ $seoCanonical }}">
+        <link rel="alternate" hreflang="es-VE" href="{{ $seoCanonical }}">
+        <link rel="alternate" hreflang="x-default" href="{{ $seoCanonical }}">
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="{{ config('app.name') }}">
+        <meta property="og:locale" content="es_VE">
+        <meta property="og:title" content="{{ $seoTitle }}">
+        <meta property="og:description" content="{{ $seoDescription }}">
+        <meta property="og:url" content="{{ $seoCanonical }}">
+        <meta property="og:image" content="{{ $seoImage }}">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="{{ $seoTitle }}">
+        <meta name="twitter:description" content="{{ $seoDescription }}">
+        <meta name="twitter:image" content="{{ $seoImage }}">
         <link rel="icon" type="image/png" sizes="1024x1024" href="{{ asset('images/logos/favicon.png') }}">
         <link rel="apple-touch-icon" sizes="1024x1024" href="{{ asset('images/logos/favicon.png') }}">
         <link rel="manifest" href="{{ asset('site.webmanifest') }}">
         <script type="application/ld+json">
             {
                 "@@context": "https://schema.org",
-                "@@type": "Organization",
+                "@@type": "Pharmacy",
                 "name": "Farmadoc",
                 "url": "{{ $seoBaseUrl }}",
                 "logo": "{{ $seoImage }}",
-                "sameAs": [
-                    "https://instagram.com",
-                    "https://tiktok.com"
-                ]
+                "telephone": "+584127018390"
             }
         </script>
         <script type="application/ld+json">
@@ -60,486 +78,528 @@
                 "url": "{{ $seoBaseUrl }}"
             }
         </script>
-        @vite(['resources/css/app.css'])
+        <script>
+            (function () {
+                var stored = localStorage.getItem('welcome-theme');
+                var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.classList.toggle('dark', dark);
+            })();
+        </script>
+        @vite(['resources/css/app.css', 'resources/js/storefront.js'])
     </head>
-<body class="relative min-h-screen overflow-x-hidden bg-zinc-100 text-zinc-900 antialiased transition-colors duration-300 dark:bg-zinc-950 dark:text-zinc-100">
-    <div class="pointer-events-none fixed inset-0 -z-10">
-        <div class="absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(24,172,178,0.28),transparent_55%)] dark:bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(24,172,178,0.18),transparent_55%)]"></div>
-        <div class="absolute -left-24 top-10 h-[28rem] w-[28rem] rounded-full bg-cyan-400/35 blur-3xl dark:bg-cyan-500/20"></div>
-        <div class="absolute -right-20 top-32 h-[26rem] w-[26rem] rounded-full bg-[#FCE422]/30 blur-3xl dark:bg-[#FCE422]/12"></div>
-        <div class="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-teal-500/25 blur-3xl dark:bg-teal-600/15"></div>
-        <div class="absolute inset-0 bg-[linear-gradient(to_bottom,transparent,rgba(9,9,11,0.04))] dark:bg-[linear-gradient(to_bottom,transparent,rgba(0,0,0,0.35))]"></div>
-    </div>
+    <body class="fd-storefront antialiased">
+        <script type="application/json" id="storefront-boot">@json($storefrontBoot)</script>
 
-    <div
-        class="fixed right-3 top-3 z-30 sm:right-6 sm:top-6"
-        role="group"
-        aria-label="Seleccionar tema de la interfaz"
-    >
-        <div class="flex items-center gap-0.5 rounded-[1.35rem] border border-zinc-200/90 bg-white/85 p-1 shadow-lg shadow-zinc-900/10 backdrop-blur-xl dark:border-white/15 dark:bg-zinc-900/80 dark:shadow-black/40">
-            <button
-                type="button"
-                id="theme-light"
-                class="theme-seg inline-flex min-w-[5.5rem] items-center justify-center gap-1.5 rounded-[1.1rem] px-3 py-2 text-xs font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950"
-                aria-pressed="false"
-            >
-                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <circle cx="12" cy="12" r="4"></circle>
-                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
-                </svg>
-                Claro
-            </button>
-            <button
-                type="button"
-                id="theme-dark"
-                class="theme-seg inline-flex min-w-[5.5rem] items-center justify-center gap-1.5 rounded-[1.1rem] px-3 py-2 text-xs font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950"
-                aria-pressed="false"
-            >
-                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3a8.5 8.5 0 1 0 11.5 11.5Z"></path>
-                </svg>
-                Oscuro
-            </button>
-        </div>
-    </div>
-
-    <main class="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-12 px-4 py-16 sm:px-6 lg:px-8">
-        <section class="scroll-reveal relative overflow-hidden rounded-[2rem] border border-white/60 bg-white/75 px-6 py-12 text-center shadow-[0_24px_80px_-12px_rgba(24,172,178,0.25)] ring-1 ring-cyan-500/15 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-900/55 dark:shadow-[0_24px_80px_-12px_rgba(0,0,0,0.65)] dark:ring-cyan-400/20 sm:px-12 sm:py-14">
-            <div class="parallax-element pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-gradient-to-br from-[#FCE422]/40 to-transparent blur-2xl dark:from-[#FCE422]/15" data-parallax-speed="0.12"></div>
-            <div class="parallax-element pointer-events-none absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-gradient-to-tr from-cyan-400/30 to-transparent blur-3xl dark:from-cyan-500/15" data-parallax-speed="0.18"></div>
-
-            <div class="relative mx-auto flex max-w-4xl flex-col items-center">
-                <p class="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-cyan-800 dark:border-cyan-400/30 dark:bg-cyan-500/15 dark:text-cyan-200">
-                    Equipo FarmaSysDoc
-                </p>
-
-                <a href="{{ route('home') }}" class="logo-hero logo-float inline-flex items-center justify-center drop-shadow-[0_12px_40px_rgba(24,172,178,0.35)] dark:drop-shadow-[0_12px_48px_rgba(24,172,178,0.25)]" aria-label="Inicio FarmaSysDoc">
-                    <img src="{{ asset('images/logos/farmadoc-ligth.png') }}" alt="FarmaDoc" class="h-28 w-auto sm:h-36 md:h-40 dark:hidden">
-                    <img src="{{ asset('images/logos/farmadoc-dark.png') }}" alt="FarmaDoc" class="hidden h-28 w-auto sm:h-36 md:h-40 dark:block">
+        <header class="fd-storefront-header" data-storefront-header>
+            <div class="fd-storefront-header__bar">
+                <a href="{{ route('home') }}" class="fd-logo" aria-label="Inicio Farmadoc">
+                    <img src="{{ asset('images/logos/farmadoc-ligth.png') }}" alt="Farmadoc" class="dark:hidden">
+                    <img src="{{ asset('images/logos/farmadoc-dark.png') }}" alt="Farmadoc" class="hidden dark:block">
                 </a>
 
-                <h1 class="mt-8 text-balance text-3xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-4xl md:text-5xl">
-                    <span class="bg-gradient-to-r from-cyan-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent dark:from-cyan-300 dark:via-teal-300 dark:to-cyan-200">
-                        Encuentra productos de forma rapida y sencilla
-                    </span>
-                </h1>
-
-                <p class="mt-5 max-w-2xl text-pretty text-base font-medium leading-relaxed text-zinc-600 dark:text-zinc-300 sm:text-lg">
-                    Busca por nombre, o principio activo para ubicar el producto exacto en segundos.
-                </p>
-
-                <div class="mt-8 w-full max-w-3xl">
-                    <label for="public-product-search" class="sr-only">Buscar productos</label>
-                    <div class="flex items-center gap-2 rounded-2xl border border-cyan-400/25 bg-white/90 p-2 shadow-lg shadow-cyan-900/10 dark:border-cyan-400/20 dark:bg-zinc-900/80">
-                        <svg class="h-5 w-5 shrink-0 text-cyan-600 dark:text-cyan-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <circle cx="11" cy="11" r="7"></circle>
-                            <path d="m20 20-3.5-3.5"></path>
-                        </svg>
+                <div class="fd-search">
+                    <label class="sr-only" for="storefront-search">Buscar productos</label>
+                    <div class="fd-search__field">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
                         <input
-                            id="public-product-search"
+                            id="storefront-search"
                             type="search"
-                            class="w-full bg-transparent py-2.5 text-sm font-medium text-zinc-900 outline-none placeholder:text-zinc-500 dark:text-zinc-100 dark:placeholder:text-zinc-400"
-                            placeholder="Buscar: acetaminofen, 7598484000027, ibuprofeno..."
+                            placeholder="Buscar medicinas, vitaminas, marcas..."
                             autocomplete="off"
                             spellcheck="false"
+                            data-storefront-search
                             data-search-endpoint="{{ route('public.products.search') }}"
                         >
-                        <span id="search-status" class="hidden text-xs font-semibold text-cyan-700 dark:text-cyan-300">Buscando...</span>
+                        <button type="button" class="fd-search__submit" aria-label="Buscar">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                        </button>
                     </div>
-                    <div id="public-search-feedback" class="mt-2 text-left text-xs text-zinc-500 dark:text-zinc-400">Escriba al menos 2 caracteres.</div>
-                    <div id="public-search-results" class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3"></div>
+                    <div class="fd-search__dropdown fd-glass" data-search-dropdown></div>
                 </div>
 
-                <div class="mt-10 flex w-full max-w-md flex-col justify-center gap-4 sm:max-w-none sm:flex-row sm:gap-5">
-                    <a
-                        href="{{ url('/farmaadmin') }}"
-                        class="group inline-flex min-h-[3.25rem] flex-1 items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-600 via-teal-600 to-cyan-600 bg-[length:200%_100%] px-8 py-3.5 text-sm font-bold text-white shadow-xl shadow-cyan-600/35 transition-all duration-300 hover:bg-[position:100%_0] hover:shadow-2xl hover:shadow-cyan-500/40 active:scale-[0.98] dark:from-cyan-500 dark:via-teal-500 dark:to-cyan-500 dark:shadow-cyan-900/50"
-                    >
-                        Entrar a Farmaadmin
-                        <svg class="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-                            <path d="M5 12h14M13 6l6 6-6 6"></path>
-                        </svg>
-                    </a>
-                    <a
-                        href="{{ route('public.api-docs') }}"
-                        class="inline-flex min-h-[3.25rem] flex-1 items-center justify-center rounded-2xl border-2 border-cyan-500/40 bg-white/80 px-8 py-3.5 text-sm font-bold text-cyan-900 shadow-md shadow-cyan-500/10 backdrop-blur transition hover:border-cyan-500/70 hover:bg-white active:scale-[0.98] dark:border-cyan-400/35 dark:bg-zinc-900/70 dark:text-cyan-100 dark:hover:bg-zinc-800/90"
-                    >
-                        Ver documentacion API
-                    </a>
+                <div class="fd-header-utils">
+                    {{-- El selector de tema vive ahora en el menú inferior --}}
+                    <div class="fd-theme-seg fd-glass fd-theme-seg--desktop" role="group" aria-label="Tema">
+                        <button type="button" data-theme="light">Claro</button>
+                        <button type="button" data-theme="dark">Oscuro</button>
+                    </div>
+                    <button type="button" class="fd-header-link" data-open-modal="track">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h13v10H3zM16 10h4l2 3v4h-6"/><circle cx="7" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></svg>
+                        Rastrear
+                    </button>
+                    <a class="fd-header-link" href="{{ url('/farmaadmin') }}">Entrar</a>
+                    <button type="button" class="fd-icon-btn fd-cart-btn" data-cart-button aria-label="Abrir carrito">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6h15l-1.5 9h-12z"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/><path d="M6 6 5 3H2"/></svg>
+                        <span class="fd-cart-badge" data-cart-count>0</span>
+                    </button>
+                    <button type="button" class="fd-icon-btn fd-burger" data-open-nav aria-label="Abrir menú">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+                    </button>
                 </div>
             </div>
-        </section>
 
-        <section class="scroll-reveal rounded-3xl border border-white/60 bg-white/70 p-6 shadow-xl shadow-cyan-900/10 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/60 sm:p-8">
-            <div class="grid gap-5 md:grid-cols-3">
-                <article class="rounded-2xl border border-zinc-200/70 bg-white/80 p-5 dark:border-white/10 dark:bg-zinc-900/70">
-                    <h2 class="text-base font-bold text-zinc-900 dark:text-white">Busqueda inteligente</h2>
-                    <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-300">Prioriza coincidencias exactas por codigo y resultados relevantes por nombre, marca y principio activo.</p>
-                </article>
-                <article class="rounded-2xl border border-zinc-200/70 bg-white/80 p-5 dark:border-white/10 dark:bg-zinc-900/70">
-                    <h2 class="text-base font-bold text-zinc-900 dark:text-white">Velocidad de consulta</h2>
-                    <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-300">Respuesta en tiempo real con debounce y cancelacion de solicitudes para una experiencia fluida.</p>
-                </article>
-                <article class="rounded-2xl border border-zinc-200/70 bg-white/80 p-5 dark:border-white/10 dark:bg-zinc-900/70">
-                    <h2 class="text-base font-bold text-zinc-900 dark:text-white">Disponibilidad visible</h2>
-                    <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-300">Muestra stock disponible y datos clave para decidir rapido en mostrador o canal digital.</p>
-                </article>
-            </div>
-        </section>
+            <nav class="fd-nav" aria-label="Categorías">
+                <a href="#inicio" class="is-active">Inicio</a>
+                <a href="#categorias">Categorías</a>
+                <a href="#mas-vendidos">Medicinas</a>
+                <a href="#ofertas">Ofertas</a>
+                <a href="#receta">Recetas <span class="fd-nav__new">Nuevo</span></a>
+                <a href="#servicios">Servicios</a>
+            </nav>
+        </header>
 
-        <section class="scroll-reveal relative overflow-hidden rounded-3xl border border-cyan-500/25 bg-gradient-to-r from-cyan-600/95 via-teal-600/95 to-cyan-700/95 p-8 text-white shadow-2xl shadow-cyan-900/25 sm:p-10">
-            <div class="absolute -right-16 -top-10 h-44 w-44 rounded-full bg-white/10 blur-3xl"></div>
-            <div class="absolute -left-10 bottom-0 h-40 w-40 rounded-full bg-[#FCE422]/25 blur-3xl"></div>
-            <div class="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
-                <div>
-                    <p class="inline-flex rounded-full border border-white/40 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-cyan-50">Aliados comerciales</p>
-                    <h2 class="mt-4 text-2xl font-bold leading-tight sm:text-3xl">Invitamos a empresas y marcas a formar parte de nuestros aliados comerciales.</h2>
-                    <p class="mt-3 max-w-2xl text-sm text-cyan-50/95 sm:text-base">Conecta tu empresa con la red Farmadoc y amplifica tus operaciones de inventario, compras, ventas y trazabilidad en una sola plataforma.</p>
-                </div>
-                <div class="flex flex-col gap-3 sm:flex-row lg:flex-col">
-                    <a href="{{ Route::has('register') ? route('register') : route('public.api-docs') }}" class="inline-flex items-center justify-center rounded-2xl bg-white px-6 py-3 text-sm font-bold text-cyan-800 transition hover:bg-cyan-50">Quiero ser aliado comercial</a>
-                    <a href="{{ route('public.api-docs') }}" class="inline-flex items-center justify-center rounded-2xl border border-white/60 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Integrar por API</a>
-                </div>
-            </div>
-        </section>
-
-        <footer class="scroll-reveal mt-2 border-t border-zinc-200/70 pt-6 text-xs text-zinc-500 dark:border-white/10 dark:text-zinc-400">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p>&copy; {{ now()->year }} {{ config('app.name') }} · Minimal, rapido y enfocado en resultados.</p>
-                <nav class="flex items-center gap-4">
-                    <a href="{{ route('sitemap') }}" class="transition hover:text-cyan-600 dark:hover:text-cyan-300">Sitemap</a>
-                    <a href="{{ route('public.api-docs') }}" class="transition hover:text-cyan-600 dark:hover:text-cyan-300">API</a>
-                    <a href="{{ url('/farmaadmin') }}" class="transition hover:text-cyan-600 dark:hover:text-cyan-300">Farmaadmin</a>
-                </nav>
-            </div>
-        </footer>
-    </main>
-
-    <script>
-        const root = document.documentElement;
-        const btnLight = document.getElementById('theme-light');
-        const btnDark = document.getElementById('theme-dark');
-        const storedTheme = localStorage.getItem('welcome-theme');
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-        const segBase =
-            'theme-seg inline-flex min-w-[5.5rem] items-center justify-center gap-1.5 rounded-[1.1rem] px-3 py-2 text-xs font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950';
-
-        const segInactive =
-            'text-zinc-500 hover:bg-zinc-100/80 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-zinc-100';
-
-        const segActive =
-            'bg-gradient-to-b from-cyan-500/20 to-teal-600/15 text-cyan-950 shadow-inner shadow-cyan-500/20 dark:from-cyan-400/25 dark:to-teal-900/40 dark:text-white dark:shadow-cyan-900/30';
-
-        function syncSegmentUi(theme) {
-            const isDark = theme === 'dark';
-            btnLight.className = `${segBase} ${isDark ? segInactive : segActive}`;
-            btnDark.className = `${segBase} ${isDark ? segActive : segInactive}`;
-            btnLight.setAttribute('aria-pressed', (!isDark).toString());
-            btnDark.setAttribute('aria-pressed', isDark.toString());
-        }
-
-        function applyTheme(theme) {
-            const isDark = theme === 'dark';
-            root.classList.toggle('dark', isDark);
-            syncSegmentUi(theme);
-        }
-
-        const initial = storedTheme ?? (prefersDark ? 'dark' : 'light');
-        applyTheme(initial);
-
-        btnLight.addEventListener('click', () => {
-            localStorage.setItem('welcome-theme', 'light');
-            applyTheme('light');
-        });
-
-        btnDark.addEventListener('click', () => {
-            localStorage.setItem('welcome-theme', 'dark');
-            applyTheme('dark');
-        });
-
-        const revealNodes = document.querySelectorAll('.scroll-reveal');
-        if ('IntersectionObserver' in window && revealNodes.length > 0) {
-            const revealObserver = new IntersectionObserver((entries) => {
-                entries.forEach((entry) => {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add('is-visible');
-                        revealObserver.unobserve(entry.target);
-                    }
-                });
-            }, { threshold: 0.16 });
-
-            revealNodes.forEach((node) => revealObserver.observe(node));
-        } else {
-            revealNodes.forEach((node) => node.classList.add('is-visible'));
-        }
-
-        const parallaxNodes = document.querySelectorAll('.parallax-element');
-        if (parallaxNodes.length > 0) {
-            const updateParallax = () => {
-                const offsetY = window.scrollY || 0;
-                parallaxNodes.forEach((node) => {
-                    const speed = Number(node.dataset.parallaxSpeed || 0.1);
-                    node.style.transform = `translate3d(0, ${offsetY * speed}px, 0)`;
-                });
-            };
-
-            updateParallax();
-            window.addEventListener('scroll', updateParallax, { passive: true });
-        }
-
-        const searchInput = document.getElementById('public-product-search');
-        const resultsContainer = document.getElementById('public-search-results');
-        const feedbackNode = document.getElementById('public-search-feedback');
-        const statusNode = document.getElementById('search-status');
-
-        if (searchInput && resultsContainer && feedbackNode && statusNode) {
-            let debounceTimer = null;
-            let abortController = null;
-
-            const escapeHtml = (text) => String(text)
-                .replaceAll('&', '&amp;')
-                .replaceAll('<', '&lt;')
-                .replaceAll('>', '&gt;')
-                .replaceAll('"', '&quot;')
-                .replaceAll("'", '&#039;');
-
-            const formatUsd = (amount) => {
-                const value = Number(amount || 0);
-                return value.toLocaleString('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                });
-            };
-
-            const formatStock = (amount) => {
-                const value = Number(amount || 0);
-                return value <= 0 ? 'Sin stock disponible' : `Stock disponible: ${value.toLocaleString('es-VE', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}`;
-            };
-
-            const normalizeIngredient = (value) => {
-                const text = String(value || '').trim();
-                if (text === '' || text === '[]') {
-                    return 'No especificado';
-                }
-
-                if (text.startsWith('[') && text.endsWith(']')) {
-                    const compact = text.slice(1, -1).replaceAll('"', '').trim();
-                    return compact === '' ? 'No especificado' : compact;
-                }
-
-                return text;
-            };
-
-            const setFeedback = (message) => {
-                feedbackNode.textContent = message;
-            };
-
-            const noResultsCtaCard = () => {
-                return `
-                    <article class="col-span-full rounded-3xl border border-cyan-500/25 bg-white/90 p-5 shadow-[0_18px_42px_-22px_rgba(8,145,178,0.42)] backdrop-blur-xl dark:border-cyan-400/25 dark:bg-zinc-900/80">
-                        <h3 class="text-sm font-extrabold uppercase tracking-wide text-zinc-900 dark:text-zinc-100">No encontramos ese medicamento en inventario</h3>
-                        <p class="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
-                            Podemos gestionarlo como pedido personalizado nacional o internacional. Escríbenos directo y te ayudamos de inmediato.
-                        </p>
-                        <div class="mt-4 flex flex-col gap-2 sm:flex-row">
-                            <a
-                                href="https://wa.me/584127018390"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-emerald-600"
-                            >
-                                WhatsApp 04127018390
-                            </a>
-                            <a
-                                href="mailto:pedidos@farmadoc.net"
-                                class="inline-flex items-center justify-center rounded-2xl border border-cyan-500/35 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-cyan-700 transition hover:bg-cyan-500/10 dark:text-cyan-300"
-                            >
-                                pedidos@farmadoc.net
-                            </a>
+        <main class="fd-shell">
+            <section id="inicio" class="fd-hero fd-glass fd-reveal">
+                <div class="fd-hero__copy">
+                    <p class="fd-kicker">Farmacia Farmadoc</p>
+                    <h1>Tu salud, nuestra prioridad.</h1>
+                    <p class="fd-hero__lead">
+                        Medicinas originales, vitaminas y cuidado personal con entrega rápida. Busca, arma tu carrito y pide en segundos.
+                    </p>
+                    <div class="fd-hero__perks">
+                        <div class="fd-perk">
+                            <span class="fd-perk__icon">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 5 5L20 7"/></svg>
+                            </span>
+                            Originales
                         </div>
+                        <div class="fd-perk">
+                            <span class="fd-perk__icon">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h13v10H3zM16 10h4l2 3v4h-6"/></svg>
+                            </span>
+                            Entrega rápida
+                        </div>
+                        <div class="fd-perk">
+                            <span class="fd-perk__icon">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3"/><path d="M5 19a7 7 0 0 1 14 0"/></svg>
+                            </span>
+                            Asesoría experta
+                        </div>
+                    </div>
+                    <div class="fd-hero__cta">
+                        <a class="fd-btn fd-btn--primary" href="#mas-vendidos">
+                            Comprar medicinas
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                        </a>
+                        <button type="button" class="fd-btn fd-btn--ghost" data-open-modal="recipe">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M4 12h16"/></svg>
+                            Subir receta
+                        </button>
+                    </div>
+                    <div class="fd-social-proof">
+                        <div class="fd-avatars" aria-hidden="true">
+                            <span>MG</span><span>AR</span><span>LC</span><span>JD</span>
+                        </div>
+                        <div>
+                            <strong>4.8 ★</strong>
+                            <div class="fd-product-card__meta">Clientes que ya confían en Farmadoc</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="fd-stage" aria-hidden="true">
+                    <div class="fd-stage__glow"></div>
+                    <div class="fd-stage__ring"></div>
+                    <div class="fd-stage__ring fd-stage__ring--2"></div>
+                    <div class="fd-stage__platform"></div>
+                    <img
+                        class="fd-stage__photo"
+                        src="{{ asset('images/storefront/hero-medicamentos.jpg') }}"
+                        alt=""
+                        width="960"
+                        height="720"
+                    >
+                </div>
+            </section>
+
+            <section class="fd-trust fd-scroll-reveal" aria-label="Beneficios">
+                <article class="fd-trust__item fd-glass">
+                    <span class="fd-trust__icon" aria-hidden="true">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                            <rect x="2.5" y="12" width="16.5" height="10.5" rx="2.2" fill="#0E949A"/>
+                            <path d="M19 14.5h5.2L27.5 19v3.5H19v-8z" fill="#18ACB2"/>
+                            <rect x="6.2" y="7.2" width="8.2" height="6.2" rx="1.3" fill="#FCE422"/>
+                            <path d="M8.4 9.2h3.8" stroke="#0E949A" stroke-width="1.3" stroke-linecap="round"/>
+                            <circle cx="9.2" cy="23.8" r="2.35" fill="#10282C"/>
+                            <circle cx="9.2" cy="23.8" r="1.05" fill="#E7F7F8"/>
+                            <circle cx="23.4" cy="23.8" r="2.35" fill="#10282C"/>
+                            <circle cx="23.4" cy="23.8" r="1.05" fill="#E7F7F8"/>
+                            <path d="M28.2 8.2 26 10.4l2.2 2.2" stroke="#FCE422" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <div><strong>Entrega express</strong><span>A tu puerta, cuando lo necesitas</span></div>
+                </article>
+                <article class="fd-trust__item fd-glass">
+                    <span class="fd-trust__icon" aria-hidden="true">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                            <rect x="3.2" y="8" width="20.5" height="14.5" rx="2.6" fill="#0E949A"/>
+                            <rect x="3.2" y="11.6" width="20.5" height="3.4" fill="#18ACB2"/>
+                            <rect x="6.2" y="17.6" width="6.4" height="2" rx="1" fill="#E7F7F8"/>
+                            <path d="M23.2 15.2 28 17.1v5.1c0 3.3-2.4 5.5-4.8 6.2-2.4-.7-4.8-2.9-4.8-6.2v-5.1l4.8-1.9z" fill="#FCE422"/>
+                            <path d="m21.3 21.4 1.7 1.7 3.2-3.3" stroke="#0E949A" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <div><strong>Pagos seguros</strong><span>USD, Bs. y transferencias</span></div>
+                </article>
+                <article class="fd-trust__item fd-glass">
+                    <span class="fd-trust__icon" aria-hidden="true">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                            <path d="M8.2 11.2A8.6 8.6 0 0 1 22.8 8.4" stroke="#0E949A" stroke-width="2.3" stroke-linecap="round"/>
+                            <path d="M22.4 4.8v4.4h-4.3" stroke="#0E949A" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M23.8 20.8A8.6 8.6 0 0 1 9.2 23.6" stroke="#18ACB2" stroke-width="2.3" stroke-linecap="round"/>
+                            <path d="M9.6 27.2v-4.4h4.3" stroke="#18ACB2" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+                            <rect x="11.4" y="11.6" width="9.2" height="8.8" rx="2" fill="#FCE422"/>
+                            <path d="M13.6 16h4.8M16 13.6v4.8" stroke="#0E949A" stroke-width="1.6" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <div><strong>Cambios fáciles</strong><span>Te acompañamos después de comprar</span></div>
+                </article>
+                <article class="fd-trust__item fd-glass">
+                    <span class="fd-trust__icon" aria-hidden="true">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                            <path d="M7 14.2c0-5.2 4.3-8.7 9.4-8.7S25.8 9 25.8 14.2 21.5 23 16.4 23c-1.2 0-2.4-.2-3.4-.6L6.8 25.6l1.6-4.2A8.6 8.6 0 0 1 7 14.2Z" fill="#0E949A"/>
+                            <circle cx="12.2" cy="14.2" r="1.15" fill="#E7F7F8"/>
+                            <circle cx="16.4" cy="14.2" r="1.15" fill="#E7F7F8"/>
+                            <circle cx="20.6" cy="14.2" r="1.15" fill="#E7F7F8"/>
+                            <circle cx="24.4" cy="24.2" r="5.3" fill="#FCE422"/>
+                            <path d="M24.4 21.4v3.1l2.1 1.2" stroke="#0E949A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <div><strong>Atención 24/7</strong><span>WhatsApp {{ $whatsappDisplay }}</span></div>
+                </article>
+            </section>
+
+            <section id="categorias" class="fd-section fd-scroll-reveal">
+                <div class="fd-section__head">
+                    <div>
+                        <p class="fd-kicker">Catálogo</p>
+                        <h2>Compra por categoría</h2>
+                    </div>
+                    <p>Toca una categoría y la buscamos al instante.</p>
+                </div>
+                <div class="fd-cats">
+                    @foreach ($shopCategories as $category)
+                        <x-storefront.category-card :category="$category" />
+                    @endforeach
+                </div>
+            </section>
+
+            <section id="mas-vendidos" class="fd-section fd-scroll-reveal">
+                <div class="fd-section__head">
+                    <div>
+                        <p class="fd-kicker">Destacados</p>
+                        <h2>Más vendidos</h2>
+                    </div>
+                    <a class="fd-header-link" href="#ofertas">Ver ofertas</a>
+                </div>
+                @if ($bestsellers !== [])
+                    <div class="fd-carousel" data-carousel>
+                        <x-storefront.carousel-controls />
+                        <div class="fd-carousel__track" data-carousel-track>
+                            @foreach ($bestsellers as $product)
+                                <x-storefront.product-card :product="$product" />
+                            @endforeach
+                        </div>
+                    </div>
+                @else
+                    <div class="fd-empty fd-glass">Aún estamos cargando el catálogo público. Usa el buscador para consultar inventario.</div>
+                @endif
+            </section>
+
+            <section id="ofertas" class="fd-section fd-scroll-reveal">
+                <div class="fd-section__head">
+                    <div>
+                        <p class="fd-kicker">{{ $offersEyebrow }}</p>
+                        <h2>{{ $offersTitle }}</h2>
+                    </div>
+                </div>
+                @if ($offers !== [])
+                    <div class="fd-carousel" data-carousel>
+                        <x-storefront.carousel-controls />
+                        <div class="fd-carousel__track" data-carousel-track>
+                            @foreach ($offers as $product)
+                                <x-storefront.product-card :product="$product" />
+                            @endforeach
+                        </div>
+                    </div>
+                @else
+                    <div class="fd-empty fd-glass">No hay descuentos activos en este momento. Explora los más vendidos o busca tu medicamento.</div>
+                @endif
+            </section>
+
+            <section id="receta" class="fd-rx fd-scroll-reveal">
+                <div class="fd-rx__grid">
+                    <svg width="72" height="72" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <rect x="3" y="3" width="18" height="18" rx="5" fill="#FCE422"/>
+                        <path d="M12 7v10M7 12h10" stroke="#0E949A" stroke-width="2.4"/>
+                    </svg>
+                    <div>
+                        <p class="fd-kicker" style="background:rgb(255 255 255 / .12);color:#fff;border-color:rgb(255 255 255 / .2)">Receta médica</p>
+                        <h2 style="margin:.45rem 0 0;font-size:1.7rem;letter-spacing:-.03em;">¿Tienes una receta? La cotizamos al instante.</h2>
+                        <p style="margin:.4rem 0 0;opacity:.9;">Súbela o escríbenos por WhatsApp y un farmacéutico te confirma disponibilidad y precio.</p>
+                    </div>
+                    <button type="button" class="fd-btn fd-btn--yellow" data-open-modal="recipe">Subir ahora</button>
+                </div>
+            </section>
+
+            <section class="fd-stats fd-scroll-reveal" aria-label="Confianza Farmadoc">
+                <div class="fd-section__head">
+                    <div>
+                        <p class="fd-kicker">Confianza</p>
+                        <h2>Por qué comprar en Farmadoc</h2>
+                    </div>
+                    <p>Farmacia licenciada, inventario real y entregas que se pueden rastrear.</p>
+                </div>
+
+                <div class="fd-stats__grid">
+                    <article class="fd-stats__card fd-glass">
+                        <span class="fd-stats__icon" aria-hidden="true">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3 5 6v6c0 5 3.2 8.4 7 9 3.8-.6 7-4 7-9V6l-7-3z"/><path d="m8.8 12.1 2.2 2.2 4.4-4.6"/></svg>
+                        </span>
+                        <strong>Farmacia licenciada</strong>
+                        <span>Operación regulada y trazable ante SENIAT y el Ministerio de Salud.</span>
                     </article>
-                `;
-            };
+                    <article class="fd-stats__card fd-glass">
+                        <span class="fd-stats__icon" aria-hidden="true">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
+                        </span>
+                        <strong>Cobertura nacional</strong>
+                        <span>Despacho a todo el país, con seguimiento hasta tu puerta.</span>
+                    </article>
+                    <article class="fd-stats__card fd-glass">
+                        <span class="fd-stats__icon" aria-hidden="true">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="8.2"/><path d="M12 8v4.2l2.6 1.6"/></svg>
+                        </span>
+                        <p class="fd-stats__metric">90%</p>
+                        <strong>A tiempo</strong>
+                        <span>Pedidos entregados dentro de la ventana prometida.</span>
+                    </article>
+                    <article class="fd-stats__card fd-glass">
+                        <span class="fd-stats__icon" aria-hidden="true">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3v3M12 18v3M4.9 6.2l2.1 2.1M17 15.7l2.1 2.1M3 12h3M18 12h3M4.9 17.8 7 15.7M17 8.3l2.1-2.1"/><circle cx="12" cy="12" r="3.2"/></svg>
+                        </span>
+                        <p class="fd-stats__metric">100%</p>
+                        <strong>Genuinos</strong>
+                        <span>Cadena de frío e inventario real, sin productos de origen dudoso.</span>
+                    </article>
+                </div>
+            </section>
 
-            const renderResults = (items) => {
-                if (!Array.isArray(items) || items.length === 0) {
-                    resultsContainer.innerHTML = noResultsCtaCard();
-                    setFeedback('No hay productos con existencia mayor a 1 para esa búsqueda.');
-                    return;
-                }
+            <section id="servicios" class="fd-cta-grid fd-scroll-reveal">
+                <article class="fd-cta-card fd-glass">
+                    <div style="position:absolute;inset:0;background:linear-gradient(135deg,#0E949A,#163a3e);"></div>
+                    <h3>Habla con un farmacéutico</h3>
+                    <p>Dudas de dosis, genéricos o interacciones. Te orientamos de verdad.</p>
+                    <a class="fd-btn fd-btn--yellow" href="{{ $whatsappUrl }}" target="_blank" rel="noopener" style="margin-top:1rem;align-self:flex-start;">Consultar ahora</a>
+                </article>
+                <article class="fd-cta-card fd-glass">
+                    <div style="position:absolute;inset:0;background:linear-gradient(135deg,#12686d,#18ACB2);"></div>
+                    <h3>Delivery a domicilio</h3>
+                    <p>Arma el carrito y realiza el pago. Te confirmamos en minutos.</p>
+                    <button type="button" class="fd-btn fd-btn--yellow" data-cart-button style="margin-top:1rem;align-self:flex-start;">Ver mi carrito</button>
+                </article>
+            </section>
 
-                resultsContainer.innerHTML = items.map((item) => {
-                    const hasVat = item.applies_vat ? '<span class="inline-flex items-center rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-cyan-700 dark:border-cyan-400/30 dark:bg-cyan-500/15 dark:text-cyan-200">IVA</span>' : '';
-                    const stockValue = Number(item.stock_available || 0);
-                    const stockClass = stockValue > 0
-                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:border-emerald-400/25 dark:bg-emerald-500/15 dark:text-emerald-200'
-                        : 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:border-rose-400/30 dark:bg-rose-500/15 dark:text-rose-200';
-                    const ingredientText = normalizeIngredient(item.active_ingredient);
+            <footer class="fd-footer">
+                <p>&copy; {{ now()->year }} {{ config('app.name') }} · Farmadoc. Salud, cerca de ti.</p>
+                <nav>
+                    <a href="{{ route('sitemap') }}">Sitemap</a>
+                    <a href="{{ route('public.api-docs') }}">API</a>
+                    <a href="{{ url('/farmaadmin') }}">Farmaadmin</a>
+                    <a href="mailto:{{ $ordersEmail }}">{{ $ordersEmail }}</a>
+                </nav>
+            </footer>
+        </main>
 
-                    return `
-                        <article class="ios-product-card group rounded-3xl border border-white/60 bg-white/85 p-4 shadow-[0_14px_40px_-18px_rgba(15,23,42,0.35)] ring-1 ring-zinc-950/5 transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_55px_-20px_rgba(8,145,178,0.45)] dark:border-white/10 dark:bg-zinc-900/75 dark:ring-white/10">
-                            <div class="flex items-start justify-between gap-3">
-                                <h3 class="line-clamp-2 text-sm font-extrabold uppercase tracking-[0.02em] text-zinc-900 dark:text-zinc-100">${escapeHtml(item.name || 'Producto')}</h3>
-                                ${hasVat}
-                            </div>
+        <div class="fd-mobile-bar fd-glass">
+            <span>Carrito · <strong data-cart-total>$0.00</strong></span>
+            <button type="button" class="fd-btn fd-btn--primary" data-cart-button style="min-height:2.6rem;">Abrir</button>
+        </div>
 
-                            <div class="mt-3 space-y-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                                <p class="truncate"><span class="font-semibold text-zinc-700 dark:text-zinc-300">Codigo:</span> ${escapeHtml(item.barcode || '—')}</p>
-                                <p class="truncate"><span class="font-semibold text-zinc-700 dark:text-zinc-300">Marca:</span> ${escapeHtml(item.brand || '—')}</p>
-                                <p class="line-clamp-2"><span class="font-semibold text-zinc-700 dark:text-zinc-300">Principio activo:</span> ${escapeHtml(ingredientText)}</p>
-                            </div>
+        <div class="fd-overlay" data-overlay></div>
 
-                            <div class="mt-4 flex items-end justify-between gap-3">
-                                <p class="text-lg font-black tracking-tight text-cyan-700 dark:text-cyan-300">${formatUsd(item.sale_price)}</p>
-                                <p class="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${stockClass}">${escapeHtml(formatStock(stockValue))}</p>
-                            </div>
-                        </article>
-                    `;
-                }).join('');
+        <aside class="fd-drawer fd-glass" data-cart-drawer aria-label="Carrito de compra" aria-hidden="true">
+            <div class="fd-drawer__head">
+                <div>
+                    <p class="fd-kicker">Tu pedido</p>
+                    <h2>Carrito</h2>
+                    <p class="fd-drawer__count" data-cart-items-label>0 productos</p>
+                </div>
+                <button type="button" class="fd-icon-btn" data-close-cart aria-label="Cerrar carrito">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                </button>
+            </div>
+            <div class="fd-drawer__list" data-cart-scroll>
+                <div data-cart-list></div>
+                <div class="fd-empty" data-cart-empty>
+                    <p>Tu carrito está vacío.</p>
+                    <p>Agrega medicinas desde el catálogo o el buscador.</p>
+                </div>
+            </div>
+            <div class="fd-drawer__foot">
+                <p class="fd-cart-rate" data-cart-rate>Tasa BCV del día</p>
+                <div class="fd-cart-totals">
+                    <div class="fd-cart-total-row">
+                        <span>Total USD</span>
+                        <strong data-cart-total>$0.00</strong>
+                    </div>
+                    <div class="fd-cart-total-row fd-cart-total-row--ves">
+                        <span>Total VES</span>
+                        <strong data-cart-total-ves>Bs. 0,00</strong>
+                    </div>
+                </div>
+                <button type="button" class="fd-btn fd-btn--primary fd-drawer__checkout" data-checkout-pay disabled>Realizar pago</button>
+                <p class="fd-drawer__hint">El total en bolívares usa la tasa BCV oficial del día.</p>
+            </div>
+        </aside>
 
-                setFeedback(`Mostrando ${items.length} resultado(s).`);
-            };
+        {{-- Menú: entra desde abajo, con el control de tema dentro --}}
+        <aside
+            class="fd-drawer fd-nav-drawer fd-glass"
+            data-mobile-nav
+            aria-label="Menú"
+            aria-hidden="true"
+        >
+            <button type="button" class="fd-sheet-grab" data-close-nav aria-label="Cerrar menú">
+                <span></span>
+            </button>
 
-            const runSearch = async (query) => {
-                const endpoint = searchInput.dataset.searchEndpoint;
-                if (!endpoint) {
-                    return;
-                }
+            <div class="fd-sheet-body">
+                <p class="fd-sheet-kicker">Menú</p>
 
-                if (abortController) {
-                    abortController.abort();
-                }
+                <nav class="fd-sheet-nav">
+                    <a href="#inicio" data-close-nav>Inicio</a>
+                    <a href="#categorias" data-close-nav>Categorías</a>
+                    <a href="#mas-vendidos" data-close-nav>Medicinas</a>
+                    <a href="#ofertas" data-close-nav>Ofertas</a>
+                    <a href="#receta" data-close-nav>Recetas</a>
+                    <a href="#servicios" data-close-nav>Servicios</a>
+                </nav>
 
-                abortController = new AbortController();
-                statusNode.classList.remove('hidden');
-                setFeedback('Buscando productos...');
+                <p class="fd-sheet-label">Tu pedido</p>
+                <button type="button" class="fd-sheet-item" data-open-modal="track">
+                    <span class="fd-sheet-ico" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 7h13v10H3zM16 10h4l2 3v4h-6"/><circle cx="7" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></svg>
+                    </span>
+                    <span class="fd-sheet-copy">
+                        <strong>Rastrear pedido</strong>
+                        <span>Estado y ruta de tu entrega</span>
+                    </span>
+                    <span class="fd-sheet-chev" aria-hidden="true">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m9 6 6 6-6 6"/></svg>
+                    </span>
+                </button>
 
-                try {
-                    const response = await fetch(`${endpoint}?q=${encodeURIComponent(query)}`, {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/json',
-                        },
-                        signal: abortController.signal,
-                    });
+                <p class="fd-sheet-label">Apariencia</p>
+                <div class="fd-sheet-theme">
+                    <span class="fd-sheet-copy">
+                        <strong>Tema</strong>
+                        <span>Claro u oscuro, como prefieras</span>
+                    </span>
+                    <div class="fd-theme-seg" role="group" aria-label="Tema">
+                        <button type="button" data-theme="light">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path stroke-linecap="round" d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/></svg>
+                            Claro
+                        </button>
+                        <button type="button" data-theme="dark">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 15a9 9 0 0 1-12-12 9 9 0 1 0 12 12Z"/></svg>
+                            Oscuro
+                        </button>
+                    </div>
+                </div>
 
-                    if (!response.ok) {
-                        throw new Error('No se pudo completar la busqueda.');
-                    }
+                <a class="fd-btn fd-btn--primary fd-sheet-cta" href="{{ url('/farmaadmin') }}">Entrar a Farmaadmin</a>
+            </div>
+        </aside>
 
-                    const payload = await response.json();
-                    renderResults(payload.data || []);
-                } catch (error) {
-                    if (error.name === 'AbortError') {
-                        return;
-                    }
+        {{-- Ficha de producto: pantalla completa (foto 40% / detalle y acciones 60%) --}}
+        <div class="fd-modal fd-modal--full" data-modal="product" role="dialog" aria-modal="true" aria-labelledby="fd-qv-name">
+            <div class="fd-pdp fd-glass">
+                <div class="fd-pdp__bar">
+                    <p class="fd-kicker" style="margin:0;">Ficha</p>
+                    <button type="button" class="fd-icon-btn" data-close-modal aria-label="Cerrar">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
+                </div>
 
-                    resultsContainer.innerHTML = '';
-                    setFeedback('Tuvimos un problema al buscar. Intente de nuevo en unos segundos.');
-                } finally {
-                    statusNode.classList.add('hidden');
-                }
-            };
+                <div class="fd-pdp__media">
+                    <span class="fd-pdp__flags">
+                        <span class="fd-pdp__badge" data-qv-discount hidden></span>
+                        <span class="fd-pdp__badge fd-pdp__badge--rx" data-qv-rx hidden>Requiere récipe</span>
+                    </span>
+                    <img data-qv-image alt="">
+                </div>
 
-            searchInput.addEventListener('input', (event) => {
-                const query = event.target.value.trim();
+                <div class="fd-pdp__info">
+                    <p class="fd-pdp__brand" data-qv-meta></p>
+                    <h3 class="fd-pdp__name" id="fd-qv-name" data-qv-name></h3>
 
-                if (debounceTimer) {
-                    clearTimeout(debounceTimer);
-                }
+                    <p class="fd-pdp__price">
+                        <strong data-qv-price></strong>
+                        <s data-qv-list hidden></s>
+                    </p>
 
-                if (query.length < 2) {
-                    if (abortController) {
-                        abortController.abort();
-                    }
-                    resultsContainer.innerHTML = '';
-                    setFeedback('Escriba al menos 2 caracteres.');
-                    statusNode.classList.add('hidden');
-                    return;
-                }
+                    <div class="fd-pdp__facts">
+                        <span class="fd-pdp__fact fd-pdp__fact--ok" data-qv-stock></span>
+                        <span class="fd-pdp__fact">Entrega a domicilio el mismo día</span>
+                        <span class="fd-pdp__fact">Retiro sin costo en tu sucursal</span>
+                    </div>
 
-                debounceTimer = setTimeout(() => {
-                    runSearch(query);
-                }, 220);
-            });
-        }
-    </script>
+                    <p class="fd-pdp__desc"><strong>Principio activo:</strong> <span data-qv-ingredient></span></p>
+                </div>
 
-    <style>
-        .logo-hero {
-            animation: logo-enter 1s cubic-bezier(0.22, 1, 0.36, 1) both;
-        }
+                <div class="fd-pdp__cta">
+                    <div class="fd-qty" data-qv-qty>
+                        <button type="button" data-qv-minus aria-label="Quitar una unidad">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14"/></svg>
+                        </button>
+                        <span data-qv-qty-value>1</span>
+                        <button type="button" data-qv-plus aria-label="Agregar una unidad">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg>
+                        </button>
+                    </div>
 
-        .scroll-reveal {
-            opacity: 0;
-            transform: translateY(18px);
-            transition: opacity 0.6s ease, transform 0.6s ease;
-            will-change: transform, opacity;
-        }
+                    <button type="button" class="fd-btn fd-btn--primary" style="flex:1;min-width:0;" data-add-to-cart data-add-from-modal>
+                        Agregar al carrito
+                    </button>
+                </div>
+            </div>
+        </div>
 
-        .scroll-reveal.is-visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        <div class="fd-modal" data-modal="recipe" role="dialog" aria-modal="true">
+            <div class="fd-modal__panel fd-glass">
+                <div style="display:flex;justify-content:space-between;">
+                    <h3 style="margin:0;">Subir receta</h3>
+                    <button type="button" class="fd-icon-btn" data-close-modal aria-label="Cerrar">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
+                </div>
+                <p class="fd-product-card__meta">Describe el pedido o adjunta la receta en el chat de WhatsApp. Un farmacéutico te responde.</p>
+                <form data-rx-form style="display:grid;gap:.75rem;margin-top:1rem;">
+                    <label class="sr-only" for="rx-note">Detalle</label>
+                    <textarea id="rx-note" name="note" rows="4" placeholder="Ej. Losartán 50 mg, 30 tabletas..." style="width:100%;border-radius:1rem;border:1px solid var(--fd-glass-border);padding:.85rem;background:transparent;color:inherit;"></textarea>
+                    <input type="file" accept="image/*,.pdf" style="font-size:.85rem;">
+                    <button type="submit" class="fd-btn fd-btn--primary">Continuar por WhatsApp</button>
+                </form>
+            </div>
+        </div>
 
-        @@media (prefers-reduced-motion: reduce) {
-            .logo-hero,
-            .logo-float,
-            .scroll-reveal {
-                animation: none;
-                transition: none;
-                transform: none;
-                opacity: 1;
-            }
-        }
+        <div class="fd-modal" data-modal="track" role="dialog" aria-modal="true">
+            <div class="fd-modal__panel fd-glass">
+                <div style="display:flex;justify-content:space-between;">
+                    <h3 style="margin:0;">Rastrear pedido</h3>
+                    <button type="button" class="fd-icon-btn" data-close-modal aria-label="Cerrar">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
+                </div>
+                <form data-track-form style="display:grid;gap:.75rem;margin-top:1rem;">
+                    <label class="sr-only" for="track-code">Número de pedido</label>
+                    <input id="track-code" name="code" placeholder="Ej. FD-1842" style="border-radius:1rem;border:1px solid var(--fd-glass-border);padding:.85rem;background:transparent;color:inherit;">
+                    <button type="submit" class="fd-btn fd-btn--primary">Consultar por WhatsApp</button>
+                </form>
+            </div>
+        </div>
 
-        @@keyframes logo-enter {
-            from {
-                opacity: 0;
-                transform: translateY(12px) scale(0.94);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
-        }
-
-        .logo-float {
-            animation: logo-enter 1s cubic-bezier(0.22, 1, 0.36, 1) both,
-                logo-drift 5s ease-in-out 1.2s infinite;
-        }
-
-        .ios-product-card {
-            position: relative;
-            overflow: hidden;
-            backdrop-filter: blur(18px);
-            -webkit-backdrop-filter: blur(18px);
-        }
-
-        .ios-product-card::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(
-                140deg,
-                rgba(255, 255, 255, 0.38) 0%,
-                rgba(255, 255, 255, 0) 45%
-            );
-            pointer-events: none;
-        }
-
-        @@keyframes logo-drift {
-            0%,
-            100% {
-                transform: translateY(0);
-            }
-            50% {
-                transform: translateY(-6px);
-            }
-        }
-    </style>
+        <div class="fd-toast fd-glass" data-toast role="status"></div>
     </body>
 </html>

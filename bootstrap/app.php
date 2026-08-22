@@ -7,6 +7,7 @@ use App\Http\Middleware\EnsureEmployeePortalAccess;
 use App\Http\Middleware\EnsureEmployeePortalGuest;
 use App\Http\Middleware\EnsureLocalEnvironment;
 use App\Support\Livewire\LivewireRequestPayload;
+use App\Support\Shop\ShopTheme;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -30,6 +31,10 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $skipLivewireNormalization = static fn (Request $request): bool => LivewireRequestPayload::shouldSkipNormalization($request);
+
+        $middleware->encryptCookies(except: [
+            ShopTheme::COOKIE,
+        ]);
 
         $middleware->trimStrings(except: [$skipLivewireNormalization]);
         $middleware->convertEmptyStringsToNull(except: [$skipLivewireNormalization]);

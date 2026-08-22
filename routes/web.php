@@ -16,6 +16,9 @@ use App\Http\Controllers\Purchases\PurchaseBookRetentionVoucherPdfController;
 use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
 use App\Http\Controllers\Reports\SystemReportsDownloadController;
 use App\Http\Controllers\Sales\CashRegisterClosePdfController;
+use App\Http\Controllers\Shop\ShopManifestController;
+use App\Http\Controllers\StorefrontCheckoutController;
+use App\Http\Controllers\StorefrontHomeController;
 use App\Http\Middleware\EnsureSystemReportsAccess;
 use App\Livewire\EmployeePortal\Account;
 use App\Livewire\EmployeePortal\FileEnrollment;
@@ -23,10 +26,20 @@ use App\Livewire\EmployeePortal\Home;
 use App\Livewire\EmployeePortal\Login;
 use App\Livewire\EmployeePortal\Profile;
 use App\Livewire\EmployeePortal\Receipts;
+use App\Livewire\Shop\Account as ShopAccount;
+use App\Livewire\Shop\Cart as ShopCart;
+use App\Livewire\Shop\Categories as ShopCategories;
+use App\Livewire\Shop\Category as ShopCategory;
+use App\Livewire\Shop\Checkout as ShopCheckout;
+use App\Livewire\Shop\Home as ShopHome;
+use App\Livewire\Shop\OrderConfirmation as ShopOrderConfirmation;
+use App\Livewire\Shop\Product as ShopProduct;
+use App\Livewire\Shop\Search as ShopSearch;
+use App\Livewire\Storefront\Pay as StorefrontPay;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
-Route::view('/', 'welcome')->name('home');
+Route::get('/', StorefrontHomeController::class)->name('home');
 
 Route::prefix('portal')->name('employee-portal.')->group(function (): void {
     Route::get('ingresar/{employee}', EmployeePortalEntryController::class)->name('enter');
@@ -45,8 +58,24 @@ Route::prefix('portal')->name('employee-portal.')->group(function (): void {
         Route::get('recibos/{receipt}/descargar', EmployeePortalPayrollReceiptController::class)->name('receipts.download');
     });
 });
+Route::prefix('app')->name('shop.')->group(function (): void {
+    Route::livewire('/', ShopHome::class)->name('home');
+    Route::livewire('buscar', ShopSearch::class)->name('search');
+    Route::livewire('categorias', ShopCategories::class)->name('categories');
+    Route::livewire('categoria/{category}', ShopCategory::class)->name('category');
+    Route::livewire('producto/{product}', ShopProduct::class)->whereNumber('product')->name('product');
+    Route::livewire('carrito', ShopCart::class)->name('cart');
+    Route::livewire('checkout', ShopCheckout::class)->name('checkout');
+    Route::livewire('pedido/{order}', ShopOrderConfirmation::class)->name('order');
+    Route::livewire('cuenta', ShopAccount::class)->name('account');
+    Route::get('manifest.webmanifest', ShopManifestController::class)->name('manifest');
+    Route::view('offline', 'shop.offline')->name('offline');
+});
+
 Route::view('/docs/api', 'public.api-docs')->name('public.api-docs');
 Route::get('/buscar-productos', PublicProductSearchController::class)->name('public.products.search');
+Route::post('/realizar-pago', StorefrontCheckoutController::class)->name('storefront.checkout');
+Route::livewire('/pagar', StorefrontPay::class)->name('storefront.pay');
 Route::get('/sitemap.xml', function () {
     $urls = [
         route('home'),

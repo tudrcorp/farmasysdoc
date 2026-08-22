@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\Pricing\BranchCategoryProfitResolver;
 use App\Services\Pricing\FarmaExpressBranchPriceSynchronizer;
+use App\Support\Shop\ShopCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -149,6 +150,10 @@ class Product extends Model
             }
 
             Inventory::propagateFinancialSnapshotToInventories($product);
+        });
+
+        static::saved(function (): void {
+            ShopCatalog::bump();
         });
     }
 

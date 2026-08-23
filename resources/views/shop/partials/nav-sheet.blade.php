@@ -156,6 +156,9 @@
                 </span>
 
                 <span class="sh-nav-tile__copy">
+                    @if ($current === $destination['key'])
+                        <span class="sh-nav-tile__now">Aquí</span>
+                    @endif
                     <strong>{{ $destination['label'] }}</strong>
                     @if (($destination['badge'] ?? false))
                         <span x-text="$store.shop.cartCount > 0 ? ($store.shop.cartCount + ' en el carrito') : 'Vacío por ahora'"></span>
@@ -163,11 +166,35 @@
                         <span>{{ $destination['hint'] }}</span>
                     @endif
                 </span>
-
-                @if ($current === $destination['key'])
-                    <span class="sh-nav-tile__now">Aquí</span>
-                @endif
             </a>
         @endforeach
+    </div>
+
+    <div class="sh-nav-pref">
+        <p class="sh-sheet__label">Apariencia</p>
+        <div class="sh-sheet__theme sh-sheet__theme--nav">
+            <div class="sh-sheet__theme-copy">
+                <strong x-text="$store.shop.dark ? 'Modo oscuro' : 'Modo claro'">Modo oscuro</strong>
+                <span>Se guarda en este teléfono</span>
+            </div>
+            <button
+                type="button"
+                class="sh-switch"
+                :class="{ 'is-on': $store.shop.dark }"
+                @click="$store.shop.toggleTheme()"
+                role="switch"
+                :aria-checked="$store.shop.dark.toString()"
+                aria-label="Cambiar entre modo claro y oscuro"
+            >
+                <span class="sh-switch__knob" aria-hidden="true">
+                    <template x-if="$store.shop.dark">
+                        @include('shop.partials.icon', ['icon' => 'moon'])
+                    </template>
+                    <template x-if="! $store.shop.dark">
+                        @include('shop.partials.icon', ['icon' => 'sun'])
+                    </template>
+                </span>
+            </button>
+        </div>
     </div>
 </nav>

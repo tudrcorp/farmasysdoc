@@ -51,6 +51,9 @@ return [
         /** Opcional: IDs de estilo en Google Cloud Console (vector map); claro / oscuro según tema Filament. */
         'maps_map_id_light' => env('GOOGLE_MAPS_MAP_ID_LIGHT'),
         'maps_map_id_dark' => env('GOOGLE_MAPS_MAP_ID_DARK'),
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
 
     /*

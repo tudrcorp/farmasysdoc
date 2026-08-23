@@ -6,6 +6,8 @@ use App\Http\Middleware\ConditionalTrimStrings;
 use App\Http\Middleware\EnsureEmployeePortalAccess;
 use App\Http\Middleware\EnsureEmployeePortalGuest;
 use App\Http\Middleware\EnsureLocalEnvironment;
+use App\Http\Middleware\EnsureShopCustomerAuthenticated;
+use App\Http\Middleware\EnsureShopCustomerGuest;
 use App\Support\Livewire\LivewireRequestPayload;
 use App\Support\Shop\ShopTheme;
 use Illuminate\Console\Scheduling\Schedule;
@@ -59,6 +61,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'local' => EnsureLocalEnvironment::class,
             'employee.portal' => EnsureEmployeePortalAccess::class,
             'employee.portal.guest' => EnsureEmployeePortalGuest::class,
+            'shop.auth' => EnsureShopCustomerAuthenticated::class,
+            'shop.guest' => EnsureShopCustomerGuest::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

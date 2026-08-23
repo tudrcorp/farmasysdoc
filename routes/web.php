@@ -16,6 +16,8 @@ use App\Http\Controllers\Purchases\PurchaseBookRetentionVoucherPdfController;
 use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
 use App\Http\Controllers\Reports\SystemReportsDownloadController;
 use App\Http\Controllers\Sales\CashRegisterClosePdfController;
+use App\Http\Controllers\Shop\ShopGoogleAuthController;
+use App\Http\Controllers\Shop\ShopLogoutController;
 use App\Http\Controllers\Shop\ShopManifestController;
 use App\Http\Controllers\StorefrontCheckoutController;
 use App\Http\Controllers\StorefrontHomeController;
@@ -27,6 +29,11 @@ use App\Livewire\EmployeePortal\Login;
 use App\Livewire\EmployeePortal\Profile;
 use App\Livewire\EmployeePortal\Receipts;
 use App\Livewire\Shop\Account as ShopAccount;
+use App\Livewire\Shop\Auth\Login as ShopLogin;
+use App\Livewire\Shop\Auth\Register as ShopRegister;
+use App\Livewire\Shop\Auth\RegisterPassword as ShopRegisterPassword;
+use App\Livewire\Shop\Auth\RegisterSuccess as ShopRegisterSuccess;
+use App\Livewire\Shop\Auth\Welcome as ShopWelcome;
 use App\Livewire\Shop\Cart as ShopCart;
 use App\Livewire\Shop\Categories as ShopCategories;
 use App\Livewire\Shop\Category as ShopCategory;
@@ -59,17 +66,32 @@ Route::prefix('portal')->name('employee-portal.')->group(function (): void {
     });
 });
 Route::prefix('app')->name('shop.')->group(function (): void {
-    Route::livewire('/', ShopHome::class)->name('home');
-    Route::livewire('buscar', ShopSearch::class)->name('search');
-    Route::livewire('categorias', ShopCategories::class)->name('categories');
-    Route::livewire('categoria/{category}', ShopCategory::class)->name('category');
-    Route::livewire('producto/{product}', ShopProduct::class)->whereNumber('product')->name('product');
-    Route::livewire('carrito', ShopCart::class)->name('cart');
-    Route::livewire('checkout', ShopCheckout::class)->name('checkout');
-    Route::livewire('pedido/{order}', ShopOrderConfirmation::class)->name('order');
-    Route::livewire('cuenta', ShopAccount::class)->name('account');
     Route::get('manifest.webmanifest', ShopManifestController::class)->name('manifest');
     Route::view('offline', 'shop.offline')->name('offline');
+
+    Route::middleware('shop.guest')->group(function (): void {
+        Route::livewire('bienvenida', ShopWelcome::class)->name('welcome');
+        Route::livewire('registro', ShopRegister::class)->name('register');
+        Route::livewire('registro/clave', ShopRegisterPassword::class)->name('register.password');
+        Route::livewire('entrar', ShopLogin::class)->name('login');
+        Route::get('auth/google', [ShopGoogleAuthController::class, 'redirect'])->name('google.redirect');
+        Route::get('auth/google/callback', [ShopGoogleAuthController::class, 'callback'])->name('google.callback');
+    });
+
+    Route::livewire('/', ShopHome::class)->name('home');
+
+    Route::middleware('shop.auth')->group(function (): void {
+        Route::livewire('registro/listo', ShopRegisterSuccess::class)->name('register.success');
+        Route::post('salir', ShopLogoutController::class)->name('logout');
+        Route::livewire('buscar', ShopSearch::class)->name('search');
+        Route::livewire('categorias', ShopCategories::class)->name('categories');
+        Route::livewire('categoria/{category}', ShopCategory::class)->name('category');
+        Route::livewire('producto/{product}', ShopProduct::class)->whereNumber('product')->name('product');
+        Route::livewire('carrito', ShopCart::class)->name('cart');
+        Route::livewire('checkout', ShopCheckout::class)->name('checkout');
+        Route::livewire('pedido/{order}', ShopOrderConfirmation::class)->name('order');
+        Route::livewire('cuenta', ShopAccount::class)->name('account');
+    });
 });
 
 Route::view('/docs/api', 'public.api-docs')->name('public.api-docs');

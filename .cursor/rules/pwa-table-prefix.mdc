@@ -1,0 +1,21 @@
+---
+description: Tablas de la PWA /app usan el prefijo pwa_
+globs: database/migrations/**/*.php,app/Models/**/*.php
+alwaysApply: true
+---
+
+# Prefijo `pwa_` en tablas de la PWA
+
+Las tablas nuevas para la gestión de la tienda PWA (`/app`) llevan el prefijo `pwa_`.
+
+- Crear `pwa_customers`, `pwa_addresses`, `pwa_…`. No usar `shop_`, ni tablas del POS (`clients`, `users`).
+- El modelo declara `protected $table = 'pwa_…'` si el nombre Eloquent no coincide.
+- No mezclar estas tablas con `User`, `Client` del farmaadmin ni con el portal de empleados.
+
+```php
+// ❌ BAD
+Schema::create('shop_wishlists', function (Blueprint $table) { … });
+
+// ✅ GOOD
+Schema::create('pwa_wishlists', function (Blueprint $table) { … });
+```

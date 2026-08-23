@@ -3,6 +3,7 @@
 namespace App\Livewire\Shop;
 
 use App\Livewire\Shop\Concerns\InteractsWithShopCart;
+use App\Support\Shop\ShopMoney;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -62,6 +63,7 @@ class Cart extends Component
             'lines' => $lines,
             'totals' => $cart->totals($lines),
             'requiresPrescription' => $requiresPrescription,
+            'money' => app(ShopMoney::class),
         ]);
     }
 }

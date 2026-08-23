@@ -20,7 +20,7 @@
                         <h3>Sin conexión</h3>
                         <p>No pudimos cargar la tienda. Revisa tu internet y vuelve a intentarlo.</p>
 
-                        <button type="button" class="sh-btn sh-btn--primary" style="margin-top:1.2rem;" onclick="window.location.reload()">
+                        <button type="button" class="sh-btn sh-btn--primary" style="margin-top:1.2rem;" onclick="window.location.assign(@js(route('shop.home')))">
                             Reintentar
                         </button>
                     </div>

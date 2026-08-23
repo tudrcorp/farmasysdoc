@@ -6,7 +6,7 @@
  * de respaldo para cuando no hay conexión.
  */
 
-const VERSION = 'farmadoc-shop-v3';
+const VERSION = 'farmadoc-shop-v7';
 const STATIC_CACHE = `${VERSION}-static`;
 const OFFLINE_URL = '/app/offline';
 
@@ -54,18 +54,32 @@ self.addEventListener('fetch', (event) => {
     }
 
     // Navegación: red primero, respaldo offline si falla.
+    // Chrome rechaza devolver un Response.redirected en un FetchEvent de navigate
+    // (p. ej. /app → /app/bienvenida). Se sigue el redirect y se limpia el flag.
     if (request.mode === 'navigate') {
         event.respondWith(
-            fetch(request).catch(() => caches.match(OFFLINE_URL).then(
-                (cached) => cached ?? new Response(
-                    '<!doctype html><meta charset="utf-8"><title>Sin conexión</title>'
-                    + '<body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;'
-                    + 'background:#f2f9f9;color:#10282c;text-align:center;padding:2rem">'
-                    + '<div><h1 style="font-size:1.3rem">Sin conexión</h1>'
-                    + '<p style="color:#5b6f73">Revisa tu internet y vuelve a intentarlo.</p></div>',
-                    { headers: { 'Content-Type': 'text/html; charset=utf-8' }, status: 503 },
-                ),
-            )),
+            fetch(new Request(request, { redirect: 'follow' }))
+                .then((response) => {
+                    if (! response.redirected) {
+                        return response;
+                    }
+
+                    return new Response(response.body, {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: response.headers,
+                    });
+                })
+                .catch(() => caches.match(OFFLINE_URL).then(
+                    (cached) => cached ?? new Response(
+                        '<!doctype html><meta charset="utf-8"><title>Sin conexión</title>'
+                        + '<body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;'
+                        + 'background:#f2f9f9;color:#10282c;text-align:center;padding:2rem">'
+                        + '<div><h1 style="font-size:1.3rem">Sin conexión</h1>'
+                        + '<p style="color:#5b6f73">Revisa tu internet y vuelve a intentarlo.</p></div>',
+                        { headers: { 'Content-Type': 'text/html; charset=utf-8' }, status: 503 },
+                    ),
+                )),
         );
 
         return;

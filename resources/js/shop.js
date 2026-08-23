@@ -88,9 +88,27 @@ const syncKeyboardInset = () => {
     }
 
     const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+    const rounded = Math.round(inset);
 
-    document.documentElement.style.setProperty('--sh-keyboard', `${Math.round(inset)}px`);
+    document.documentElement.style.setProperty('--sh-keyboard', `${rounded}px`);
+    document.body.classList.toggle('is-keyboard', rounded > 80);
 };
+
+document.addEventListener('focusin', (event) => {
+    const target = event.target;
+
+    if (! (target instanceof HTMLElement) || ! target.matches('input, textarea, select')) {
+        return;
+    }
+
+    if (! target.closest('.sh-checkout')) {
+        return;
+    }
+
+    window.setTimeout(() => {
+        target.scrollIntoView({ block: 'center', inline: 'nearest' });
+    }, 280);
+});
 
 document.addEventListener('alpine:init', () => {
     const alpine = window.Alpine;
@@ -388,9 +406,31 @@ document.addEventListener('alpine:init', () => {
     }));
 });
 
+const resetHorizontalOverflow = () => {
+    window.scrollTo(0, window.scrollY || 0);
+    document.documentElement.scrollLeft = 0;
+    document.body.scrollLeft = 0;
+
+    document.querySelectorAll('.sh-shell, .sh-auth, .sh-auth-host, .sh-gate').forEach((el) => {
+        el.scrollLeft = 0;
+    });
+};
+
 ['livewire:navigated', 'alpine:navigated'].forEach((name) => {
-    document.addEventListener(name, syncTheme);
+    document.addEventListener(name, () => {
+        syncTheme();
+        resetHorizontalOverflow();
+    });
 });
+
+window.addEventListener('pageshow', resetHorizontalOverflow);
+window.addEventListener('popstate', resetHorizontalOverflow);
+
+if ('scrollRestoration' in history) {
+    history.scrollRestoration = 'manual';
+}
+
+resetHorizontalOverflow();
 
 document.addEventListener('click', (event) => {
     if (event.target.closest('.sh-tab, .sh-add, .sh-stepper button')) {
@@ -417,7 +457,7 @@ if (window.visualViewport) {
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/shop-sw.js?v=3', { scope: '/app' }).catch(() => {
+        navigator.serviceWorker.register('/shop-sw.js?v=7', { scope: '/app' }).catch(() => {
             /* sin service worker la app sigue funcionando */
         });
     });

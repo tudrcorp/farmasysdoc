@@ -4,8 +4,10 @@ namespace App\Livewire\Shop;
 
 use App\Livewire\Shop\Concerns\InteractsWithShopCart;
 use App\Models\Branch;
+use App\Models\ShopCustomer;
 use App\Services\Shop\ShopOrderPlacer;
 use App\Support\Shop\ShopCheckoutData;
+use App\Support\Shop\ShopCustomerIdentity;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
@@ -70,6 +72,34 @@ class Checkout extends Component
             if (property_exists($this, $key) && is_string($value)) {
                 $this->{$key} = $value;
             }
+        }
+
+        $this->prefillFromCustomer();
+    }
+
+    private function prefillFromCustomer(): void
+    {
+        $customer = ShopCustomer::current();
+
+        if (! $customer instanceof ShopCustomer) {
+            return;
+        }
+
+        if ($this->name === '') {
+            $this->name = $customer->fullName();
+        }
+
+        if ($this->documentNumber === '' && filled($customer->document_number)) {
+            $this->documentType = $customer->checkoutDocumentType();
+            $this->documentNumber = (string) $customer->document_number;
+        }
+
+        if ($this->phone === '' && filled($customer->phone)) {
+            $this->phone = ShopCustomerIdentity::displayPhone((string) $customer->phone);
+        }
+
+        if ($this->email === '' && filled($customer->email)) {
+            $this->email = (string) $customer->email;
         }
     }
 

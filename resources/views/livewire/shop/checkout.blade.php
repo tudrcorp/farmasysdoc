@@ -7,7 +7,7 @@
     $selectedBranch = $branches->firstWhere('id', $branchId);
 @endphp
 
-<div>
+<div class="sh-checkout">
     @include('shop.partials.header', [
         'title' => $stepTitles[$step] ?? 'Checkout',
         'back' => route('shop.cart'),
@@ -113,12 +113,13 @@
                             @enderror
                         </div>
 
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+                        <div class="sh-form__split">
                             <div class="sh-field">
                                 <label class="sh-field__label" for="ck-city">Ciudad</label>
                                 <input
                                     id="ck-city"
                                     type="text"
+                                    size="1"
                                     wire:model.blur="city"
                                     @class(['sh-input', 'is-invalid' => $errors->has('city')])
                                     placeholder="Barinas"
@@ -131,6 +132,7 @@
                                 <input
                                     id="ck-state"
                                     type="text"
+                                    size="1"
                                     wire:model.blur="state"
                                     @class(['sh-input', 'is-invalid' => $errors->has('state')])
                                     placeholder="Barinas"
@@ -157,6 +159,7 @@
                             <input
                                 id="ck-delivery-notes"
                                 type="text"
+                                size="1"
                                 wire:model.blur="deliveryNotes"
                                 class="sh-input"
                                 placeholder="Piso, apartamento, horario"
@@ -177,6 +180,7 @@
                         <input
                             id="ck-name"
                             type="text"
+                            size="1"
                             wire:model.blur="name"
                             @class(['sh-input', 'is-invalid' => $errors->has('name')])
                             placeholder="María Pérez"
@@ -202,6 +206,7 @@
                             <input
                                 id="ck-document"
                                 type="text"
+                                size="1"
                                 wire:model.blur="documentNumber"
                                 @class(['sh-input', 'is-invalid' => $errors->has('documentNumber')])
                                 placeholder="12345678"
@@ -221,6 +226,7 @@
                         <input
                             id="ck-phone"
                             type="tel"
+                            size="1"
                             wire:model.blur="phone"
                             @class(['sh-input', 'is-invalid' => $errors->has('phone')])
                             placeholder="0412 701 8390"
@@ -240,6 +246,7 @@
                         <input
                             id="ck-email"
                             type="email"
+                            size="1"
                             wire:model.blur="email"
                             @class(['sh-input', 'is-invalid' => $errors->has('email')])
                             placeholder="maria@correo.com"

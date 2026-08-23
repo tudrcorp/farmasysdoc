@@ -6,6 +6,7 @@ use App\Livewire\Shop\Concerns\InteractsWithShopCart;
 use App\Models\Product as ProductModel;
 use App\Support\Orders\OrderTotalsCalculator;
 use App\Support\Shop\ShopCatalog;
+use App\Support\Shop\ShopMoney;
 use App\Support\Storefront\StorefrontProductPresenter;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Str;
@@ -98,6 +99,7 @@ class Product extends Component
             'taxAmount' => $amounts['tax_amount'],
             'maxQuantity' => $maxQuantity,
             'inCartQuantity' => $this->cart()->quantityFor($this->productId),
+            'money' => app(ShopMoney::class),
         ]);
     }
 }

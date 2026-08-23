@@ -56,11 +56,16 @@
         <h1 class="sh-pdp__name">{{ $product['name'] }}</h1>
 
         <div class="sh-pdp__price">
-            <strong>${{ number_format($product['effective_price'], 2) }}</strong>
+            <div class="sh-pdp__price-now">
+                <strong>{{ $money->formatUsd($product['effective_price']) }}</strong>
+                @if ($money->formatVes($product['effective_price']))
+                    <span class="sh-money__ves">{{ $money->formatVes($product['effective_price']) }}</span>
+                @endif
+            </div>
             @if ($hasDiscount)
-                <s>${{ number_format($product['sale_price'], 2) }}</s>
+                <s>{{ $money->formatUsd($product['sale_price']) }}</s>
                 <span class="sh-pill sh-pill--ok">
-                    Ahorras ${{ number_format($product['sale_price'] - $product['effective_price'], 2) }}
+                    Ahorras {{ $money->formatUsd($product['sale_price'] - $product['effective_price']) }}
                 </span>
             @endif
         </div>
@@ -125,8 +130,11 @@
             wire:loading.attr="disabled"
             wire:target="addSelectionToCart"
         >
-            <span wire:loading.remove wire:target="addSelectionToCart">
-                Agregar · ${{ number_format($lineTotal, 2) }}
+            <span wire:loading.remove wire:target="addSelectionToCart" class="sh-pdp__add-copy">
+                Agregar · {{ $money->formatUsd($lineTotal) }}
+                @if ($money->formatVes($lineTotal))
+                    <small>{{ $money->formatVes($lineTotal) }}</small>
+                @endif
             </span>
             <span wire:loading wire:target="addSelectionToCart">Agregando…</span>
         </button>

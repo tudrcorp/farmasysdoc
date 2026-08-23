@@ -1,4 +1,4 @@
-<div>
+<div x-data="{ emptyOpen: false }">
     @include('shop.partials.header', [
         'title' => 'Mi carrito',
         'showCart' => false,
@@ -24,39 +24,10 @@
                         · {{ count($lines) }} {{ \Illuminate\Support\Str::plural('producto', count($lines)) }}
                     </p>
 
-                    <div x-data="{ open: false }">
-                        <button type="button" class="sh-btn sh-btn--danger" style="min-height:2.3rem;padding-inline:0.85rem;" @click="open = true">
-                            @include('shop.partials.icon', ['icon' => 'trash'])
-                            Vaciar
-                        </button>
-
-                        <div class="sh-backdrop" x-show="open" x-cloak x-transition.opacity.duration.200ms @click="open = false"></div>
-                        <div
-                            class="sh-sheet"
-                            x-show="open"
-                            x-cloak
-                            x-transition:enter="sh-sheet-anim"
-                            x-transition:enter-start="sh-sheet-anim-start"
-                            x-transition:enter-end="sh-sheet-anim-end"
-                            x-transition:leave="sh-sheet-anim sh-sheet-anim-leave"
-                            x-transition:leave-start="sh-sheet-anim-end"
-                            x-transition:leave-end="sh-sheet-anim-start"
-                            role="dialog"
-                            aria-label="Vaciar carrito"
-                        >
-                            <span class="sh-sheet__handle" style="margin:0.7rem auto 0.55rem;"></span>
-                            <p class="sh-sheet__kicker">Carrito</p>
-                            <h2 class="sh-h2" style="text-align:center;margin-bottom:0.85rem;">¿Vaciar todos los productos?</h2>
-                            <div class="sh-sheet__actions">
-                                <button type="button" class="sh-btn sh-btn--danger sh-btn--block" wire:click="confirmClear" @click="open = false">
-                                    Vaciar carrito
-                                </button>
-                                <button type="button" class="sh-btn sh-btn--quiet sh-btn--block" @click="open = false">
-                                    Cancelar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <button type="button" class="sh-btn sh-btn--danger" style="min-height:2.3rem;padding-inline:0.85rem;" @click="emptyOpen = true">
+                        @include('shop.partials.icon', ['icon' => 'trash'])
+                        Vaciar
+                    </button>
                 </div>
 
                 {{-- Líneas --}}
@@ -101,7 +72,10 @@
                                     </a>
 
                                     <p class="sh-line__meta">
-                                        ${{ number_format($line['unit_price'], 2) }} c/u
+                                        {{ $money->formatUsd($line['unit_price']) }} c/u
+                                        @if ($money->formatVes($line['unit_price']))
+                                            · {{ $money->formatVes($line['unit_price']) }}
+                                        @endif
                                         @if ($line['discount_percent'] > 0)
                                             · <span style="color:var(--sh-success);font-weight:650;">-{{ (int) $line['discount_percent'] }}%</span>
                                         @endif
@@ -127,7 +101,12 @@
                                             </button>
                                         </div>
 
-                                        <span class="sh-line__sum">${{ number_format($line['line_total'], 2) }}</span>
+                                        <span class="sh-line__sum sh-money">
+                                            <strong>{{ $money->formatUsd($line['line_total']) }}</strong>
+                                            @if ($money->formatVes($line['line_total']))
+                                                <span class="sh-money__ves">{{ $money->formatVes($line['line_total']) }}</span>
+                                            @endif
+                                        </span>
                                     </div>
                                 </div>
                             </article>
@@ -146,20 +125,35 @@
                 <div class="sh-summary" style="margin-top:1.15rem;">
                     <div class="sh-summary__row">
                         <span>Subtotal</span>
-                        <strong>${{ number_format($totals['net'], 2) }}</strong>
+                        <span class="sh-money">
+                            <strong>{{ $money->formatUsd($totals['net']) }}</strong>
+                            @if ($money->formatVes($totals['net']))
+                                <span class="sh-money__ves">{{ $money->formatVes($totals['net']) }}</span>
+                            @endif
+                        </span>
                     </div>
 
                     @if ($totals['discount'] > 0)
                         <div class="sh-summary__row sh-summary__row--discount">
                             <span>Descuentos</span>
-                            <strong>-${{ number_format($totals['discount'], 2) }}</strong>
+                            <span class="sh-money">
+                                <strong>-{{ $money->formatUsd($totals['discount']) }}</strong>
+                                @if ($money->formatVes($totals['discount']))
+                                    <span class="sh-money__ves">-{{ $money->formatVes($totals['discount']) }}</span>
+                                @endif
+                            </span>
                         </div>
                     @endif
 
                     @if ($totals['tax'] > 0)
                         <div class="sh-summary__row">
                             <span>IVA</span>
-                            <strong>${{ number_format($totals['tax'], 2) }}</strong>
+                            <span class="sh-money">
+                                <strong>{{ $money->formatUsd($totals['tax']) }}</strong>
+                                @if ($money->formatVes($totals['tax']))
+                                    <span class="sh-money__ves">{{ $money->formatVes($totals['tax']) }}</span>
+                                @endif
+                            </span>
                         </div>
                     @endif
 
@@ -167,19 +161,31 @@
 
                     <div class="sh-summary__row sh-summary__row--total">
                         <span>Total</span>
-                        <strong>${{ number_format($totals['total'], 2) }}</strong>
+                        <span class="sh-money">
+                            <strong>{{ $money->formatUsd($totals['total']) }}</strong>
+                            @if ($money->formatVes($totals['total']))
+                                <span class="sh-money__ves">{{ $money->formatVes($totals['total']) }}</span>
+                            @endif
+                        </span>
                     </div>
+
+                    @if ($money->rate())
+                        <p class="sh-summary__ves">Tasa BCV · Bs. {{ number_format($money->rate(), 2, ',', '.') }}</p>
+                    @endif
                 </div>
             @endif
         </div>
     </main>
 
     @if ($lines !== [])
-        <div class="sh-actionbar">
+        <div class="sh-actionbar" x-show="! emptyOpen">
             <div class="sh-actionbar__row">
                 <div class="sh-actionbar__total">
                     <span>Total</span>
-                    <strong>${{ number_format($totals['total'], 2) }}</strong>
+                    <strong>{{ $money->formatUsd($totals['total']) }}</strong>
+                    @if ($money->formatVes($totals['total']))
+                        <em class="sh-money__ves">{{ $money->formatVes($totals['total']) }}</em>
+                    @endif
                 </div>
 
                 <button
@@ -196,5 +202,38 @@
                 </button>
             </div>
         </div>
+
+        <template x-teleport=".sh-shell">
+            <div>
+                <div class="sh-backdrop sh-backdrop--confirm" x-show="emptyOpen" x-cloak x-transition.opacity.duration.200ms @click="emptyOpen = false"></div>
+                <div
+                    class="sh-sheet sh-sheet--confirm"
+                    x-show="emptyOpen"
+                    x-cloak
+                    x-transition:enter="sh-sheet-anim"
+                    x-transition:enter-start="sh-sheet-anim-start"
+                    x-transition:enter-end="sh-sheet-anim-end"
+                    x-transition:leave="sh-sheet-anim sh-sheet-anim-leave"
+                    x-transition:leave-start="sh-sheet-anim-end"
+                    x-transition:leave-end="sh-sheet-anim-start"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Vaciar carrito"
+                >
+                    <span class="sh-sheet__handle" style="margin:0.7rem auto 0.55rem;"></span>
+                    <p class="sh-sheet__kicker">Carrito</p>
+                    <h2 class="sh-h2" style="text-align:center;margin-bottom:0.85rem;">¿Vaciar todos los productos?</h2>
+                    <div class="sh-sheet__actions">
+                        <button type="button" class="sh-confirm-btn sh-confirm-btn--danger" @click="emptyOpen = false; $wire.confirmClear()">
+                            @include('shop.partials.icon', ['icon' => 'trash'])
+                            Vaciar carrito
+                        </button>
+                        <button type="button" class="sh-confirm-btn sh-confirm-btn--quiet" @click="emptyOpen = false">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
     @endif
 </div>

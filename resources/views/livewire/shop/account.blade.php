@@ -1,6 +1,7 @@
 @php
+    $shopCustomer = \App\Models\ShopCustomer::current();
     $firstOrder = $orders->first();
-    $customerName = $firstOrder?->delivery_recipient_name;
+    $customerName = $shopCustomer?->fullName() ?: $firstOrder?->delivery_recipient_name;
 @endphp
 
 <div>
@@ -11,7 +12,9 @@
             {{-- Cabecera de cuenta --}}
             <div class="sh-account-head">
                 <span class="sh-avatar" aria-hidden="true">
-                    @if ($customerName)
+                    @if ($shopCustomer)
+                        {{ $shopCustomer->initials() }}
+                    @elseif ($customerName)
                         {{ \Illuminate\Support\Str::of($customerName)->substr(0, 1)->upper() }}
                     @else
                         @include('shop.partials.icon', ['icon' => 'user'])
@@ -23,7 +26,9 @@
                         {{ $customerName ?? 'Hola 👋' }}
                     </strong>
                     <span style="font-size:0.8rem;color:var(--sh-muted);">
-                        @if ($orders->isEmpty())
+                        @if ($shopCustomer?->email)
+                            {{ $shopCustomer->email }}
+                        @elseif ($orders->isEmpty())
                             Aún no tienes pedidos
                         @else
                             {{ $orders->count() }} {{ \Illuminate\Support\Str::plural('pedido', $orders->count()) }}
@@ -104,32 +109,6 @@
                 </a>
             </div>
 
-            <p class="sh-sheet__label">Apariencia</p>
-            <div class="sh-sheet__theme">
-                <div class="sh-sheet__theme-copy">
-                    <strong>Modo oscuro</strong>
-                    <span>Se guarda en este teléfono</span>
-                </div>
-                <button
-                    type="button"
-                    class="sh-switch"
-                    :class="{ 'is-on': $store.shop.dark }"
-                    @click="$store.shop.toggleTheme()"
-                    role="switch"
-                    :aria-checked="$store.shop.dark.toString()"
-                    aria-label="Cambiar entre modo claro y oscuro"
-                >
-                    <span class="sh-switch__knob" aria-hidden="true">
-                        <template x-if="$store.shop.dark">
-                            @include('shop.partials.icon', ['icon' => 'moon'])
-                        </template>
-                        <template x-if="! $store.shop.dark">
-                            @include('shop.partials.icon', ['icon' => 'sun'])
-                        </template>
-                    </span>
-                </button>
-            </div>
-
             <template x-if="$store.shop.canInstall">
                 <button
                     type="button"
@@ -141,6 +120,14 @@
                     Instalar Farmadoc en tu teléfono
                 </button>
             </template>
+
+            <form method="POST" action="{{ route('shop.logout') }}" class="sh-logout-form">
+                @csrf
+                <button type="submit" class="sh-logout">
+                    @include('shop.partials.icon', ['icon' => 'logout'])
+                    Cerrar sesión
+                </button>
+            </form>
 
             <div
                 class="sh-note sh-note--info"

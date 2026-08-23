@@ -3,6 +3,7 @@
 namespace App\Livewire\Shop;
 
 use App\Livewire\Shop\Concerns\InteractsWithShopCart;
+use App\Models\ShopCustomer;
 use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use App\Support\Shop\ShopCatalog;
 use Illuminate\Contracts\View\View;
@@ -22,14 +23,20 @@ class Home extends Component
         $hour = now()->hour;
 
         if ($hour < 12) {
-            return 'Buenos días';
+            $hello = 'Buenos días';
+        } elseif ($hour < 19) {
+            $hello = 'Buenas tardes';
+        } else {
+            $hello = 'Buenas noches';
         }
 
-        if ($hour < 19) {
-            return 'Buenas tardes';
+        $name = ShopCustomer::current()?->firstName();
+
+        if (filled($name)) {
+            return $hello.', '.$name;
         }
 
-        return 'Buenas noches';
+        return $hello;
     }
 
     public function usdVesRate(): ?float
@@ -43,6 +50,12 @@ class Home extends Component
 
     public function render(): View
     {
+        if (! ShopCustomer::current()) {
+            return view('livewire.shop.home-guest')
+                ->layout('layouts.shop', ['hideTabBar' => true])
+                ->title('Bienvenido');
+        }
+
         $catalog = ShopCatalog::home(10);
 
         return view('livewire.shop.home', [
@@ -53,7 +66,7 @@ class Home extends Component
             'hasOffers' => $catalog['hasOffers'],
             'usdVesRate' => $this->usdVesRate(),
             'cartQuantities' => $this->cart()->raw(),
-        ]);
+        ])->layout('layouts.shop', ['tab' => 'home']);
     }
 
     protected function shouldRefreshAfterCartChange(): bool

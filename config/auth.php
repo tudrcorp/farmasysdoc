@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ShopCustomer;
 use App\Models\User;
 
 return [
@@ -42,6 +43,11 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        'shop' => [
+            'driver' => 'session',
+            'provider' => 'shop_customers',
+        ],
     ],
 
     /*
@@ -65,6 +71,11 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),
+        ],
+
+        'shop_customers' => [
+            'driver' => 'eloquent',
+            'model' => ShopCustomer::class,
         ],
 
         // 'users' => [

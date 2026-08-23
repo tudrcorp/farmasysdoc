@@ -38,7 +38,7 @@ Domain maintenance commands live in `app/Console/Commands` (`accounts-payable:re
 
 ## Architecture
 
-### Five distinct auth mechanisms
+### Six distinct auth mechanisms
 Do not mix these up when adding routes, resources or endpoints:
 
 | Surface | Guard / middleware | Identity model |
@@ -48,6 +48,9 @@ Do not mix these up when adding routes, resources or endpoints:
 | Employee Portal (`portal/*`) | `employee.portal` / `employee.portal.guest` | `Employee` |
 | Delivery app (`api/v1/delivery/*`) | `auth:sanctum` | `User` (delivery role) |
 | Partner API (`api/external/*`) | `api.client` (`AuthenticateApiClient`) | `ApiClient` / `PartnerCompany` |
+| Shop PWA (`/app`) | `shop` / `shop.auth` / `shop.guest` | `ShopCustomer` (`pwa_customers`) |
+
+New tables for the PWA use the `pwa_` prefix. Do not reuse POS `clients` or `users`.
 
 Middleware aliases are registered in `bootstrap/app.php`.
 

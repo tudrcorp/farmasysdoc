@@ -6,6 +6,7 @@ use App\Models\Order;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
@@ -32,6 +33,9 @@ class Account extends Component
             ->orderByDesc('created_at')
             ->get();
     }
+
+    #[On('shop-profile-updated')]
+    public function refreshProfile(): void {}
 
     public function render(): View
     {

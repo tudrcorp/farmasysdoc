@@ -38,6 +38,11 @@
                 </div>
             </div>
 
+            @if ($shopCustomer)
+                <livewire:shop.account-profile />
+                <livewire:shop.account-addresses />
+            @endif
+
             {{-- Pedidos --}}
             <p class="sh-sheet__label">Mis pedidos</p>
 

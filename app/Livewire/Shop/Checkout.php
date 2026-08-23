@@ -4,7 +4,9 @@ namespace App\Livewire\Shop;
 
 use App\Livewire\Shop\Concerns\InteractsWithShopCart;
 use App\Models\Branch;
+use App\Models\ShopAddress;
 use App\Models\ShopCustomer;
+use App\Services\Shop\ShopAddressBook;
 use App\Services\Shop\ShopOrderPlacer;
 use App\Support\Shop\ShopCheckoutData;
 use App\Support\Shop\ShopCustomerIdentity;
@@ -41,6 +43,12 @@ class Checkout extends Component
     public string $state = '';
 
     public string $deliveryNotes = '';
+
+    public string $addressLabel = '';
+
+    public ?int $addressId = null;
+
+    public bool $composingAddress = false;
 
     public string $name = '';
 
@@ -101,6 +109,112 @@ class Checkout extends Component
         if ($this->email === '' && filled($customer->email)) {
             $this->email = (string) $customer->email;
         }
+
+        $this->prefillDeliveryAddress();
+    }
+
+    private function prefillDeliveryAddress(): void
+    {
+        $addresses = $this->savedAddresses();
+
+        if ($addresses->isEmpty()) {
+            $this->composingAddress = true;
+            $this->addressId = null;
+
+            return;
+        }
+
+        $lastId = session('shop.checkout.last.addressId');
+        $selected = $addresses->firstWhere('id', $lastId)
+            ?? $addresses->firstWhere('is_primary', true)
+            ?? $addresses->first();
+
+        if ($selected instanceof ShopAddress) {
+            $this->applySavedAddress($selected);
+        }
+    }
+
+    /**
+     * @return Collection<int, ShopAddress>
+     */
+    public function savedAddresses(): Collection
+    {
+        $customer = ShopCustomer::current();
+
+        if (! $customer instanceof ShopCustomer) {
+            return collect();
+        }
+
+        return $customer->addresses()->get();
+    }
+
+    public function selectAddress(int $id): void
+    {
+        $this->applySavedAddress(app(ShopAddressBook::class)->findOwned($this->customer(), $id));
+        $this->resetValidation();
+    }
+
+    public function startNewAddress(): void
+    {
+        $this->composingAddress = true;
+        $this->addressId = null;
+        $this->address = '';
+        $this->city = '';
+        $this->state = '';
+        $this->deliveryNotes = '';
+        $this->addressLabel = '';
+        $this->resetValidation();
+    }
+
+    public function cancelNewAddress(): void
+    {
+        $primary = $this->savedAddresses()->firstWhere('is_primary', true)
+            ?? $this->savedAddresses()->first();
+
+        if ($primary instanceof ShopAddress) {
+            $this->applySavedAddress($primary);
+        } else {
+            $this->composingAddress = true;
+        }
+
+        $this->resetValidation();
+    }
+
+    private function applySavedAddress(ShopAddress $address): void
+    {
+        $this->composingAddress = false;
+        $this->addressId = $address->id;
+        $this->address = (string) $address->address_line;
+        $this->city = (string) $address->city;
+        $this->state = (string) $address->state;
+        $this->deliveryNotes = (string) $address->reference;
+        $this->addressLabel = (string) $address->label;
+    }
+
+    private function persistComposedAddress(ShopAddressBook $book): void
+    {
+        $customer = $this->customer();
+        $makePrimary = $customer->addresses()->doesntExist();
+
+        $saved = $book->save($customer, [
+            'label' => $this->addressLabel,
+            'address_line' => $this->address,
+            'city' => $this->city,
+            'state' => $this->state,
+            'reference' => $this->deliveryNotes,
+            'is_primary' => $makePrimary,
+        ]);
+
+        $this->applySavedAddress($saved);
+    }
+
+    private function customer(): ShopCustomer
+    {
+        $customer = ShopCustomer::current();
+
+        abort_unless($customer instanceof ShopCustomer, 403);
+
+        return $customer;
     }
 
     /**
@@ -141,9 +255,17 @@ class Checkout extends Component
         }
     }
 
-    public function nextStep(): void
+    public function nextStep(ShopAddressBook $book): void
     {
         $this->validate($this->rulesForStep($this->step), $this->messages());
+
+        if ($this->step === self::STEP_FULFILLMENT && ! $this->isPickup() && $this->composingAddress) {
+            $this->persistComposedAddress($book);
+        }
+
+        if ($this->step === self::STEP_FULFILLMENT && ! $this->isPickup() && $this->addressId) {
+            $this->applySavedAddress($book->findOwned($this->customer(), $this->addressId));
+        }
 
         $this->step = min(self::STEP_PAYMENT, $this->step + 1);
     }
@@ -205,6 +327,7 @@ class Checkout extends Component
             'address' => $this->address,
             'city' => $this->city,
             'state' => $this->state,
+            'addressId' => $this->addressId,
         ]);
 
         session()->push('shop.orders', $order->order_number);
@@ -223,12 +346,7 @@ class Checkout extends Component
         return match ($step) {
             self::STEP_FULFILLMENT => $this->isPickup()
                 ? ['branchId' => ['required', Rule::exists('branches', 'id')->where('is_active', true)]]
-                : [
-                    'address' => ['required', 'string', 'min:8', 'max:255'],
-                    'city' => ['required', 'string', 'max:120'],
-                    'state' => ['required', 'string', 'max:120'],
-                    'deliveryNotes' => ['nullable', 'string', 'max:500'],
-                ],
+                : $this->deliveryRules(),
             self::STEP_CONTACT => [
                 'name' => ['required', 'string', 'min:3', 'max:150'],
                 'documentType' => ['required', Rule::in(['CC', 'CE', 'RIF', 'NIT', 'PAS'])],
@@ -265,6 +383,8 @@ class Checkout extends Component
             'address.min' => 'Escribe una dirección más específica.',
             'city.required' => 'Indica la ciudad.',
             'state.required' => 'Indica el estado.',
+            'addressId.required' => 'Elige a qué dirección enviamos.',
+            'addressLabel.max' => 'El nombre de la dirección es muy largo.',
             'branchId.required' => 'Elige la sucursal donde vas a retirar.',
             'name.required' => 'Dinos tu nombre completo.',
             'name.min' => 'Escribe tu nombre completo.',
@@ -284,7 +404,32 @@ class Checkout extends Component
             'lines' => $lines,
             'totals' => $cart->totals($lines),
             'branches' => $this->branches(),
+            'savedAddresses' => $this->savedAddresses(),
             'paymentMethods' => ShopCheckoutData::paymentMethods(),
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function deliveryRules(): array
+    {
+        if ($this->composingAddress || $this->addressId === null) {
+            return [
+                'addressLabel' => ['nullable', 'string', 'max:40'],
+                'address' => ['required', 'string', 'min:8', 'max:255'],
+                'city' => ['required', 'string', 'max:120'],
+                'state' => ['required', 'string', 'max:120'],
+                'deliveryNotes' => ['nullable', 'string', 'max:500'],
+            ];
+        }
+
+        return [
+            'addressId' => [
+                'required',
+                'integer',
+                Rule::exists('pwa_addresses', 'id')->where('pwa_customer_id', $this->customer()->id),
+            ],
+        ];
     }
 }

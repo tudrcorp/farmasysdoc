@@ -6,7 +6,7 @@
  * de respaldo para cuando no hay conexión.
  */
 
-const VERSION = 'farmadoc-shop-v7';
+const VERSION = 'farmadoc-shop-v8';
 const STATIC_CACHE = `${VERSION}-static`;
 const OFFLINE_URL = '/app/offline';
 
@@ -50,6 +50,12 @@ self.addEventListener('fetch', (event) => {
     const url = new URL(request.url);
 
     if (url.origin !== self.location.origin) {
+        return;
+    }
+
+    // OAuth (Google): el 302 sale del origen. Si el SW lo intercepta y sigue
+    // el redirect, el fetch cruzado falla y la PWA muestra «Sin conexión».
+    if (url.pathname.startsWith('/app/auth/')) {
         return;
     }
 

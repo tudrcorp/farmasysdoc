@@ -6,6 +6,8 @@ use Database\Factories\ShopCustomerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -79,5 +81,24 @@ class ShopCustomer extends Authenticatable
     public function checkoutDocumentType(): string
     {
         return $this->document_type === 'E' ? 'CE' : 'CC';
+    }
+
+    /**
+     * @return HasMany<ShopAddress, $this>
+     */
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(ShopAddress::class, 'pwa_customer_id')
+            ->orderByDesc('is_primary')
+            ->orderByDesc('id');
+    }
+
+    /**
+     * @return HasOne<ShopAddress, $this>
+     */
+    public function primaryAddress(): HasOne
+    {
+        return $this->hasOne(ShopAddress::class, 'pwa_customer_id')
+            ->where('is_primary', true);
     }
 }

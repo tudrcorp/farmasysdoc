@@ -95,77 +95,142 @@
                         </p>
                     @enderror
                 @else
-                    <div class="sh-form" style="margin-top:1.1rem;">
-                        <div class="sh-field">
-                            <label class="sh-field__label" for="ck-address">Dirección de entrega</label>
-                            <textarea
-                                id="ck-address"
-                                wire:model.blur="address"
-                                @class(['sh-textarea', 'is-invalid' => $errors->has('address')])
-                                placeholder="Calle, edificio o casa, punto de referencia"
-                                rows="3"
-                            ></textarea>
-                            @error('address')
+                    @if ($savedAddresses->isNotEmpty() && ! $composingAddress)
+                        <p class="sh-sheet__label">¿A dónde lo enviamos?</p>
+                        <p class="sh-sub" style="margin:-0.1rem 0 0.7rem;">Usamos tu dirección principal. Toca otra si el envío va distinto.</p>
+
+                        <div class="sh-form">
+                            @foreach ($savedAddresses as $saved)
+                                <button
+                                    type="button"
+                                    @class(['sh-option', 'is-selected' => $addressId === $saved->id])
+                                    wire:click="selectAddress({{ $saved->id }})"
+                                    wire:key="ship-addr-{{ $saved->id }}"
+                                >
+                                    <span class="sh-option__icon" aria-hidden="true">
+                                        @include('shop.partials.icon', ['icon' => 'pin'])
+                                    </span>
+                                    <span class="sh-option__copy">
+                                        <strong>
+                                            {{ $saved->title() }}
+                                            @if ($saved->is_primary)
+                                                <span class="sh-pill sh-pill--ok">Principal</span>
+                                            @endif
+                                        </strong>
+                                        <span>{{ $saved->summary() }}</span>
+                                    </span>
+                                    <span class="sh-radio" aria-hidden="true"></span>
+                                </button>
+                            @endforeach
+                        </div>
+
+                        @error('addressId')
+                            <p class="sh-error" style="margin-top:0.5rem;">
+                                @include('shop.partials.icon', ['icon' => 'alert'])
+                                {{ $message }}
+                            </p>
+                        @enderror
+
+                        <button type="button" class="sh-btn sh-btn--ghost sh-btn--block" style="margin-top:0.85rem;" wire:click="startNewAddress">
+                            @include('shop.partials.icon', ['icon' => 'plus'])
+                            Enviar a otra dirección
+                        </button>
+                    @else
+                        <div class="sh-form" style="margin-top:1.1rem;">
+                            @if ($savedAddresses->isNotEmpty())
+                                <p class="sh-sheet__label" style="margin-top:0;">Nueva dirección de este envío</p>
+                                <p class="sh-sub" style="margin:-0.15rem 0 0.15rem;">La guardamos en tu cuenta para la próxima.</p>
+                            @endif
+
+                            <div class="sh-field">
+                                <label class="sh-field__label" for="ck-address-label">Nombre (opcional)</label>
+                                <input
+                                    id="ck-address-label"
+                                    type="text"
+                                    size="1"
+                                    wire:model.blur="addressLabel"
+                                    class="sh-input"
+                                    placeholder="Casa, trabajo, familia…"
+                                >
+                            </div>
+
+                            <div class="sh-field">
+                                <label class="sh-field__label" for="ck-address">Dirección de entrega</label>
+                                <textarea
+                                    id="ck-address"
+                                    wire:model.blur="address"
+                                    @class(['sh-textarea', 'is-invalid' => $errors->has('address')])
+                                    placeholder="Calle, edificio o casa, punto de referencia"
+                                    rows="3"
+                                ></textarea>
+                                @error('address')
+                                    <p class="sh-error">
+                                        @include('shop.partials.icon', ['icon' => 'alert'])
+                                        {{ $message }}
+                                    </p>
+                                @enderror
+                            </div>
+
+                            <div class="sh-form__split">
+                                <div class="sh-field">
+                                    <label class="sh-field__label" for="ck-city">Ciudad</label>
+                                    <input
+                                        id="ck-city"
+                                        type="text"
+                                        size="1"
+                                        wire:model.blur="city"
+                                        @class(['sh-input', 'is-invalid' => $errors->has('city')])
+                                        placeholder="Barinas"
+                                        autocomplete="address-level2"
+                                    >
+                                </div>
+
+                                <div class="sh-field">
+                                    <label class="sh-field__label" for="ck-state">Estado</label>
+                                    <input
+                                        id="ck-state"
+                                        type="text"
+                                        size="1"
+                                        wire:model.blur="state"
+                                        @class(['sh-input', 'is-invalid' => $errors->has('state')])
+                                        placeholder="Barinas"
+                                        autocomplete="address-level1"
+                                    >
+                                </div>
+                            </div>
+
+                            @error('city')
                                 <p class="sh-error">
                                     @include('shop.partials.icon', ['icon' => 'alert'])
                                     {{ $message }}
                                 </p>
                             @enderror
-                        </div>
-
-                        <div class="sh-form__split">
-                            <div class="sh-field">
-                                <label class="sh-field__label" for="ck-city">Ciudad</label>
-                                <input
-                                    id="ck-city"
-                                    type="text"
-                                    size="1"
-                                    wire:model.blur="city"
-                                    @class(['sh-input', 'is-invalid' => $errors->has('city')])
-                                    placeholder="Barinas"
-                                    autocomplete="address-level2"
-                                >
-                            </div>
+                            @error('state')
+                                <p class="sh-error">
+                                    @include('shop.partials.icon', ['icon' => 'alert'])
+                                    {{ $message }}
+                                </p>
+                            @enderror
 
                             <div class="sh-field">
-                                <label class="sh-field__label" for="ck-state">Estado</label>
+                                <label class="sh-field__label" for="ck-delivery-notes">Referencia (opcional)</label>
                                 <input
-                                    id="ck-state"
+                                    id="ck-delivery-notes"
                                     type="text"
                                     size="1"
-                                    wire:model.blur="state"
-                                    @class(['sh-input', 'is-invalid' => $errors->has('state')])
-                                    placeholder="Barinas"
-                                    autocomplete="address-level1"
+                                    wire:model.blur="deliveryNotes"
+                                    class="sh-input"
+                                    placeholder="Piso, apartamento, horario"
                                 >
                             </div>
                         </div>
 
-                        @error('city')
-                            <p class="sh-error">
-                                @include('shop.partials.icon', ['icon' => 'alert'])
-                                {{ $message }}
-                            </p>
-                        @enderror
-                        @error('state')
-                            <p class="sh-error">
-                                @include('shop.partials.icon', ['icon' => 'alert'])
-                                {{ $message }}
-                            </p>
-                        @enderror
-
-                        <div class="sh-field">
-                            <label class="sh-field__label" for="ck-delivery-notes">Referencia (opcional)</label>
-                            <input
-                                id="ck-delivery-notes"
-                                type="text"
-                                size="1"
-                                wire:model.blur="deliveryNotes"
-                                class="sh-input"
-                                placeholder="Piso, apartamento, horario"
-                            >
-                        </div>
-                    </div>
+                        @if ($savedAddresses->isNotEmpty())
+                            <button type="button" class="sh-btn sh-btn--ghost sh-btn--block" style="margin-top:0.85rem;" wire:click="cancelNewAddress">
+                                Usar una dirección guardada
+                            </button>
+                        @endif
+                    @endif
                 @endif
             @endif
 

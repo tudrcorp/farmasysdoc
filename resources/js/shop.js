@@ -457,7 +457,7 @@ if (window.visualViewport) {
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/shop-sw.js?v=7', { scope: '/app' }).catch(() => {
+        navigator.serviceWorker.register('/shop-sw.js?v=8', { scope: '/app' }).catch(() => {
             /* sin service worker la app sigue funcionando */
         });
     });

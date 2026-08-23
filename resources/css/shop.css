@@ -779,11 +779,27 @@ html.dark .sh-tab.is-active {
     min-width: 11.5rem;
     padding: 0.4rem 0.55rem 0.4rem 0.85rem;
     border-radius: 999px;
-    background: var(--sh-glass-solid);
-    backdrop-filter: var(--sh-blur);
-    -webkit-backdrop-filter: var(--sh-blur);
-    border: 1px solid var(--sh-glass-border);
-    box-shadow: var(--sh-shadow-lg), inset 0 1px 0 var(--sh-glass-inset);
+    color: var(--sh-teal);
+    background-color: rgb(255 255 255 / 0.28);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.5), rgb(246 251 251 / 0.16));
+    backdrop-filter: blur(28px) saturate(1.85);
+    -webkit-backdrop-filter: blur(28px) saturate(1.85);
+    border: 1px solid rgb(255 255 255 / 0.58);
+    box-shadow:
+        var(--sh-shadow-lg),
+        0 0 0 1px rgb(16 40 44 / 0.04),
+        inset 0 1px 0 rgb(255 255 255 / 0.88),
+        inset 0 -1px 0 rgb(16 40 44 / 0.05);
+}
+
+html.dark .sh-nav-handle {
+    color: #8fe3e6;
+    background-color: rgb(9 19 22 / 0.42);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(9 19 22 / 0.28));
+    border-color: rgb(255 255 255 / 0.16);
+    box-shadow:
+        0 18px 40px -18px rgb(0 0 0 / 0.6),
+        inset 0 1px 0 rgb(255 255 255 / 0.18);
 }
 
 .sh-nav-handle:active {
@@ -794,8 +810,12 @@ html.dark .sh-tab.is-active {
     width: 1.35rem;
     height: 0.28rem;
     border-radius: 999px;
-    background: var(--sh-line-strong);
+    background: rgb(16 40 44 / 0.22);
     flex-shrink: 0;
+}
+
+html.dark .sh-nav-handle__grip {
+    background: rgb(255 255 255 / 0.28);
 }
 
 .sh-nav-handle__here {
@@ -804,6 +824,7 @@ html.dark .sh-tab.is-active {
     font-size: 0.92rem;
     font-weight: 720;
     letter-spacing: -0.03em;
+    color: inherit;
 }
 
 .sh-nav-handle__cart {
@@ -831,9 +852,16 @@ html.dark .sh-tab.is-active {
     border-radius: 50%;
     display: grid;
     place-items: center;
-    background: var(--sh-surface-2);
+    background: rgb(255 255 255 / 0.42);
+    border: 1px solid rgb(255 255 255 / 0.5);
     color: var(--sh-ink);
     flex-shrink: 0;
+}
+
+html.dark .sh-nav-handle__chevron {
+    background: rgb(255 255 255 / 0.1);
+    border-color: rgb(255 255 255 / 0.14);
+    color: #f4ffff;
 }
 
 .sh-nav-handle__chevron svg {

@@ -1,12 +1,11 @@
 /**
  * Service worker de la app Farmadoc (`/app`).
  *
- * Estrategia deliberadamente conservadora: la tienda muestra precios y existencias
- * reales, así que la red siempre manda. El caché solo cubre estáticos y una pantalla
- * de respaldo para cuando no hay conexión.
+ * Precios y existencias siempre salen de la red. El caché cubre estáticos,
+ * fotos de catálogo (stale-while-revalidate) y la pantalla offline.
  */
 
-const VERSION = 'farmadoc-shop-v8';
+const VERSION = 'farmadoc-shop-v9';
 const STATIC_CACHE = `${VERSION}-static`;
 const OFFLINE_URL = '/app/offline';
 
@@ -53,6 +52,12 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
+    if (isCatalogMedia(url)) {
+        event.respondWith(staleWhileRevalidate(request));
+
+        return;
+    }
+
     // OAuth (Google): el 302 sale del origen. Si el SW lo intercepta y sigue
     // el redirect, el fetch cruzado falla y la PWA muestra «Sin conexión».
     if (url.pathname.startsWith('/app/auth/')) {
@@ -91,7 +96,6 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Estáticos versionados por Vite e imágenes: caché primero.
     const isStatic = url.pathname.startsWith('/build/')
         || url.pathname.startsWith('/images/')
         || url.pathname.startsWith('/storage/')
@@ -114,3 +118,25 @@ self.addEventListener('fetch', (event) => {
             .catch(() => caches.match(request)),
     );
 });
+
+function isCatalogMedia(url) {
+    return url.pathname.startsWith('/app/media/')
+        || url.pathname.startsWith('/storage/products/')
+        || url.pathname.startsWith('/storage/product-categories/');
+}
+
+function staleWhileRevalidate(request) {
+    return caches.open(STATIC_CACHE).then((cache) => cache.match(request).then((cached) => {
+        const fetching = fetch(request)
+            .then((response) => {
+                if (response.ok && response.type === 'basic') {
+                    cache.put(request, response.clone());
+                }
+
+                return response;
+            })
+            .catch(() => cached);
+
+        return cached ?? fetching;
+    }));
+}

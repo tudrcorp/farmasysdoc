@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\Pricing\BranchCategoryProfitResolver;
 use App\Services\Pricing\FarmaExpressBranchPriceSynchronizer;
+use App\Services\Products\CatalogImageOptimizer;
 use App\Support\Shop\ShopCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -97,6 +98,16 @@ class Product extends Model
 
             if (! $user instanceof User || ! $user->canEditProductDirectPrice()) {
                 $product->direct_price = $product->getOriginal('direct_price');
+            }
+        });
+
+        static::saving(function (Product $product): void {
+            if ($product->isDirty('image')) {
+                app(CatalogImageOptimizer::class)->applyTo(
+                    $product,
+                    'image',
+                    CatalogImageOptimizer::PRODUCTS,
+                );
             }
         });
 

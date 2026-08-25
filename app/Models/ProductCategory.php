@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Services\Pricing\BranchCategoryProfitMarginProvisioner;
+use App\Services\Products\CatalogImageOptimizer;
+use App\Support\Shop\ShopCatalog;
 use Database\Factories\ProductCategoryFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -41,11 +43,25 @@ class ProductCategory extends Model
 
     protected static function booted(): void
     {
+        static::saving(function (ProductCategory $category): void {
+            if ($category->isDirty('image')) {
+                app(CatalogImageOptimizer::class)->applyTo(
+                    $category,
+                    'image',
+                    CatalogImageOptimizer::CATEGORIES,
+                );
+            }
+        });
+
         static::created(function (ProductCategory $category): void {
             $actorId = Auth::id();
             $actor = $actorId !== null ? (string) $actorId : 'sistema';
 
             app(BranchCategoryProfitMarginProvisioner::class)->provisionForCategory($category, $actor);
+        });
+
+        static::saved(function (): void {
+            ShopCatalog::bump();
         });
     }
 

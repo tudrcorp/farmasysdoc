@@ -6,9 +6,10 @@ use App\Filament\Resources\Products\Support\ActiveIngredientSelectField;
 use App\Models\PresentationType;
 use App\Models\Product;
 use App\Models\Supplier;
+use App\Services\Products\CatalogImageOptimizer;
 use App\Support\Finance\DefaultVatRate;
+use App\Support\Products\CatalogImageFileUpload;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -99,17 +100,9 @@ class ProductForm
                     ->description('Fotografía para catálogo, fichas y listados. Estilo vidrio iOS en panel.')
                     ->icon(Heroicon::Photo)
                     ->schema([
-                        FileUpload::make('image')
+                        CatalogImageFileUpload::make('image', CatalogImageOptimizer::PRODUCTS)
                             ->label('Fotografía principal')
-                            ->helperText('Opcional. JPG, PNG o WebP (máx. 4 MB). Visible en tabla y detalle.')
-                            ->image()
-                            ->disk('public')
-                            ->directory('products')
-                            ->visibility('public')
-                            ->maxSize(4096)
-                            ->imageEditor()
-                            ->panelLayout('integrated')
-                            ->columnSpanFull(),
+                            ->helperText('Opcional. JPG, PNG o JPEG se convierten a WebP (máx. 800 px y 4 MB). Visible en tabla, detalle y la tienda.'),
                     ])
                     ->columns(1)
                     ->columnSpanFull()

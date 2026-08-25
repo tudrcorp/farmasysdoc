@@ -22,7 +22,12 @@
                         >
                             <span class="sh-cat__icon" style="width:2.6rem;height:2.6rem;border-radius:0.85rem;" aria-hidden="true">
                                 @if ($category['image_url'])
-                                    <img src="{{ $category['image_url'] }}" alt="" loading="lazy" decoding="async">
+                                    <img
+                                        src="{{ $category['image_url'] }}"
+                                        alt=""
+                                        decoding="async"
+                                        @if ($loop->index >= 8) loading="lazy" @endif
+                                    >
                                 @else
                                     @include('shop.partials.category-glyph', ['category' => $category])
                                 @endif

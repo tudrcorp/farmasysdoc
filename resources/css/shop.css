@@ -197,8 +197,13 @@ html.sh-html,
 .sh-body input,
 .sh-body textarea,
 .sh-body select {
-    font: inherit;
+    font-family: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
     color: inherit;
+    font-size: 16px;
+    touch-action: manipulation;
 }
 
 .sh-sr {
@@ -273,6 +278,8 @@ html.sh-html,
 .sh-page {
     padding-inline: 1.15rem;
     animation: sh-page-in 0.2s var(--sh-ease) both;
+    max-width: 100%;
+    overflow-x: clip;
 }
 
 @keyframes sh-page-in {
@@ -1900,6 +1907,140 @@ html.dark .sh-prod__media {
     color: var(--sh-faint);
 }
 
+.sh-home-search {
+    position: relative;
+    z-index: 24;
+    margin-top: 1rem;
+}
+
+.sh-home-search__spinner {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 2px solid var(--sh-line-strong);
+    border-top-color: var(--sh-teal);
+    animation: sh-spin 0.7s linear infinite;
+}
+
+.sh-home-search__clear {
+    display: flex;
+    color: var(--sh-faint);
+    flex-shrink: 0;
+}
+
+.sh-home-search__panel {
+    position: fixed;
+    z-index: 34;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(30rem, 100%);
+    bottom: calc(var(--sh-tabbar-h) + var(--sh-safe-bottom) + var(--sh-keyboard));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.15rem 1.15rem 1.15rem;
+    background: var(--sh-page-solid);
+}
+
+@media (min-width: 48rem) {
+    .sh-home-search__panel {
+        width: 26.5rem;
+    }
+}
+
+.sh-home-search__hint {
+    margin: 0.4rem 0 0;
+    color: var(--sh-muted);
+    font-size: 0.92rem;
+}
+
+.sh-suggest {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.4rem;
+}
+
+.sh-suggest__row {
+    display: grid;
+    grid-template-columns: 3.5rem 1fr auto;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 3.7rem;
+    padding: 0.4rem 0.45rem 0.4rem 0.4rem;
+    border-radius: 1.05rem;
+    background: var(--sh-surface);
+    border: 1px solid var(--sh-line);
+    color: inherit;
+    text-decoration: none;
+}
+
+.sh-suggest__row:active {
+    transform: scale(0.985);
+}
+
+.sh-suggest__media {
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 0.9rem;
+    overflow: hidden;
+    background: var(--sh-surface-2);
+}
+
+.sh-suggest__media img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.sh-suggest__copy {
+    min-width: 0;
+    display: grid;
+    gap: 0.12rem;
+}
+
+.sh-suggest__copy strong {
+    font-size: 0.92rem;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.sh-suggest__copy span {
+    color: var(--sh-muted);
+    font-size: 0.78rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sh-suggest__price {
+    font-size: 0.92rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--sh-teal-deep);
+    padding-right: 0.25rem;
+}
+
+html.dark .sh-suggest__price {
+    color: var(--sh-cyan);
+}
+
+html.sh-search-lock,
+html.sh-search-lock body {
+    overflow: hidden;
+}
+
+@keyframes sh-spin {
+    to { transform: rotate(360deg); }
+}
+
 /* --- Formularios -------------------------------------------------------- */
 
 .sh-field {
@@ -1922,8 +2063,8 @@ html.dark .sh-prod__media {
 .sh-textarea,
 .sh-select {
     display: block;
-    width: 0;
-    min-width: 100%;
+    width: 100%;
+    min-width: 0;
     max-width: 100%;
     min-height: 3.1rem;
     padding: 0.8rem 0.95rem;
@@ -1936,6 +2077,7 @@ html.dark .sh-prod__media {
     appearance: none;
     -webkit-appearance: none;
     box-sizing: border-box;
+    touch-action: manipulation;
     transition: border-color 0.22s var(--sh-ease), box-shadow 0.22s var(--sh-ease);
 }
 
@@ -2005,6 +2147,7 @@ html.dark .sh-prod__media {
     grid-template-columns: 6.5rem minmax(0, 1fr);
     gap: 0.6rem;
     min-width: 0;
+    max-width: 100%;
 }
 
 .sh-form__split {

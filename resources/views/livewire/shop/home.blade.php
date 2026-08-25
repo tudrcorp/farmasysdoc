@@ -3,7 +3,14 @@
     $heroProduct = $offers[0] ?? ($bestsellers[0] ?? null);
 @endphp
 
-<div>
+<div
+    x-data="{ searching: false }"
+    x-on:home-search-toggle.window="
+        searching = Boolean($event.detail?.open);
+        document.documentElement.classList.toggle('sh-search-lock', searching);
+    "
+    x-on:livewire:navigating.window="document.documentElement.classList.remove('sh-search-lock')"
+>
     @include('shop.partials.header', ['title' => null])
 
     <main class="sh-main">
@@ -19,23 +26,7 @@
                 @endif
             </section>
 
-            <form
-                class="sh-searchbar"
-                style="margin-top:1rem;"
-                x-data
-                @submit.prevent="(window.Livewire?.navigate ?? ((url) => window.location.assign(url)))(@js(route('shop.search')) + '?q=' + encodeURIComponent($refs.homeQuery.value))"
-            >
-                @include('shop.partials.icon', ['icon' => 'search'])
-                <input
-                    x-ref="homeQuery"
-                    type="search"
-                    name="q"
-                    placeholder="Busca medicinas, marcas…"
-                    autocomplete="off"
-                    enterkeyhint="search"
-                    aria-label="Buscar productos"
-                >
-            </form>
+            <livewire:shop.home-search wire:key="home-search" />
 
             {{-- Banner principal --}}
             @if ($heroProduct)
@@ -88,7 +79,7 @@
                             >
                                 <span class="sh-cat__icon" aria-hidden="true">
                                     @if ($category['image_url'])
-                                        <img src="{{ $category['image_url'] }}" alt="" loading="lazy">
+                                        <img src="{{ $category['image_url'] }}" alt="" decoding="async">
                                     @else
                                         @include('shop.partials.category-glyph', ['category' => $category])
                                     @endif
@@ -116,6 +107,7 @@
                             @include('shop.partials.product-card', [
                                 'product' => $product,
                                 'cartQty' => (int) ($cartQuantities[$product['id']] ?? 0),
+                                'priority' => $loop->index < 6,
                             ])
                         @endforeach
                     </div>
@@ -138,6 +130,7 @@
                             @include('shop.partials.product-card', [
                                 'product' => $product,
                                 'cartQty' => (int) ($cartQuantities[$product['id']] ?? 0),
+                                'priority' => $loop->index < 6,
                             ])
                         @endforeach
                     </div>

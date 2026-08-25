@@ -7,9 +7,9 @@ use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\SaleItem;
+use App\Services\Products\CatalogImageOptimizer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
 
 final class StorefrontCatalog
 {
@@ -35,9 +35,7 @@ final class StorefrontCatalog
             ->limit(8)
             ->get()
             ->map(function (ProductCategory $category): array {
-                $image = filled($category->image)
-                    ? Storage::disk('public')->url((string) $category->image)
-                    : null;
+                $image = CatalogImageOptimizer::url($category->image);
 
                 return [
                     'id' => (int) $category->id,

@@ -44,7 +44,7 @@
             @endif
         </div>
 
-        <img src="{{ $product['image_url'] }}" alt="{{ $product['name'] }}" fetchpriority="high">
+        <img src="{{ $product['image_url'] }}" alt="{{ $product['name'] }}" fetchpriority="high" decoding="async">
     </div>
 
     {{-- Datos --}}

@@ -7,12 +7,12 @@ use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\SaleItem;
+use App\Services\Products\CatalogImageOptimizer;
 use App\Support\Storefront\StorefrontProductPresenter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Consultas de catálogo para la PWA `/app`.
@@ -105,9 +105,7 @@ final class ShopCatalog
                     'id' => (int) $category->id,
                     'name' => (string) $category->name,
                     'slug' => (string) ($category->slug ?: ''),
-                    'image_url' => filled($category->image)
-                        ? Storage::disk('public')->url((string) $category->image)
-                        : null,
+                    'image_url' => CatalogImageOptimizer::url($category->image),
                     'product_count' => (int) ($category->product_count ?? 0),
                     'is_medication' => (bool) $category->is_medication,
                 ])
@@ -537,6 +535,6 @@ final class ShopCatalog
     {
         $version = (int) Cache::get(self::VERSION_KEY, 1);
 
-        return 'shop.cat.v'.$version.'.'.$name;
+        return 'shop.cat.img.v'.$version.'.'.$name;
     }
 }

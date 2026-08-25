@@ -6,10 +6,12 @@
      * @var array<string, mixed> $product
      * @var bool                 $inCart
      * @var float|int            $cartQty
+     * @var bool                 $priority  First-screen images skip lazy-load.
      */
     $product = $product;
     $cartQty = (int) ($cartQty ?? (($inCart ?? false) ? 1 : 0));
     $hasDiscount = ($product['discount_percent'] ?? 0) > 0;
+    $priority = (bool) ($priority ?? false);
 @endphp
 
 <article class="sh-prod" wire:key="prod-{{ $product['id'] }}" x-data="{ qty: {{ $cartQty }} }">
@@ -19,7 +21,18 @@
         class="sh-prod__media"
         aria-label="Ver {{ $product['name'] }}"
     >
-        <img src="{{ $product['image_url'] }}" alt="{{ $product['name'] }}" loading="lazy" decoding="async" width="320" height="320">
+        <img
+            src="{{ $product['image_url'] }}"
+            alt="{{ $product['name'] }}"
+            width="320"
+            height="320"
+            decoding="async"
+            @if ($priority)
+                fetchpriority="high"
+            @else
+                loading="lazy"
+            @endif
+        >
 
         <div class="sh-prod__flags">
             <span>

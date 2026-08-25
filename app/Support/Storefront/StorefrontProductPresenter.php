@@ -3,7 +3,7 @@
 namespace App\Support\Storefront;
 
 use App\Models\Product;
-use Illuminate\Support\Facades\Storage;
+use App\Services\Products\CatalogImageOptimizer;
 
 final class StorefrontProductPresenter
 {
@@ -125,8 +125,10 @@ final class StorefrontProductPresenter
 
     public static function imageUrl(?string $path, string $name): string
     {
-        if (is_string($path) && trim($path) !== '') {
-            return Storage::disk('public')->url($path);
+        $url = CatalogImageOptimizer::url($path);
+
+        if (is_string($url) && $url !== '') {
+            return $url;
         }
 
         return self::placeholderSvg($name);

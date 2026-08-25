@@ -9,7 +9,6 @@
                 <input
                     id="ac-first-name"
                     type="text"
-                    size="1"
                     wire:model="firstName"
                     @class(['sh-input', 'is-invalid' => $errors->has('firstName')])
                     autocomplete="given-name"
@@ -25,7 +24,6 @@
                 <input
                     id="ac-last-name"
                     type="text"
-                    size="1"
                     wire:model="lastName"
                     @class(['sh-input', 'is-invalid' => $errors->has('lastName')])
                     autocomplete="family-name"
@@ -47,7 +45,6 @@
                 <input
                     id="ac-document"
                     type="text"
-                    size="1"
                     wire:model="documentNumber"
                     @class(['sh-input', 'is-invalid' => $errors->has('documentNumber')])
                     inputmode="numeric"
@@ -65,7 +62,6 @@
             <input
                 id="ac-phone"
                 type="tel"
-                size="1"
                 wire:model="phone"
                 @class(['sh-input', 'is-invalid' => $errors->has('phone')])
                 inputmode="tel"

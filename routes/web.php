@@ -16,6 +16,7 @@ use App\Http\Controllers\Purchases\PurchaseBookRetentionVoucherPdfController;
 use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
 use App\Http\Controllers\Reports\SystemReportsDownloadController;
 use App\Http\Controllers\Sales\CashRegisterClosePdfController;
+use App\Http\Controllers\Shop\ShopCatalogMediaController;
 use App\Http\Controllers\Shop\ShopGoogleAuthController;
 use App\Http\Controllers\Shop\ShopLogoutController;
 use App\Http\Controllers\Shop\ShopManifestController;
@@ -67,6 +68,9 @@ Route::prefix('portal')->name('employee-portal.')->group(function (): void {
 });
 Route::prefix('app')->name('shop.')->group(function (): void {
     Route::get('manifest.webmanifest', ShopManifestController::class)->name('manifest');
+    Route::get('media/{directory}/{filename}', ShopCatalogMediaController::class)
+        ->whereIn('directory', ['products', 'product-categories'])
+        ->name('catalog-media');
     Route::view('offline', 'shop.offline')->name('offline');
 
     Route::middleware('shop.guest')->group(function (): void {

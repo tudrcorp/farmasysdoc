@@ -10,7 +10,7 @@
             <section style="display:flex;align-items:center;gap:0.85rem;">
                 <span class="sh-cat__icon" style="width:3.9rem;height:3.9rem;flex-shrink:0;" aria-hidden="true">
                     @if (filled($category->image))
-                        <img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($category->image) }}" alt="">
+                        <img src="{{ \App\Services\Products\CatalogImageOptimizer::url($category->image) }}" alt="" fetchpriority="high" decoding="async">
                     @else
                         @include('shop.partials.category-glyph', ['category' => [
                             'name' => $category->name,
@@ -62,6 +62,7 @@
                             @include('shop.partials.product-card', [
                                 'product' => $product,
                                 'cartQty' => (int) ($cartQuantities[$product['id']] ?? 0),
+                                'priority' => $loop->index < 8,
                             ])
                         @endforeach
                     </div>

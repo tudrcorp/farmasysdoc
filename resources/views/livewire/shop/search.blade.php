@@ -12,7 +12,7 @@
                     @include('shop.partials.icon', ['icon' => 'search'])
                     <input
                         type="search"
-                        wire:model.live.debounce.400ms="term"
+                        wire:model.live.debounce.280ms="term"
                         placeholder="Medicina, marca o principio activo"
                         autocomplete="off"
                         enterkeyhint="search"
@@ -129,6 +129,7 @@
                             @include('shop.partials.product-card', [
                                 'product' => $product,
                                 'cartQty' => (int) ($cartQuantities[$product['id']] ?? 0),
+                                'priority' => $loop->index < 8,
                             ])
                         @endforeach
                     </div>

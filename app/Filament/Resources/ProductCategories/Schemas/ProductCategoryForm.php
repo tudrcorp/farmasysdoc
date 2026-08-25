@@ -3,7 +3,8 @@
 namespace App\Filament\Resources\ProductCategories\Schemas;
 
 use App\Models\User;
-use Filament\Forms\Components\FileUpload;
+use App\Services\Products\CatalogImageOptimizer;
+use App\Support\Products\CatalogImageFileUpload;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -54,17 +55,9 @@ class ProductCategoryForm
                     ->description('Miniatura opcional para listados y detalle de la categoría.')
                     ->icon(Heroicon::Photo)
                     ->schema([
-                        FileUpload::make('image')
+                        CatalogImageFileUpload::make('image', CatalogImageOptimizer::CATEGORIES)
                             ->label('Imagen')
-                            ->helperText('JPG, PNG o WebP (máx. 4 MB).')
-                            ->image()
-                            ->disk('public')
-                            ->directory('product-categories')
-                            ->visibility('public')
-                            ->maxSize(4096)
-                            ->imageEditor()
-                            ->panelLayout('integrated')
-                            ->columnSpanFull(),
+                            ->helperText('JPG, PNG o JPEG se convierten a WebP (máx. 800 px y 4 MB).'),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

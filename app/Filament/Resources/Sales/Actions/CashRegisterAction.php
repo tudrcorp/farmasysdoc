@@ -1160,6 +1160,7 @@ final class CashRegisterAction
                                             ->label('Referencia de pago')
                                             ->helperText('Obligatoria para transferencia VES, Zelle, complemento Cashea o pagos mixtos con parte en bolívares. En Pago Móvil la referencia se indica en la ventana de conciliación BDV.')
                                             ->maxLength(255)
+                                            ->dehydratedWhenHidden()
                                             ->markAsRequired(fn (Get $get): bool => self::posRequiresPaymentReference($get))
                                             ->rules(fn (Get $get): array => [
                                                 Rule::requiredIf(fn (): bool => self::posRequiresPaymentReference($get)),
@@ -1197,6 +1198,7 @@ final class CashRegisterAction
 
                 $data['client_id'] = self::resolvePosClientIdFromRegisterData($data, $action);
                 $data = self::enrichPosRegisterCacheaData($data, $action);
+                $data = self::enrichPosRegisterPagoMovilData($data, $action);
 
                 self::posSaleRegisterTrace('register_action_entered', [
                     'payment_method' => PosPaymentMethodOptions::resolveFromPosRegisterData($data),
@@ -1519,6 +1521,8 @@ final class CashRegisterAction
                         ? $cacheaBreakdown['payment_ves']
                         : $paymentVes);
 
+                $recentConciliation = null;
+
                 if (
                     (
                         self::usesPagoMovilForVesPortion($paymentMethod, $mixedVesPaymentMethod, $data, $documentTotal, $vesUsdRate)
@@ -1562,6 +1566,10 @@ final class CashRegisterAction
                     }
 
                     if ($paymentReference === '') {
+                        if (! $recentConciliation instanceof ConciliationBdv) {
+                            $recentConciliation = self::findLatestSuccessfulBdvConciliationForCashier($branchId);
+                        }
+
                         $resolvedReference = self::resolvePagoMovilPaymentReference(
                             $branchId,
                             $pagoMovilVesAmount,
@@ -1690,7 +1698,24 @@ final class CashRegisterAction
                         ->danger()
                         ->send();
 
+                    $action->halt();
+
                     return;
+                }
+
+                if (
+                    self::usesPagoMovilForVesPortion($paymentMethod, $mixedVesPaymentMethod, $data, $documentTotal, $vesUsdRate)
+                    && $pagoMovilVesAmount > 0.00001
+                    && $paymentReference === ''
+                ) {
+                    $paymentReference = self::resolvePagoMovilPaymentReference(
+                        $branchId,
+                        $pagoMovilVesAmount,
+                        '',
+                        $recentConciliation instanceof ConciliationBdv
+                            ? $recentConciliation
+                            : self::findLatestSuccessfulBdvConciliationForCashier($branchId),
+                    );
                 }
 
                 if (
@@ -1706,6 +1731,8 @@ final class CashRegisterAction
                         ->body('Valide el pago en la ventana de conciliación BDV para registrar la referencia antes de cerrar la venta.')
                         ->danger()
                         ->send();
+
+                    $action->halt();
 
                     return;
                 }
@@ -3213,6 +3240,20 @@ final class CashRegisterAction
 
         $paymentVes = self::mountedPagoMovilConciliationPaymentVes($livewire);
         $candidate = self::posManualConciliationCandidateFromGet($get, $livewire, $paymentVes);
+        $reference = preg_replace('/\D+/', '', (string) ($candidate['referencia'] ?? '')) ?? '';
+        if ($reference === '') {
+            Notification::make()
+                ->title('Falta la referencia del Pago Móvil')
+                ->body('Indique la referencia de 4 a 6 dígitos en esta ventana y vuelva a confirmar la conciliación manual.')
+                ->danger()
+                ->send();
+
+            self::haltPosPagoMovilConciliationIfMounted($action);
+
+            return;
+        }
+
+        $candidate['referencia'] = $reference;
         $rawOtp = self::posManualConciliationWizardValue($get, $livewire, 'bdv_pm_otp_code');
         if (is_array($rawOtp)) {
             $otpCode = implode('', array_map(static fn (mixed $digit): string => (string) $digit, $rawOtp));
@@ -3237,6 +3278,18 @@ final class CashRegisterAction
         $reference = self::referenceFromConciliationBdv($record);
         if ($reference === '') {
             $reference = preg_replace('/\D+/', '', (string) ($candidate['referencia'] ?? '')) ?? '';
+        }
+
+        if ($reference === '') {
+            Notification::make()
+                ->title('Pago conciliado')
+                ->body('La conciliación quedó registrada, pero falta la referencia para crear la venta. Indique la referencia de 4 a 6 dígitos y pulse de nuevo «Confirmar conciliación manual».')
+                ->warning()
+                ->send();
+
+            self::haltPosPagoMovilConciliationIfMounted($action);
+
+            return;
         }
 
         self::attemptAutoRegisterSaleAfterPagoMovilReady($livewire, $reference);
@@ -3284,17 +3337,30 @@ final class CashRegisterAction
             return $fromGet;
         }
 
+        $fallback = $fromGet;
         foreach ($mounted as $entry) {
-            if (! is_array($entry) || ($entry['name'] ?? '') !== self::PAGO_MOVIL_CONCILIATION_ACTION_NAME) {
+            if (! is_array($entry)) {
                 continue;
             }
 
             $data = is_array($entry['data'] ?? null) ? $entry['data'] : [];
+            if (! array_key_exists($field, $data)) {
+                continue;
+            }
 
-            return $data[$field] ?? $fromGet;
+            $value = $data[$field];
+            if (! (filled($value) || $value === '0' || $value === 0 || $value === false)) {
+                continue;
+            }
+
+            if (($entry['name'] ?? '') === self::PAGO_MOVIL_CONCILIATION_ACTION_NAME) {
+                return $value;
+            }
+
+            $fallback = $value;
         }
 
-        return $fromGet;
+        return $fallback;
     }
 
     private static function mountedPagoMovilConciliationPaymentVes(BasePage $livewire): float
@@ -3405,15 +3471,22 @@ final class CashRegisterAction
 
     private static function referenceFromConciliationBdv(ConciliationBdv $record): string
     {
-        $fromJson = data_get($record->bdv_response, 'data.referencia');
-        if (is_scalar($fromJson)) {
-            $normalized = preg_replace('/\D+/', '', (string) $fromJson) ?? '';
+        foreach ([
+            data_get($record->bdv_response, 'data.referencia'),
+            data_get($record->bdv_payload, 'referencia'),
+            $record->reference,
+        ] as $candidate) {
+            if (! is_scalar($candidate)) {
+                continue;
+            }
+
+            $normalized = preg_replace('/\D+/', '', (string) $candidate) ?? '';
             if ($normalized !== '') {
                 return $normalized;
             }
         }
 
-        return preg_replace('/\D+/', '', trim((string) $record->reference)) ?? '';
+        return '';
     }
 
     private static function resolvePagoMovilPaymentReference(
@@ -3464,6 +3537,17 @@ final class CashRegisterAction
         BasePage $livewire,
         string $reference,
     ): void {
+        $reference = preg_replace('/\D+/', '', trim($reference)) ?? '';
+        if ($reference === '') {
+            Notification::make()
+                ->title('Falta la referencia del Pago Móvil')
+                ->body('La conciliación está lista, pero no hay referencia para registrar la venta. Indique la referencia de 4 a 6 dígitos y confirme de nuevo.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
         $registerData = array_merge(self::currentPosRegisterMountedFormData($livewire), [
             'reference' => $reference,
             'bdv_pm_conciliated' => true,
@@ -3498,12 +3582,6 @@ final class CashRegisterAction
             'bdv_pm_conciliated' => true,
             'line_items_count' => $lineItems,
         ]);
-
-        Notification::make()
-            ->title('Pago conciliado')
-            ->body('Registrando la venta…')
-            ->success()
-            ->send();
 
         // Cierra solo el modal de conciliación PM (la caja sigue en el stack).
         $livewire->unmountAction();
@@ -5683,6 +5761,82 @@ final class CashRegisterAction
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
+    /**
+     * En Pago Móvil el campo «Referencia de pago» de caja está oculto: la referencia vive en la modal BDV
+     * y llega por pos_data / raw data. Sin este merge la venta se bloquea con «Falta la referencia».
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private static function enrichPosRegisterPagoMovilData(array $data, Action $action): array
+    {
+        $fromArgs = is_array($action->getArguments()['pos_data'] ?? null)
+            ? $action->getArguments()['pos_data']
+            : [];
+        $raw = $action->getRawData();
+        $rawArray = $raw instanceof Arrayable
+            ? $raw->toArray()
+            : (is_array($raw) ? $raw : []);
+
+        $reference = self::firstFilledPaymentReference([
+            $data['reference'] ?? null,
+            $rawArray['reference'] ?? null,
+            $fromArgs['reference'] ?? null,
+        ]);
+        if ($reference !== '') {
+            $data['reference'] = $reference;
+        }
+
+        $data['bdv_pm_conciliated'] = filter_var($data['bdv_pm_conciliated'] ?? false, FILTER_VALIDATE_BOOL)
+            || filter_var($rawArray['bdv_pm_conciliated'] ?? false, FILTER_VALIDATE_BOOL)
+            || filter_var($fromArgs['bdv_pm_conciliated'] ?? false, FILTER_VALIDATE_BOOL);
+
+        return $data;
+    }
+
+    /**
+     * @param  list<mixed>  $candidates
+     */
+    private static function firstFilledPaymentReference(array $candidates): string
+    {
+        foreach ($candidates as $candidate) {
+            $value = trim((string) $candidate);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    private static function findLatestSuccessfulBdvConciliationForCashier(int $branchId): ?ConciliationBdv
+    {
+        if ($branchId <= 0) {
+            return null;
+        }
+
+        $userId = Auth::id();
+        $query = ConciliationBdv::query()
+            ->where('branch_id', $branchId)
+            ->where('conciliated_at', '>=', now()->subMinutes(10))
+            ->where(function (Builder $query): void {
+                $query->where(function (Builder $ok): void {
+                    $ok->where('bdv_http_status', 200)
+                        ->where(function (Builder $codes): void {
+                            $codes->whereIn('bdv_code', ['00', '01', '1000', '200'])
+                                ->orWhereNull('bdv_code');
+                        });
+                })->orWhere('is_manual', true);
+            })
+            ->orderByDesc('conciliated_at');
+
+        if (filled($userId)) {
+            $query->where('user_id', (int) $userId);
+        }
+
+        return $query->first();
+    }
+
     private static function enrichPosRegisterCacheaData(array $data, Action $action): array
     {
         $payWithCachea = filter_var($data['pay_with_cachea'] ?? false, FILTER_VALIDATE_BOOLEAN);

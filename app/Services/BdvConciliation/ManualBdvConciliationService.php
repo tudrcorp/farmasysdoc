@@ -154,7 +154,13 @@ final class ManualBdvConciliationService
         }
 
         $amount = round((float) ($candidate['importe'] ?? 0), 2);
-        $reference = trim((string) ($candidate['referencia'] ?? ''));
+        $reference = preg_replace('/\D+/', '', trim((string) ($candidate['referencia'] ?? ''))) ?? '';
+        if ($reference === '') {
+            throw ValidationException::withMessages([
+                'otp_code' => 'Indique la referencia del Pago Móvil (4 a 6 dígitos) antes de conciliar de forma manual.',
+            ]);
+        }
+
         $payerDocument = trim((string) ($candidate['cedulaPagador'] ?? ''));
         $payerPhone = trim((string) ($candidate['telefonoPagador'] ?? ''));
         $paymentDate = (string) ($candidate['fechaPago'] ?? now()->toDateString());
@@ -195,6 +201,9 @@ final class ManualBdvConciliationService
                 'manual' => true,
                 'via' => 'pos_caja',
                 'otp_authorized' => true,
+                'data' => [
+                    'referencia' => $reference,
+                ],
                 'note' => 'Registrada sin consulta a la API BDV tras OTP de gerente/administradores',
             ],
             'conciliated_at' => now(),

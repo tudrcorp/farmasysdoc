@@ -2774,48 +2774,43 @@ final class CashRegisterAction
                             ->hiddenLabel()
                             ->columnSpanFull()
                             ->html()
-                            ->hidden(fn (Get $get): bool => ! filter_var($get('bdv_pm_failed') ?? false, FILTER_VALIDATE_BOOL))
+                            ->hidden(fn (Get $get): bool => ! self::bdvPmManualOtpUiVisible($get))
                             ->state(fn (Get $get): HtmlString => self::bdvPmFailureInlineHtml($get))
                             ->dehydrated(false)
                             ->extraEntryWrapperAttributes([
                                 'class' => 'farmadoc-bdv-pm-inline-failure',
                             ]),
+                        Placeholder::make('bdv_pm_manual_otp_help')
+                            ->hiddenLabel()
+                            ->columnSpanFull()
+                            ->visible(fn (Get $get): bool => self::bdvPmManualOtpUiVisible($get))
+                            ->content(fn (Get $get): HtmlString => self::bdvPmManualOtpHelpHtml($get)),
                         Action::make('bdvPmRequestManualConciliation')
-                            ->label(fn (Get $get): string => filter_var($get('bdv_pm_manual_otp_requested') ?? false, FILTER_VALIDATE_BOOL)
+                            ->label(fn (Get $get): string => self::bdvPmManualOtpRequested($get)
                                 ? 'Reenviar código OTP'
                                 : 'Conciliar Manual')
                             ->icon(Heroicon::Key)
                             ->color('warning')
                             ->cancelParentActions(false)
-                            ->visible(fn (Get $get): bool => filter_var($get('bdv_pm_failed') ?? false, FILTER_VALIDATE_BOOL))
+                            ->visible(fn (Get $get): bool => self::bdvPmManualOtpUiVisible($get))
                             ->extraAttributes([
                                 'class' => 'farmadoc-bdv-pm-inline-failure-action',
                             ])
-                            ->action(function (Action $action, Get $get): void {
-                                self::requestPosManualConciliationOtp($action, $get);
+                            ->action(function (Action $action, Get $get, Set $set): void {
+                                self::requestPosManualConciliationOtp($action, $get, $set);
                             }),
-                        Placeholder::make('bdv_pm_manual_otp_help')
-                            ->hiddenLabel()
-                            ->columnSpanFull()
-                            ->visible(fn (Get $get): bool => filter_var($get('bdv_pm_manual_otp_requested') ?? false, FILTER_VALIDATE_BOOL))
-                            ->content(new HtmlString(
-                                '<div class="rounded-xl border border-warning-500/40 bg-warning-500/10 p-3 text-sm text-warning-700 dark:text-warning-200">'
-                                .'<p class="font-medium">Clave OTP enviada</p>'
-                                .'<p class="mt-1">Se envió un código de 6 dígitos por email y WhatsApp al gerente de la sucursal y a los administradores. Pídales la clave. Caduca en 10 minutos.</p>'
-                                .'</div>'
-                            )),
                         OneTimeCodeInput::make('bdv_pm_otp_code')
                             ->label('Código OTP')
                             ->length(6)
                             ->columnSpanFull()
-                            ->visible(fn (Get $get): bool => filter_var($get('bdv_pm_manual_otp_requested') ?? false, FILTER_VALIDATE_BOOL))
-                            ->helperText('Ingrese el código de 6 dígitos. Es de un solo uso.'),
+                            ->visible(fn (Get $get): bool => self::bdvPmManualOtpUiVisible($get))
+                            ->helperText('Ingrese el código de 6 dígitos enviado al gerente. Es de un solo uso.'),
                         Action::make('bdvPmConfirmManualConciliation')
                             ->label('Confirmar conciliación manual')
                             ->icon(Heroicon::Check)
                             ->color('success')
                             ->cancelParentActions(false)
-                            ->visible(fn (Get $get): bool => filter_var($get('bdv_pm_manual_otp_requested') ?? false, FILTER_VALIDATE_BOOL))
+                            ->visible(fn (Get $get): bool => self::bdvPmManualOtpUiVisible($get))
                             ->extraAttributes([
                                 'class' => 'farmadoc-bdv-pm-inline-failure-action',
                             ])
@@ -2827,7 +2822,7 @@ final class CashRegisterAction
                             ->icon(Heroicon::ArrowUturnLeft)
                             ->color('danger')
                             ->cancelParentActions(false)
-                            ->visible(fn (Get $get): bool => filter_var($get('bdv_pm_failed') ?? false, FILTER_VALIDATE_BOOL))
+                            ->visible(fn (Get $get): bool => self::bdvPmManualOtpUiVisible($get))
                             ->extraAttributes([
                                 'class' => 'farmadoc-bdv-pm-inline-failure-action',
                             ])
@@ -3111,10 +3106,19 @@ final class CashRegisterAction
         $action->halt();
     }
 
-    private static function requestPosManualConciliationOtp(Action $action, Get $get): void
+    private static function haltPosPagoMovilConciliationIfMounted(Action $action): void
+    {
+        if ($action->getName() === self::PAGO_MOVIL_CONCILIATION_ACTION_NAME) {
+            $action->halt();
+        }
+    }
+
+    private static function requestPosManualConciliationOtp(Action $action, Get $get, Set $set): void
     {
         $livewire = $action->getLivewire();
         if (! $livewire instanceof BasePage) {
+            self::haltPosPagoMovilConciliationIfMounted($action);
+
             return;
         }
 
@@ -3124,6 +3128,8 @@ final class CashRegisterAction
                 ->title('Debe iniciar sesión.')
                 ->danger()
                 ->send();
+
+            self::haltPosPagoMovilConciliationIfMounted($action);
 
             return;
         }
@@ -3135,6 +3141,8 @@ final class CashRegisterAction
                 ->body('El cajero no tiene sucursal asignada para conciliar de forma manual.')
                 ->danger()
                 ->send();
+
+            self::haltPosPagoMovilConciliationIfMounted($action);
 
             return;
         }
@@ -3162,24 +3170,32 @@ final class CashRegisterAction
                 ->danger()
                 ->send();
 
+            self::haltPosPagoMovilConciliationIfMounted($action);
+
             return;
         }
 
+        $set('bdv_pm_manual_otp_requested', true);
         self::patchMountedActionData($livewire, self::PAGO_MOVIL_CONCILIATION_ACTION_NAME, [
+            'bdv_pm_failed' => true,
             'bdv_pm_manual_otp_requested' => true,
         ]);
 
         Notification::make()
             ->title('Código OTP enviado')
-            ->body('Se envió un código de 6 dígitos por email y WhatsApp al gerente de la sucursal y a los administradores. Caduca en 10 minutos.')
+            ->body('Se envió un código de 6 dígitos por email y WhatsApp al gerente de la sucursal y a los administradores. Caduca en 10 minutos. Ingrese la clave en esta misma ventana.')
             ->success()
             ->send();
+
+        self::haltPosPagoMovilConciliationIfMounted($action);
     }
 
     private static function confirmPosManualConciliation(Action $action, Get $get): void
     {
         $livewire = $action->getLivewire();
         if (! $livewire instanceof BasePage) {
+            self::haltPosPagoMovilConciliationIfMounted($action);
+
             return;
         }
 
@@ -3189,6 +3205,8 @@ final class CashRegisterAction
                 ->title('Debe iniciar sesión.')
                 ->danger()
                 ->send();
+
+            self::haltPosPagoMovilConciliationIfMounted($action);
 
             return;
         }
@@ -3210,6 +3228,8 @@ final class CashRegisterAction
                 ->body(collect($e->errors())->flatten()->first() ?: 'Error de validación.')
                 ->danger()
                 ->send();
+
+            self::haltPosPagoMovilConciliationIfMounted($action);
 
             return;
         }
@@ -3316,6 +3336,36 @@ final class CashRegisterAction
         return substr($t, 0, $maxLength - 1).'…';
     }
 
+    private static function bdvPmManualOtpRequested(Get $get): bool
+    {
+        return filter_var($get('bdv_pm_manual_otp_requested') ?? false, FILTER_VALIDATE_BOOL);
+    }
+
+    private static function bdvPmManualOtpUiVisible(Get $get): bool
+    {
+        return filter_var($get('bdv_pm_failed') ?? false, FILTER_VALIDATE_BOOL)
+            || self::bdvPmManualOtpRequested($get);
+    }
+
+    private static function bdvPmManualOtpHelpHtml(Get $get): HtmlString
+    {
+        if (self::bdvPmManualOtpRequested($get)) {
+            return new HtmlString(
+                '<div class="rounded-xl border border-warning-500/40 bg-warning-500/10 p-3 text-sm text-warning-700 dark:text-warning-200">'
+                .'<p class="font-medium">Clave OTP enviada</p>'
+                .'<p class="mt-1">Se envió un código de 6 dígitos por email y WhatsApp al gerente de la sucursal y a los administradores. Ingrese la clave abajo y pulse «Confirmar conciliación manual». Caduca en 10 minutos.</p>'
+                .'</div>'
+            );
+        }
+
+        return new HtmlString(
+            '<div class="rounded-xl border border-warning-500/40 bg-warning-500/10 p-3 text-sm text-warning-700 dark:text-warning-200">'
+            .'<p class="font-medium">Conciliación manual</p>'
+            .'<p class="mt-1">Pulse «Conciliar Manual» para enviar el código al gerente. Luego ingrese la clave de 6 dígitos y confirme para registrar la venta.</p>'
+            .'</div>'
+        );
+    }
+
     private static function bdvPmFailureInlineHtml(Get $get): HtmlString
     {
         $message = trim((string) ($get('bdv_pm_failure_message') ?? ''));
@@ -3327,7 +3377,7 @@ final class CashRegisterAction
             '<div class="farmadoc-bdv-pm-inline-alert" role="alert" aria-live="assertive">'
             .'<p class="farmadoc-bdv-pm-inline-alert__title">Pago no conciliado por BDV</p>'
             .'<p class="farmadoc-bdv-pm-inline-alert__body">'.e($message).'</p>'
-            .'<p class="farmadoc-bdv-pm-inline-alert__hint">Puede conciliar de forma manual con OTP del gerente, o volver a la caja para escoger otro método de pago.</p>'
+            .'<p class="farmadoc-bdv-pm-inline-alert__hint">Abajo puede conciliar de forma manual: solicite el OTP al gerente, ingrese la clave y confirme para registrar la venta. O vuelva a la caja para otro método de pago.</p>'
             .'</div>'
         );
     }

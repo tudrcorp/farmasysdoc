@@ -2763,11 +2763,13 @@ final class CashRegisterAction
                             ->native(false)
                             ->columnSpanFull(),
                         Hidden::make('bdv_pm_failed')
-                            ->default(false),
+                            ->default(false)
+                            ->live(),
                         Hidden::make('bdv_pm_failure_message')
                             ->default(null),
                         Hidden::make('bdv_pm_manual_otp_requested')
-                            ->default(false),
+                            ->default(false)
+                            ->live(),
                         TextEntry::make('bdv_pm_failure_inline')
                             ->hiddenLabel()
                             ->columnSpanFull()
@@ -2784,6 +2786,7 @@ final class CashRegisterAction
                                 : 'Conciliar Manual')
                             ->icon(Heroicon::Key)
                             ->color('warning')
+                            ->cancelParentActions(false)
                             ->visible(fn (Get $get): bool => filter_var($get('bdv_pm_failed') ?? false, FILTER_VALIDATE_BOOL))
                             ->extraAttributes([
                                 'class' => 'farmadoc-bdv-pm-inline-failure-action',
@@ -2811,6 +2814,7 @@ final class CashRegisterAction
                             ->label('Confirmar conciliación manual')
                             ->icon(Heroicon::Check)
                             ->color('success')
+                            ->cancelParentActions(false)
                             ->visible(fn (Get $get): bool => filter_var($get('bdv_pm_manual_otp_requested') ?? false, FILTER_VALIDATE_BOOL))
                             ->extraAttributes([
                                 'class' => 'farmadoc-bdv-pm-inline-failure-action',
@@ -2822,6 +2826,7 @@ final class CashRegisterAction
                             ->label('Regresar a caja y seleccionar otro método')
                             ->icon(Heroicon::ArrowUturnLeft)
                             ->color('danger')
+                            ->cancelParentActions(false)
                             ->visible(fn (Get $get): bool => filter_var($get('bdv_pm_failed') ?? false, FILTER_VALIDATE_BOOL))
                             ->extraAttributes([
                                 'class' => 'farmadoc-bdv-pm-inline-failure-action',
@@ -2863,6 +2868,8 @@ final class CashRegisterAction
 
                 $livewire = $action->getLivewire();
                 if (! $livewire instanceof BasePage) {
+                    $action->halt();
+
                     return;
                 }
 
@@ -2877,11 +2884,10 @@ final class CashRegisterAction
                     ]);
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
+                        $action,
                         'La sucursal no tiene configurado el teléfono de conciliación Pago Móvil (BDV). Pídale a un administrador que lo registre en Sucursales.',
                         'Configuración incompleta',
                     );
-
-                    return;
                 }
 
                 $telefonoDestinoNorm = self::normalizeBdvTelefonoPagadorPayload($telefonoComercio);
@@ -2892,11 +2898,10 @@ final class CashRegisterAction
                     ]);
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
+                        $action,
                         'El teléfono de conciliación Pago Móvil (BDV) de la sucursal no tiene formato válido. Use 04XX… o 58… según manual BDV.',
                         'Configuración incompleta',
                     );
-
-                    return;
                 }
 
                 $referencia = preg_replace('/\D+/', '', (string) ($data['bdv_pm_referencia'] ?? '')) ?? '';
@@ -2932,12 +2937,13 @@ final class CashRegisterAction
                     ]);
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
+                        $action,
                         'No está configurada la API Key de conciliación BDV en producción. Defina BDV_PRODUCTION_KEY_CONCILIATION en el servidor.',
                         'Configuración incompleta',
                     );
-
-                    return;
                 }
+
+                $response = null;
 
                 try {
                     $validated = validator($candidate, $rules, $messages)->validate();
@@ -2967,6 +2973,8 @@ final class CashRegisterAction
                             'body' => $logBody,
                         ]);
                     }
+                } catch (Halt $exception) {
+                    throw $exception;
                 } catch (ValidationException $e) {
                     Log::warning('bdv.pos_conciliation.validation_failed', [
                         'environment' => $environment,
@@ -2975,11 +2983,10 @@ final class CashRegisterAction
                     ]);
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
+                        $action,
                         collect($e->errors())->flatten()->implode(' '),
                         'Datos inválidos',
                     );
-
-                    return;
                 } catch (InvalidArgumentException $e) {
                     Log::error('bdv.pos_conciliation.invalid_argument', [
                         'environment' => $environment,
@@ -2987,11 +2994,10 @@ final class CashRegisterAction
                     ]);
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
+                        $action,
                         self::truncateForUserMessage($e->getMessage()),
                         'Conciliación no aceptada',
                     );
-
-                    return;
                 } catch (ConnectionException $e) {
                     Log::error('bdv.pos_conciliation.connection', [
                         'environment' => $environment,
@@ -2999,11 +3005,10 @@ final class CashRegisterAction
                     ]);
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
+                        $action,
                         'No hubo respuesta del banco: '.self::truncateForUserMessage($e->getMessage()).' Compruebe la red o reintente más tarde.',
                         'Sin conexión con BDV',
                     );
-
-                    return;
                 } catch (RuntimeException $e) {
                     Log::error('bdv.pos_conciliation.runtime', [
                         'environment' => $environment,
@@ -3011,11 +3016,10 @@ final class CashRegisterAction
                     ]);
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
+                        $action,
                         self::truncateForUserMessage($e->getMessage()),
                         'Conciliación no aceptada',
                     );
-
-                    return;
                 } catch (Throwable $e) {
                     Log::error('bdv.pos_conciliation.exception', [
                         'environment' => $environment,
@@ -3024,20 +3028,25 @@ final class CashRegisterAction
                     ]);
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
+                        $action,
                         'Ocurrió un error al conciliar: '.self::truncateForUserMessage($e->getMessage()),
                         'Conciliación fallida',
                     );
-
-                    return;
                 }
 
-                if (! self::isBdvConciliationSuccessful($response)) {
-                    self::notifyBdvConciliationApiFailure($response);
+                if ($response === null || ! self::isBdvConciliationSuccessful($response)) {
                     self::markBdvConciliationFailureInWizard(
                         $livewire,
-                        self::bdvConciliationFailureMessage($response),
+                        $action,
+                        $response !== null
+                            ? self::formatBdvApiResponseForNotification($response)
+                            : 'El banco no confirmó la conciliación del Pago Móvil.',
                         'Pago no conciliado por BDV',
                     );
+                }
+
+                if (! $response instanceof Response) {
+                    $action->halt();
 
                     return;
                 }
@@ -3068,10 +3077,12 @@ final class CashRegisterAction
     }
 
     /**
-     * Guarda el fallo de conciliación en el wizard para mostrar alerta inline y acción de retorno a caja.
+     * Guarda el fallo de conciliación en el wizard para mostrar alerta inline y el botón de conciliación manual.
+     * Hace halt para que la modal de conciliación no se cierre.
      */
     private static function markBdvConciliationFailureInWizard(
         BasePage $livewire,
+        Action $action,
         string $detailMessage,
         ?string $title = null,
     ): void {
@@ -3080,10 +3091,13 @@ final class CashRegisterAction
             $message = $title.'. '.$message;
         }
 
-        self::patchMountedActionData($livewire, self::PAGO_MOVIL_CONCILIATION_ACTION_NAME, [
+        $patch = [
             'bdv_pm_failed' => true,
             'bdv_pm_failure_message' => $message,
-        ]);
+        ];
+
+        self::patchMountedActionData($livewire, self::PAGO_MOVIL_CONCILIATION_ACTION_NAME, $patch);
+        $action->data(array_merge($action->getData(), $patch), shouldMutate: false);
 
         AuditLogger::record(
             'pos_caja_bdv_conciliation_failed',
@@ -3093,6 +3107,8 @@ final class CashRegisterAction
                 'detail' => Str::limit($message, 800),
             ],
         );
+
+        $action->halt();
     }
 
     private static function requestPosManualConciliationOtp(Action $action, Get $get): void
@@ -3622,22 +3638,6 @@ final class CashRegisterAction
         }
 
         return 'El banco no confirmó la conciliación del Pago Móvil (HTTP '.$response->status().').';
-    }
-
-    /**
-     * Notificación con el detalle devuelto por BDV cuando la respuesta no es una conciliación satisfactoria
-     * (p. ej. distinta de code 1000 / data.status 1000 y HTTP 200 según el contrato documentado).
-     */
-    private static function notifyBdvConciliationApiFailure(Response $response): void
-    {
-        $body = self::truncateForUserMessage(self::formatBdvApiResponseForNotification($response), 1800);
-
-        Notification::make()
-            ->title('BDV: no se concilió el Pago Móvil')
-            ->body($body !== '' ? $body : 'El banco no confirmó el pago. Revise los datos o intente de nuevo.')
-            ->danger()
-            ->persistent()
-            ->send();
     }
 
     /**

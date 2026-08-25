@@ -2630,6 +2630,8 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
 .farmadoc-bdv-pm-conciliation-modal--ios-sheet .fi-modal-content {
     padding-block: 0.65rem 0.5rem;
     padding-inline: 1rem 1.05rem;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .farmadoc-bdv-pm-conciliation-modal--ios-sheet .fi-modal-footer {

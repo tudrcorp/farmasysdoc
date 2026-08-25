@@ -115,6 +115,17 @@
         </div>
 
         @if ($isCashierView && ! $boxIsOpen)
+            @if (! $branchDailyOperationIsOpen)
+                <x-filament::section>
+                    <x-slot name="heading">Sucursal no aperturada</x-slot>
+                    <x-slot name="description">
+                        Gerencia o administración debe aperturar la sucursal antes de que pueda abrir su caja física y facturar.
+                    </x-slot>
+                    <p class="text-sm text-gray-700 dark:text-gray-200">
+                        Cuando la sucursal esté aperturada, esta pantalla le permitirá registrar el efectivo inicial del turno.
+                    </p>
+                </x-filament::section>
+            @else
             <form wire:submit.prevent="openCashBox" class="space-y-6">
                 <x-filament::section>
                     <x-slot name="heading">Apertura de caja</x-slot>
@@ -200,6 +211,7 @@
                     </x-filament::button>
                 </div>
             </form>
+            @endif
         @elseif ($isCashierView)
             <x-filament::section>
                 <x-slot name="heading">Conciliación de cierre en tiempo real</x-slot>

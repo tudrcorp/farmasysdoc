@@ -47,7 +47,7 @@ class ListSales extends ListRecords
             if (! PhysicalCashBoxBillingGate::userMayUseCashRegister(Auth::user())) {
                 Notification::make()
                     ->title('Caja no disponible')
-                    ->body('Debe abrir la caja física antes de usar la caja registradora.')
+                    ->body(PhysicalCashBoxBillingGate::cashRegisterUnavailableMessage(Auth::user()))
                     ->warning()
                     ->send();
 

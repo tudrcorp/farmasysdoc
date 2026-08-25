@@ -29,6 +29,7 @@ class ConciliationBdv extends Model
         'bdv_payload',
         'bdv_response',
         'conciliated_at',
+        'is_manual',
         'created_by',
     ];
 
@@ -45,6 +46,7 @@ class ConciliationBdv extends Model
             'bdv_response' => 'array',
             'payment_date' => 'date',
             'conciliated_at' => 'datetime',
+            'is_manual' => 'boolean',
         ];
     }
 

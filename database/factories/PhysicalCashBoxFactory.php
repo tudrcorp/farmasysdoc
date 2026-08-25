@@ -29,4 +29,13 @@ class PhysicalCashBoxFactory extends Factory
             'closed_at' => null,
         ];
     }
+
+    public function open(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'is_open' => true,
+            'opened_at' => now(),
+            'closed_at' => null,
+        ]);
+    }
 }

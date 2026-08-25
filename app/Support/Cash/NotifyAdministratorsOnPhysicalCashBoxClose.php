@@ -19,11 +19,20 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
         private readonly UltramsgWhatsAppClient $ultramsgWhatsAppClient,
     ) {}
 
+    /**
+     * @param  array{
+     *     expected_usd: float,
+     *     expected_ves: float,
+     *     declared_usd: float,
+     *     declared_ves: float,
+     * }|null  $reconciliationSnapshot
+     */
     public function notify(
         User $cashier,
         PhysicalCashBox $physicalCashBox,
         CarbonInterface $openedAt,
         CarbonInterface $closedAt,
+        ?array $reconciliationSnapshot = null,
     ): void {
         if (! $this->ultramsgWhatsAppClient->isEnabled()) {
             Log::notice('UltraMsg deshabilitado: no se envía WhatsApp de cierre de caja física', [
@@ -45,7 +54,13 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
             return;
         }
 
-        $report = $this->shiftReportBuilder->build($cashier, $physicalCashBox, $openedAt, $closedAt);
+        $report = $this->shiftReportBuilder->build(
+            $cashier,
+            $physicalCashBox,
+            $openedAt,
+            $closedAt,
+            $reconciliationSnapshot,
+        );
         $bannerImage = $this->ultramsgWhatsAppClient->resolvePhysicalCashBoxBannerImage();
         $caption = $this->buildCaption($report);
         $pdfBytes = $this->paymentTotalsPdfGenerator->generate($report);
@@ -128,32 +143,95 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
      *         usd_methods_total: float,
      *         ves_methods_total: float,
      *     },
+     *     cash_box_reconciliation: array{
+     *         movements_count: int,
+     *         opening_usd: float,
+     *         opening_ves: float,
+     *         inbound_client_bill_usd: float,
+     *         inbound_client_bill_usd_count: int,
+     *         inbound_mixed_ves: float,
+     *         inbound_mixed_ves_count: int,
+     *         inbound_usd_total: float,
+     *         inbound_ves_total: float,
+     *         outbound_drawer_usd: float,
+     *         outbound_drawer_usd_count: int,
+     *         outbound_change_ves: float,
+     *         outbound_change_ves_count: int,
+     *         outbound_usd_total: float,
+     *         outbound_ves_total: float,
+     *         expected_usd: float,
+     *         expected_ves: float,
+     *         declared_usd: float,
+     *         declared_ves: float,
+     *         difference_usd: float,
+     *         difference_ves: float,
+     *         has_mismatch: bool,
+     *     },
      * }  $report
      */
     private function buildCaption(array $report): string
     {
         $detail = $report['close_detail'];
+        $reconciliation = $report['cash_box_reconciliation'];
 
         $lines = [
-            'CIERRE DE CAJA FISICA',
+            'CONCILIACION DE CAJA FISICA',
             (string) config('app.name'),
             '',
             'El cierre de caja se ejecuto con exito.',
             '',
             '[ TURNO ]',
-            'Sucursal:'.$report['branch_name'],
-            'Cajero:'.$report['cashier_name'],
-            'Apertura:'.$report['opened_at_label'],
-            'Cierre:'.$report['closed_at_label'],
+            'Sucursal: '.$report['branch_name'],
+            'Cajero: '.$report['cashier_name'],
+            'Apertura: '.$report['opened_at_label'],
+            'Cierre: '.$report['closed_at_label'],
+            'Movimientos de caja: '.$this->formatInteger($reconciliation['movements_count']),
             '',
-            '[ RESUMEN ]',
-            'Total de ventas:'.$this->formatInteger($detail['sale_count']),
-            'Total ventas USD: '.$this->formatMoney($detail['total_usd']),
-            'Total ventas VES: Bs. '.$this->formatMoney($detail['total_ves']),
+            '[ APERTURA ]',
+            'USD: '.$this->formatMoney($reconciliation['opening_usd']),
+            'VES: '.$this->formatMoney($reconciliation['opening_ves']),
             '',
-            '[ DETALLE ]',
-            'Total Punto de Venta: Bs. '.$this->formatMoney($detail['punto_venta_ves']),
+            '[ ENTRADAS ]',
+            'Billetes del cliente (USD): '.$this->formatSignedMoney($reconciliation['inbound_client_bill_usd'])
+                .'  '.$this->formatMovementCount($reconciliation['inbound_client_bill_usd_count']),
+            'Efectivo VES (pago mixto): '.$this->formatSignedMoney($reconciliation['inbound_mixed_ves'])
+                .'  '.$this->formatMovementCount($reconciliation['inbound_mixed_ves_count']),
+            'Total entradas USD: '.$this->formatSignedMoney($reconciliation['inbound_usd_total']),
+            'Total entradas VES: '.$this->formatSignedMoney($reconciliation['inbound_ves_total']),
+            '',
+            '[ SALIDAS ]',
+            'USD retirados para vueltos: '.$this->formatSignedMoney(-1 * $reconciliation['outbound_drawer_usd'])
+                .'  '.$this->formatMovementCount($reconciliation['outbound_drawer_usd_count']),
+            'Vuelto VES entregado: '.$this->formatSignedMoney(-1 * $reconciliation['outbound_change_ves'])
+                .'  '.$this->formatMovementCount($reconciliation['outbound_change_ves_count']),
+            'Total salidas USD: '.$this->formatSignedMoney(-1 * $reconciliation['outbound_usd_total']),
+            'Total salidas VES: '.$this->formatSignedMoney(-1 * $reconciliation['outbound_ves_total']),
+            '',
+            '[ ARQUEO ]',
+            'Esperado sistema',
+            'USD: '.$this->formatMoney($reconciliation['expected_usd']),
+            'VES: '.$this->formatMoney($reconciliation['expected_ves']),
+            '',
+            'Declarado cajero',
+            'USD: '.$this->formatMoney($reconciliation['declared_usd']),
+            'VES: '.$this->formatMoney($reconciliation['declared_ves']),
+            '',
+            'Diferencia (declarado - esperado)',
+            'USD: '.$this->formatSignedMoney($reconciliation['difference_usd']),
+            'VES: '.$this->formatSignedMoney($reconciliation['difference_ves']),
+            'Estado: '.($reconciliation['has_mismatch'] ? 'DESCUADRE' : 'CONCILIADO'),
         ];
+
+        if ($reconciliation['has_mismatch']) {
+            $lines[] = 'Revise billetes, vueltos y conteo fisico.';
+        }
+
+        $lines[] = '';
+        $lines[] = '[ VENTAS DEL TURNO ]';
+        $lines[] = 'Total de ventas: '.$this->formatInteger($detail['sale_count']);
+        $lines[] = 'Total ventas USD: '.$this->formatMoney($detail['total_usd']);
+        $lines[] = 'Total ventas VES: Bs. '.$this->formatMoney($detail['total_ves']);
+        $lines[] = 'Total Punto de Venta: Bs. '.$this->formatMoney($detail['punto_venta_ves']);
 
         foreach ($detail['pos_terminals'] as $terminal) {
             $lines[] = $terminal['label'].': Bs. '.$this->formatMoney((float) $terminal['amount_ves']);
@@ -198,6 +276,22 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
     private function formatMoney(float $amount): string
     {
         return number_format($amount, 2, ',', '.');
+    }
+
+    private function formatSignedMoney(float $amount): string
+    {
+        $formatted = $this->formatMoney(abs($amount));
+
+        if (abs($amount) < 0.005) {
+            return $formatted;
+        }
+
+        return ($amount > 0 ? '+' : '-').$formatted;
+    }
+
+    private function formatMovementCount(int $count): string
+    {
+        return '('.$this->formatInteger($count).' mov)';
     }
 
     private function formatInteger(int $value): string

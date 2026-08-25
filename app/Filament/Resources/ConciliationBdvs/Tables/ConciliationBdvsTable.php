@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ConciliationBdvs\Tables;
 
 use App\Models\Branch;
+use App\Services\BdvConciliation\ManualBdvConciliationService;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\ViewAction;
@@ -55,7 +56,11 @@ class ConciliationBdvsTable
                 TextColumn::make('bdv_code')
                     ->label('Código BDV')
                     ->badge()
-                    ->color(fn (?string $state): string => in_array((string) $state, ['00', '01', '1000', '200'], true) ? 'success' : 'warning')
+                    ->color(fn (?string $state): string => match (true) {
+                        (string) $state === ManualBdvConciliationService::MANUAL_BDV_CODE => 'info',
+                        in_array((string) $state, ['00', '01', '1000', '200'], true) => 'success',
+                        default => 'warning',
+                    })
                     ->toggleable(),
                 TextColumn::make('environment')
                     ->label('Entorno')
@@ -67,6 +72,12 @@ class ConciliationBdvsTable
                     ->placeholder('—')
                     ->searchable()
                     ->toggleable(),
+                TextColumn::make('is_manual')
+                    ->label('Conciliación Manual')
+                    ->badge()
+                    ->formatStateUsing(fn (bool $state): string => $state ? 'Sí' : 'No')
+                    ->color(fn (bool $state): string => $state ? 'warning' : 'gray')
+                    ->sortable(),
                 TextColumn::make('created_at')
                     ->label('Registro')
                     ->dateTime('d/m/Y H:i:s')
@@ -94,8 +105,22 @@ class ConciliationBdvsTable
                     ->queries(
                         true: fn (Builder $query): Builder => $query->whereIn('bdv_code', ['00', '01', '1000', '200']),
                         false: fn (Builder $query): Builder => $query->where(function (Builder $w): void {
-                            $w->whereNull('bdv_code')->orWhereNotIn('bdv_code', ['00', '01', '1000', '200']);
+                            $w->whereNull('bdv_code')
+                                ->orWhere(function (Builder $inner): void {
+                                    $inner->whereNotIn('bdv_code', ['00', '01', '1000', '200'])
+                                        ->where('bdv_code', '!=', ManualBdvConciliationService::MANUAL_BDV_CODE);
+                                });
                         }),
+                        blank: fn (Builder $query): Builder => $query,
+                    ),
+                TernaryFilter::make('is_manual')
+                    ->label('Conciliación Manual')
+                    ->placeholder('Todas')
+                    ->trueLabel('Solo manuales')
+                    ->falseLabel('Solo por API BDV')
+                    ->queries(
+                        true: fn (Builder $query): Builder => $query->where('is_manual', true),
+                        false: fn (Builder $query): Builder => $query->where('is_manual', false),
                         blank: fn (Builder $query): Builder => $query,
                     ),
             ])

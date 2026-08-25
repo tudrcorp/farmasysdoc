@@ -4,6 +4,7 @@ namespace App\Services\Sales;
 
 use App\Enums\SaleStatus;
 use App\Models\PhysicalCashBox;
+use App\Models\PhysicalCashBoxMovement;
 use App\Models\PosTerminal;
 use App\Models\Sale;
 use App\Models\User;
@@ -19,7 +20,17 @@ use Illuminate\Support\Collection;
  */
 final class PhysicalCashBoxShiftReportBuilder
 {
+    private const KIND_EFECTIVO_USD_VUELTO = 'efectivo_usd_vuelto';
+
+    private const KIND_MIXED_EFECTIVO_VES_VUELTO = 'mixed_efectivo_ves_vuelto';
+
     /**
+     * @param  array{
+     *     expected_usd: float,
+     *     expected_ves: float,
+     *     declared_usd: float,
+     *     declared_ves: float,
+     * }|null  $reconciliationSnapshot
      * @return array{
      *     cashier_name: string,
      *     branch_name: string,
@@ -57,6 +68,30 @@ final class PhysicalCashBoxShiftReportBuilder
      *         usd_methods_total: float,
      *         ves_methods_total: float,
      *     },
+     *     cash_box_reconciliation: array{
+     *         movements_count: int,
+     *         opening_usd: float,
+     *         opening_ves: float,
+     *         inbound_client_bill_usd: float,
+     *         inbound_client_bill_usd_count: int,
+     *         inbound_mixed_ves: float,
+     *         inbound_mixed_ves_count: int,
+     *         inbound_usd_total: float,
+     *         inbound_ves_total: float,
+     *         outbound_drawer_usd: float,
+     *         outbound_drawer_usd_count: int,
+     *         outbound_change_ves: float,
+     *         outbound_change_ves_count: int,
+     *         outbound_usd_total: float,
+     *         outbound_ves_total: float,
+     *         expected_usd: float,
+     *         expected_ves: float,
+     *         declared_usd: float,
+     *         declared_ves: float,
+     *         difference_usd: float,
+     *         difference_ves: float,
+     *         has_mismatch: bool,
+     *     },
      * }
      */
     public function build(
@@ -64,6 +99,7 @@ final class PhysicalCashBoxShiftReportBuilder
         PhysicalCashBox $physicalCashBox,
         CarbonInterface $openedAt,
         CarbonInterface $closedAt,
+        ?array $reconciliationSnapshot = null,
     ): array {
         $cashier->loadMissing('branch');
         $physicalCashBox->loadMissing('user.branch');
@@ -135,6 +171,143 @@ final class PhysicalCashBoxShiftReportBuilder
             'payment_breakdown' => $paymentBreakdown,
             'payment_breakdown_totals' => $paymentBreakdownTotals,
             'close_detail' => $this->buildCloseDetail($sales, $cashier, $physicalCashBox),
+            'cash_box_reconciliation' => $this->buildCashBoxReconciliation(
+                $physicalCashBox,
+                $openedAt,
+                $closedAt,
+                $reconciliationSnapshot,
+            ),
+        ];
+    }
+
+    /**
+     * @param  array{
+     *     expected_usd?: float,
+     *     expected_ves?: float,
+     *     declared_usd?: float,
+     *     declared_ves?: float,
+     * }|null  $reconciliationSnapshot
+     * @return array{
+     *     movements_count: int,
+     *     opening_usd: float,
+     *     opening_ves: float,
+     *     inbound_client_bill_usd: float,
+     *     inbound_client_bill_usd_count: int,
+     *     inbound_mixed_ves: float,
+     *     inbound_mixed_ves_count: int,
+     *     inbound_usd_total: float,
+     *     inbound_ves_total: float,
+     *     outbound_drawer_usd: float,
+     *     outbound_drawer_usd_count: int,
+     *     outbound_change_ves: float,
+     *     outbound_change_ves_count: int,
+     *     outbound_usd_total: float,
+     *     outbound_ves_total: float,
+     *     expected_usd: float,
+     *     expected_ves: float,
+     *     declared_usd: float,
+     *     declared_ves: float,
+     *     difference_usd: float,
+     *     difference_ves: float,
+     *     has_mismatch: bool,
+     * }
+     */
+    private function buildCashBoxReconciliation(
+        PhysicalCashBox $physicalCashBox,
+        CarbonInterface $openedAt,
+        CarbonInterface $closedAt,
+        ?array $reconciliationSnapshot,
+    ): array {
+        $movements = PhysicalCashBoxMovement::query()
+            ->where('physical_cash_box_id', $physicalCashBox->id)
+            ->where('created_at', '>=', $openedAt)
+            ->where('created_at', '<=', $closedAt)
+            ->get();
+
+        $inboundClientBillUsd = 0.0;
+        $inboundClientBillUsdCount = 0;
+        $inboundMixedVes = 0.0;
+        $inboundMixedVesCount = 0;
+        $outboundDrawerUsd = 0.0;
+        $outboundDrawerUsdCount = 0;
+        $outboundChangeVes = 0.0;
+        $outboundChangeVesCount = 0;
+
+        foreach ($movements as $movement) {
+            $kind = (string) $movement->kind;
+
+            if ($kind === self::KIND_EFECTIVO_USD_VUELTO) {
+                $clientBillUsd = round((float) $movement->client_bill_usd, 2);
+                $drawerOutUsd = round((float) $movement->drawer_out_usd, 2);
+                $changeVes = round(abs((float) ($movement->final_change_ves ?? 0)), 2);
+
+                if ($clientBillUsd > 0.00001) {
+                    $inboundClientBillUsd = round($inboundClientBillUsd + $clientBillUsd, 2);
+                    $inboundClientBillUsdCount++;
+                }
+
+                if ($drawerOutUsd > 0.00001) {
+                    $outboundDrawerUsd = round($outboundDrawerUsd + $drawerOutUsd, 2);
+                    $outboundDrawerUsdCount++;
+                }
+
+                if ($changeVes > 0.00001) {
+                    $outboundChangeVes = round($outboundChangeVes + $changeVes, 2);
+                    $outboundChangeVesCount++;
+                }
+
+                continue;
+            }
+
+            if ($kind !== self::KIND_MIXED_EFECTIVO_VES_VUELTO) {
+                continue;
+            }
+
+            $meta = is_array($movement->meta) ? $movement->meta : [];
+            $netVes = round((float) ($meta['net_ves_to_drawer'] ?? 0), 2);
+
+            if ($netVes <= 0.00001) {
+                $received = round((float) ($meta['ves_cash_received_total'] ?? 0), 2);
+                $change = round((float) ($meta['change_ves_total'] ?? $movement->final_change_ves ?? 0), 2);
+                $netVes = round(max(0.0, $received - $change), 2);
+            }
+
+            if ($netVes > 0.00001) {
+                $inboundMixedVes = round($inboundMixedVes + $netVes, 2);
+                $inboundMixedVesCount++;
+            }
+        }
+
+        $expectedUsd = round((float) ($reconciliationSnapshot['expected_usd'] ?? $physicalCashBox->amount_usd), 2);
+        $expectedVes = round((float) ($reconciliationSnapshot['expected_ves'] ?? $physicalCashBox->amount_ves), 2);
+        $declaredUsd = round((float) ($reconciliationSnapshot['declared_usd'] ?? $expectedUsd), 2);
+        $declaredVes = round((float) ($reconciliationSnapshot['declared_ves'] ?? $expectedVes), 2);
+        $differenceUsd = round($declaredUsd - $expectedUsd, 2);
+        $differenceVes = round($declaredVes - $expectedVes, 2);
+
+        return [
+            'movements_count' => $movements->count(),
+            'opening_usd' => round($expectedUsd - $inboundClientBillUsd + $outboundDrawerUsd, 2),
+            'opening_ves' => round($expectedVes - $inboundMixedVes + $outboundChangeVes, 2),
+            'inbound_client_bill_usd' => $inboundClientBillUsd,
+            'inbound_client_bill_usd_count' => $inboundClientBillUsdCount,
+            'inbound_mixed_ves' => $inboundMixedVes,
+            'inbound_mixed_ves_count' => $inboundMixedVesCount,
+            'inbound_usd_total' => $inboundClientBillUsd,
+            'inbound_ves_total' => $inboundMixedVes,
+            'outbound_drawer_usd' => $outboundDrawerUsd,
+            'outbound_drawer_usd_count' => $outboundDrawerUsdCount,
+            'outbound_change_ves' => $outboundChangeVes,
+            'outbound_change_ves_count' => $outboundChangeVesCount,
+            'outbound_usd_total' => $outboundDrawerUsd,
+            'outbound_ves_total' => $outboundChangeVes,
+            'expected_usd' => $expectedUsd,
+            'expected_ves' => $expectedVes,
+            'declared_usd' => $declaredUsd,
+            'declared_ves' => $declaredVes,
+            'difference_usd' => $differenceUsd,
+            'difference_ves' => $differenceVes,
+            'has_mismatch' => abs($differenceUsd) >= 0.01 || abs($differenceVes) >= 0.01,
         ];
     }
 

@@ -32,6 +32,11 @@ class ConciliationBdvInfolist
                                 TextEntry::make('user.name')
                                     ->label('Conciliado por')
                                     ->placeholder('—'),
+                                TextEntry::make('is_manual')
+                                    ->label('Conciliación Manual')
+                                    ->badge()
+                                    ->formatStateUsing(fn (bool $state): string => $state ? 'Sí' : 'No')
+                                    ->color(fn (bool $state): string => $state ? 'warning' : 'gray'),
                                 TextEntry::make('reference')
                                     ->label('Referencia')
                                     ->copyable(),

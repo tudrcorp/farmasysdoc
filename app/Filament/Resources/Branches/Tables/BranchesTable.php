@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Branches\Tables;
 
+use App\Filament\Resources\Branches\Actions\CloseBranchDailyOperationAction;
+use App\Filament\Resources\Branches\Actions\OpenBranchDailyOperationAction;
 use App\Models\Branch;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -20,6 +22,7 @@ class BranchesTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['currentOpenDailyOperation']))
             ->columns([
                 TextColumn::make('code')
                     ->label('Código')
@@ -95,6 +98,16 @@ class BranchesTable
                     ->tooltip(fn (Branch $record): string => $record->is_active
                         ? 'Sucursal activa'
                         : 'Sucursal inactiva'),
+                TextColumn::make('daily_operation')
+                    ->label('Gestión del día')
+                    ->badge()
+                    ->state(fn (Branch $record): string => $record->currentOpenDailyOperation !== null
+                        ? 'Aperturada'
+                        : 'Cerrada')
+                    ->color(fn (Branch $record): string => $record->currentOpenDailyOperation !== null
+                        ? 'success'
+                        : 'gray')
+                    ->alignCenter(),
                 TextColumn::make('legal_name')
                     ->label('Razón social')
                     ->searchable()
@@ -168,6 +181,8 @@ class BranchesTable
                     ->searchable(),
             ])
             ->recordActions([
+                OpenBranchDailyOperationAction::make(),
+                CloseBranchDailyOperationAction::make(),
                 ViewAction::make()
                     ->label('Ver')
                     ->icon(Heroicon::Eye),

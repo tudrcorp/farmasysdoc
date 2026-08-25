@@ -19,6 +19,8 @@ use App\Models\Sale;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\BdvConciliation\BdvConciliationClient;
+use App\Services\BdvConciliation\ManualBdvConciliationOtpService;
+use App\Services\BdvConciliation\ManualBdvConciliationService;
 use App\Services\Dolar\DolarApiDolaresService;
 use App\Services\Dolar\DolarApiEstadoService;
 use App\Services\Finance\AccountsReceivableFromSaleRegistrar;
@@ -46,6 +48,7 @@ use Filament\Actions\Action;
 use Filament\Actions\Contracts\HasActions;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\OneTimeCodeInput;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
@@ -1175,7 +1178,7 @@ final class CashRegisterAction
                 if (! PhysicalCashBoxBillingGate::userMayUseCashRegister(Auth::user())) {
                     Notification::make()
                         ->title('Caja no disponible')
-                        ->body('Debe abrir la caja física antes de registrar ventas en caja.')
+                        ->body(PhysicalCashBoxBillingGate::cashRegisterUnavailableMessage(Auth::user()))
                         ->warning()
                         ->send();
 
@@ -2490,12 +2493,16 @@ final class CashRegisterAction
         $amount = round(max(0.0, $paymentVes), 2);
         $query = ConciliationBdv::query()
             ->where('branch_id', $branchId)
-            ->where('bdv_http_status', 200)
             ->where('amount', $amount)
             ->where('conciliated_at', '>=', now()->subMinutes(30))
             ->where(function (Builder $query): void {
-                $query->whereIn('bdv_code', ['00', '01', '1000', '200'])
-                    ->orWhereNull('bdv_code');
+                $query->where(function (Builder $ok): void {
+                    $ok->where('bdv_http_status', 200)
+                        ->where(function (Builder $codes): void {
+                            $codes->whereIn('bdv_code', ['00', '01', '1000', '200'])
+                                ->orWhereNull('bdv_code');
+                        });
+                })->orWhere('is_manual', true);
             });
 
         if ($normalizedReference !== '') {
@@ -2671,6 +2678,8 @@ final class CashRegisterAction
                     'bdv_pm_req_ced' => '0',
                     'bdv_pm_failed' => false,
                     'bdv_pm_failure_message' => null,
+                    'bdv_pm_manual_otp_requested' => false,
+                    'bdv_pm_otp_code' => null,
                 ]);
             })
             ->schema([
@@ -2757,6 +2766,8 @@ final class CashRegisterAction
                             ->default(false),
                         Hidden::make('bdv_pm_failure_message')
                             ->default(null),
+                        Hidden::make('bdv_pm_manual_otp_requested')
+                            ->default(false),
                         TextEntry::make('bdv_pm_failure_inline')
                             ->hiddenLabel()
                             ->columnSpanFull()
@@ -2767,6 +2778,46 @@ final class CashRegisterAction
                             ->extraEntryWrapperAttributes([
                                 'class' => 'farmadoc-bdv-pm-inline-failure',
                             ]),
+                        Action::make('bdvPmRequestManualConciliation')
+                            ->label(fn (Get $get): string => filter_var($get('bdv_pm_manual_otp_requested') ?? false, FILTER_VALIDATE_BOOL)
+                                ? 'Reenviar código OTP'
+                                : 'Conciliar Manual')
+                            ->icon(Heroicon::Key)
+                            ->color('warning')
+                            ->visible(fn (Get $get): bool => filter_var($get('bdv_pm_failed') ?? false, FILTER_VALIDATE_BOOL))
+                            ->extraAttributes([
+                                'class' => 'farmadoc-bdv-pm-inline-failure-action',
+                            ])
+                            ->action(function (Action $action, Get $get): void {
+                                self::requestPosManualConciliationOtp($action, $get);
+                            }),
+                        Placeholder::make('bdv_pm_manual_otp_help')
+                            ->hiddenLabel()
+                            ->columnSpanFull()
+                            ->visible(fn (Get $get): bool => filter_var($get('bdv_pm_manual_otp_requested') ?? false, FILTER_VALIDATE_BOOL))
+                            ->content(new HtmlString(
+                                '<div class="rounded-xl border border-warning-500/40 bg-warning-500/10 p-3 text-sm text-warning-700 dark:text-warning-200">'
+                                .'<p class="font-medium">Clave OTP enviada</p>'
+                                .'<p class="mt-1">Se envió un código de 6 dígitos por email y WhatsApp al gerente de la sucursal y a los administradores. Pídales la clave. Caduca en 10 minutos.</p>'
+                                .'</div>'
+                            )),
+                        OneTimeCodeInput::make('bdv_pm_otp_code')
+                            ->label('Código OTP')
+                            ->length(6)
+                            ->columnSpanFull()
+                            ->visible(fn (Get $get): bool => filter_var($get('bdv_pm_manual_otp_requested') ?? false, FILTER_VALIDATE_BOOL))
+                            ->helperText('Ingrese el código de 6 dígitos. Es de un solo uso.'),
+                        Action::make('bdvPmConfirmManualConciliation')
+                            ->label('Confirmar conciliación manual')
+                            ->icon(Heroicon::Check)
+                            ->color('success')
+                            ->visible(fn (Get $get): bool => filter_var($get('bdv_pm_manual_otp_requested') ?? false, FILTER_VALIDATE_BOOL))
+                            ->extraAttributes([
+                                'class' => 'farmadoc-bdv-pm-inline-failure-action',
+                            ])
+                            ->action(function (Action $action, Get $get): void {
+                                self::confirmPosManualConciliation($action, $get);
+                            }),
                         Action::make('bdvPmBackToCashRegister')
                             ->label('Regresar a caja y seleccionar otro método')
                             ->icon(Heroicon::ArrowUturnLeft)
@@ -3010,7 +3061,9 @@ final class CashRegisterAction
 
                 self::storeBdvConciliationRecord($candidate, $response, $environment, $bdvReference);
 
-                self::attemptAutoRegisterSaleAfterBdvConciliation($livewire, $response, $candidate, $bdvReference);
+                self::attemptAutoRegisterSaleAfterPagoMovilReady($livewire, $bdvReference !== ''
+                    ? $bdvReference
+                    : self::extractBdvConciliationReference($response, (string) ($candidate['referencia'] ?? '')));
             });
     }
 
@@ -3042,6 +3095,196 @@ final class CashRegisterAction
         );
     }
 
+    private static function requestPosManualConciliationOtp(Action $action, Get $get): void
+    {
+        $livewire = $action->getLivewire();
+        if (! $livewire instanceof BasePage) {
+            return;
+        }
+
+        $user = Auth::user();
+        if (! $user instanceof User) {
+            Notification::make()
+                ->title('Debe iniciar sesión.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $branchId = (int) ($user->branch_id ?? 0);
+        if ($branchId <= 0) {
+            Notification::make()
+                ->title('Sucursal requerida')
+                ->body('El cajero no tiene sucursal asignada para conciliar de forma manual.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $paymentVes = self::mountedPagoMovilConciliationPaymentVes($livewire);
+        $candidate = self::posManualConciliationCandidateFromGet($get, $livewire, $paymentVes);
+
+        try {
+            $context = app(ManualBdvConciliationService::class)->otpContextFromForm([
+                'branch_id' => $branchId,
+                'reference' => $candidate['referencia'] ?? null,
+                'amount' => $candidate['importe'] ?? null,
+                'payer_document' => $candidate['cedulaPagador'] ?? null,
+                'payer_phone' => $candidate['telefonoPagador'] ?? null,
+                'destination_phone' => $candidate['telefonoDestino'] ?? null,
+                'payment_date' => $candidate['fechaPago'] ?? null,
+                'origin_bank' => $candidate['bancoOrigen'] ?? null,
+            ]);
+
+            app(ManualBdvConciliationOtpService::class)->issueForPosCashier($user, $branchId, $context);
+        } catch (ValidationException $e) {
+            Notification::make()
+                ->title('No se pudo solicitar el OTP')
+                ->body(collect($e->errors())->flatten()->first() ?: 'Error de validación.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        self::patchMountedActionData($livewire, self::PAGO_MOVIL_CONCILIATION_ACTION_NAME, [
+            'bdv_pm_manual_otp_requested' => true,
+        ]);
+
+        Notification::make()
+            ->title('Código OTP enviado')
+            ->body('Se envió un código de 6 dígitos por email y WhatsApp al gerente de la sucursal y a los administradores. Caduca en 10 minutos.')
+            ->success()
+            ->send();
+    }
+
+    private static function confirmPosManualConciliation(Action $action, Get $get): void
+    {
+        $livewire = $action->getLivewire();
+        if (! $livewire instanceof BasePage) {
+            return;
+        }
+
+        $user = Auth::user();
+        if (! $user instanceof User) {
+            Notification::make()
+                ->title('Debe iniciar sesión.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $paymentVes = self::mountedPagoMovilConciliationPaymentVes($livewire);
+        $candidate = self::posManualConciliationCandidateFromGet($get, $livewire, $paymentVes);
+        $rawOtp = self::posManualConciliationWizardValue($get, $livewire, 'bdv_pm_otp_code');
+        if (is_array($rawOtp)) {
+            $otpCode = implode('', array_map(static fn (mixed $digit): string => (string) $digit, $rawOtp));
+        } else {
+            $otpCode = $rawOtp !== null && $rawOtp !== '' ? (string) $rawOtp : null;
+        }
+
+        try {
+            $record = app(ManualBdvConciliationService::class)->registerFromPos($user, $candidate, $otpCode);
+        } catch (ValidationException $e) {
+            Notification::make()
+                ->title('No se pudo conciliar de forma manual')
+                ->body(collect($e->errors())->flatten()->first() ?: 'Error de validación.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $reference = self::referenceFromConciliationBdv($record);
+        if ($reference === '') {
+            $reference = preg_replace('/\D+/', '', (string) ($candidate['referencia'] ?? '')) ?? '';
+        }
+
+        self::attemptAutoRegisterSaleAfterPagoMovilReady($livewire, $reference);
+    }
+
+    /**
+     * @return array{
+     *     cedulaPagador: string,
+     *     telefonoPagador: string,
+     *     telefonoDestino: string,
+     *     referencia: string,
+     *     fechaPago: string,
+     *     importe: string,
+     *     bancoOrigen: string,
+     *     reqCed: bool
+     * }
+     */
+    private static function posManualConciliationCandidateFromGet(Get $get, BasePage $livewire, float $paymentVes): array
+    {
+        $telefonoComercio = self::resolveBdvCommercePhoneForPosConciliation();
+        $telefonoDestinoNorm = self::normalizeBdvTelefonoPagadorPayload($telefonoComercio);
+        $referencia = preg_replace('/\D+/', '', (string) (self::posManualConciliationWizardValue($get, $livewire, 'bdv_pm_referencia') ?? '')) ?? '';
+
+        return [
+            'cedulaPagador' => self::normalizeBdvCedulaPagadorPayload(trim((string) (self::posManualConciliationWizardValue($get, $livewire, 'bdv_pm_cedula_pagador') ?? ''))),
+            'telefonoPagador' => self::normalizeBdvTelefonoPagadorPayload((string) (self::posManualConciliationWizardValue($get, $livewire, 'bdv_pm_telefono_pagador') ?? '')),
+            'telefonoDestino' => $telefonoDestinoNorm,
+            'referencia' => $referencia,
+            'fechaPago' => self::formatDateForBdvConciliationCandidate(self::posManualConciliationWizardValue($get, $livewire, 'bdv_pm_fecha_pago')),
+            'importe' => self::normalizeBdvImporteForPosWizard(self::posManualConciliationWizardValue($get, $livewire, 'bdv_pm_importe'), $paymentVes),
+            'bancoOrigen' => trim((string) (self::posManualConciliationWizardValue($get, $livewire, 'bdv_pm_banco_origen') ?? '')),
+            'reqCed' => filter_var((self::posManualConciliationWizardValue($get, $livewire, 'bdv_pm_req_ced') ?? '0') === '1', FILTER_VALIDATE_BOOL),
+        ];
+    }
+
+    private static function posManualConciliationWizardValue(Get $get, BasePage $livewire, string $field): mixed
+    {
+        $fromGet = $get($field);
+        if (filled($fromGet) || $fromGet === '0' || $fromGet === 0 || $fromGet === false) {
+            return $fromGet;
+        }
+
+        $mounted = $livewire->mountedActions ?? null;
+        if (! is_array($mounted)) {
+            return $fromGet;
+        }
+
+        foreach ($mounted as $entry) {
+            if (! is_array($entry) || ($entry['name'] ?? '') !== self::PAGO_MOVIL_CONCILIATION_ACTION_NAME) {
+                continue;
+            }
+
+            $data = is_array($entry['data'] ?? null) ? $entry['data'] : [];
+
+            return $data[$field] ?? $fromGet;
+        }
+
+        return $fromGet;
+    }
+
+    private static function mountedPagoMovilConciliationPaymentVes(BasePage $livewire): float
+    {
+        $mounted = $livewire->mountedActions ?? null;
+        if (! is_array($mounted)) {
+            return 0.0;
+        }
+
+        foreach ($mounted as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+
+            if (($entry['name'] ?? '') !== self::PAGO_MOVIL_CONCILIATION_ACTION_NAME) {
+                continue;
+            }
+
+            $arguments = is_array($entry['arguments'] ?? null) ? $entry['arguments'] : [];
+
+            return (float) ($arguments['payment_ves'] ?? 0);
+        }
+
+        return 0.0;
+    }
+
     private static function truncateForUserMessage(string $message, int $maxLength = 280): string
     {
         $t = trim($message);
@@ -3068,7 +3311,7 @@ final class CashRegisterAction
             '<div class="farmadoc-bdv-pm-inline-alert" role="alert" aria-live="assertive">'
             .'<p class="farmadoc-bdv-pm-inline-alert__title">Pago no conciliado por BDV</p>'
             .'<p class="farmadoc-bdv-pm-inline-alert__body">'.e($message).'</p>'
-            .'<p class="farmadoc-bdv-pm-inline-alert__hint">Use el botón de abajo para volver a la caja y escoger otro método de pago.</p>'
+            .'<p class="farmadoc-bdv-pm-inline-alert__hint">Puede conciliar de forma manual con OTP del gerente, o volver a la caja para escoger otro método de pago.</p>'
             .'</div>'
         );
     }
@@ -3149,20 +3392,12 @@ final class CashRegisterAction
     }
 
     /**
-     * Tras BDV OK: actualiza la caja, cierra el modal de conciliación y dispara «Registrar venta» desde PHP.
-     *
-     * @param  array<string, mixed>  $candidate
+     * Tras conciliación PM lista (BDV OK o manual con OTP): actualiza la caja, cierra el modal y dispara «Registrar venta».
      */
-    private static function attemptAutoRegisterSaleAfterBdvConciliation(
+    private static function attemptAutoRegisterSaleAfterPagoMovilReady(
         BasePage $livewire,
-        Response $response,
-        array $candidate,
-        string $bdvReference,
+        string $reference,
     ): void {
-        $reference = $bdvReference !== ''
-            ? $bdvReference
-            : self::extractBdvConciliationReference($response, (string) ($candidate['referencia'] ?? ''));
-
         $registerData = array_merge(self::currentPosRegisterMountedFormData($livewire), [
             'reference' => $reference,
             'bdv_pm_conciliated' => true,

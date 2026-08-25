@@ -4,10 +4,12 @@ namespace App\Models;
 
 use App\Services\Pricing\BranchCategoryProfitMarginProvisioner;
 use Database\Factories\BranchFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Auth;
 
 class Branch extends Model
@@ -133,5 +135,24 @@ class Branch extends Model
     public function posTerminals(): HasMany
     {
         return $this->hasMany(PosTerminal::class);
+    }
+
+    /**
+     * @return HasMany<BranchDailyOperation, $this>
+     */
+    public function dailyOperations(): HasMany
+    {
+        return $this->hasMany(BranchDailyOperation::class);
+    }
+
+    /**
+     * @return HasOne<BranchDailyOperation, $this>
+     */
+    public function currentOpenDailyOperation(): HasOne
+    {
+        return $this->hasOne(BranchDailyOperation::class)->ofMany(
+            ['id' => 'max'],
+            fn (Builder $query): Builder => $query->whereNull('closed_at'),
+        );
     }
 }

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\Cash\CashierShiftLock;
 use App\Support\Cash\NotifyAdministratorsOnPhysicalCashBoxClose;
 use App\Support\Cash\NotifyOnPhysicalCashBoxOpen;
+use App\Support\Cash\PhysicalCashBoxBillingGate;
 use App\Support\Cash\UsdBillDenominationCalculator;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -78,6 +79,8 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
 
     public bool $isManagementView = false;
 
+    public bool $branchDailyOperationIsOpen = false;
+
     public function mount(): void
     {
         $user = Auth::user();
@@ -100,6 +103,7 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
         $box = $this->resolveBox();
         $this->syncInputsFromBox($box);
         $this->syncPublicBoxState($box);
+        $this->syncBranchDailyOperationState($user);
     }
 
     public static function getNavigationGroup(): string|UnitEnum|null
@@ -141,6 +145,16 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
         $user = Auth::user();
         if (! $user instanceof User || ! $user->isCashier()) {
             abort(403);
+        }
+
+        if (! PhysicalCashBoxBillingGate::userMayOpenPhysicalCashBox($user)) {
+            Notification::make()
+                ->title('Sucursal no aperturada')
+                ->body('Gerencia o administración debe aperturar la sucursal antes de que pueda abrir su caja física.')
+                ->warning()
+                ->send();
+
+            return;
         }
 
         $box = $this->resolveBox();
@@ -308,6 +322,8 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
 
         $usd = round((float) str_replace(',', '.', $this->closeUsd), 2);
         $ves = round((float) str_replace(',', '.', $this->closeVes), 2);
+        $expectedUsd = round((float) $box->amount_usd, 2);
+        $expectedVes = round((float) $box->amount_ves, 2);
         $openedAt = $box->opened_at ?? now();
         $closedAt = now();
 
@@ -328,6 +344,12 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
                 physicalCashBox: $box->fresh() ?? $box,
                 openedAt: $openedAt,
                 closedAt: $closedAt,
+                reconciliationSnapshot: [
+                    'expected_usd' => $expectedUsd,
+                    'expected_ves' => $expectedVes,
+                    'declared_usd' => $usd,
+                    'declared_ves' => $ves,
+                ],
             );
         } catch (Throwable $exception) {
             Log::warning('No se pudo enviar WhatsApp de cierre de caja física', [
@@ -364,6 +386,11 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
             : null;
     }
 
+    private function syncBranchDailyOperationState(User $user): void
+    {
+        $this->branchDailyOperationIsOpen = PhysicalCashBoxBillingGate::branchDailyOperationIsOpen($user);
+    }
+
     public function refreshCashBoxSnapshot(): void
     {
         $user = Auth::user();
@@ -372,6 +399,7 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
         }
 
         $this->syncPublicBoxState($this->resolveBox());
+        $this->syncBranchDailyOperationState($user);
     }
 
     public function updatedOpenUsdBillCounts(mixed $value, string $key): void

@@ -33,6 +33,10 @@ final class PhysicalCashBoxShiftPaymentTotalsPdfGenerator
      *         punto_venta_ves: float,
      *         pos_terminals: list<array{id: int|null, label: string, amount_ves: float}>,
      *         pago_movil_ves: float,
+     *         transfer_ves: float,
+     *         transfer_usd: float,
+     *         efectivo_ves: float,
+     *         efectivo_usd: float,
      *         usd_methods_total: float,
      *         ves_methods_total: float,
      *     },
@@ -54,6 +58,7 @@ final class PhysicalCashBoxShiftPaymentTotalsPdfGenerator
             'close_detail' => $report['close_detail'],
             'payment_breakdown' => $report['payment_breakdown'],
             'payment_breakdown_totals' => $report['payment_breakdown_totals'],
+            'cachea_detail' => $report['cachea_detail'] ?? null,
             'pdf_logo_data_uri' => $pdfLogoDataUri,
             'generated_at' => now()->timezone((string) config('app.timezone'))->format('d/m/Y H:i:s'),
         ])

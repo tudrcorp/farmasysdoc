@@ -30,7 +30,7 @@ class StatsListSaleByPaymentMethod extends StatsOverviewWidget
 
     protected ?string $heading = 'Totales por forma de pago';
 
-    protected ?string $description = 'Cobro registrado en cada venta del período (USD y/o bolívares), según el método elegido en caja. Rol cajero: solo ventas propias.';
+    protected ?string $description = 'Canal real de cobro. Cashea y pago múltiple se agrupan en punto de venta, Zelle o efectivo. USD y VES no se convierten entre sí.';
 
     /**
      * @return array<Stat>
@@ -62,12 +62,12 @@ class StatsListSaleByPaymentMethod extends StatsOverviewWidget
     {
         return [
             ['key' => 'efectivo_usd', 'label' => 'Efectivo USD', 'icon' => Heroicon::Banknotes],
-            ['key' => 'efectivo_ves', 'label' => 'Efectivo VES', 'icon' => Heroicon::Banknotes],
-            ['key' => 'transfer_ves', 'label' => 'Transferencia VES', 'icon' => Heroicon::BuildingLibrary],
             ['key' => 'zelle', 'label' => 'Zelle', 'icon' => Heroicon::PaperAirplane],
+            ['key' => 'transfer_usd', 'label' => 'Transferencia USD', 'icon' => Heroicon::BuildingLibrary],
+            ['key' => 'efectivo_ves', 'label' => 'Efectivo VES', 'icon' => Heroicon::Banknotes],
+            ['key' => 'punto_venta_ves', 'label' => 'Punto de Venta', 'icon' => Heroicon::CreditCard],
             ['key' => 'pago_movil', 'label' => 'Pago Movil', 'icon' => Heroicon::DevicePhoneMobile],
-            ['key' => 'mixed', 'label' => 'Pago Multiple', 'icon' => Heroicon::ArrowsRightLeft],
-            ['key' => 'credito_cliente', 'label' => 'Crédito · CxC', 'icon' => Heroicon::ArrowTrendingUp],
+            ['key' => 'transfer_ves', 'label' => 'Transferencia VES', 'icon' => Heroicon::BuildingLibrary],
         ];
     }
 

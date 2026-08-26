@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Sales\Widgets\Concerns;
 use App\Models\Sale;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Filament\SaleEffectiveDateScope;
+use App\Support\Sales\SaleCollectedMoneyAggregator;
 use Filament\Pages\Concerns\ExposesTableToWidgets;
 use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Reactive;
@@ -24,23 +25,17 @@ trait InteractsWithSalesListStatsQuery
      */
     protected function aggregatePaymentTotalsByMethod(Builder $base): array
     {
-        $rows = (clone $base)
-            ->select('payment_method')
-            ->selectRaw('SUM(COALESCE(payment_usd, 0)) as total_usd')
-            ->selectRaw('SUM(COALESCE(payment_ves, 0)) as total_ves')
-            ->groupBy('payment_method')
+        $sales = (clone $base)
+            ->with(['conciliationCachea', 'posTerminal'])
             ->get();
 
-        $map = [];
-        foreach ($rows as $row) {
-            $key = strtolower(trim((string) ($row->payment_method ?? '')));
-            if ($key === '') {
-                $key = '__empty';
-            }
+        $aggregated = app(SaleCollectedMoneyAggregator::class)->collectedByChannel($sales);
 
+        $map = [];
+        foreach ($aggregated as $key => $row) {
             $map[$key] = [
-                'usd' => (float) $row->total_usd,
-                'ves' => (float) $row->total_ves,
+                'usd' => $row['usd'],
+                'ves' => $row['ves'],
             ];
         }
 

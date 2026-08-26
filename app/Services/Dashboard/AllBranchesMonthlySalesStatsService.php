@@ -9,10 +9,11 @@ use App\Models\Sale;
 use App\Models\User;
 use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use App\Support\Filament\DashboardBranchFilter;
+use App\Support\Sales\SaleCollectedMoneyAggregator;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Totales mensuales de ventas completadas de todas las sucursales registradas.
@@ -20,6 +21,10 @@ use Illuminate\Support\Facades\DB;
  */
 final class AllBranchesMonthlySalesStatsService
 {
+    public function __construct(
+        private readonly SaleCollectedMoneyAggregator $collectedMoneyAggregator,
+    ) {}
+
     /**
      * @return array{
      *     month_label: string,
@@ -65,12 +70,9 @@ final class AllBranchesMonthlySalesStatsService
         $monthLabel = ucfirst($from->locale('es')->translatedFormat('F Y'));
         $viewer = Auth::user();
 
-        $query = $this->baseSalesQuery($from, $to);
-
-        $totalUsd = round((float) (clone $query)->sum('payment_usd'), 2);
-        $totalVes = round((float) (clone $query)->sum('payment_ves'), 2);
-        $vesConvertedUsd = round($this->sumVesConvertedToUsd(clone $query), 2);
-        $generalTotalUsd = round($totalUsd + $vesConvertedUsd, 2);
+        $sales = $this->salesForPeriod($from, $to);
+        $collected = $this->collectedMoneyAggregator->collectedTotals($sales);
+        $documentTotalUsd = round((float) $sales->sum('total'), 2);
 
         $goalUsd = BranchSalesGoal::query()
             ->forPeriod((int) $from->year, (int) $from->month)
@@ -80,16 +82,16 @@ final class AllBranchesMonthlySalesStatsService
         $goalUsd = is_numeric($goalUsd) && (float) $goalUsd > 0
             ? round((float) $goalUsd, 2)
             : null;
-        $goalProgress = $this->resolveGoalProgressPercent($generalTotalUsd, $goalUsd);
+        $goalProgress = $this->resolveGoalProgressPercent($documentTotalUsd, $goalUsd);
 
         return [
             'month_label' => $monthLabel,
             'scope_description' => $this->scopeDescriptionForViewer($viewer),
-            'total_usd' => $totalUsd,
-            'total_ves' => $totalVes,
-            'ves_converted_usd' => $vesConvertedUsd,
-            'general_total_usd' => $generalTotalUsd,
-            'bcv_rate_used' => $this->resolveBcvRateUsed($totalVes, $vesConvertedUsd, $to),
+            'total_usd' => $collected['usd'],
+            'total_ves' => $collected['ves'],
+            'ves_converted_usd' => 0.0,
+            'general_total_usd' => $documentTotalUsd,
+            'bcv_rate_used' => $this->resolveBcvRateUsed($sales, $to),
             'goal_usd' => $goalUsd,
             'goal_progress_percent' => $goalProgress,
             'has_goal' => $goalUsd !== null && $goalUsd > 0,
@@ -141,29 +143,32 @@ final class AllBranchesMonthlySalesStatsService
             ->whereIn('branch_id', $branchIds)
             ->pluck('goal_usd', 'branch_id');
 
+        $salesByBranch = $this->baseSalesQuery($from, $to)
+            ->whereIn('branch_id', $branchIds)
+            ->with(['conciliationCachea', 'posTerminal'])
+            ->get()
+            ->groupBy('branch_id');
+
         $branchStats = [];
 
         foreach ($branches as $branch) {
-            $query = $this->baseSalesQuery($from, $to)
-                ->where('branch_id', $branch->id);
-
-            $totalUsd = round((float) (clone $query)->sum('payment_usd'), 2);
-            $totalVes = round((float) (clone $query)->sum('payment_ves'), 2);
-            $vesConvertedUsd = round($this->sumVesConvertedToUsd(clone $query), 2);
-            $generalTotalUsd = round($totalUsd + $vesConvertedUsd, 2);
+            /** @var Collection<int, Sale> $branchSales */
+            $branchSales = $salesByBranch->get($branch->id, collect());
+            $collected = $this->collectedMoneyAggregator->collectedTotals($branchSales);
+            $documentTotalUsd = round((float) $branchSales->sum('total'), 2);
             $goalUsd = $goalsByBranchId->has($branch->id)
                 ? round((float) $goalsByBranchId->get($branch->id), 2)
                 : null;
-            $goalProgress = $this->resolveGoalProgressPercent($generalTotalUsd, $goalUsd);
+            $goalProgress = $this->resolveGoalProgressPercent($documentTotalUsd, $goalUsd);
 
             $branchStats[] = [
                 'branch_id' => (int) $branch->id,
                 'branch_name' => (string) $branch->name,
-                'total_usd' => $totalUsd,
-                'total_ves' => $totalVes,
-                'ves_converted_usd' => $vesConvertedUsd,
-                'general_total_usd' => $generalTotalUsd,
-                'bcv_rate_used' => $this->resolveBcvRateUsed($totalVes, $vesConvertedUsd, $to),
+                'total_usd' => $collected['usd'],
+                'total_ves' => $collected['ves'],
+                'ves_converted_usd' => 0.0,
+                'general_total_usd' => $documentTotalUsd,
+                'bcv_rate_used' => $this->resolveBcvRateUsed($branchSales, $to),
                 'goal_usd' => $goalUsd,
                 'goal_progress_percent' => $goalProgress,
                 'has_goal' => $goalUsd !== null && $goalUsd > 0,
@@ -213,6 +218,16 @@ final class AllBranchesMonthlySalesStatsService
     }
 
     /**
+     * @return Collection<int, Sale>
+     */
+    private function salesForPeriod(CarbonInterface $from, CarbonInterface $to): Collection
+    {
+        return $this->baseSalesQuery($from, $to)
+            ->with(['conciliationCachea', 'posTerminal'])
+            ->get();
+    }
+
+    /**
      * @return Builder<Sale>
      */
     private function baseSalesQuery(CarbonInterface $from, CarbonInterface $to): Builder
@@ -226,50 +241,19 @@ final class AllBranchesMonthlySalesStatsService
     }
 
     /**
-     * @param  Builder<Sale>  $query
+     * @param  Collection<int, Sale>  $sales
      */
-    private function sumVesConvertedToUsd(Builder $query): float
+    private function resolveBcvRateUsed(Collection $sales, CarbonInterface $periodEnd): ?float
     {
-        $fallbackRate = $this->fallbackBcvRate();
-        $rateExpression = $this->bcvRateSqlExpression($fallbackRate);
-        $vesCast = match (DB::connection()->getDriverName()) {
-            'sqlite' => 'CAST(payment_ves AS REAL)',
-            default => 'CAST(payment_ves AS DECIMAL(14,2))',
-        };
+        $rates = $sales
+            ->map(static fn (Sale $sale): float => (float) ($sale->bcv_ves_per_usd ?? 0))
+            ->filter(static fn (float $rate): bool => $rate > 0.00001);
 
-        $value = $query
-            ->selectRaw(
-                "SUM(CASE WHEN {$vesCast} > 0 THEN {$vesCast} / ({$rateExpression}) ELSE 0 END) as ves_converted_usd",
-            )
-            ->value('ves_converted_usd');
-
-        return (float) ($value ?? 0);
-    }
-
-    private function bcvRateSqlExpression(float $fallbackRate): string
-    {
-        $fallback = number_format($fallbackRate, 6, '.', '');
-
-        return match (DB::connection()->getDriverName()) {
-            'sqlite' => "COALESCE(NULLIF(CAST(bcv_ves_per_usd AS REAL), 0), {$fallback})",
-            default => "COALESCE(NULLIF(CAST(bcv_ves_per_usd AS DECIMAL(14,6)), 0), {$fallback})",
-        };
-    }
-
-    private function resolveBcvRateUsed(float $totalVes, float $vesConvertedUsd, CarbonInterface $periodEnd): ?float
-    {
-        if ($totalVes > 0.00001 && $vesConvertedUsd > 0.00001) {
-            return round($totalVes / $vesConvertedUsd, 2);
+        if ($rates->isNotEmpty()) {
+            return round((float) $rates->avg(), 2);
         }
 
         return app(VenezuelaOfficialUsdVesRateClient::class)->rateForDate($periodEnd);
-    }
-
-    private function fallbackBcvRate(): float
-    {
-        $fallback = config('fiscal.fallback_ves_usd_rate');
-
-        return is_numeric($fallback) && (float) $fallback > 0 ? (float) $fallback : 1.0;
     }
 
     private function resolveGoalProgressPercent(float $generalTotalUsd, ?float $goalUsd): ?float

@@ -15,6 +15,8 @@ use App\Support\Filament\SaleEffectiveDateScope;
 use App\Support\Filament\SaleIosBreakdownHtml;
 use App\Support\Filament\SlideoverModalScrollFix;
 use App\Support\Sales\PosPaymentMethodOptions;
+use App\Support\Sales\SaleCollectedMoneyAggregator;
+use App\Support\Sales\SaleCollectedMoneyAttributor;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
@@ -27,6 +29,7 @@ use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\Summarizers\Sum;
+use Filament\Tables\Columns\Summarizers\Summarizer;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -216,21 +219,27 @@ class SalesTable
                     ->icon(Heroicon::BuildingLibrary)
                     ->iconColor('gray'),
                 TextColumn::make('payment_usd')
-                    ->label('Pago USD')
-                    ->money('USD')
+                    ->label('Cobro USD')
+                    ->state(fn (Sale $record): float => self::collectedPair($record)['usd'])
+                    ->formatStateUsing(fn ($state): string => (float) $state > 0.00001
+                        ? '$'.number_format((float) $state, 2, ',', '.')
+                        : '—')
                     ->sortable()
                     ->alignEnd()
                     ->placeholder('—')
                     ->icon(Heroicon::CurrencyDollar)
                     ->iconColor('gray')
+                    ->tooltip('Solo dinero cobrado en dólares. No incluye bolívares convertidos.')
                     ->summarize(
-                        Sum::make()
-                            ->money('USD')
-                            ->label('Σ USD'),
+                        Summarizer::make()
+                            ->label('Σ cobro USD')
+                            ->using(fn (Summarizer $summarizer): float => self::summarizeCollected($summarizer, 'usd'))
+                            ->formatStateUsing(fn ($state): string => '$'.number_format((float) ($state ?? 0), 2, ',', '.')),
                     ),
                 TextColumn::make('payment_ves')
-                    ->label('Pago Bs.')
-                    ->formatStateUsing(fn ($state): string => $state !== null
+                    ->label('Cobro Bs.')
+                    ->state(fn (Sale $record): float => self::collectedPair($record)['ves'])
+                    ->formatStateUsing(fn ($state): string => (float) $state > 0.00001
                         ? 'Bs. '.number_format((float) $state, 2, ',', '.')
                         : '—')
                     ->sortable()
@@ -238,9 +247,11 @@ class SalesTable
                     ->placeholder('—')
                     ->icon(Heroicon::Banknotes)
                     ->iconColor('gray')
+                    ->tooltip('Solo dinero cobrado en bolívares. No incluye dólares convertidos. Cashea: solo la cuota.')
                     ->summarize(
-                        Sum::make()
-                            ->label('Σ Bs.')
+                        Summarizer::make()
+                            ->label('Σ cobro Bs.')
+                            ->using(fn (Summarizer $summarizer): float => self::summarizeCollected($summarizer, 'ves'))
                             ->formatStateUsing(fn ($state): string => 'Bs. '.number_format((float) ($state ?? 0), 2, ',', '.')),
                     ),
                 TextColumn::make('bcv_ves_per_usd')
@@ -469,6 +480,31 @@ class SalesTable
             'transfer', 'transferencia', 'nequi', 'daviplata' => 'Transferencia / digital',
             default => $value,
         };
+    }
+
+    /**
+     * @return array{usd: float, ves: float}
+     */
+    private static function collectedPair(Sale $record): array
+    {
+        return app(SaleCollectedMoneyAttributor::class)->collectedPair($record);
+    }
+
+    /**
+     * @param  'usd'|'ves'  $currency
+     */
+    private static function summarizeCollected(Summarizer $summarizer, string $currency): float
+    {
+        $query = $summarizer->getQuery()?->clone();
+        if ($query === null) {
+            return 0.0;
+        }
+
+        $sales = $query
+            ->with(['conciliationCachea', 'posTerminal'])
+            ->get();
+
+        return app(SaleCollectedMoneyAggregator::class)->collectedTotals($sales)[$currency];
     }
 
     private static function formatPaymentStatusLabel(?string $value): string

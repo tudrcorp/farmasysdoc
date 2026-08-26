@@ -9,6 +9,7 @@ use App\Filament\Resources\Clients\ClientResource;
 use App\Models\Sale;
 use App\Support\Sales\InternalBranchTransferSale;
 use App\Support\Sales\PosPaymentMethodOptions;
+use App\Support\Sales\SaleCollectedMoneyAttributor;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
@@ -160,13 +161,17 @@ class SaleInfolist
                                     ->icon(Heroicon::BuildingLibrary)
                                     ->visible(fn (Sale $record): bool => $record->pos_terminal_id !== null),
                                 TextEntry::make('payment_usd')
-                                    ->label('Pago USD')
-                                    ->money('USD')
+                                    ->label('Cobrado USD')
+                                    ->state(fn (Sale $record): float => app(SaleCollectedMoneyAttributor::class)->collectedPair($record)['usd'])
+                                    ->formatStateUsing(fn ($state): string => (float) $state > 0.00001
+                                        ? '$'.number_format((float) $state, 2, ',', '.')
+                                        : '—')
                                     ->placeholder('—')
                                     ->icon(Heroicon::CurrencyDollar),
                                 TextEntry::make('payment_ves')
-                                    ->label('Pago VES')
-                                    ->formatStateUsing(fn (?float $state): string => $state !== null
+                                    ->label('Cobrado VES')
+                                    ->state(fn (Sale $record): float => app(SaleCollectedMoneyAttributor::class)->collectedPair($record)['ves'])
+                                    ->formatStateUsing(fn ($state): string => (float) $state > 0.00001
                                         ? 'Bs. '.number_format((float) $state, 2, ',', '.')
                                         : '—')
                                     ->placeholder('—')

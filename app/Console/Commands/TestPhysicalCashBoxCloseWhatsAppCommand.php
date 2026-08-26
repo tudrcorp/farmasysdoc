@@ -73,30 +73,32 @@ final class TestPhysicalCashBoxCloseWhatsAppCommand extends Command
         $pdfBytes = $paymentTotalsPdfGenerator->generate($report);
         $pdfDocument = base64_encode($pdfBytes);
         $pdfFilename = 'totales-pago-cierre-caja-'.$closedAt->timezone((string) config('app.timezone'))->format('Y-m-d-His').'.pdf';
-        $pdfCaption = 'Totales por tipo de pago — '.$report['cashier_name'].' ('.$report['opened_at_label'].' — '.$report['closed_at_label'].')';
+        $pdfCaption = $this->resolveMediaCaption($notifyAdministratorsOnPhysicalCashBoxClose, $report);
 
         $this->line('Cajero: '.($cashier->name ?? $cashier->email ?? '#'.$cashier->getKey()));
         $this->line('Sucursal: '.($cashier->branch?->name ?? 'Sin sucursal'));
         $this->line('Destino de prueba: '.$phone);
         $this->line('Banner: '.($bannerImage === null ? 'sin imagen' : (str_starts_with($bannerImage, 'http') ? 'URL' : 'base64 ('.strlen($bannerImage).' chars)')));
         $this->line('PDF: '.strlen($pdfBytes).' bytes');
+        $this->line('Arqueo (texto): '.mb_strlen($caption).' caracteres');
 
         if (! $pdfOnly) {
-            $sentImage = $bannerImage !== null
-                ? $ultramsgWhatsAppClient->sendImageMessage($phone, $bannerImage, $caption)
-                : false;
-
-            if (! $sentImage) {
-                $sentImage = $ultramsgWhatsAppClient->sendTextMessage($phone, $caption);
-            }
-
-            if (! $sentImage) {
-                $this->error('UltraMsg no confirmó el envío del mensaje principal.');
+            $sentText = $ultramsgWhatsAppClient->sendTextMessage($phone, $caption);
+            if (! $sentText) {
+                $this->error('UltraMsg no confirmó el envío del arqueo de texto.');
 
                 return self::FAILURE;
             }
 
-            $this->info('Mensaje principal enviado.');
+            $this->info('Arqueo de texto enviado.');
+
+            if ($bannerImage !== null && ! $textOnly) {
+                $mediaCaption = $this->resolveMediaCaption($notifyAdministratorsOnPhysicalCashBoxClose, $report);
+                $sentImage = $ultramsgWhatsAppClient->sendImageMessage($phone, $bannerImage, $mediaCaption);
+                if (! $sentImage) {
+                    $this->warn('No se pudo enviar la imagen de encabezado. El arqueo de texto sí salió.');
+                }
+            }
         }
 
         $sentDocument = $ultramsgWhatsAppClient->sendDocumentMessage(
@@ -147,8 +149,27 @@ final class TestPhysicalCashBoxCloseWhatsAppCommand extends Command
      */
     private function resolveCaption(NotifyAdministratorsOnPhysicalCashBoxClose $notifier, array $report): string
     {
+        return $this->invokePrivateNotifierMethod($notifier, 'buildCaption', $report);
+    }
+
+    /**
+     * @param  array<string, mixed>  $report
+     */
+    private function resolveMediaCaption(NotifyAdministratorsOnPhysicalCashBoxClose $notifier, array $report): string
+    {
+        return $this->invokePrivateNotifierMethod($notifier, 'buildMediaCaption', $report);
+    }
+
+    /**
+     * @param  array<string, mixed>  $report
+     */
+    private function invokePrivateNotifierMethod(
+        NotifyAdministratorsOnPhysicalCashBoxClose $notifier,
+        string $methodName,
+        array $report,
+    ): string {
         $reflection = new \ReflectionClass($notifier);
-        $method = $reflection->getMethod('buildCaption');
+        $method = $reflection->getMethod($methodName);
         $method->setAccessible(true);
 
         return (string) $method->invoke($notifier, $report);

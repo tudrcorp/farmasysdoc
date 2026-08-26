@@ -59,8 +59,13 @@
                                 {{ $branch['branch_name'] }}
                             </h3>
                         </div>
-                        <span class="fi-farmaadmin-branch-monthly-stat__total">
-                            {{ Number::currency($branch['general_total_usd'], 'USD', 'en', 2) }}
+                        <span class="fi-farmaadmin-branch-monthly-stat__totals">
+                            <span class="fi-farmaadmin-branch-monthly-stat__total">
+                                {{ Number::currency($branch['total_usd'], 'USD', 'en', 2) }}
+                            </span>
+                            <span class="fi-farmaadmin-branch-monthly-stat__total fi-farmaadmin-branch-monthly-stat__total--ves">
+                                Bs. {{ number_format($branch['total_ves'], 2, ',', '.') }}
+                            </span>
                         </span>
                     </header>
 

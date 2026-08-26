@@ -60,7 +60,7 @@ class SaleResource extends Resource
         // Incluye ventas internas por traslado para poder abrirlas desde el recurso de traslados.
         // El listado y los totales las excluyen vía {@see SalesTable} / {@see BranchAuthScope::applyToSalesQuery()}.
         return BranchAuthScope::applyToSalesQuery(parent::getEloquentQuery(), excludeInternalBranchTransfers: false)
-            ->with('posTerminal');
+            ->with(['posTerminal', 'conciliationCachea']);
     }
 
     public static function canCreate(): bool

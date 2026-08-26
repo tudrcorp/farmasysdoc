@@ -157,31 +157,6 @@
                         @include('filament.widgets.partials.ios-sales-chart-canvas', ['maxHeight' => $maxHeight])
                     </div>
                 @else
-                    <div
-                        x-load
-                        x-load-src="{{ \Filament\Support\Facades\FilamentAsset::getAlpineComponentSrc('chart', 'filament/widgets') }}"
-                        wire:ignore
-                        data-chart-type="{{ $type }}"
-                        x-data="chart({
-                            cachedData: @js($this->getCachedData()),
-                            maxHeight: @js($maxHeight),
-                            options: @js($this->getOptions()),
-                            type: @js($type),
-                        })"
-                        {{
-                            (new ComponentAttributeBag)
-                                ->color(ChartWidgetComponent::class, $color)
-                                ->class([
-                                    'fi-wi-chart-canvas-ctn',
-                                    'fi-wi-chart-canvas-ctn-no-aspect-ratio' => filled($maxHeight),
-                                    'fi-ios-sales-branch-days-chart__canvas',
-                                    'fi-ios-sales-branch-days-chart__canvas--enter',
-                                ])
-                        }}
-                    >
-                        @include('filament.widgets.partials.ios-sales-chart-canvas', ['maxHeight' => $maxHeight])
-                    </div>
-
                     @if ($drillDownBranches !== [])
                         <div class="fi-ios-sales-payment-breakdown">
                             @if (filled($drillDownBcvRate))
@@ -205,8 +180,24 @@
                                             <span class="fi-ios-sales-payment-breakdown__branch-name">
                                                 {{ $branch['branch_name'] }}
                                             </span>
-                                            <span class="fi-ios-sales-payment-breakdown__branch-total">
-                                                ${{ number_format((float) ($branch['branch_total_usd'] ?? 0), 2, ',', '.') }}
+                                            @php
+                                                $branchCollectedUsd = (float) ($branch['branch_total_usd'] ?? 0);
+                                                $branchCollectedVes = (float) ($branch['branch_total_ves'] ?? 0);
+                                            @endphp
+                                            <span class="fi-ios-sales-payment-breakdown__branch-totals">
+                                                @if ($branchCollectedUsd > 0.00001)
+                                                    <span class="fi-ios-sales-payment-breakdown__branch-total">
+                                                        ${{ number_format($branchCollectedUsd, 2, ',', '.') }}
+                                                    </span>
+                                                @endif
+                                                @if ($branchCollectedVes > 0.00001)
+                                                    <span class="fi-ios-sales-payment-breakdown__branch-total fi-ios-sales-payment-breakdown__branch-total--ves">
+                                                        Bs {{ number_format($branchCollectedVes, 2, ',', '.') }}
+                                                    </span>
+                                                @endif
+                                                @if ($branchCollectedUsd <= 0.00001 && $branchCollectedVes <= 0.00001)
+                                                    <span class="fi-ios-sales-payment-breakdown__branch-total">$0,00</span>
+                                                @endif
                                             </span>
                                         </header>
 
@@ -224,6 +215,33 @@
                                             <p class="fi-ios-sales-payment-breakdown__empty">
                                                 Sin cobros registrados este día.
                                             </p>
+                                        @endif
+
+                                        @php
+                                            $cachea = is_array($branch['cachea'] ?? null) ? $branch['cachea'] : [];
+                                            $cacheaCount = (int) ($cachea['sale_count'] ?? 0);
+                                            $cacheaChannels = $cachea['channels'] ?? [];
+                                            $cacheaRemainder = (float) ($cachea['remainder_usd'] ?? 0);
+                                        @endphp
+                                        @if ($cacheaCount > 0)
+                                            <div class="fi-ios-sales-payment-breakdown__cachea">
+                                                <p class="fi-ios-sales-payment-breakdown__cachea-title">
+                                                    {{ $cachea['summary_label'] }}
+                                                </p>
+                                                <p class="fi-ios-sales-payment-breakdown__cachea-note">
+                                                    La cuota ya está incluida en el cobro de arriba. El financiamiento Cashea no se cobra en caja.
+                                                </p>
+                                                <ul class="fi-ios-sales-payment-breakdown__cachea-list" role="list">
+                                                    @foreach ($cacheaChannels as $cacheaChannel)
+                                                        <li>{{ $cacheaChannel['legend_label'] }}</li>
+                                                    @endforeach
+                                                    @if ($cacheaRemainder > 0.00001)
+                                                        <li>
+                                                            Financiado Cashea (no cobrado): ${{ number_format($cacheaRemainder, 2, ',', '.') }}
+                                                        </li>
+                                                    @endif
+                                                </ul>
+                                            </div>
                                         @endif
                                     </section>
                                 @endforeach

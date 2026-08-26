@@ -148,6 +148,7 @@
 </table>
 
 <h2>Detalle de ventas</h2>
+<p class="muted" style="margin: 0 0 8px 0;">Solo dinero cobrado en cada moneda. No se convierten bolívares a dólares. Cashea: solo la cuota.</p>
 <table>
     <thead>
     <tr>
@@ -176,18 +177,34 @@
         <td class="num"><strong>Bs. {{ number_format($detail['pago_movil_ves'], 2, ',', '.') }}</strong></td>
     </tr>
     <tr>
-        <td><strong>Total USD</strong></td>
+        <td>Transferencias VES</td>
+        <td class="num">Bs. {{ number_format($detail['transfer_ves'] ?? 0, 2, ',', '.') }}</td>
+    </tr>
+    <tr>
+        <td>Transferencias USD</td>
+        <td class="num">$ {{ number_format($detail['transfer_usd'] ?? 0, 2, ',', '.') }}</td>
+    </tr>
+    <tr>
+        <td>Efectivo VES</td>
+        <td class="num">Bs. {{ number_format($detail['efectivo_ves'] ?? 0, 2, ',', '.') }}</td>
+    </tr>
+    <tr>
+        <td>Efectivo USD</td>
+        <td class="num">$ {{ number_format($detail['efectivo_usd'] ?? 0, 2, ',', '.') }}</td>
+    </tr>
+    <tr>
+        <td><strong>Total USD cobrado</strong></td>
         <td class="num"><strong>$ {{ number_format($detail['usd_methods_total'], 2, ',', '.') }}</strong></td>
     </tr>
     <tr>
-        <td><strong>Total VES</strong></td>
+        <td><strong>Total VES cobrado</strong></td>
         <td class="num"><strong>Bs. {{ number_format($detail['ves_methods_total'], 2, ',', '.') }}</strong></td>
     </tr>
     </tbody>
 </table>
 
 <h2>Totales por tipo de pago</h2>
-<p class="muted" style="margin: 0 0 8px 0;">Agrupación por forma de pago registrada en cada venta completada del período.</p>
+            <p class="muted" style="margin: 0 0 8px 0;">Canal real de cobro: Cashea y pago múltiple se agrupan en punto de venta, Zelle, efectivo, etc. USD y VES no se convierten entre sí.</p>
 @if (count($payment_breakdown) === 0)
     <p class="muted">Sin operaciones en el período.</p>
 @else
@@ -220,6 +237,51 @@
             <td class="num">$ {{ number_format($pt['payment_usd'], 2, ',', '.') }}</td>
             <td class="num">Bs. {{ number_format($pt['payment_ves'], 2, ',', '.') }}</td>
         </tr>
+        </tfoot>
+    </table>
+@endif
+
+@php
+    $cachea = $cachea_detail ?? null;
+@endphp
+@if (is_array($cachea) && (int) ($cachea['sale_count'] ?? 0) > 0)
+    <h2>Cashea — cuotas pagadas</h2>
+    <p class="muted" style="margin: 0 0 8px 0;">La cuota ya está incluida en el cobro de arriba. El financiamiento no entra a caja.</p>
+    <table>
+        <thead>
+        <tr>
+            <th>Cómo pagó el cliente la cuota</th>
+            <th class="center">Nº</th>
+            <th class="num">Cuota (USD)</th>
+            <th class="num">Cobrado USD</th>
+            <th class="num">Cobrado VES</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (($cachea['channels'] ?? []) as $row)
+            <tr>
+                <td>{{ $row['label'] }}</td>
+                <td class="center">{{ $row['count'] }}</td>
+                <td class="num">$ {{ number_format($row['cuota_usd'], 2, ',', '.') }}</td>
+                <td class="num">$ {{ number_format($row['collected_usd'], 2, ',', '.') }}</td>
+                <td class="num">Bs. {{ number_format($row['collected_ves'], 2, ',', '.') }}</td>
+            </tr>
+        @endforeach
+        </tbody>
+        <tfoot>
+        <tr>
+            <td>Total cuotas Cashea</td>
+            <td class="center">{{ $cachea['sale_count'] }}</td>
+            <td class="num">$ {{ number_format($cachea['cuota_usd'], 2, ',', '.') }}</td>
+            <td class="num">$ {{ number_format($cachea['collected_usd'], 2, ',', '.') }}</td>
+            <td class="num">Bs. {{ number_format($cachea['collected_ves'], 2, ',', '.') }}</td>
+        </tr>
+        @if ((float) ($cachea['remainder_usd'] ?? 0) > 0.00001)
+            <tr>
+                <td colspan="4">Financiado Cashea (no cobrado en caja)</td>
+                <td class="num">$ {{ number_format($cachea['remainder_usd'], 2, ',', '.') }}</td>
+            </tr>
+        @endif
         </tfoot>
     </table>
 @endif

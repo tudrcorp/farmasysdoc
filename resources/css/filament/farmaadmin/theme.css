@@ -8832,6 +8832,14 @@ html.fi.dark .farmadoc-rol-perms__empty-sub {
     color: rgb(250 245 240);
 }
 
+.fi-farmaadmin-branch-monthly-stat__totals {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.12rem;
+    flex-shrink: 0;
+}
+
 .fi-farmaadmin-branch-monthly-stat__total {
     font-size: 1rem;
     font-weight: 800;
@@ -8842,8 +8850,18 @@ html.fi.dark .farmadoc-rol-perms__empty-sub {
     line-height: 1;
 }
 
+.fi-farmaadmin-branch-monthly-stat__total--ves {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: rgb(71 85 105);
+}
+
 .dark .fi-farmaadmin-branch-monthly-stat__total {
     color: rgb(125 211 252);
+}
+
+.dark .fi-farmaadmin-branch-monthly-stat__total--ves {
+    color: rgb(186 230 253);
 }
 
 .fi-farmaadmin-branch-monthly-stat__goal {
@@ -10083,6 +10101,10 @@ html.fi.dark .farmadoc-rol-perms__empty-sub {
     color: rgb(252 165 165);
 }
 
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-branch-days-chart__chart-shell--drill .fi-ios-sales-payment-breakdown {
+    margin-top: 0;
+}
+
 .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown {
     margin-top: 0.85rem;
     padding: 0.75rem 0.85rem;
@@ -10128,7 +10150,7 @@ html.fi.dark .farmadoc-rol-perms__empty-sub {
 
 .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__branch-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.45rem;
     margin-bottom: 0.4rem;
     font-size: 0.6875rem;
@@ -10142,9 +10164,22 @@ html.fi.dark .farmadoc-rol-perms__empty-sub {
     min-width: 0;
 }
 
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__branch-totals {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.1rem;
+    flex-shrink: 0;
+}
+
 .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__branch-total {
     font-variant-numeric: tabular-nums;
     color: rgb(51 65 85);
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__branch-total--ves {
+    font-weight: 500;
+    color: rgb(71 85 105);
 }
 
 .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__empty {
@@ -10178,6 +10213,39 @@ html.fi.dark .farmadoc-rol-perms__empty-sub {
     font-weight: 500;
 }
 
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__cachea {
+    margin: 0.45rem 0 0 1rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 0.55rem;
+    border: 1px dashed rgb(14 148 154 / 0.28);
+    background: rgb(240 250 251 / 0.7);
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__cachea-title {
+    margin: 0;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: rgb(14 116 144);
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__cachea-note {
+    margin: 0.15rem 0 0.3rem;
+    font-size: 0.5625rem;
+    line-height: 1.35;
+    color: rgb(100 116 139);
+}
+
+.fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__cachea-list {
+    margin: 0;
+    padding-left: 0.9rem;
+    display: grid;
+    gap: 0.18rem;
+    font-size: 0.625rem;
+    line-height: 1.35;
+    color: rgb(51 65 85);
+}
+
 .dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown {
     border-color: rgb(56 189 248 / 0.14);
     background: rgb(24 24 27 / 0.42);
@@ -10196,8 +10264,29 @@ html.fi.dark .farmadoc-rol-perms__empty-sub {
     color: rgb(226 232 240);
 }
 
+.dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__branch-total--ves {
+    color: rgb(186 230 253);
+}
+
 .dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__empty {
     color: rgb(148 163 184);
+}
+
+.dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__cachea {
+    border-color: rgb(56 189 248 / 0.28);
+    background: rgb(8 47 73 / 0.35);
+}
+
+.dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__cachea-title {
+    color: rgb(125 211 252);
+}
+
+.dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__cachea-note {
+    color: rgb(148 163 184);
+}
+
+.dark .fi-farmaadmin-ios-sales-branch-days-chart .fi-ios-sales-payment-breakdown__cachea-list {
+    color: rgb(226 232 240);
 }
 
 /*

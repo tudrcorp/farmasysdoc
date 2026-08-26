@@ -46,8 +46,13 @@
                             Total del mes
                         </h3>
                     </div>
-                    <span class="fi-farmaadmin-branch-monthly-stat__total">
-                        {{ Number::currency($general_total_usd, 'USD', 'en', 2) }}
+                    <span class="fi-farmaadmin-branch-monthly-stat__totals">
+                        <span class="fi-farmaadmin-branch-monthly-stat__total">
+                            {{ Number::currency($total_usd, 'USD', 'en', 2) }}
+                        </span>
+                        <span class="fi-farmaadmin-branch-monthly-stat__total fi-farmaadmin-branch-monthly-stat__total--ves">
+                            Bs. {{ number_format($total_ves, 2, ',', '.') }}
+                        </span>
                     </span>
                 </header>
 

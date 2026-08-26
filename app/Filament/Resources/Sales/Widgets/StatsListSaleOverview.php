@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Sales\Widgets;
 
 use App\Filament\Resources\Sales\Widgets\Concerns\InteractsWithSalesListStatsQuery;
+use App\Support\Sales\SaleCollectedMoneyAggregator;
 use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -37,11 +38,14 @@ class StatsListSaleOverview extends StatsOverviewWidget
      */
     protected function getStats(): array
     {
-        $base = $this->scopedSaleQuery();
+        $sales = $this->scopedSaleQuery()
+            ->with(['conciliationCachea', 'posTerminal'])
+            ->get();
 
-        $documentTotalUsd = (float) (clone $base)->sum('total');
-        $totalUsdCollected = (float) (clone $base)->sum('payment_usd');
-        $totalVesCollected = (float) (clone $base)->sum('payment_ves');
+        $documentTotalUsd = round((float) $sales->sum('total'), 2);
+        $collected = app(SaleCollectedMoneyAggregator::class)->collectedTotals($sales);
+        $totalUsdCollected = $collected['usd'];
+        $totalVesCollected = $collected['ves'];
 
         return [
             Stat::make('Total ventas (USD documento)', Number::currency($documentTotalUsd, 'USD', 'en', 2))
@@ -50,14 +54,14 @@ class StatsListSaleOverview extends StatsOverviewWidget
                 ->color('gray')
                 ->icon(Heroicon::ChartBarSquare)
                 ->extraAttributes(['class' => 'fi-marketing-stat-tone-money']),
-            Stat::make('Cobros USD (todas)', Number::currency($totalUsdCollected, 'USD', 'en', 2))
-                ->description('Suma de payment_usd en el período')
+            Stat::make('Cobros USD', Number::currency($totalUsdCollected, 'USD', 'en', 2))
+                ->description('Solo cobros en dólares. No incluye bolívares convertidos.')
                 ->descriptionColor('gray')
                 ->color('gray')
                 ->icon(Heroicon::CurrencyDollar)
                 ->extraAttributes(['class' => 'fi-marketing-stat-tone-money']),
-            Stat::make('Cobros VES (todas)', self::formatBs($totalVesCollected))
-                ->description('Suma de payment_ves en el período')
+            Stat::make('Cobros VES', self::formatBs($totalVesCollected))
+                ->description('Solo cobros en bolívares. No incluye dólares convertidos.')
                 ->descriptionColor('gray')
                 ->color('gray')
                 ->icon(Heroicon::Banknotes)

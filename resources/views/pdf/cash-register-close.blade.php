@@ -242,13 +242,63 @@
             <tr><td>Impuestos totales</td><td class="num">$ {{ number_format($summary['tax_total'], 2, ',', '.') }}</td></tr>
             <tr><td>Descuentos totales (documento)</td><td class="num">$ {{ number_format($summary['discount_total'], 2, ',', '.') }}</td></tr>
             <tr><td>Total ventas (USD documento)</td><td class="num"><strong>$ {{ number_format($summary['grand_total'], 2, ',', '.') }}</strong></td></tr>
-            <tr><td>Suma cobros registrados en USD</td><td class="num">$ {{ number_format($summary['payment_usd_sum'], 2, ',', '.') }}</td></tr>
-            <tr><td>Suma cobros registrados en VES</td><td class="num">Bs. {{ number_format($summary['payment_ves_sum'], 2, ',', '.') }}</td></tr>
+            <tr><td>Cobrado USD (sin convertir VES)</td><td class="num">$ {{ number_format($summary['payment_usd_sum'], 2, ',', '.') }}</td></tr>
+            <tr><td>Cobrado VES (sin convertir USD)</td><td class="num">Bs. {{ number_format($summary['payment_ves_sum'], 2, ',', '.') }}</td></tr>
             <tr><td>Utilidad bruta acumulada (ítems)</td><td class="num">$ {{ number_format($summary['gross_profit_sum'], 2, ',', '.') }}</td></tr>
         </table>
 
+        @php
+            $detail = $close_detail ?? null;
+        @endphp
+        @if (is_array($detail))
+            <h2>Cuadre cobrado</h2>
+            <p class="muted" style="margin: 0 0 8px 0;">Solo dinero recibido en cada moneda. No se convierten bolívares a dólares ni al revés. Cashea incluye únicamente la cuota/inicial.</p>
+            <table>
+                <tbody>
+                <tr>
+                    <td>Total cobrado USD</td>
+                    <td class="num"><strong>$ {{ number_format($detail['total_usd'], 2, ',', '.') }}</strong></td>
+                </tr>
+                <tr>
+                    <td>Total cobrado VES</td>
+                    <td class="num"><strong>Bs. {{ number_format($detail['total_ves'], 2, ',', '.') }}</strong></td>
+                </tr>
+                <tr>
+                    <td>Pago Móvil</td>
+                    <td class="num">Bs. {{ number_format($detail['pago_movil_ves'], 2, ',', '.') }}</td>
+                </tr>
+                <tr>
+                    <td>Punto de Venta</td>
+                    <td class="num">Bs. {{ number_format($detail['punto_venta_ves'], 2, ',', '.') }}</td>
+                </tr>
+                @foreach (($detail['pos_terminals'] ?? []) as $terminal)
+                    <tr>
+                        <td style="padding-left: 18px;">{{ $terminal['label'] }}</td>
+                        <td class="num">Bs. {{ number_format($terminal['amount_ves'], 2, ',', '.') }}</td>
+                    </tr>
+                @endforeach
+                <tr>
+                    <td>Transferencias VES</td>
+                    <td class="num">Bs. {{ number_format($detail['transfer_ves'], 2, ',', '.') }}</td>
+                </tr>
+                <tr>
+                    <td>Transferencias USD</td>
+                    <td class="num">$ {{ number_format($detail['transfer_usd'], 2, ',', '.') }}</td>
+                </tr>
+                <tr>
+                    <td>Efectivo VES</td>
+                    <td class="num">Bs. {{ number_format($detail['efectivo_ves'], 2, ',', '.') }}</td>
+                </tr>
+                <tr>
+                    <td>Efectivo USD</td>
+                    <td class="num">$ {{ number_format($detail['efectivo_usd'], 2, ',', '.') }}</td>
+                </tr>
+                </tbody>
+            </table>
+        @endif
+
         <h2>Totales por tipo de pago</h2>
-        <p class="muted" style="margin: 0 0 8px 0;">Agrupación por forma de pago registrada en cada venta completada del período.</p>
+        <p class="muted" style="margin: 0 0 8px 0;">Canal real de cobro: Cashea y pago múltiple se agrupan en punto de venta, Zelle, efectivo, etc. USD y VES no se convierten entre sí.</p>
         @if (count($payment_breakdown) === 0)
             <p class="muted">Sin operaciones en el período.</p>
         @else
@@ -281,6 +331,51 @@
                     <td class="num">$ {{ number_format($pt['payment_usd'], 2, ',', '.') }}</td>
                     <td class="num">Bs. {{ number_format($pt['payment_ves'], 2, ',', '.') }}</td>
                 </tr>
+                </tfoot>
+            </table>
+        @endif
+
+        @php
+            $cachea = $cachea_detail ?? null;
+        @endphp
+        @if (is_array($cachea) && (int) ($cachea['sale_count'] ?? 0) > 0)
+            <h2>Cashea — cuotas pagadas</h2>
+            <p class="muted" style="margin: 0 0 8px 0;">La cuota ya está incluida en el cobro de arriba (punto de venta, Zelle, etc.). El financiamiento no entra a caja.</p>
+            <table>
+                <thead>
+                <tr>
+                    <th>Cómo pagó el cliente la cuota</th>
+                    <th class="center">Nº</th>
+                    <th class="num">Cuota (USD)</th>
+                    <th class="num">Cobrado USD</th>
+                    <th class="num">Cobrado VES</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (($cachea['channels'] ?? []) as $row)
+                    <tr>
+                        <td>{{ $row['label'] }}</td>
+                        <td class="center">{{ $row['count'] }}</td>
+                        <td class="num">$ {{ number_format($row['cuota_usd'], 2, ',', '.') }}</td>
+                        <td class="num">$ {{ number_format($row['collected_usd'], 2, ',', '.') }}</td>
+                        <td class="num">Bs. {{ number_format($row['collected_ves'], 2, ',', '.') }}</td>
+                    </tr>
+                @endforeach
+                </tbody>
+                <tfoot>
+                <tr>
+                    <td>Total cuotas Cashea</td>
+                    <td class="center">{{ $cachea['sale_count'] }}</td>
+                    <td class="num">$ {{ number_format($cachea['cuota_usd'], 2, ',', '.') }}</td>
+                    <td class="num">$ {{ number_format($cachea['collected_usd'], 2, ',', '.') }}</td>
+                    <td class="num">Bs. {{ number_format($cachea['collected_ves'], 2, ',', '.') }}</td>
+                </tr>
+                @if ((float) ($cachea['remainder_usd'] ?? 0) > 0.00001)
+                    <tr>
+                        <td colspan="4">Financiado Cashea (no cobrado en caja)</td>
+                        <td class="num">$ {{ number_format($cachea['remainder_usd'], 2, ',', '.') }}</td>
+                    </tr>
+                @endif
                 </tfoot>
             </table>
         @endif
@@ -343,11 +438,31 @@
                         <td class="num"><strong>$ {{ number_format((float) $sale->total, 2, ',', '.') }}</strong></td>
                     </tr>
                     <tr>
-                        <td><strong>Pago USD</strong></td>
-                        <td class="num">$ {{ number_format((float) $sale->payment_usd, 2, ',', '.') }}</td>
-                        <td><strong>Pago VES</strong></td>
-                        <td class="num">Bs. {{ number_format((float) $sale->payment_ves, 2, ',', '.') }}</td>
+                        <td><strong>Cobrado USD</strong></td>
+                        <td class="num">$ {{ number_format((float) ($sale->collected_usd ?? 0), 2, ',', '.') }}</td>
+                        <td><strong>Cobrado VES</strong></td>
+                        <td class="num">Bs. {{ number_format((float) ($sale->collected_ves ?? 0), 2, ',', '.') }}</td>
                     </tr>
+                    @php
+                        $cacheaSale = $sale->conciliationCachea;
+                        $isCacheaSale = \App\Support\Sales\PosPaymentMethodOptions::isCachea(
+                            \App\Support\Sales\PosPaymentMethodOptions::effectiveSalePaymentMethod($sale)
+                        );
+                    @endphp
+                    @if ($isCacheaSale && $cacheaSale !== null)
+                        <tr>
+                            <td><strong>Cuota Cashea</strong></td>
+                            <td class="num">$ {{ number_format((float) $cacheaSale->cachea_paid_amount, 2, ',', '.') }}</td>
+                            <td><strong>Pagada vía</strong></td>
+                            <td>{{ \App\Support\Sales\CacheaPosPaymentSupport::complementLabel($cacheaSale->complement_payment_method) }}</td>
+                        </tr>
+                        @if ((float) $cacheaSale->remainder > 0.00001)
+                            <tr>
+                                <td><strong>Financiado Cashea</strong></td>
+                                <td colspan="3">$ {{ number_format((float) $cacheaSale->remainder, 2, ',', '.') }} (no cobrado en caja)</td>
+                            </tr>
+                        @endif
+                    @endif
                     @if (filled($sale->notes))
                         <tr>
                             <td><strong>Notas</strong></td>

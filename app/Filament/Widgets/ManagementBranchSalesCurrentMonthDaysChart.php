@@ -133,7 +133,8 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
             $payload = $this->drillDownPayload();
             $parts = [
                 count($payload['branches'] ?? []).' sucursales',
-                'Total del día: '.$this->formatUsd((float) ($payload['total_day_usd'] ?? 0.0)),
+                'Cobrado USD: '.$this->formatUsd((float) ($payload['total_day_usd'] ?? 0.0)),
+                'Cobrado VES: '.$this->formatBs((float) ($payload['total_day_ves'] ?? 0.0)),
             ];
 
             $bcv = $this->getDrillDownBcvRateFormatted();
@@ -225,10 +226,7 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
     protected function getMaxHeight(): ?string
     {
         if (! $this->isDayOverviewMode()) {
-            $methodCount = count($this->getCachedData()['labels'] ?? []);
-            $height = max(320, min(460, 240 + ($methodCount * 22)));
-
-            return $height.'px';
+            return null;
         }
 
         return $this->maxHeight;
@@ -471,6 +469,11 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
     private function formatUsd(float $amount): string
     {
         return '$'.number_format($amount, 2, ',', '.');
+    }
+
+    private function formatBs(float $amount): string
+    {
+        return 'Bs '.number_format($amount, 2, ',', '.');
     }
 
     public static function canView(): bool

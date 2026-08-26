@@ -109,6 +109,7 @@ final class NotifyOnBranchDailyClose
             'Total de ventas:'.$this->formatInteger($report['sale_count']),
             'Total ventas USD: '.$this->formatMoney($report['total_usd']),
             'Total ventas VES: Bs. '.$this->formatMoney($report['total_ves']),
+            'USD y VES no se convierten entre si.',
             '',
             '[ DETALLE ]',
             'Total Pago Movil: Bs. '.$this->formatMoney($report['pago_movil_ves']),

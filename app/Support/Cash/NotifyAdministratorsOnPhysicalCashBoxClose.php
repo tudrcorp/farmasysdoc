@@ -63,28 +63,32 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
         );
         $bannerImage = $this->ultramsgWhatsAppClient->resolvePhysicalCashBoxBannerImage();
         $caption = $this->buildCaption($report);
+        $mediaCaption = $this->buildMediaCaption($report);
         $pdfBytes = $this->paymentTotalsPdfGenerator->generate($report);
         $pdfDocument = base64_encode($pdfBytes);
         $pdfFilename = 'totales-pago-cierre-caja-'.$closedAt->timezone((string) config('app.timezone'))->format('Y-m-d-His').'.pdf';
-        $pdfCaption = 'Totales por tipo de pago — '.$report['cashier_name'].' ('.$report['opened_at_label'].' — '.$report['closed_at_label'].')';
 
         foreach ($phones as $phone) {
             try {
-                $sentImage = false;
+                $sentArqueo = $this->ultramsgWhatsAppClient->sendTextMessage($phone, $caption);
 
-                if ($bannerImage !== null) {
-                    $sentImage = $this->ultramsgWhatsAppClient->sendImageMessage($phone, $bannerImage, $caption);
+                if (! $sentArqueo) {
+                    Log::warning('Cierre de caja física: no se pudo enviar el arqueo por WhatsApp', [
+                        'phone' => $phone,
+                        'cashier_id' => $cashier->getKey(),
+                        'physical_cash_box_id' => $physicalCashBox->getKey(),
+                    ]);
                 }
 
-                if (! $sentImage) {
-                    $this->ultramsgWhatsAppClient->sendTextMessage($phone, $caption);
+                if ($bannerImage !== null) {
+                    $this->ultramsgWhatsAppClient->sendImageMessage($phone, $bannerImage, $mediaCaption);
                 }
 
                 $sentDocument = $this->ultramsgWhatsAppClient->sendDocumentMessage(
                     $phone,
                     $pdfDocument,
                     $pdfFilename,
-                    $pdfCaption,
+                    $mediaCaption,
                 );
 
                 if (! $sentDocument) {
@@ -140,6 +144,10 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
      *         punto_venta_ves: float,
      *         pos_terminals: list<array{id: int|null, label: string, amount_ves: float}>,
      *         pago_movil_ves: float,
+     *         transfer_ves: float,
+     *         transfer_usd: float,
+     *         efectivo_ves: float,
+     *         efectivo_usd: float,
      *         usd_methods_total: float,
      *         ves_methods_total: float,
      *     },
@@ -231,6 +239,7 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
         $lines[] = 'Total de ventas: '.$this->formatInteger($detail['sale_count']);
         $lines[] = 'Total ventas USD: '.$this->formatMoney($detail['total_usd']);
         $lines[] = 'Total ventas VES: Bs. '.$this->formatMoney($detail['total_ves']);
+        $lines[] = 'USD y VES no se convierten entre si.';
         $lines[] = 'Total Punto de Venta: Bs. '.$this->formatMoney($detail['punto_venta_ves']);
 
         foreach ($detail['pos_terminals'] as $terminal) {
@@ -238,13 +247,38 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
         }
 
         $lines[] = 'Total Pago Movil: Bs. '.$this->formatMoney($detail['pago_movil_ves']);
-        $lines[] = 'Total USD: '.$this->formatMoney($detail['usd_methods_total']);
-        $lines[] = 'Total VES: Bs. '.$this->formatMoney($detail['ves_methods_total']);
+        $lines[] = 'Total Transferencias VES: Bs. '.$this->formatMoney((float) ($detail['transfer_ves'] ?? 0));
+        $lines[] = 'Total Transferencias USD: '.$this->formatMoney((float) ($detail['transfer_usd'] ?? 0));
+        $lines[] = 'Efectivo VES: Bs. '.$this->formatMoney((float) ($detail['efectivo_ves'] ?? 0));
+        $lines[] = 'Efectivo USD: '.$this->formatMoney((float) ($detail['efectivo_usd'] ?? 0));
+        $lines[] = 'Total USD cobrado: '.$this->formatMoney($detail['usd_methods_total']);
+        $lines[] = 'Total VES cobrado: Bs. '.$this->formatMoney($detail['ves_methods_total']);
         $lines[] = '';
         $lines[] = 'Reporte automatico al cerrar caja fisica.';
         $lines[] = 'Adjunto: totales por tipo de pago (PDF).';
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Pie corto para imagen/PDF. UltraMsg limita captions de media a 1024 caracteres.
+     *
+     * @param  array{
+     *     cashier_name: string,
+     *     branch_name: string,
+     *     opened_at_label: string,
+     *     closed_at_label: string,
+     * }  $report
+     */
+    private function buildMediaCaption(array $report): string
+    {
+        return implode("\n", [
+            'CONCILIACION DE CAJA FISICA',
+            'Sucursal: '.$report['branch_name'],
+            'Cajero: '.$report['cashier_name'],
+            'Cierre: '.$report['closed_at_label'],
+            'El arqueo completo va en el mensaje de texto.',
+        ]);
     }
 
     /**

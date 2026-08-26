@@ -8,6 +8,8 @@ use App\Models\Sale;
 use App\Models\User;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Filament\SaleEffectiveDateScope;
+use App\Support\Sales\SaleCollectedMoneyAggregator;
+use App\Support\Sales\SaleCollectedMoneyAttributor;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -17,7 +19,13 @@ use Illuminate\Support\Facades\Auth;
  */
 final class CashRegisterCloseReportBuilder
 {
+    public function __construct(
+        private readonly SaleCollectedMoneyAttributor $collectedMoneyAttributor,
+        private readonly SaleCollectedMoneyAggregator $collectedMoneyAggregator,
+    ) {}
+
     /**
+     * @param  list<int>|null  $branchIds  Solo administradores: filtra sucursales. Null = todas las permitidas.
      * @return array{
      *     generated_at: string,
      *     app_name: string,
@@ -51,10 +59,27 @@ final class CashRegisterCloseReportBuilder
      *         payment_usd: float,
      *         payment_ves: float,
      *     },
+     *     close_detail: array{
+     *         sale_count: int,
+     *         total_usd: float,
+     *         total_ves: float,
+     *         pago_movil_ves: float,
+     *         punto_venta_ves: float,
+     *         pos_terminals: list<array{id: int|null, label: string, amount_ves: float}>,
+     *         transfer_ves: float,
+     *         transfer_usd: float,
+     *         efectivo_ves: float,
+     *         efectivo_usd: float,
+     *     },
+     *     cachea_detail: array{
+     *         sale_count: int,
+     *         cuota_usd: float,
+     *         collected_usd: float,
+     *         collected_ves: float,
+     *         remainder_usd: float,
+     *         channels: list<array<string, mixed>>,
+     *     },
      * }
-     */
-    /**
-     * @param  list<int>|null  $branchIds  Solo administradores: filtra sucursales. Null = todas las permitidas.
      */
     public function build(Carbon $from, Carbon $until, ?array $branchIds = null): array
     {
@@ -66,8 +91,11 @@ final class CashRegisterCloseReportBuilder
                 'items' => fn ($q) => $q->orderBy('id'),
                 'branch',
                 'client',
+                'conciliationCachea',
+                'posTerminal',
             ])
             ->where('status', SaleStatus::Completed)
+            ->excludingInternalBranchTransfers()
             ->orderByRaw('COALESCE(sold_at, created_at) ASC')
             ->orderBy('id');
 
@@ -89,44 +117,36 @@ final class CashRegisterCloseReportBuilder
             return (float) $sale->items->sum(fn ($item): float => (float) ($item->gross_profit ?? 0));
         }), 2);
 
+        $collectedTotals = $this->collectedMoneyAggregator->collectedTotals($sales);
+        $branchIdsForClose = $sales->pluck('branch_id')->filter()->unique()->values();
+        $closeBranchId = $branchIdsForClose->count() === 1 ? (int) $branchIdsForClose->first() : null;
+        $closeDetail = $this->collectedMoneyAggregator->closeTotals($sales, $closeBranchId);
+
+        foreach ($sales as $sale) {
+            $pair = $this->collectedMoneyAttributor->collectedPair($sale);
+            $sale->setAttribute('collected_usd', $pair['usd']);
+            $sale->setAttribute('collected_ves', $pair['ves']);
+        }
+
         $summary = [
             'sale_count' => $sales->count(),
             'subtotal' => round((float) $sales->sum('subtotal'), 2),
             'tax_total' => round((float) $sales->sum('tax_total'), 2),
             'discount_total' => round((float) $sales->sum('discount_total'), 2),
             'grand_total' => round((float) $sales->sum('total'), 2),
-            'payment_usd_sum' => round((float) $sales->sum('payment_usd'), 2),
-            'payment_ves_sum' => round((float) $sales->sum('payment_ves'), 2),
+            'payment_usd_sum' => $collectedTotals['usd'],
+            'payment_ves_sum' => $collectedTotals['ves'],
             'items_count' => (int) $sales->sum(fn (Sale $s): int => $s->items->count()),
             'quantity_sold' => round((float) $sales->sum(fn (Sale $s): float => (float) $s->items->sum('quantity')), 3),
             'gross_profit_sum' => $grossProfit,
         ];
 
-        /** @var Collection<string, Collection<int, Sale>> $paymentGroups */
-        $paymentGroups = $sales->groupBy(fn (Sale $s): string => (string) ($s->payment_method ?? ''));
+        $payment_breakdown = $this->collectedMoneyAggregator->collectedChannelRows($sales);
 
-        $payment_breakdown = [];
-        foreach ($paymentGroups as $method => $group) {
-            $payment_breakdown[] = [
-                'method' => (string) $method,
-                'label' => self::paymentMethodLabel((string) $method),
-                'count' => $group->count(),
-                'payment_usd' => round((float) $group->sum(
-                    fn (Sale $sale): float => self::resolvedPaymentAmounts($sale)['usd'],
-                ), 2),
-                'payment_ves' => round((float) $group->sum(
-                    fn (Sale $sale): float => self::resolvedPaymentAmounts($sale)['ves'],
-                ), 2),
-            ];
-        }
-
-        usort($payment_breakdown, fn (array $a, array $b): int => strcmp($a['label'], $b['label']));
-
-        $breakdownCollection = collect($payment_breakdown);
         $payment_breakdown_totals = [
-            'count' => (int) $breakdownCollection->sum('count'),
-            'payment_usd' => round((float) $breakdownCollection->sum('payment_usd'), 2),
-            'payment_ves' => round((float) $breakdownCollection->sum('payment_ves'), 2),
+            'count' => $summary['sale_count'],
+            'payment_usd' => $collectedTotals['usd'],
+            'payment_ves' => $collectedTotals['ves'],
         ];
 
         $actor = Auth::user();
@@ -150,6 +170,8 @@ final class CashRegisterCloseReportBuilder
             'summary' => $summary,
             'payment_breakdown' => $payment_breakdown,
             'payment_breakdown_totals' => $payment_breakdown_totals,
+            'close_detail' => $closeDetail,
+            'cachea_detail' => $this->collectedMoneyAggregator->cacheaCuotaBreakdown($sales),
         ];
     }
 
@@ -246,68 +268,5 @@ final class CashRegisterCloseReportBuilder
         }
 
         return $note;
-    }
-
-    /**
-     * Completa el cobro en la moneda faltante usando la tasa BCV de la venta.
-     *
-     * @return array{usd: float, ves: float}
-     */
-    private static function resolvedPaymentAmounts(Sale $sale): array
-    {
-        $usd = round((float) $sale->payment_usd, 2);
-        $ves = round((float) $sale->payment_ves, 2);
-        $rate = self::resolveVesUsdRate($sale);
-
-        if ($usd > 0.00001 && $ves <= 0.00001) {
-            $ves = round($usd * $rate, 2);
-        } elseif ($ves > 0.00001 && $usd <= 0.00001) {
-            $usd = round($ves / $rate, 2);
-        }
-
-        return [
-            'usd' => $usd,
-            'ves' => $ves,
-        ];
-    }
-
-    private static function resolveVesUsdRate(Sale $sale): float
-    {
-        $stored = (float) ($sale->bcv_ves_per_usd ?? 0);
-        if ($stored > 0) {
-            return $stored;
-        }
-
-        $totalUsd = (float) $sale->total;
-        $ves = (float) ($sale->payment_ves ?? 0);
-
-        if ($totalUsd > 0.00001 && $ves > 0) {
-            return $ves / $totalUsd;
-        }
-
-        $fallback = config('fiscal.fallback_ves_usd_rate');
-
-        return is_numeric($fallback) && (float) $fallback > 0 ? (float) $fallback : 1.0;
-    }
-
-    private static function paymentMethodLabel(string $value): string
-    {
-        if ($value === '') {
-            return '—';
-        }
-
-        $key = strtolower(trim($value));
-
-        return match ($key) {
-            'efectivo_usd' => 'Efectivo USD',
-            'efectivo_ves' => 'Efectivo VES',
-            'transfer_ves' => 'Transferencia VES',
-            'zelle' => 'Zelle',
-            'cachea' => 'Cashea',
-            'pago_movil' => 'Pago Movil',
-            'mixed' => 'Pago Multiple',
-            'transfer_usd' => 'Transferencias USD',
-            default => $value,
-        };
     }
 }

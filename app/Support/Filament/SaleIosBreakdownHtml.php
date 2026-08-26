@@ -6,6 +6,8 @@ use App\Enums\SaleStatus;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Support\Sales\PosPaymentMethodOptions;
+use App\Support\Sales\SaleCollectedMoneyAttributor;
+use App\Support\Sales\SalePaymentMethodLabels;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\HtmlString;
 
@@ -13,7 +15,7 @@ final class SaleIosBreakdownHtml
 {
     public static function build(Sale $sale): HtmlString
     {
-        $sale->loadMissing(['items', 'branch', 'client']);
+        $sale->loadMissing(['items', 'branch', 'client', 'conciliationCachea', 'posTerminal']);
 
         $status = $sale->status;
         $statusLabel = $status instanceof SaleStatus ? $status->label() : (string) ($sale->getRawOriginal('status') ?? '—');
@@ -93,16 +95,19 @@ final class SaleIosBreakdownHtml
             ]),
         );
 
+        $collected = app(SaleCollectedMoneyAttributor::class)->collectedPair($sale);
+
         $html .= self::section(
             'Cobro registrado',
-            'Montos y datos tal como se cerró el pago; pueden incluir VES aunque el ticket totalice en USD.',
+            'Dinero realmente recibido. Los bolívares no se convierten a dólares ni al revés. En Cashea solo entra la cuota/inicial.',
             self::dlRows([
                 ['Medio de pago', PosPaymentMethodOptions::isCachea(PosPaymentMethodOptions::effectiveSalePaymentMethod($sale))
                     ? PosPaymentMethodOptions::cacheaTableBadgeHtml()
                     : e(self::paymentMethodLabel(PosPaymentMethodOptions::effectiveSalePaymentMethod($sale)))],
                 ['Estado del cobro', e(self::paymentStatusLabel($sale->payment_status))],
-                ['Monto cobrado en USD', e(self::moneyUsd((string) $sale->payment_usd))],
-                ['Monto cobrado en VES', e(self::fmtBs((float) $sale->payment_ves))],
+                ['Cobrado en USD', e(self::moneyUsd((string) $collected['usd']))],
+                ['Cobrado en VES', e(self::fmtBs($collected['ves']))],
+                ...self::cacheaCobroRows($sale),
                 ['Referencia / nº operación', filled($sale->reference) ? e((string) $sale->reference) : '—'],
             ]),
         );
@@ -145,6 +150,28 @@ final class SaleIosBreakdownHtml
             .'</div>';
 
         return new HtmlString($html);
+    }
+
+    /**
+     * @return list<array{0: string, 1: string}>
+     */
+    private static function cacheaCobroRows(Sale $sale): array
+    {
+        $snapshot = app(SaleCollectedMoneyAttributor::class)->cacheaCuotaSnapshot($sale);
+        if ($snapshot === null) {
+            return [];
+        }
+
+        $rows = [
+            ['Cuota Cashea pagada', e(self::moneyUsd((string) $snapshot['cuota_usd']))],
+            ['Cómo pagó la cuota', e(SalePaymentMethodLabels::label($snapshot['channel']))],
+        ];
+
+        if ($snapshot['remainder_usd'] > 0.00001) {
+            $rows[] = ['Financiado Cashea (no cobrado)', e(self::moneyUsd((string) $snapshot['remainder_usd']))];
+        }
+
+        return $rows;
     }
 
     /**

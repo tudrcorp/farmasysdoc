@@ -2,12 +2,15 @@
 
 namespace App\Support\Notifications;
 
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 final class UltramsgWhatsAppClient
 {
+    private const MEDIA_CAPTION_MAX_LENGTH = 1024;
+
     public function isEnabled(): bool
     {
         return (bool) config('services.ultramsg.enabled', false)
@@ -39,17 +42,7 @@ final class UltramsgWhatsAppClient
             return false;
         }
 
-        if (! $response->successful()) {
-            Log::warning('UltraMsg WhatsApp: respuesta no exitosa', [
-                'to' => $to,
-                'status' => $response->status(),
-                'body' => mb_substr((string) $response->body(), 0, 300),
-            ]);
-
-            return false;
-        }
-
-        return true;
+        return $this->wasAccepted($response, 'mensaje de texto', ['to' => $to]);
     }
 
     public function sendImageMessage(string $to, string $image, string $caption): bool
@@ -65,7 +58,7 @@ final class UltramsgWhatsAppClient
                     'token' => (string) config('services.ultramsg.token'),
                     'to' => $to,
                     'image' => $image,
-                    'caption' => $caption,
+                    'caption' => $this->limitMediaCaption($caption),
                 ]);
 
         } catch (Throwable $exception) {
@@ -77,17 +70,7 @@ final class UltramsgWhatsAppClient
             return false;
         }
 
-        if (! $response->successful()) {
-            Log::warning('UltraMsg WhatsApp: respuesta no exitosa al enviar imagen', [
-                'to' => $to,
-                'status' => $response->status(),
-                'body' => mb_substr((string) $response->body(), 0, 300),
-            ]);
-
-            return false;
-        }
-
-        return true;
+        return $this->wasAccepted($response, 'imagen', ['to' => $to]);
     }
 
     public function sendDocumentMessage(string $to, string $document, string $filename, ?string $caption = null): bool
@@ -104,7 +87,7 @@ final class UltramsgWhatsAppClient
         ];
 
         if ($caption !== null && $caption !== '') {
-            $payload['caption'] = $caption;
+            $payload['caption'] = $this->limitMediaCaption($caption);
         }
 
         try {
@@ -122,18 +105,10 @@ final class UltramsgWhatsAppClient
             return false;
         }
 
-        if (! $response->successful()) {
-            Log::warning('UltraMsg WhatsApp: respuesta no exitosa al enviar documento', [
-                'to' => $to,
-                'filename' => $filename,
-                'status' => $response->status(),
-                'body' => mb_substr((string) $response->body(), 0, 300),
-            ]);
-
-            return false;
-        }
-
-        return true;
+        return $this->wasAccepted($response, 'documento', [
+            'to' => $to,
+            'filename' => $filename,
+        ]);
     }
 
     public function resolvePhysicalCashBoxBannerImage(): ?string
@@ -170,6 +145,62 @@ final class UltramsgWhatsAppClient
         return is_string($contents) && $contents !== ''
             ? base64_encode($contents)
             : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private function wasAccepted(Response $response, string $kind, array $context): bool
+    {
+        $snippet = mb_substr((string) $response->body(), 0, 300);
+        $payload = $response->json();
+
+        if (! $response->successful()) {
+            Log::warning('UltraMsg WhatsApp: respuesta no exitosa al enviar '.$kind, [
+                ...$context,
+                'status' => $response->status(),
+                'body' => $snippet,
+            ]);
+
+            return false;
+        }
+
+        if (! is_array($payload)) {
+            return true;
+        }
+
+        $error = $payload['error'] ?? null;
+        if (is_string($error) && trim($error) !== '') {
+            Log::warning('UltraMsg WhatsApp: API rechazó el envío de '.$kind, [
+                ...$context,
+                'status' => $response->status(),
+                'error' => $error,
+                'body' => $snippet,
+            ]);
+
+            return false;
+        }
+
+        if (array_key_exists('sent', $payload) && ! filter_var($payload['sent'], FILTER_VALIDATE_BOOLEAN)) {
+            Log::warning('UltraMsg WhatsApp: API no confirmó el envío de '.$kind, [
+                ...$context,
+                'status' => $response->status(),
+                'body' => $snippet,
+            ]);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private function limitMediaCaption(string $caption): string
+    {
+        if (mb_strlen($caption) <= self::MEDIA_CAPTION_MAX_LENGTH) {
+            return $caption;
+        }
+
+        return mb_substr($caption, 0, self::MEDIA_CAPTION_MAX_LENGTH - 1).'…';
     }
 
     private function messagesEndpoint(): string

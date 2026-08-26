@@ -23,6 +23,8 @@ use App\Support\Finance\AccountsPayableStatus;
 use App\Support\Inventory\InventoryQuantityFormat;
 use App\Support\Purchases\LotExpirationMonthYear;
 use App\Support\Purchases\PurchasePaymentStatus;
+use App\Support\Sales\SaleCollectedMoneyAggregator;
+use App\Support\Sales\SaleCollectedMoneyAttributor;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -32,6 +34,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class SystemReportsCsvExporter
 {
+    public function __construct(
+        private readonly SaleCollectedMoneyAggregator $collectedMoneyAggregator,
+        private readonly SaleCollectedMoneyAttributor $collectedMoneyAttributor,
+    ) {}
+
     public function stream(User $user, string $slug, Request $request): StreamedResponse
     {
         [$from, $to] = $this->parseDateRange($request);
@@ -98,22 +105,23 @@ final class SystemReportsCsvExporter
 
     private function streamVentas(User $user, Carbon $from, Carbon $to): StreamedResponse
     {
-        $q = Sale::query()->with(['branch:id,name', 'client:id,name'])
+        $q = Sale::query()->with(['branch:id,name', 'client:id,name', 'conciliationCachea', 'posTerminal'])
             ->whereBetween('sold_at', [$from, $to]);
         BranchAuthScope::applyToSalesQuery($q);
         $sales = $q->orderByDesc('sold_at')->get();
 
-        $headers = ['id', 'sale_number', 'sucursal', 'cliente', 'total', 'payment_usd', 'payment_ves', 'bcv_ves_per_usd', 'sold_at', 'created_by'];
+        $headers = ['id', 'sale_number', 'sucursal', 'cliente', 'total_documento', 'cobro_usd', 'cobro_ves', 'bcv_ves_per_usd', 'sold_at', 'created_by'];
         $rows = [];
         foreach ($sales as $s) {
+            $pair = $this->collectedMoneyAttributor->collectedPair($s);
             $rows[] = [
                 $s->id,
                 $s->sale_number,
                 $s->branch?->name,
                 $s->client?->name,
                 $this->formatAmountEs($s->total),
-                $this->formatAmountEs($s->payment_usd),
-                $this->formatAmountEs($s->payment_ves),
+                $this->formatAmountEs($pair['usd']),
+                $this->formatAmountEs($pair['ves']),
                 $this->formatAmountEs($s->bcv_ves_per_usd, 6),
                 $s->sold_at?->toDateTimeString(),
                 $s->created_by,
@@ -125,21 +133,33 @@ final class SystemReportsCsvExporter
 
     private function streamVentasPorUsuario(User $user, Carbon $from, Carbon $to): StreamedResponse
     {
-        $q = Sale::query()->whereBetween('sold_at', [$from, $to]);
+        $q = Sale::query()
+            ->with(['conciliationCachea', 'posTerminal'])
+            ->whereBetween('sold_at', [$from, $to]);
         BranchAuthScope::applyToSalesQuery($q);
-        $agg = $q->selectRaw('created_by, COUNT(*) as ventas, SUM(total) as total_usd, SUM(payment_ves) as total_bs')
-            ->groupBy('created_by')
-            ->orderByDesc('total_usd')
-            ->get();
+        $sales = $q->get();
 
-        $headers = ['usuario_email_o_nombre', 'cantidad_ventas', 'suma_total_documento', 'suma_pago_bs'];
+        $headers = ['usuario_email_o_nombre', 'cantidad_ventas', 'cobro_usd', 'cobro_ves'];
+        $grouped = [];
+        foreach ($sales->groupBy('created_by') as $createdBy => $group) {
+            $collected = $this->collectedMoneyAggregator->collectedTotals($group);
+            $grouped[] = [
+                'created_by' => $createdBy,
+                'count' => $group->count(),
+                'usd' => $collected['usd'],
+                'ves' => $collected['ves'],
+            ];
+        }
+
+        usort($grouped, fn (array $a, array $b): int => $b['usd'] <=> $a['usd'] ?: $b['ves'] <=> $a['ves']);
+
         $rows = [];
-        foreach ($agg as $r) {
+        foreach ($grouped as $row) {
             $rows[] = [
-                $r->created_by,
-                $r->ventas,
-                $this->formatAmountEs($r->total_usd),
-                $this->formatAmountEs($r->total_bs),
+                $row['created_by'],
+                $row['count'],
+                $this->formatAmountEs($row['usd']),
+                $this->formatAmountEs($row['ves']),
             ];
         }
 
@@ -148,23 +168,36 @@ final class SystemReportsCsvExporter
 
     private function streamVentasPorSucursal(User $user, Carbon $from, Carbon $to): StreamedResponse
     {
-        $q = Sale::query()->whereBetween('sold_at', [$from, $to]);
+        $q = Sale::query()
+            ->with(['conciliationCachea', 'posTerminal'])
+            ->whereBetween('sold_at', [$from, $to]);
         BranchAuthScope::applyToSalesQuery($q);
-        $agg = $q->selectRaw('branch_id, COUNT(*) as ventas, SUM(total) as total_usd, SUM(payment_ves) as total_bs')
-            ->groupBy('branch_id')
-            ->orderByDesc('total_usd')
-            ->get();
+        $sales = $q->get();
         $branches = Branch::query()->pluck('name', 'id');
 
-        $headers = ['branch_id', 'sucursal', 'cantidad_ventas', 'suma_total', 'suma_pago_bs'];
+        $headers = ['branch_id', 'sucursal', 'cantidad_ventas', 'cobro_usd', 'cobro_ves'];
+        $grouped = [];
+        foreach ($sales->groupBy('branch_id') as $branchId => $group) {
+            $collected = $this->collectedMoneyAggregator->collectedTotals($group);
+            $grouped[] = [
+                'branch_id' => $branchId,
+                'name' => $branches[$branchId] ?? '',
+                'count' => $group->count(),
+                'usd' => $collected['usd'],
+                'ves' => $collected['ves'],
+            ];
+        }
+
+        usort($grouped, fn (array $a, array $b): int => $b['usd'] <=> $a['usd'] ?: $b['ves'] <=> $a['ves']);
+
         $rows = [];
-        foreach ($agg as $r) {
+        foreach ($grouped as $row) {
             $rows[] = [
-                $r->branch_id,
-                $branches[$r->branch_id] ?? '',
-                $r->ventas,
-                $this->formatAmountEs($r->total_usd),
-                $this->formatAmountEs($r->total_bs),
+                $row['branch_id'],
+                $row['name'],
+                $row['count'],
+                $this->formatAmountEs($row['usd']),
+                $this->formatAmountEs($row['ves']),
             ];
         }
 
@@ -174,32 +207,38 @@ final class SystemReportsCsvExporter
     private function streamVentasGlobalSucursal(User $user, Carbon $from, Carbon $to): StreamedResponse
     {
         $baseQuery = Sale::query()
+            ->excludingInternalBranchTransfers()
             ->where('status', SaleStatus::Completed)
             ->whereNotNull('sold_at')
             ->whereNotNull('branch_id')
             ->whereBetween('sold_at', [$from, $to]);
         BranchAuthScope::applyToSalesQuery($baseQuery);
 
+        $sales = (clone $baseQuery)
+            ->with(['conciliationCachea', 'posTerminal'])
+            ->get();
+
         $customerCountExpression = $this->salesCustomerCountExpression();
         $globalAgg = (clone $baseQuery)
-            ->selectRaw("COUNT(*) as ventas, {$customerCountExpression} as clientes, SUM(CAST(total AS DECIMAL(14,2))) as total_documento, SUM(CAST(payment_usd AS DECIMAL(14,2))) as cobro_usd, SUM(CAST(payment_ves AS DECIMAL(14,2))) as cobro_bs")
+            ->selectRaw("COUNT(*) as ventas, {$customerCountExpression} as clientes, SUM(CAST(total AS DECIMAL(14,2))) as total_documento")
             ->first();
 
         $branchAgg = (clone $baseQuery)
-            ->selectRaw("branch_id, COUNT(*) as ventas, {$customerCountExpression} as clientes, SUM(CAST(total AS DECIMAL(14,2))) as total_documento, SUM(CAST(payment_usd AS DECIMAL(14,2))) as cobro_usd, SUM(CAST(payment_ves AS DECIMAL(14,2))) as cobro_bs")
+            ->selectRaw("branch_id, COUNT(*) as ventas, {$customerCountExpression} as clientes, SUM(CAST(total AS DECIMAL(14,2))) as total_documento")
             ->groupBy('branch_id')
             ->orderBy('branch_id')
             ->get();
 
         $branches = Branch::query()->pluck('name', 'id');
+        $globalCollected = $this->collectedMoneyAggregator->collectedTotals($sales);
+        $salesByBranch = $sales->groupBy('branch_id');
 
-        $globalCobroUsd = round((float) ($globalAgg->cobro_usd ?? 0), 2);
-        $globalCobroBs = round((float) ($globalAgg->cobro_bs ?? 0), 2);
-        $globalCobroBsEnUsd = round($this->sumVesConvertedToUsd(clone $baseQuery), 2);
-        $globalTotalGeneral = round($globalCobroUsd + $globalCobroBsEnUsd, 2);
+        $globalCobroUsd = $globalCollected['usd'];
+        $globalCobroBs = $globalCollected['ves'];
+        $globalDocumento = round((float) ($globalAgg->total_documento ?? 0), 2);
         $globalVentas = (int) ($globalAgg->ventas ?? 0);
         $globalClientes = (int) ($globalAgg->clientes ?? 0);
-        $globalTicket = $globalClientes > 0 ? round($globalTotalGeneral / $globalClientes, 2) : 0.0;
+        $globalTicket = $globalClientes > 0 ? round($globalDocumento / $globalClientes, 2) : 0.0;
 
         $headers = [
             'nivel',
@@ -223,24 +262,24 @@ final class SystemReportsCsvExporter
             'TODAS LAS SUCURSALES',
             $globalVentas,
             $globalClientes,
-            $this->formatAmountEs($globalAgg->total_documento ?? 0),
+            $this->formatAmountEs($globalDocumento),
             $this->formatAmountEs($globalCobroUsd),
             $this->formatAmountEs($globalCobroBs),
-            $this->formatAmountEs($globalCobroBsEnUsd),
-            $this->formatAmountEs($globalTotalGeneral),
+            $this->formatAmountEs(0),
+            $this->formatAmountEs($globalDocumento),
             $this->formatAmountEs($globalTicket),
             $from->toDateString(),
             $to->toDateString(),
         ]];
 
         foreach ($branchAgg as $row) {
-            $branchQuery = (clone $baseQuery)->where('branch_id', $row->branch_id);
-            $cobroUsd = round((float) $row->cobro_usd, 2);
-            $cobroBs = round((float) $row->cobro_bs, 2);
-            $cobroBsEnUsd = round($this->sumVesConvertedToUsd(clone $branchQuery), 2);
-            $totalGeneral = round($cobroUsd + $cobroBsEnUsd, 2);
+            $branchSales = $salesByBranch->get($row->branch_id, collect());
+            $collected = $this->collectedMoneyAggregator->collectedTotals($branchSales);
+            $cobroUsd = $collected['usd'];
+            $cobroBs = $collected['ves'];
+            $documento = round((float) $row->total_documento, 2);
             $clientes = (int) $row->clientes;
-            $ticket = $clientes > 0 ? round($totalGeneral / $clientes, 2) : 0.0;
+            $ticket = $clientes > 0 ? round($documento / $clientes, 2) : 0.0;
 
             $data[] = [
                 'SUCURSAL',
@@ -248,11 +287,11 @@ final class SystemReportsCsvExporter
                 $branches[$row->branch_id] ?? '',
                 (int) $row->ventas,
                 $clientes,
-                $this->formatAmountEs($row->total_documento),
+                $this->formatAmountEs($documento),
                 $this->formatAmountEs($cobroUsd),
                 $this->formatAmountEs($cobroBs),
-                $this->formatAmountEs($cobroBsEnUsd),
-                $this->formatAmountEs($totalGeneral),
+                $this->formatAmountEs(0),
+                $this->formatAmountEs($documento),
                 $this->formatAmountEs($ticket),
                 $from->toDateString(),
                 $to->toDateString(),
@@ -996,37 +1035,6 @@ final class SystemReportsCsvExporter
             'sqlite' => "COUNT(DISTINCT CASE WHEN client_id IS NOT NULL THEN 'c' || client_id ELSE 's' || id END)",
             'pgsql' => "COUNT(DISTINCT CASE WHEN client_id IS NOT NULL THEN ('c' || client_id::text) ELSE ('s' || id::text) END)",
             default => "COUNT(DISTINCT CASE WHEN client_id IS NOT NULL THEN CONCAT('c', client_id) ELSE CONCAT('s', id) END)",
-        };
-    }
-
-    /**
-     * @param  Builder<Sale>  $query
-     */
-    private function sumVesConvertedToUsd(Builder $query): float
-    {
-        $fallbackRate = $this->fallbackBcvRate();
-        $rateExpression = $this->bcvRateSqlExpression($fallbackRate);
-        $vesCast = match (DB::connection()->getDriverName()) {
-            'sqlite' => 'CAST(payment_ves AS REAL)',
-            default => 'CAST(payment_ves AS DECIMAL(14,2))',
-        };
-
-        $value = $query
-            ->selectRaw(
-                "SUM(CASE WHEN {$vesCast} > 0 THEN {$vesCast} / ({$rateExpression}) ELSE 0 END) as ves_converted_usd",
-            )
-            ->value('ves_converted_usd');
-
-        return (float) ($value ?? 0);
-    }
-
-    private function bcvRateSqlExpression(float $fallbackRate): string
-    {
-        $fallback = number_format($fallbackRate, 6, '.', '');
-
-        return match (DB::connection()->getDriverName()) {
-            'sqlite' => "COALESCE(NULLIF(CAST(bcv_ves_per_usd AS REAL), 0), {$fallback})",
-            default => "COALESCE(NULLIF(CAST(bcv_ves_per_usd AS DECIMAL(14,6)), 0), {$fallback})",
         };
     }
 

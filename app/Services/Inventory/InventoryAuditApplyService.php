@@ -214,6 +214,11 @@ final class InventoryAuditApplyService
             });
     }
 
+    /**
+     * Marca la línea como verificada sin alterar existencias.
+     * Si el stock cambió durante la auditoría (compra, venta, traslado, etc.),
+     * realinea el snapshot y confirma la existencia actual.
+     */
     public function verifyWithoutChanges(
         InventoryAuditLine $line,
         ?Authenticatable $actor = null,
@@ -241,7 +246,8 @@ final class InventoryAuditApplyService
                 ]);
             }
 
-            $this->assertQuantityNotDiverged($line, $inventory);
+            $snapshotRefreshed = $this->syncLineSnapshotFromInventory($line, $inventory);
+            $currentQuantity = round((float) $inventory->quantity, 3);
 
             $actorId = $actor instanceof User ? (int) $actor->getKey() : null;
             $actorLabel = self::actorLabel($actor);
@@ -253,7 +259,7 @@ final class InventoryAuditApplyService
 
             $line->forceFill([
                 'status' => InventoryAuditLineStatus::Verified,
-                'counted_quantity' => round((float) $inventory->quantity, 3),
+                'counted_quantity' => $currentQuantity,
                 'quantity_delta' => 0,
                 'cost_changed' => false,
                 'new_cost_price' => null,
@@ -271,6 +277,8 @@ final class InventoryAuditApplyService
                     'inventory_audit_id' => (int) $line->inventory_audit_id,
                     'product_id' => (int) $line->product_id,
                     'branch_id' => (int) $line->branch_id,
+                    'counted_quantity' => $currentQuantity,
+                    'system_quantity_refreshed' => $snapshotRefreshed,
                 ],
                 user: $actor instanceof User ? $actor : null,
             );
@@ -1070,20 +1078,33 @@ final class InventoryAuditApplyService
         }
     }
 
-    private function assertQuantityNotDiverged(InventoryAuditLine $line, Inventory $inventory): void
+    private function syncLineSnapshotFromInventory(InventoryAuditLine $line, Inventory $inventory): bool
     {
         $current = round((float) $inventory->quantity, 3);
         $snapshot = round((float) $line->system_quantity, 3);
 
-        if (abs($current - $snapshot) > 0.0001) {
-            $line->forceFill([
-                'system_quantity' => $current,
-            ])->save();
-
-            throw ValidationException::withMessages([
-                'counted_quantity' => 'La existencia del sistema cambió desde que se abrió la auditoría (ahora: '.$current.'). Vuelva a contar e intente de nuevo.',
-            ]);
+        if (abs($current - $snapshot) <= 0.0001) {
+            return false;
         }
+
+        $line->forceFill([
+            'system_quantity' => $current,
+        ])->save();
+
+        return true;
+    }
+
+    private function assertQuantityNotDiverged(InventoryAuditLine $line, Inventory $inventory): void
+    {
+        if (! $this->syncLineSnapshotFromInventory($line, $inventory)) {
+            return;
+        }
+
+        $current = round((float) $inventory->quantity, 3);
+
+        throw ValidationException::withMessages([
+            'counted_quantity' => 'La existencia del sistema cambió desde que se abrió la auditoría (ahora: '.$current.'). Vuelva a contar e intente de nuevo.',
+        ]);
     }
 
     private function assertActorMayAccessBranch(int $branchId, ?Authenticatable $actor): void

@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Http\Responses\Auth\LogoutResponse;
 use App\Listeners\RecordAuthenticationAudit;
+use App\Models\Inventory;
 use App\Models\PurchaseItem;
 use App\Observers\AuditModelObserver;
+use App\Observers\InventoryObserver;
 use App\Observers\PurchaseItemObserver;
 use App\Support\Filesystem\ResilientFilesystem;
 use Carbon\CarbonImmutable;
@@ -51,6 +53,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         PurchaseItem::observe(PurchaseItemObserver::class);
+        Inventory::observe(InventoryObserver::class);
 
         $authAudit = app(RecordAuthenticationAudit::class);
         Event::listen(Login::class, [$authAudit, 'handleLogin']);

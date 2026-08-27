@@ -5,9 +5,11 @@ namespace App\Filament\Resources\InventoryAudits\Pages;
 use App\Enums\InventoryAuditLineStatus;
 use App\Filament\Resources\InventoryAudits\InventoryAuditResource;
 use App\Filament\Resources\InventoryAudits\Support\InventoryAuditApplyUpdateForm;
+use App\Models\Inventory;
 use App\Models\InventoryAudit;
 use App\Models\InventoryAuditLine;
 use App\Services\Inventory\InventoryAuditApplyService;
+use App\Services\Inventory\InventoryAuditOpenLineSyncService;
 use App\Support\Inventory\InventoryQuantityFormat;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -45,6 +47,11 @@ class WorkInventoryAudit extends Page implements HasTable
             InventoryAuditResource::canView($this->getRecord()),
             403,
         );
+
+        $audit = $this->getRecord();
+        if ($audit instanceof InventoryAudit && $audit->isOpen()) {
+            app(InventoryAuditOpenLineSyncService::class)->refreshPendingLinesForAudit($audit);
+        }
     }
 
     public function getHeading(): string|Htmlable
@@ -113,7 +120,10 @@ class WorkInventoryAudit extends Page implements HasTable
             ->query(
                 InventoryAuditLine::query()
                     ->where('inventory_audit_id', $audit->getKey())
-                    ->with(['product:id,name,sku,barcode,cost_price,product_category_id,applies_vat'])
+                    ->with([
+                        'product:id,name,sku,barcode,cost_price,product_category_id,applies_vat',
+                        'inventory:id,quantity',
+                    ])
             )
             ->defaultSort('id')
             ->columns([
@@ -130,6 +140,13 @@ class WorkInventoryAudit extends Page implements HasTable
                     ->wrap(),
                 TextColumn::make('system_quantity')
                     ->label('Existencia sistema')
+                    ->state(function (InventoryAuditLine $record): mixed {
+                        if ($record->isPending()) {
+                            return $record->inventory?->quantity ?? $record->system_quantity;
+                        }
+
+                        return $record->system_quantity;
+                    })
                     ->formatStateUsing(fn ($state): string => InventoryQuantityFormat::display($state)),
                 TextColumn::make('system_cost_price')
                     ->label('Costo')
@@ -161,12 +178,34 @@ class WorkInventoryAudit extends Page implements HasTable
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('Marcar sin modificaciones')
-                    ->modalDescription('Confirma que la existencia y el costo son correctos. No se aplicarán cambios.')
+                    ->modalDescription(function (InventoryAuditLine $record): string {
+                        $qty = $this->liveSystemQuantity($record);
+
+                        return 'Confirma que la existencia actual en sistema ('
+                            .InventoryQuantityFormat::display($qty)
+                            .') y el costo son correctos. No se aplicarán cambios de cantidad.';
+                    })
                     ->visible(fn (InventoryAuditLine $record): bool => $isOpen && $record->isPending())
                     ->action(function (InventoryAuditLine $record): void {
                         try {
-                            app(InventoryAuditApplyService::class)->verifyWithoutChanges($record, Auth::user());
-                            Notification::make()->title('Producto procesado')->success()->send();
+                            $previousSystem = round((float) $record->system_quantity, 3);
+                            $processed = app(InventoryAuditApplyService::class)
+                                ->verifyWithoutChanges($record, Auth::user());
+                            $current = round((float) $processed->counted_quantity, 3);
+
+                            $notification = Notification::make()
+                                ->title('Producto procesado')
+                                ->success();
+
+                            if (abs($current - $previousSystem) > 0.0001) {
+                                $notification->body(
+                                    'La existencia de sistema cambió durante la auditoría (ahora: '
+                                    .InventoryQuantityFormat::display($current)
+                                    .'). Se confirmó el stock actual sin modificarlo.'
+                                );
+                            }
+
+                            $notification->send();
                         } catch (ValidationException $e) {
                             Notification::make()
                                 ->title('No se pudo procesar')
@@ -183,11 +222,20 @@ class WorkInventoryAudit extends Page implements HasTable
                     ->modalHeading('Aplicar actualización')
                     ->modalWidth(Width::Large)
                     ->fillForm(function (InventoryAuditLine $record): array {
-                        $record->loadMissing('product');
+                        $record->loadMissing(['product', 'inventory']);
+
+                        if ($record->inventory instanceof Inventory) {
+                            app(InventoryAuditOpenLineSyncService::class)
+                                ->syncPendingLineForInventory($record->inventory);
+                            $record->refresh();
+                            $record->loadMissing(['product', 'inventory']);
+                        }
+
+                        $liveQuantity = $this->liveSystemQuantity($record);
 
                         if ($record->product === null) {
                             return [
-                                'counted_quantity' => (float) $record->system_quantity,
+                                'counted_quantity' => $liveQuantity,
                                 'new_cost_price' => null,
                             ];
                         }
@@ -195,7 +243,7 @@ class WorkInventoryAudit extends Page implements HasTable
                         return InventoryAuditApplyUpdateForm::fillFromProductAndBranch(
                             product: $record->product,
                             branchId: (int) $record->branch_id,
-                            systemQuantity: (float) $record->system_quantity,
+                            systemQuantity: $liveQuantity,
                             systemCostPrice: (float) $record->system_cost_price,
                         );
                     })
@@ -234,5 +282,13 @@ class WorkInventoryAudit extends Page implements HasTable
                     }),
             ])
             ->paginated([25, 50, 100]);
+    }
+
+    private function liveSystemQuantity(InventoryAuditLine $record): float
+    {
+        $live = $record->inventory?->quantity
+            ?? Inventory::query()->whereKey($record->inventory_id)->value('quantity');
+
+        return round((float) ($live ?? $record->system_quantity), 3);
     }
 }

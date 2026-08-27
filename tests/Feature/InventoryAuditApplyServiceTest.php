@@ -159,13 +159,55 @@ it('permite bajar el costo del producto durante la auditoria', function () {
         ->and((float) $update->new_cost_price)->toBe(7.50);
 });
 
+it('confirma sin modificaciones con el stock actual si cambio durante la auditoria', function () {
+    ['branch' => $branch, 'manager' => $manager, 'inventory' => $inventory] = inventoryAuditSetup();
+    $service = app(InventoryAuditApplyService::class);
+    $audit = $service->open((int) $branch->id, $manager);
+    $line = $audit->lines()->firstOrFail();
+
+    $inventory->forceFill(['quantity' => 2])->saveQuietly();
+
+    $service->verifyWithoutChanges($line, $manager);
+
+    $line->refresh();
+    $inventory->refresh();
+
+    expect($line->status)->toBe(InventoryAuditLineStatus::Verified)
+        ->and((float) $line->system_quantity)->toBe(2.0)
+        ->and((float) $line->counted_quantity)->toBe(2.0)
+        ->and((float) $line->quantity_delta)->toBe(0.0)
+        ->and((float) $inventory->quantity)->toBe(2.0)
+        ->and(InventoryAuditUpdate::query()->count())->toBe(0);
+});
+
+it('confirma sin modificaciones despues de sincronizar el stock de una factura', function () {
+    ['branch' => $branch, 'manager' => $manager, 'inventory' => $inventory] = inventoryAuditSetup();
+    $service = app(InventoryAuditApplyService::class);
+    $audit = $service->open((int) $branch->id, $manager);
+    $line = $audit->lines()->firstOrFail();
+
+    $inventory->forceFill(['quantity' => 2])->save();
+
+    $line->refresh();
+    expect((float) $line->system_quantity)->toBe(2.0);
+
+    $service->verifyWithoutChanges($line, $manager);
+
+    $line->refresh();
+    $inventory->refresh();
+
+    expect($line->status)->toBe(InventoryAuditLineStatus::Verified)
+        ->and((float) $line->counted_quantity)->toBe(2.0)
+        ->and((float) $inventory->quantity)->toBe(2.0);
+});
+
 it('rechaza aplicar si la existencia divergio desde el snapshot', function () {
     ['branch' => $branch, 'manager' => $manager, 'inventory' => $inventory] = inventoryAuditSetup();
     $service = app(InventoryAuditApplyService::class);
     $audit = $service->open((int) $branch->id, $manager);
     $line = $audit->lines()->firstOrFail();
 
-    $inventory->forceFill(['quantity' => 15])->save();
+    $inventory->forceFill(['quantity' => 15])->saveQuietly();
 
     expect(fn () => $service->applyUpdate($line, [
         'counted_quantity' => 14,

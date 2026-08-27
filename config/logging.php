@@ -118,6 +118,13 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'inventory_audit' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/inventory-audit.log'),
+            'level' => 'debug',
+            'replace_placeholders' => true,
+        ],
+
         'null' => [
             'driver' => 'monolog',
             'handler' => NullHandler::class,

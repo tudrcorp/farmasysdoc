@@ -10,6 +10,7 @@ use App\Models\InventoryAudit;
 use App\Models\InventoryAuditLine;
 use App\Services\Inventory\InventoryAuditApplyService;
 use App\Services\Inventory\InventoryAuditOpenLineSyncService;
+use App\Support\Inventory\InventoryAuditTrace;
 use App\Support\Inventory\InventoryQuantityFormat;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -51,7 +52,90 @@ class WorkInventoryAudit extends Page implements HasTable
 
         $audit = $this->getRecord();
         if ($audit instanceof InventoryAudit && $audit->isOpen()) {
-            app(InventoryAuditOpenLineSyncService::class)->refreshPendingLinesForAudit($audit);
+            $started = microtime(true);
+            $updated = app(InventoryAuditOpenLineSyncService::class)->refreshPendingLinesForAudit($audit);
+            InventoryAuditTrace::info('page.mount_sync', [
+                'audit_id' => (int) $audit->getKey(),
+                'updated_lines' => $updated,
+                'ms' => (int) round((microtime(true) - $started) * 1000),
+            ]);
+        }
+    }
+
+    public function hydrate(): void
+    {
+        try {
+            $record = $this->getRecord();
+
+            InventoryAuditTrace::info('page.hydrate', [
+                'audit_id' => $record instanceof InventoryAudit ? (int) $record->getKey() : null,
+                'mounted_actions' => collect($this->mountedActions ?? [])->pluck('name')->all(),
+                'content_kb' => round(strlen((string) request()->getContent()) / 1024, 1),
+            ]);
+        } catch (Throwable $e) {
+            InventoryAuditTrace::error('page.hydrate.fail', [
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function mountAction(string $name, array $arguments = [], array $context = []): mixed
+    {
+        $started = microtime(true);
+        InventoryAuditTrace::info('mountAction.start', [
+            'name' => $name,
+            'record_key' => $context['recordKey'] ?? ($arguments['recordKey'] ?? null),
+            'table' => (bool) ($context['table'] ?? false),
+        ]);
+
+        try {
+            $result = parent::mountAction($name, $arguments, $context);
+            InventoryAuditTrace::info('mountAction.end', [
+                'name' => $name,
+                'ms' => (int) round((microtime(true) - $started) * 1000),
+                'opened_modal' => $this->mountedActions !== [],
+            ]);
+
+            return $result;
+        } catch (Throwable $e) {
+            InventoryAuditTrace::error('mountAction.fail', [
+                'name' => $name,
+                'ms' => (int) round((microtime(true) - $started) * 1000),
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    public function callMountedAction(array $arguments = []): mixed
+    {
+        $started = microtime(true);
+        $name = data_get($this->mountedActions, array_key_last($this->mountedActions ?? []).'.name');
+        InventoryAuditTrace::info('callMountedAction.start', [
+            'name' => $name,
+            'arguments_keys' => array_keys($arguments),
+        ]);
+
+        try {
+            $result = parent::callMountedAction($arguments);
+            InventoryAuditTrace::info('callMountedAction.end', [
+                'name' => $name,
+                'ms' => (int) round((microtime(true) - $started) * 1000),
+            ]);
+
+            return $result;
+        } catch (Throwable $e) {
+            InventoryAuditTrace::error('callMountedAction.fail', [
+                'name' => $name,
+                'ms' => (int) round((microtime(true) - $started) * 1000),
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+
+            throw $e;
         }
     }
 
@@ -67,7 +151,7 @@ class WorkInventoryAudit extends Page implements HasTable
     {
         /** @var InventoryAudit $audit */
         $audit = $this->getRecord();
-        $p = $audit->progressCounts();
+        $p = once(fn (): array => $audit->progressCounts());
 
         return 'Progreso: '.$p['processed'].'/'.$p['total']
             .' · Pendientes: '.$p['pending']
@@ -179,20 +263,32 @@ class WorkInventoryAudit extends Page implements HasTable
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('Marcar sin modificaciones')
-                    ->modalDescription(function (InventoryAuditLine $record): string {
-                        $qty = $this->liveSystemQuantity($record);
-
-                        return 'Confirma que la existencia actual en sistema ('
-                            .InventoryQuantityFormat::display($qty)
-                            .') y el costo son correctos. No se aplicarán cambios de cantidad.';
-                    })
+                    ->modalDescription('Confirma que la existencia y el costo actuales son correctos. No se aplicarán cambios de cantidad.')
+                    ->modalSubmitActionLabel('Confirmar')
                     ->visible(fn (InventoryAuditLine $record): bool => $isOpen && $record->isPending())
                     ->action(function (InventoryAuditLine $record): void {
+                        $started = microtime(true);
+                        InventoryAuditTrace::info('action.verify.begin', [
+                            'line_id' => (int) $record->getKey(),
+                            'product_id' => (int) $record->product_id,
+                            'status' => $record->status instanceof InventoryAuditLineStatus
+                                ? $record->status->value
+                                : (string) $record->status,
+                        ]);
+
                         try {
                             $previousSystem = round((float) $record->system_quantity, 3);
                             $processed = app(InventoryAuditApplyService::class)
                                 ->verifyWithoutChanges($record, Auth::user());
                             $current = round((float) $processed->counted_quantity, 3);
+
+                            InventoryAuditTrace::info('action.verify.done', [
+                                'line_id' => (int) $record->getKey(),
+                                'ms' => (int) round((microtime(true) - $started) * 1000),
+                                'new_status' => $processed->status instanceof InventoryAuditLineStatus
+                                    ? $processed->status->value
+                                    : (string) $processed->status,
+                            ]);
 
                             $notification = Notification::make()
                                 ->title('Producto procesado')
@@ -208,22 +304,31 @@ class WorkInventoryAudit extends Page implements HasTable
 
                             $notification->send();
                         } catch (ValidationException $e) {
+                            $message = collect($e->errors())->flatten()->first() ?: 'Error de validación.';
+                            InventoryAuditTrace::error('action.verify.validation', [
+                                'line_id' => (int) $record->getKey(),
+                                'ms' => (int) round((microtime(true) - $started) * 1000),
+                                'message' => $message,
+                            ]);
                             Notification::make()
                                 ->title('No se pudo procesar')
-                                ->body(collect($e->errors())->flatten()->first() ?: 'Error de validación.')
+                                ->body($message)
                                 ->danger()
                                 ->send();
                         } catch (Throwable $e) {
                             report($e);
-
+                            InventoryAuditTrace::error('action.verify.exception', [
+                                'line_id' => (int) $record->getKey(),
+                                'ms' => (int) round((microtime(true) - $started) * 1000),
+                                'exception' => $e::class,
+                                'message' => $e->getMessage(),
+                            ]);
                             Notification::make()
                                 ->title('No se pudo procesar')
-                                ->body('El inventario está ocupado por otra operación. Intente de nuevo en unos segundos.')
+                                ->body($e->getMessage() !== '' ? $e->getMessage() : $e::class)
                                 ->danger()
                                 ->send();
                         }
-
-                        $this->unmountAction();
                     }),
                 Action::make('applyUpdate')
                     ->label('Aplicar actualización')

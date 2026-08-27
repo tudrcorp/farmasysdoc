@@ -16,12 +16,14 @@ use App\Models\ProductCategory;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Support\Inventory\InventoryAuditLetterRange;
+use App\Support\Inventory\InventoryAuditTrace;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
+use Throwable;
 
 final class InventoryAuditApplyService
 {
@@ -226,25 +228,40 @@ final class InventoryAuditApplyService
     ): InventoryAuditLine {
         $lineId = (int) $line->getKey();
         $inventoryId = (int) $line->inventory_id;
+        $started = microtime(true);
+
+        InventoryAuditTrace::info('verify.start', [
+            'line_id' => $lineId,
+            'inventory_id' => $inventoryId,
+            'audit_id' => (int) $line->inventory_audit_id,
+        ]);
 
         try {
-            return DB::transaction(function () use ($lineId, $inventoryId, $actor): InventoryAuditLine {
-                [$line, $inventory] = $this->lockInventoryThenLine($inventoryId, $lineId);
+            [$processed, $snapshotRefreshed, $currentQuantity] = DB::transaction(function () use ($lineId, $inventoryId, $actor): array {
+                $lockedLine = InventoryAuditLine::query()->whereKey($lineId)->first();
+                if (! $lockedLine instanceof InventoryAuditLine) {
+                    throw new RuntimeException('Línea de auditoría no encontrada.');
+                }
 
-                $this->assertLineIsProcessable($line, $actor);
+                $this->assertLineIsProcessable($lockedLine, $actor);
 
-                $snapshotRefreshed = $this->syncLineSnapshotFromInventory($line, $inventory);
+                $inventory = Inventory::query()->whereKey($inventoryId)->first();
+                if (! $inventory instanceof Inventory) {
+                    throw ValidationException::withMessages([
+                        'line' => 'Inventario no encontrado para esta línea.',
+                    ]);
+                }
+
+                $snapshotRefreshed = $this->syncLineSnapshotFromInventory($lockedLine, $inventory);
                 $currentQuantity = round((float) $inventory->quantity, 3);
-
                 $actorId = $actor instanceof User ? (int) $actor->getKey() : null;
-                $actorLabel = self::actorLabel($actor);
 
                 $inventory->forceFill([
                     'last_stock_take_at' => now(),
-                    'updated_by' => $actorLabel,
-                ])->save();
+                    'updated_by' => self::actorLabel($actor),
+                ])->saveQuietly();
 
-                $line->forceFill([
+                $lockedLine->forceFill([
                     'status' => InventoryAuditLineStatus::Verified,
                     'counted_quantity' => $currentQuantity,
                     'quantity_delta' => 0,
@@ -254,26 +271,52 @@ final class InventoryAuditApplyService
                     'processed_at' => now(),
                 ])->save();
 
-                AuditLogger::record(
-                    event: 'inventory_audit_line_verified',
-                    description: 'Producto auditado sin modificaciones',
-                    auditableType: InventoryAuditLine::class,
-                    auditableId: $line->getKey(),
-                    properties: [
-                        'module' => 'inventory_audits',
-                        'inventory_audit_id' => (int) $line->inventory_audit_id,
-                        'product_id' => (int) $line->product_id,
-                        'branch_id' => (int) $line->branch_id,
-                        'counted_quantity' => $currentQuantity,
-                        'system_quantity_refreshed' => $snapshotRefreshed,
-                    ],
-                    user: $actor instanceof User ? $actor : null,
-                );
-
-                return $line->fresh() ?? $line;
+                return [$lockedLine->fresh() ?? $lockedLine, $snapshotRefreshed, $currentQuantity];
             });
+
+            AuditLogger::record(
+                event: 'inventory_audit_line_verified',
+                description: 'Producto auditado sin modificaciones',
+                auditableType: InventoryAuditLine::class,
+                auditableId: $processed->getKey(),
+                properties: [
+                    'module' => 'inventory_audits',
+                    'inventory_audit_id' => (int) $processed->inventory_audit_id,
+                    'product_id' => (int) $processed->product_id,
+                    'branch_id' => (int) $processed->branch_id,
+                    'counted_quantity' => $currentQuantity,
+                    'system_quantity_refreshed' => $snapshotRefreshed,
+                ],
+                user: $actor instanceof User ? $actor : null,
+            );
+
+            InventoryAuditTrace::info('verify.ok', [
+                'line_id' => $lineId,
+                'ms' => (int) round((microtime(true) - $started) * 1000),
+                'status' => $processed->status instanceof InventoryAuditLineStatus
+                    ? $processed->status->value
+                    : (string) $processed->status,
+            ]);
+
+            return $processed;
         } catch (QueryException $e) {
+            InventoryAuditTrace::error('verify.sql', [
+                'line_id' => $lineId,
+                'ms' => (int) round((microtime(true) - $started) * 1000),
+                'sql_state' => (string) $e->getCode(),
+                'driver_code' => (int) ($e->errorInfo[1] ?? 0),
+                'message' => $e->getMessage(),
+            ]);
             $this->throwIfLockContentionOrRethrow($e);
+        } catch (Throwable $e) {
+            InventoryAuditTrace::error('verify.fail', [
+                'line_id' => $lineId,
+                'ms' => (int) round((microtime(true) - $started) * 1000),
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+
+            throw $e;
         }
     }
 

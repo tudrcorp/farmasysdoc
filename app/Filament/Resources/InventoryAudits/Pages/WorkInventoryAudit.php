@@ -25,6 +25,7 @@ use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class WorkInventoryAudit extends Page implements HasTable
 {
@@ -212,7 +213,17 @@ class WorkInventoryAudit extends Page implements HasTable
                                 ->body(collect($e->errors())->flatten()->first() ?: 'Error de validación.')
                                 ->danger()
                                 ->send();
+                        } catch (Throwable $e) {
+                            report($e);
+
+                            Notification::make()
+                                ->title('No se pudo procesar')
+                                ->body('El inventario está ocupado por otra operación. Intente de nuevo en unos segundos.')
+                                ->danger()
+                                ->send();
                         }
+
+                        $this->unmountAction();
                     }),
                 Action::make('applyUpdate')
                     ->label('Aplicar actualización')

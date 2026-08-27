@@ -11,7 +11,6 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
-use App\Services\Inventory\InventoryAuditOpenLineSyncService;
 use App\Support\Finance\AccountsReceivableStatus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -144,9 +143,6 @@ final class SaleVoidService
         $inventory->last_movement_at = now();
         $inventory->updated_by = $actorLabel;
         $inventory->save();
-
-        app(InventoryAuditOpenLineSyncService::class)
-            ->syncPendingLineForInventory($inventory);
 
         InventoryMovement::query()->create([
             'product_id' => $productId,

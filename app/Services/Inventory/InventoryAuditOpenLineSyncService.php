@@ -37,7 +37,6 @@ final class InventoryAuditOpenLineSyncService
                 'inventoryAudit',
                 fn ($query) => $query->where('status', InventoryAuditStatus::Open),
             )
-            ->lockForUpdate()
             ->first();
 
         if (! $line instanceof InventoryAuditLine) {

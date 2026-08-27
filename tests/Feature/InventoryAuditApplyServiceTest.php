@@ -11,7 +11,10 @@ use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\User;
 use App\Services\Inventory\InventoryAuditApplyService;
+use Illuminate\Database\QueryException;
 use Illuminate\Validation\ValidationException;
+use PDOException;
+use ReflectionMethod;
 
 function inventoryAuditManager(Branch $branch): User
 {
@@ -199,6 +202,17 @@ it('confirma sin modificaciones despues de sincronizar el stock de una factura',
     expect($line->status)->toBe(InventoryAuditLineStatus::Verified)
         ->and((float) $line->counted_quantity)->toBe(2.0)
         ->and((float) $inventory->quantity)->toBe(2.0);
+});
+
+it('traduce un deadlock de mysql a un error de validacion', function () {
+    $service = app(InventoryAuditApplyService::class);
+    $method = new ReflectionMethod(InventoryAuditApplyService::class, 'throwIfLockContentionOrRethrow');
+
+    $previous = new PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock');
+    $exception = new QueryException('mysql', 'select 1', [], $previous);
+
+    expect(fn () => $method->invoke($service, $exception))
+        ->toThrow(ValidationException::class);
 });
 
 it('rechaza aplicar si la existencia divergio desde el snapshot', function () {

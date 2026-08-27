@@ -129,9 +129,6 @@ final class PurchaseItemInventoryReceiptService
             $inventory->updated_by = $actorLabel;
             $inventory->save();
 
-            app(InventoryAuditOpenLineSyncService::class)
-                ->syncPendingLineForInventory($inventory);
-
             $lineNo = (int) ($item->line_number ?? 0);
             $lineSuffix = $lineNo > 0 ? " · Línea #{$lineNo}" : '';
 

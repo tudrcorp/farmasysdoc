@@ -18,6 +18,7 @@ use App\Services\Audit\AuditLogger;
 use App\Support\Inventory\InventoryAuditLetterRange;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
@@ -223,68 +224,57 @@ final class InventoryAuditApplyService
         InventoryAuditLine $line,
         ?Authenticatable $actor = null,
     ): InventoryAuditLine {
-        return DB::transaction(function () use ($line, $actor): InventoryAuditLine {
-            $line = InventoryAuditLine::query()
-                ->whereKey($line->getKey())
-                ->lockForUpdate()
-                ->first();
+        $lineId = (int) $line->getKey();
+        $inventoryId = (int) $line->inventory_id;
 
-            if (! $line instanceof InventoryAuditLine) {
-                throw new RuntimeException('Línea de auditoría no encontrada.');
-            }
+        try {
+            return DB::transaction(function () use ($lineId, $inventoryId, $actor): InventoryAuditLine {
+                [$line, $inventory] = $this->lockInventoryThenLine($inventoryId, $lineId);
 
-            $this->assertLineIsProcessable($line, $actor);
+                $this->assertLineIsProcessable($line, $actor);
 
-            $inventory = Inventory::query()
-                ->whereKey($line->inventory_id)
-                ->lockForUpdate()
-                ->first();
+                $snapshotRefreshed = $this->syncLineSnapshotFromInventory($line, $inventory);
+                $currentQuantity = round((float) $inventory->quantity, 3);
 
-            if (! $inventory instanceof Inventory) {
-                throw ValidationException::withMessages([
-                    'line' => 'Inventario no encontrado para esta línea.',
-                ]);
-            }
+                $actorId = $actor instanceof User ? (int) $actor->getKey() : null;
+                $actorLabel = self::actorLabel($actor);
 
-            $snapshotRefreshed = $this->syncLineSnapshotFromInventory($line, $inventory);
-            $currentQuantity = round((float) $inventory->quantity, 3);
+                $inventory->forceFill([
+                    'last_stock_take_at' => now(),
+                    'updated_by' => $actorLabel,
+                ])->save();
 
-            $actorId = $actor instanceof User ? (int) $actor->getKey() : null;
-            $actorLabel = self::actorLabel($actor);
-
-            $inventory->forceFill([
-                'last_stock_take_at' => now(),
-                'updated_by' => $actorLabel,
-            ])->save();
-
-            $line->forceFill([
-                'status' => InventoryAuditLineStatus::Verified,
-                'counted_quantity' => $currentQuantity,
-                'quantity_delta' => 0,
-                'cost_changed' => false,
-                'new_cost_price' => null,
-                'processed_by' => $actorId,
-                'processed_at' => now(),
-            ])->save();
-
-            AuditLogger::record(
-                event: 'inventory_audit_line_verified',
-                description: 'Producto auditado sin modificaciones',
-                auditableType: InventoryAuditLine::class,
-                auditableId: $line->getKey(),
-                properties: [
-                    'module' => 'inventory_audits',
-                    'inventory_audit_id' => (int) $line->inventory_audit_id,
-                    'product_id' => (int) $line->product_id,
-                    'branch_id' => (int) $line->branch_id,
+                $line->forceFill([
+                    'status' => InventoryAuditLineStatus::Verified,
                     'counted_quantity' => $currentQuantity,
-                    'system_quantity_refreshed' => $snapshotRefreshed,
-                ],
-                user: $actor instanceof User ? $actor : null,
-            );
+                    'quantity_delta' => 0,
+                    'cost_changed' => false,
+                    'new_cost_price' => null,
+                    'processed_by' => $actorId,
+                    'processed_at' => now(),
+                ])->save();
 
-            return $line->fresh() ?? $line;
-        });
+                AuditLogger::record(
+                    event: 'inventory_audit_line_verified',
+                    description: 'Producto auditado sin modificaciones',
+                    auditableType: InventoryAuditLine::class,
+                    auditableId: $line->getKey(),
+                    properties: [
+                        'module' => 'inventory_audits',
+                        'inventory_audit_id' => (int) $line->inventory_audit_id,
+                        'product_id' => (int) $line->product_id,
+                        'branch_id' => (int) $line->branch_id,
+                        'counted_quantity' => $currentQuantity,
+                        'system_quantity_refreshed' => $snapshotRefreshed,
+                    ],
+                    user: $actor instanceof User ? $actor : null,
+                );
+
+                return $line->fresh() ?? $line;
+            });
+        } catch (QueryException $e) {
+            $this->throwIfLockContentionOrRethrow($e);
+        }
     }
 
     /**
@@ -573,142 +563,131 @@ final class InventoryAuditApplyService
     ): InventoryAuditLine {
         $parsed = $this->parseApplyUpdatePayload($data);
         $otpCode = isset($data['otp_code']) ? (string) $data['otp_code'] : null;
+        $lineId = (int) $line->getKey();
+        $inventoryId = (int) $line->inventory_id;
 
-        return DB::transaction(function () use (
-            $line,
-            $parsed,
-            $actor,
-            $otpCode,
-        ): InventoryAuditLine {
-            $line = InventoryAuditLine::query()
-                ->whereKey($line->getKey())
-                ->lockForUpdate()
-                ->first();
+        try {
+            return DB::transaction(function () use (
+                $lineId,
+                $inventoryId,
+                $parsed,
+                $actor,
+                $otpCode,
+            ): InventoryAuditLine {
+                [$line, $inventory] = $this->lockInventoryThenLine($inventoryId, $lineId);
 
-            if (! $line instanceof InventoryAuditLine) {
-                throw new RuntimeException('Línea de auditoría no encontrada.');
-            }
+                $this->assertLineIsProcessable($line, $actor);
 
-            $this->assertLineIsProcessable($line, $actor);
+                $this->assertQuantityNotDiverged($line, $inventory);
 
-            $inventory = Inventory::query()
-                ->whereKey($line->inventory_id)
-                ->lockForUpdate()
-                ->first();
+                $product = Product::query()
+                    ->whereKey($line->product_id)
+                    ->lockForUpdate()
+                    ->first();
 
-            if (! $inventory instanceof Inventory) {
-                throw ValidationException::withMessages([
-                    'line' => 'Inventario no encontrado para esta línea.',
-                ]);
-            }
+                if (! $product instanceof Product) {
+                    throw ValidationException::withMessages([
+                        'line' => 'Producto no encontrado.',
+                    ]);
+                }
 
-            $this->assertQuantityNotDiverged($line, $inventory);
+                $this->assertManagerOtpIfRequired(
+                    actor: $actor,
+                    otpCode: $otpCode,
+                    inventory: $inventory,
+                    product: $product,
+                    countedQuantity: $parsed['counted_quantity'],
+                    costProvided: $parsed['cost_provided'],
+                    newCostPrice: $parsed['new_cost_price'],
+                    categoryProvided: $parsed['category_provided'],
+                    requestedCategoryId: $parsed['requested_category_id'],
+                );
 
-            $product = Product::query()
-                ->whereKey($line->product_id)
-                ->lockForUpdate()
-                ->first();
+                $actorId = $actor instanceof User ? (int) $actor->getKey() : null;
+                $actorLabel = self::actorLabel($actor);
 
-            if (! $product instanceof Product) {
-                throw ValidationException::withMessages([
-                    'line' => 'Producto no encontrado.',
-                ]);
-            }
+                $result = $this->applyCountedChangesToInventoryAndProduct(
+                    inventory: $inventory,
+                    product: $product,
+                    countedQuantity: $parsed['counted_quantity'],
+                    costProvided: $parsed['cost_provided'],
+                    newCostPrice: $parsed['new_cost_price'],
+                    categoryProvided: $parsed['category_provided'],
+                    requestedCategoryId: $parsed['requested_category_id'],
+                    actorLabel: $actorLabel,
+                    movementNotes: 'Toma física · auditoría de inventario #'.$line->inventory_audit_id,
+                    referenceType: $line->getMorphClass(),
+                    referenceId: $line->getKey(),
+                    noChangesMessage: 'No hay cambios que aplicar. Use «Sin modificaciones» o indique una cantidad, costo o categoría distinta.',
+                );
 
-            $this->assertManagerOtpIfRequired(
-                actor: $actor,
-                otpCode: $otpCode,
-                inventory: $inventory,
-                product: $product,
-                countedQuantity: $parsed['counted_quantity'],
-                costProvided: $parsed['cost_provided'],
-                newCostPrice: $parsed['new_cost_price'],
-                categoryProvided: $parsed['category_provided'],
-                requestedCategoryId: $parsed['requested_category_id'],
-            );
+                $line->forceFill([
+                    'status' => InventoryAuditLineStatus::Updated,
+                    'counted_quantity' => $result['counted_quantity'],
+                    'new_cost_price' => $result['cost_changed'] ? $result['new_cost_price'] : null,
+                    'quantity_delta' => $result['quantity_delta'],
+                    'cost_changed' => $result['cost_changed'],
+                    'inventory_movement_id' => $result['movement_id'],
+                    'processed_by' => $actorId,
+                    'processed_at' => now(),
+                ])->save();
 
-            $actorId = $actor instanceof User ? (int) $actor->getKey() : null;
-            $actorLabel = self::actorLabel($actor);
+                $branch = Branch::query()->whereKey($line->branch_id)->first();
 
-            $result = $this->applyCountedChangesToInventoryAndProduct(
-                inventory: $inventory,
-                product: $product,
-                countedQuantity: $parsed['counted_quantity'],
-                costProvided: $parsed['cost_provided'],
-                newCostPrice: $parsed['new_cost_price'],
-                categoryProvided: $parsed['category_provided'],
-                requestedCategoryId: $parsed['requested_category_id'],
-                actorLabel: $actorLabel,
-                movementNotes: 'Toma física · auditoría de inventario #'.$line->inventory_audit_id,
-                referenceType: $line->getMorphClass(),
-                referenceId: $line->getKey(),
-                noChangesMessage: 'No hay cambios que aplicar. Use «Sin modificaciones» o indique una cantidad, costo o categoría distinta.',
-            );
-
-            $line->forceFill([
-                'status' => InventoryAuditLineStatus::Updated,
-                'counted_quantity' => $result['counted_quantity'],
-                'new_cost_price' => $result['cost_changed'] ? $result['new_cost_price'] : null,
-                'quantity_delta' => $result['quantity_delta'],
-                'cost_changed' => $result['cost_changed'],
-                'inventory_movement_id' => $result['movement_id'],
-                'processed_by' => $actorId,
-                'processed_at' => now(),
-            ])->save();
-
-            $branch = Branch::query()->whereKey($line->branch_id)->first();
-
-            InventoryAuditUpdate::query()->create([
-                'inventory_audit_id' => (int) $line->inventory_audit_id,
-                'inventory_audit_line_id' => (int) $line->getKey(),
-                'branch_id' => (int) $line->branch_id,
-                'product_id' => (int) $product->getKey(),
-                'product_sku' => $product->sku,
-                'product_barcode' => $product->barcode,
-                'product_name' => (string) $product->name,
-                'branch_name' => (string) ($branch?->name ?? ''),
-                'previous_quantity' => $result['previous_quantity'],
-                'new_quantity' => $result['counted_quantity'],
-                'quantity_delta' => $result['quantity_delta'],
-                'previous_cost_price' => $result['previous_cost'],
-                'new_cost_price' => $result['cost_changed'] ? $result['new_cost_price'] : $result['previous_cost'],
-                'quantity_changed' => $result['quantity_changed'],
-                'cost_changed' => $result['cost_changed'],
-                'processed_by' => $actorId,
-                'processed_by_name' => $actor instanceof User
-                    ? ($actor->name ?? $actor->email ?? 'usuario')
-                    : 'sistema',
-                'processed_at' => now(),
-            ]);
-
-            AuditLogger::record(
-                event: 'inventory_audit_line_applied',
-                description: 'Producto actualizado en auditoría de inventario',
-                auditableType: InventoryAuditLine::class,
-                auditableId: $line->getKey(),
-                properties: [
-                    'module' => 'inventory_audits',
+                InventoryAuditUpdate::query()->create([
                     'inventory_audit_id' => (int) $line->inventory_audit_id,
-                    'product_id' => (int) $product->getKey(),
+                    'inventory_audit_line_id' => (int) $line->getKey(),
                     'branch_id' => (int) $line->branch_id,
+                    'product_id' => (int) $product->getKey(),
+                    'product_sku' => $product->sku,
+                    'product_barcode' => $product->barcode,
+                    'product_name' => (string) $product->name,
+                    'branch_name' => (string) ($branch?->name ?? ''),
                     'previous_quantity' => $result['previous_quantity'],
                     'new_quantity' => $result['counted_quantity'],
                     'quantity_delta' => $result['quantity_delta'],
                     'previous_cost_price' => $result['previous_cost'],
-                    'new_cost_price' => $result['cost_changed'] ? $result['new_cost_price'] : null,
+                    'new_cost_price' => $result['cost_changed'] ? $result['new_cost_price'] : $result['previous_cost'],
                     'quantity_changed' => $result['quantity_changed'],
                     'cost_changed' => $result['cost_changed'],
-                    'category_changed' => $result['category_changed'],
-                    'previous_product_category_id' => $result['previous_category_id'],
-                    'new_product_category_id' => $result['category_changed']
-                        ? $result['new_category_id']
-                        : $result['previous_category_id'],
-                ],
-                user: $actor instanceof User ? $actor : null,
-            );
+                    'processed_by' => $actorId,
+                    'processed_by_name' => $actor instanceof User
+                        ? ($actor->name ?? $actor->email ?? 'usuario')
+                        : 'sistema',
+                    'processed_at' => now(),
+                ]);
 
-            return $line->fresh() ?? $line;
-        });
+                AuditLogger::record(
+                    event: 'inventory_audit_line_applied',
+                    description: 'Producto actualizado en auditoría de inventario',
+                    auditableType: InventoryAuditLine::class,
+                    auditableId: $line->getKey(),
+                    properties: [
+                        'module' => 'inventory_audits',
+                        'inventory_audit_id' => (int) $line->inventory_audit_id,
+                        'product_id' => (int) $product->getKey(),
+                        'branch_id' => (int) $line->branch_id,
+                        'previous_quantity' => $result['previous_quantity'],
+                        'new_quantity' => $result['counted_quantity'],
+                        'quantity_delta' => $result['quantity_delta'],
+                        'previous_cost_price' => $result['previous_cost'],
+                        'new_cost_price' => $result['cost_changed'] ? $result['new_cost_price'] : null,
+                        'quantity_changed' => $result['quantity_changed'],
+                        'cost_changed' => $result['cost_changed'],
+                        'category_changed' => $result['category_changed'],
+                        'previous_product_category_id' => $result['previous_category_id'],
+                        'new_product_category_id' => $result['category_changed']
+                            ? $result['new_category_id']
+                            : $result['previous_category_id'],
+                    ],
+                    user: $actor instanceof User ? $actor : null,
+                );
+
+                return $line->fresh() ?? $line;
+            });
+        } catch (QueryException $e) {
+            $this->throwIfLockContentionOrRethrow($e);
+        }
     }
 
     /**
@@ -1076,6 +1055,57 @@ final class InventoryAuditApplyService
                 'line' => 'Esta línea ya fue procesada.',
             ]);
         }
+    }
+
+    /**
+     * Inventario primero, luego la línea: el mismo orden que POS y compras, para no bloquearse contra ventas en curso.
+     *
+     * @return array{0: InventoryAuditLine, 1: Inventory}
+     */
+    private function lockInventoryThenLine(int $inventoryId, int $lineId): array
+    {
+        $inventory = Inventory::query()
+            ->whereKey($inventoryId)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $inventory instanceof Inventory) {
+            throw ValidationException::withMessages([
+                'line' => 'Inventario no encontrado para esta línea.',
+            ]);
+        }
+
+        $line = InventoryAuditLine::query()
+            ->whereKey($lineId)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $line instanceof InventoryAuditLine) {
+            throw new RuntimeException('Línea de auditoría no encontrada.');
+        }
+
+        return [$line, $inventory];
+    }
+
+    private function throwIfLockContentionOrRethrow(QueryException $e): never
+    {
+        $driverCode = (int) ($e->errorInfo[1] ?? 0);
+        $sqlState = (string) $e->getCode();
+        $message = $e->getMessage();
+
+        $isLockContention = $driverCode === 1205
+            || $driverCode === 1213
+            || $sqlState === '40001'
+            || str_contains($message, 'Deadlock')
+            || str_contains($message, 'Lock wait timeout');
+
+        if ($isLockContention) {
+            throw ValidationException::withMessages([
+                'line' => 'El inventario está ocupado por otra operación (venta, compra o traslado). Intente de nuevo en unos segundos.',
+            ]);
+        }
+
+        throw $e;
     }
 
     private function syncLineSnapshotFromInventory(InventoryAuditLine $line, Inventory $inventory): bool

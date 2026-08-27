@@ -18,6 +18,7 @@ use App\Filament\Widgets\FarmaadminAccountWidget;
 use App\Http\Middleware\AuditFarmaadminHttpActivity;
 use App\Http\Middleware\EnsureCashierShiftNotLocked;
 use App\Http\Middleware\EnsureFarmaadminMenuAccess;
+use App\Http\Middleware\LogInventoryAuditLivewireRequest;
 use App\Models\User;
 use App\Support\Filament\FarmaadminDeliveryUserAccess;
 use App\Support\Filament\FarmaadminQuickShortcuts;
@@ -103,6 +104,7 @@ class FarmaadminPanelProvider extends PanelProvider
                 // FilamentInfoWidget::class,
             ])
             ->middleware([
+                LogInventoryAuditLivewireRequest::class,
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
                 StartSession::class,

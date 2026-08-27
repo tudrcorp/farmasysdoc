@@ -25,6 +25,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Js;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -261,10 +262,10 @@ class WorkInventoryAudit extends Page implements HasTable
                     ->label('Sin modificaciones')
                     ->icon(Heroicon::CheckCircle)
                     ->color('success')
-                    ->requiresConfirmation()
-                    ->modalHeading('Marcar sin modificaciones')
-                    ->modalDescription('Confirma que la existencia y el costo actuales son correctos. No se aplicarán cambios de cantidad.')
-                    ->modalSubmitActionLabel('Confirmar')
+                    ->databaseTransaction(false)
+                    ->extraAttributes([
+                        'x-on:click' => 'if (!confirm('.Js::from('¿Confirmas que este producto no tiene modificaciones?').')) { $event.stopImmediatePropagation() }',
+                    ])
                     ->visible(fn (InventoryAuditLine $record): bool => $isOpen && $record->isPending())
                     ->action(function (InventoryAuditLine $record): void {
                         $started = microtime(true);

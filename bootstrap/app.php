@@ -8,6 +8,7 @@ use App\Http\Middleware\EnsureEmployeePortalGuest;
 use App\Http\Middleware\EnsureLocalEnvironment;
 use App\Http\Middleware\EnsureShopCustomerAuthenticated;
 use App\Http\Middleware\EnsureShopCustomerGuest;
+use App\Http\Middleware\LogInventoryAuditLivewireRequest;
 use App\Support\Livewire\LivewireRequestPayload;
 use App\Support\Shop\ShopTheme;
 use Illuminate\Console\Scheduling\Schedule;
@@ -44,6 +45,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->remove([
             TrimStrings::class,
             ConvertEmptyStringsToNull::class,
+        ]);
+
+        $middleware->prependToGroup('web', [
+            LogInventoryAuditLivewireRequest::class,
         ]);
 
         $middleware->appendToGroup('web', [

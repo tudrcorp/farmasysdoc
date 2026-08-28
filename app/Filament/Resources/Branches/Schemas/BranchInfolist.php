@@ -80,12 +80,12 @@ class BranchInfolist
                     ->columns(1)
                     ->columnSpanFull(),
 
-                Section::make('Ubicación')
-                    ->description('Dirección operativa y fiscal.')
+                Section::make('Dirección fiscal')
+                    ->description('Domicilio del establecimiento, impreso en las facturas fiscales de esta sucursal.')
                     ->icon(Heroicon::MapPin)
                     ->schema([
                         TextEntry::make('address')
-                            ->label('Dirección')
+                            ->label('Dirección de la sucursal')
                             ->placeholder('—')
                             ->icon(Heroicon::Home)
                             ->columnSpanFull(),

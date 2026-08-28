@@ -32,6 +32,8 @@ class EmployeeFactory extends Factory
             'second_half_pay_currency' => HrPayCurrencyBucket::Ves,
             'first_half_usd_cash' => 0,
             'second_half_usd_cash' => 0,
+            'first_half_ves_cash' => 0,
+            'second_half_ves_cash' => 0,
             'branch_id' => Branch::factory(),
             'is_active' => true,
         ];

@@ -129,15 +129,16 @@ class BranchForm
                     ->columns(1)
                     ->columnSpanFull(),
 
-                Section::make('Ubicación')
-                    ->description('Dirección física para envíos, visitas o logística.')
+                Section::make('Dirección fiscal')
+                    ->description('Esta dirección se imprime en las facturas fiscales emitidas en esta sucursal.')
                     ->icon(Heroicon::MapPin)
                     ->schema([
-                        TextInput::make('address')
-                            ->label('Dirección')
-                            ->placeholder('Calle, número, barrio, referencia')
-                            ->maxLength(255)
-                            ->prefixIcon(Heroicon::Home)
+                        Textarea::make('address')
+                            ->label('Dirección de la sucursal')
+                            ->placeholder('Calle, número, urbanización, sector o referencia')
+                            ->helperText('Domicilio del establecimiento. Aparece en el encabezado de la factura fiscal.')
+                            ->rows(3)
+                            ->maxLength(2000)
                             ->columnSpanFull(),
                         Grid::make([
                             'default' => 1,

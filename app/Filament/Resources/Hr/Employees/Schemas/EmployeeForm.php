@@ -3,12 +3,10 @@
 namespace App\Filament\Resources\Hr\Employees\Schemas;
 
 use App\Enums\EmployeeBankAccountType;
-use App\Enums\HrPayCurrencyBucket;
 use App\Enums\VenezuelanPagoMovilBank;
 use App\Services\Hr\HrBcvRateResolver;
 use App\Services\Hr\HrUsdVesConverter;
 use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -17,7 +15,6 @@ use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\HtmlString;
@@ -186,104 +183,61 @@ class EmployeeForm
                     ->schema([
                         Grid::make(2)->schema([
                             Fieldset::make('1.ª quincena (día 15)')
-                                ->schema([
-                                    Radio::make('first_half_pay_currency')
-                                        ->label('Moneda de pago')
-                                        ->options(HrPayCurrencyBucket::paymentOptions())
-                                        ->inline()
-                                        ->required()
-                                        ->default(HrPayCurrencyBucket::Ves->value)
-                                        ->live()
-                                        ->afterStateUpdated(function (mixed $state, Set $set): void {
-                                            if (self::isVesCurrency($state)) {
-                                                $set('first_half_usd_cash', 0);
-                                            }
-                                        })
-                                        ->helperText(function (Get $get): HtmlString|string {
-                                            if (self::isUsdCurrency($get('first_half_pay_currency'))) {
-                                                return '';
-                                            }
-
-                                            return self::fortnightPayHint(
-                                                $get('monthly_salary_usd'),
-                                                $get('first_half_pay_currency'),
-                                                0,
-                                            );
-                                        }),
-                                    TextInput::make('first_half_usd_cash')
-                                        ->label('Monto en dólares')
-                                        ->numeric()
-                                        ->minValue(0)
-                                        ->step(0.01)
-                                        ->default(0)
-                                        ->prefix('US$')
-                                        ->live(onBlur: true)
-                                        ->visible(fn (Get $get): bool => self::isUsdCurrency($get('first_half_pay_currency')))
-                                        ->dehydrated()
-                                        ->rule(fn (Get $get): \Closure => self::usdCashMaxRule($get))
-                                        ->helperText(fn (Get $get): HtmlString|string => self::fortnightPayHint(
-                                            $get('monthly_salary_usd'),
-                                            $get('first_half_pay_currency'),
-                                            $get('first_half_usd_cash'),
-                                        )),
-                                ]),
+                                ->schema(self::fortnightAmountInputs(
+                                    'first_half_usd_cash',
+                                    'first_half_ves_cash',
+                                )),
                             Fieldset::make('2.ª quincena (fin de mes)')
-                                ->schema([
-                                    Radio::make('second_half_pay_currency')
-                                        ->label('Moneda de pago')
-                                        ->options(HrPayCurrencyBucket::paymentOptions())
-                                        ->inline()
-                                        ->required()
-                                        ->default(HrPayCurrencyBucket::Ves->value)
-                                        ->live()
-                                        ->afterStateUpdated(function (mixed $state, Set $set): void {
-                                            if (self::isVesCurrency($state)) {
-                                                $set('second_half_usd_cash', 0);
-                                            }
-                                        })
-                                        ->helperText(function (Get $get): HtmlString|string {
-                                            if (self::isUsdCurrency($get('second_half_pay_currency'))) {
-                                                return '';
-                                            }
-
-                                            return self::fortnightPayHint(
-                                                $get('monthly_salary_usd'),
-                                                $get('second_half_pay_currency'),
-                                                0,
-                                            );
-                                        }),
-                                    TextInput::make('second_half_usd_cash')
-                                        ->label('Monto en dólares')
-                                        ->numeric()
-                                        ->minValue(0)
-                                        ->step(0.01)
-                                        ->default(0)
-                                        ->prefix('US$')
-                                        ->live(onBlur: true)
-                                        ->visible(fn (Get $get): bool => self::isUsdCurrency($get('second_half_pay_currency')))
-                                        ->dehydrated()
-                                        ->rule(fn (Get $get): \Closure => self::usdCashMaxRule($get))
-                                        ->helperText(fn (Get $get): HtmlString|string => self::fortnightPayHint(
-                                            $get('monthly_salary_usd'),
-                                            $get('second_half_pay_currency'),
-                                            $get('second_half_usd_cash'),
-                                        )),
-                                ]),
+                                ->schema(self::fortnightAmountInputs(
+                                    'second_half_usd_cash',
+                                    'second_half_ves_cash',
+                                )),
                         ]),
                     ])
                     ->columnSpanFull(),
             ]);
     }
 
+    /**
+     * @return array<int, TextInput>
+     */
+    private static function fortnightAmountInputs(string $usdField, string $vesField): array
+    {
+        return [
+            TextInput::make($usdField)
+                ->label('Monto en dólares')
+                ->numeric()
+                ->minValue(0)
+                ->step(0.01)
+                ->default(0)
+                ->prefix('US$')
+                ->live(onBlur: true)
+                ->rule(fn (Get $get): \Closure => self::usdCashMaxRule($get)),
+            TextInput::make($vesField)
+                ->label('Monto en bolívares')
+                ->numeric()
+                ->minValue(0)
+                ->step(0.01)
+                ->default(0)
+                ->prefix('Bs')
+                ->live(onBlur: true)
+                ->helperText(fn (Get $get): HtmlString|string => self::fortnightPayHint(
+                    $get('monthly_salary_usd'),
+                    $get($usdField),
+                    $get($vesField),
+                )),
+        ];
+    }
+
     private static function biweeklyBaseDescription(mixed $monthlySalary): string
     {
         if (! is_numeric($monthlySalary) || (float) $monthlySalary <= 0) {
-            return 'Indique el sueldo mensual. Luego elija la moneda y, si paga en dólares, el monto en USD; el resto de la base se paga en bolívares.';
+            return 'Indique el sueldo mensual. Luego cargue el monto a pagar en dólares y en bolívares de cada quincena.';
         }
 
         $base = number_format(round((float) $monthlySalary / 2, 2), 2, ',', '.');
 
-        return "Base quincenal: US$ {$base}. Cargue solo el monto en dólares; si no indica ninguno, toda la quincena se paga en bolívares.";
+        return "Base quincenal: US$ {$base}. Indique el monto en dólares y el monto en bolívares de cada quincena.";
     }
 
     private static function usdCashMaxRule(Get $get): \Closure
@@ -305,33 +259,42 @@ class EmployeeForm
         };
     }
 
-    private static function fortnightPayHint(mixed $monthlySalary, mixed $currency, mixed $usdCash): HtmlString|string
+    private static function fortnightPayHint(mixed $monthlySalary, mixed $usdCash, mixed $vesCash): HtmlString|string
     {
         if (! is_numeric($monthlySalary) || (float) $monthlySalary <= 0) {
-            return 'Indique el sueldo mensual para ver el cálculo de esta quincena.';
+            return 'Indique el sueldo mensual para ver el resumen de esta quincena.';
         }
 
         $base = round((float) $monthlySalary / 2, 2);
-        $cash = self::isUsdCurrency($currency) && is_numeric($usdCash)
-            ? min(max(0, (float) $usdCash), $base)
-            : 0.0;
-        $remainderUsd = round(max(0, $base - $cash), 2);
+        $cash = is_numeric($usdCash) ? min(max(0, (float) $usdCash), $base) : 0.0;
+        $ves = is_numeric($vesCash) ? max(0, (float) $vesCash) : 0.0;
+        $usdLabel = number_format($cash, 2, ',', '.');
+        $vesLabel = number_format($ves, 2, ',', '.');
 
-        if ($cash <= 0) {
+        if ($cash <= 0 && $ves <= 0) {
             return self::vesEquivalentHint(
                 $base,
-                'Sin monto en dólares: toda la quincena se paga en bolívares',
+                'Sin montos: toda la quincena se paga en bolívares',
             );
         }
 
-        if ($remainderUsd <= 0) {
-            return new HtmlString('Toda la base se paga en dólares: <strong>US$ '.number_format($cash, 2, ',', '.').'</strong>.');
+        if ($ves <= 0) {
+            $remainderUsd = round(max(0, $base - $cash), 2);
+            if ($remainderUsd <= 0) {
+                return new HtmlString('Pago en dólares: <strong>US$ '.$usdLabel.'</strong>.');
+            }
+
+            return self::vesEquivalentHint(
+                $remainderUsd,
+                "Dólares: US$ {$usdLabel}. Resto de la base en bolívares",
+            );
         }
 
-        return self::vesEquivalentHint(
-            $remainderUsd,
-            'Diferencia en dólares (se paga en bolívares)',
-        );
+        if ($cash <= 0) {
+            return new HtmlString('Pago en bolívares: <strong>Bs '.$vesLabel.'</strong>.');
+        }
+
+        return new HtmlString("Pago: <strong>US$ {$usdLabel}</strong> + <strong>Bs {$vesLabel}</strong>.");
     }
 
     private static function vesEquivalentHint(float $usd, string $prefix): HtmlString
@@ -346,20 +309,6 @@ class EmployeeForm
         $ves = number_format(HrUsdVesConverter::toVes($usd, $rate), 2, ',', '.');
 
         return new HtmlString("{$prefix}: <strong>US$ {$usdLabel}</strong> ≈ <strong>Bs {$ves}</strong>");
-    }
-
-    private static function isUsdCurrency(mixed $currency): bool
-    {
-        if ($currency instanceof HrPayCurrencyBucket) {
-            return $currency === HrPayCurrencyBucket::Usd;
-        }
-
-        return HrPayCurrencyBucket::tryFrom((string) $currency) === HrPayCurrencyBucket::Usd;
-    }
-
-    private static function isVesCurrency(mixed $currency): bool
-    {
-        return ! self::isUsdCurrency($currency);
     }
 
     private static function legalSalaryHint(mixed $ves): string

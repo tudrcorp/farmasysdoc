@@ -121,7 +121,10 @@ final class PayrollCalculator
     ): array {
         $baseUsd = $employee->biweeklyBaseUsd();
         $usdCashFromSalary = $employee->usdCashForPeriod($period->isMonthEnd());
-        $vesFromSalary = round(max(0, $baseUsd - $usdCashFromSalary), 2);
+        $vesCashFromSalary = $employee->vesCashForPeriod($period->isMonthEnd());
+        $vesFromSalary = $vesCashFromSalary > 0
+            ? HrUsdVesConverter::toUsd($vesCashFromSalary, $rate)
+            : round(max(0, $baseUsd - $usdCashFromSalary), 2);
 
         $assignmentItems = [];
         $assignmentsUsd = 0.0;

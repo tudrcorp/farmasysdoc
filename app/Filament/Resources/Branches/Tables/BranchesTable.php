@@ -126,7 +126,7 @@ class BranchesTable
                     ->label('Tel. conciliación BDV')
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('address')
-                    ->label('Dirección')
+                    ->label('Dirección fiscal')
                     ->limit(45)
                     ->tooltip(function (Branch $record): ?string {
                         return filled($record->address) ? $record->address : null;

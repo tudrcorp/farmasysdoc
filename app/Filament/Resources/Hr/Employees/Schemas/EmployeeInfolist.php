@@ -226,47 +226,29 @@ class EmployeeInfolist
                     ->columnSpanFull(),
 
                 Section::make('Forma de pago por quincena')
-                    ->description('Monto en dólares de cada quincena. Si no hay USD, toda la base se paga en bolívares a tasa BCV.')
+                    ->description('Montos en dólares y bolívares cargados para cada quincena.')
                     ->icon(Heroicon::CurrencyDollar)
                     ->schema([
                         Grid::make([
                             'default' => 1,
                             'md' => 2,
                         ])->schema([
-                            TextEntry::make('first_half_pay_currency')
-                                ->label('1.ª quincena (día 15)')
-                                ->badge()
-                                ->state(fn (Employee $record): HrPayCurrencyBucket => $record->payCurrencyForPeriod(false))
-                                ->formatStateUsing(fn ($state): string => self::payCurrencyLabel($state))
-                                ->color(fn ($state): string => self::payCurrencyColor($state)),
-                            TextEntry::make('second_half_pay_currency')
-                                ->label('2.ª quincena (fin de mes)')
-                                ->badge()
-                                ->state(fn (Employee $record): HrPayCurrencyBucket => $record->payCurrencyForPeriod(true))
-                                ->formatStateUsing(fn ($state): string => self::payCurrencyLabel($state))
-                                ->color(fn ($state): string => self::payCurrencyColor($state)),
                             TextEntry::make('first_half_usd_cash')
-                                ->label('1.ª quincena — USD efectivo')
+                                ->label('1.ª quincena — dólares')
                                 ->icon(Heroicon::CurrencyDollar)
                                 ->formatStateUsing(fn ($state): string => 'US$ '.number_format((float) $state, 2, ',', '.')),
                             TextEntry::make('second_half_usd_cash')
-                                ->label('2.ª quincena — USD efectivo')
+                                ->label('2.ª quincena — dólares')
                                 ->icon(Heroicon::CurrencyDollar)
                                 ->formatStateUsing(fn ($state): string => 'US$ '.number_format((float) $state, 2, ',', '.')),
-                            TextEntry::make('first_half_ves_remainder')
-                                ->label('1.ª quincena — diferencia en Bs')
+                            TextEntry::make('first_half_ves_cash')
+                                ->label('1.ª quincena — bolívares')
                                 ->icon(Heroicon::Banknotes)
-                                ->state(fn (Employee $record): string => self::halfPayDescription(
-                                    $record->biweeklyBaseUsd(),
-                                    $record->usdCashForPeriod(false),
-                                )),
-                            TextEntry::make('second_half_ves_remainder')
-                                ->label('2.ª quincena — diferencia en Bs')
+                                ->state(fn (Employee $record): string => self::vesCashLabel($record, false)),
+                            TextEntry::make('second_half_ves_cash')
+                                ->label('2.ª quincena — bolívares')
                                 ->icon(Heroicon::Banknotes)
-                                ->state(fn (Employee $record): string => self::halfPayDescription(
-                                    $record->biweeklyBaseUsd(),
-                                    $record->usdCashForPeriod(true),
-                                )),
+                                ->state(fn (Employee $record): string => self::vesCashLabel($record, true)),
                         ]),
                     ])
                     ->columnSpanFull(),
@@ -463,38 +445,26 @@ class EmployeeInfolist
             .' · tasa '.number_format($rate, 4, ',', '.');
     }
 
-    private static function payCurrencyLabel(mixed $state): string
+    private static function vesCashLabel(Employee $record, bool $isMonthEnd): string
     {
-        if ($state instanceof HrPayCurrencyBucket) {
-            return $state->paymentLabel();
+        $ves = $record->vesCashForPeriod($isMonthEnd);
+        if ($ves > 0) {
+            return 'Bs '.number_format($ves, 2, ',', '.');
         }
 
-        return HrPayCurrencyBucket::tryFrom((string) $state)?->paymentLabel() ?? '—';
-    }
+        $baseUsd = $record->biweeklyBaseUsd();
+        $usdCash = $record->usdCashForPeriod($isMonthEnd);
+        $remainder = round(max(0, $baseUsd - $usdCash), 2);
 
-    private static function payCurrencyColor(mixed $state): string
-    {
-        $bucket = $state instanceof HrPayCurrencyBucket
-            ? $state
-            : HrPayCurrencyBucket::tryFrom((string) $state);
-
-        return $bucket?->filamentColor() ?? 'gray';
-    }
-
-    private static function halfPayDescription(float $baseUsd, float $usdCash): string
-    {
-        $cash = min(max(0, $usdCash), $baseUsd);
-        $remainder = round(max(0, $baseUsd - $cash), 2);
-
-        if ($cash <= 0) {
-            return 'Toda la quincena en bolívares: US$ '.number_format($baseUsd, 2, ',', '.').' · '.self::vesLabel($baseUsd);
+        if ($usdCash <= 0) {
+            return 'Toda la quincena en bolívares (tasa BCV): '.self::vesLabel($baseUsd);
         }
 
         if ($remainder <= 0) {
-            return 'Toda la quincena en dólares: US$ '.number_format($cash, 2, ',', '.');
+            return 'Bs 0,00';
         }
 
-        return 'Diferencia en USD: US$ '.number_format($remainder, 2, ',', '.').' · '.self::vesLabel($remainder);
+        return 'Resto de la base a tasa BCV: '.self::vesLabel($remainder);
     }
 
     private static function bucketLabel(mixed $state): string

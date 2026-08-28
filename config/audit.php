@@ -6,6 +6,7 @@ use App\Models\BranchCategoryProfitMargin;
 use App\Models\Client;
 use App\Models\Delivery;
 use App\Models\FinancialSetting;
+use App\Models\FiscalCompanySetting;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\MarketingBroadcast;
@@ -69,6 +70,7 @@ return [
         OrderService::class,
         ApiClient::class,
         FinancialSetting::class,
+        FiscalCompanySetting::class,
         ProductCategory::class,
         MarketingCampaign::class,
         MarketingBroadcast::class,

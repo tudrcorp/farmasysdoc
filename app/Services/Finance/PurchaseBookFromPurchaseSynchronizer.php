@@ -7,6 +7,7 @@ use App\Models\Purchase;
 use App\Models\PurchaseBook;
 use App\Services\Audit\AuditLogger;
 use App\Support\Finance\DefaultVatRate;
+use App\Support\Fiscal\CompanyFiscalAddress;
 use App\Support\Fiscal\VenezuelanRifFormatter;
 use App\Support\Purchases\PurchaseBookVoucherNumberAllocator;
 use Illuminate\Support\Carbon;
@@ -155,7 +156,7 @@ final class PurchaseBookFromPurchaseSynchronizer
                 'retention_agent_name' => (string) config('fiscal.retention_agent.name'),
                 'retention_agent_rif' => (string) config('fiscal.retention_agent.rif'),
                 'tax_period' => $taxPeriod,
-                'retention_agent_address' => (string) config('fiscal.retention_agent.address'),
+                'retention_agent_address' => CompanyFiscalAddress::line(),
                 'issue_date' => null,
                 'supplier_name' => $supplierName,
                 'supplier_rif' => $supplierRif !== '' ? $supplierRif : (string) ($purchase->supplier?->tax_id ?? '—'),

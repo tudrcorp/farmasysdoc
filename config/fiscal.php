@@ -6,6 +6,10 @@ return [
     |--------------------------------------------------------------------------
     | Agente de retención (Retenciones / SENIAT)
     |--------------------------------------------------------------------------
+    |
+    | La dirección fiscal de la empresa también se puede editar en Farmaadmin
+    | (Datos fiscales de la empresa). Si esa fila está vacía, se usa este valor.
+    |
     */
     'retention_agent' => [
         'name' => env('FISCAL_RETENTION_AGENT_NAME', 'VEN MEDICAL GLOBAL,C.A.'),

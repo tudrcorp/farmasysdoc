@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Resources\Branches\Pages\CreateBranch;
+use App\Filament\Resources\Branches\Pages\EditBranch;
 use App\Models\Branch;
 use App\Models\Country;
 use App\Models\User;
@@ -40,4 +41,22 @@ test('creating a branch assigns automatic SUC-{id} code', function () {
 
     expect($branch)->not->toBeNull()
         ->and($branch->code)->toBe('SUC-'.$branch->id);
+});
+
+test('administrator can save a fiscal address on a branch', function (): void {
+    Filament::setCurrentPanel('farmaadmin');
+
+    $user = User::factory()->create(['roles' => ['ADMINISTRADOR']]);
+    $branch = Branch::factory()->create(['address' => null]);
+    $address = 'Av. Los Llanos, local 12, Barinas';
+
+    Livewire::actingAs($user)
+        ->test(EditBranch::class, ['record' => $branch->getRouteKey()])
+        ->fillForm([
+            'address' => $address,
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($branch->refresh()->fiscalAddress())->toBe($address);
 });

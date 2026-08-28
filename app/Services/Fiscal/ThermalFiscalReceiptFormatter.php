@@ -2,10 +2,12 @@
 
 namespace App\Services\Fiscal;
 
+use App\Models\Branch;
 use App\Models\Client;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Support\Finance\DefaultVatRate;
+use App\Support\Fiscal\CompanyFiscalAddress;
 use Illuminate\Support\Str;
 
 /**
@@ -22,17 +24,7 @@ final class ThermalFiscalReceiptFormatter
         $branch = $sale->branch;
         $client = $sale->client;
 
-        $lines = [];
-
-        $lines[] = $this->centerHeader('SENIAT', $width);
-        // $lines[] = '';
-        $lines[] = $this->centerHeaderRow('RIF:', (string) ($branch?->tax_id ?? '—'), $width);
-        $lines[] = $this->centerHeader((string) ($branch?->legal_name ?? $branch?->name ?? 'RAZÓN SOCIAL'), $width);
-        $lines = array_merge($lines, $this->wrapUpperCentered((string) ($branch?->address ?? ''), $width));
-        if (filled($branch?->city) || filled($branch?->state)) {
-            $lines[] = $this->centerHeader(trim(implode(' ', array_filter([$branch?->city, $branch?->state]))), $width);
-        }
-        // $lines[] = '';
+        $lines = $this->issuerHeaderLines($branch, $width);
         $lines[] = $this->leftRow('RIF/CI:', Str::upper($this->clientDocument($client)));
         $lines[] = $this->leftRow('R.S.:', Str::upper((string) ($client?->name ?? 'MOSTRADOR')));
         $lines[] = $this->leftRow('DIRECCION:', Str::upper((string) ($client?->address ?? '')));
@@ -113,15 +105,7 @@ final class ThermalFiscalReceiptFormatter
         $totalBs = $this->toBs((float) $sale->total, $rate);
         $controlSerial = trim((string) config('fiscal.printer_serial', ''));
 
-        $lines = [];
-
-        $lines[] = $this->centerHeader('SENIAT', $width);
-        $lines[] = $this->centerHeaderRow('RIF:', (string) ($branch?->tax_id ?? '—'), $width);
-        $lines[] = $this->centerHeader((string) ($branch?->legal_name ?? $branch?->name ?? 'RAZÓN SOCIAL'), $width);
-        $lines = array_merge($lines, $this->wrapUpperCentered((string) ($branch?->address ?? ''), $width));
-        if (filled($branch?->city) || filled($branch?->state)) {
-            $lines[] = $this->centerHeader(trim(implode(' ', array_filter([$branch?->city, $branch?->state]))), $width);
-        }
+        $lines = $this->issuerHeaderLines($branch, $width);
 
         $lines[] = $this->leftRow('#FAC:', $invoiceNumber);
         $lines[] = $this->leftRow('FECHA FAC:', $soldAt?->format('d/m/Y') ?? now()->format('d/m/Y'));
@@ -314,6 +298,37 @@ final class ThermalFiscalReceiptFormatter
             'transfer_usd' => 'T. TRANSFER USD',
             default => 'PAGO: '.Str::upper((string) ($method ?? '—')),
         };
+    }
+
+    /**
+     * Encabezado del emisor: RIF/razón social de la sucursal, domicilio de la empresa
+     * y dirección del establecimiento (si difiere).
+     *
+     * @return list<string>
+     */
+    private function issuerHeaderLines(?Branch $branch, int $width): array
+    {
+        $lines = [];
+        $lines[] = $this->centerHeader('SENIAT', $width);
+        $lines[] = $this->centerHeaderRow('RIF:', (string) ($branch?->tax_id ?? '—'), $width);
+        $lines[] = $this->centerHeader((string) ($branch?->legal_name ?? $branch?->name ?? 'RAZÓN SOCIAL'), $width);
+
+        $companyAddress = CompanyFiscalAddress::line();
+        $branchAddress = $branch?->fiscalAddress() ?? '';
+
+        if (filled($companyAddress)) {
+            $lines = array_merge($lines, $this->wrapUpperCentered($companyAddress, $width));
+        }
+
+        if (filled($branchAddress) && Str::upper($branchAddress) !== Str::upper($companyAddress)) {
+            $lines = array_merge($lines, $this->wrapUpperCentered($branchAddress, $width));
+        }
+
+        if (filled($branch?->city) || filled($branch?->state)) {
+            $lines[] = $this->centerHeader(trim(implode(' ', array_filter([$branch?->city, $branch?->state]))), $width);
+        }
+
+        return array_values(array_filter($lines, fn (string $line): bool => $line !== ''));
     }
 
     /**

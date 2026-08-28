@@ -41,6 +41,8 @@ class Employee extends Model
         'second_half_pay_currency',
         'first_half_usd_cash',
         'second_half_usd_cash',
+        'first_half_ves_cash',
+        'second_half_ves_cash',
         'branch_id',
         'is_active',
     ];
@@ -65,6 +67,8 @@ class Employee extends Model
             'second_half_pay_currency' => HrPayCurrencyBucket::class,
             'first_half_usd_cash' => 'decimal:2',
             'second_half_usd_cash' => 'decimal:2',
+            'first_half_ves_cash' => 'decimal:2',
+            'second_half_ves_cash' => 'decimal:2',
             'is_active' => 'boolean',
             'file_terms_accepted_at' => 'datetime',
             'portal_password' => 'hashed',
@@ -121,7 +125,7 @@ class Employee extends Model
     }
 
     /**
-     * USD efectivo cargado para la quincena. Si es 0, toda la base se paga en bolívares.
+     * USD efectivo cargado para la quincena.
      */
     public function usdCashForPeriod(bool $isMonthEnd): float
     {
@@ -132,26 +136,43 @@ class Employee extends Model
         return round(min(max(0, $configured), $this->biweeklyBaseUsd()), 2);
     }
 
+    /**
+     * Bolívares cargados para la quincena. Si es 0, el resto de la base se paga en VES a tasa BCV.
+     */
+    public function vesCashForPeriod(bool $isMonthEnd): float
+    {
+        $configured = $isMonthEnd
+            ? (float) $this->second_half_ves_cash
+            : (float) $this->first_half_ves_cash;
+
+        return round(max(0, $configured), 2);
+    }
+
     public function syncUsdCashPortions(): void
     {
         $base = $this->biweeklyBaseUsd();
 
-        $first = $this->normalizedUsdCash((float) $this->first_half_usd_cash, $base, $this->first_half_pay_currency);
-        $second = $this->normalizedUsdCash((float) $this->second_half_usd_cash, $base, $this->second_half_pay_currency);
+        $firstUsd = $this->normalizedUsdCash((float) $this->first_half_usd_cash, $base);
+        $secondUsd = $this->normalizedUsdCash((float) $this->second_half_usd_cash, $base);
+        $firstVes = $this->normalizedVesCash((float) $this->first_half_ves_cash);
+        $secondVes = $this->normalizedVesCash((float) $this->second_half_ves_cash);
 
-        $this->first_half_usd_cash = $first;
-        $this->second_half_usd_cash = $second;
-        $this->first_half_pay_currency = $first > 0 ? HrPayCurrencyBucket::Usd : HrPayCurrencyBucket::Ves;
-        $this->second_half_pay_currency = $second > 0 ? HrPayCurrencyBucket::Usd : HrPayCurrencyBucket::Ves;
+        $this->first_half_usd_cash = $firstUsd;
+        $this->second_half_usd_cash = $secondUsd;
+        $this->first_half_ves_cash = $firstVes;
+        $this->second_half_ves_cash = $secondVes;
+        $this->first_half_pay_currency = $firstUsd > 0 ? HrPayCurrencyBucket::Usd : HrPayCurrencyBucket::Ves;
+        $this->second_half_pay_currency = $secondUsd > 0 ? HrPayCurrencyBucket::Usd : HrPayCurrencyBucket::Ves;
     }
 
-    private function normalizedUsdCash(float $amount, float $base, mixed $currency): float
+    private function normalizedUsdCash(float $amount, float $base): float
     {
-        if (($currency ?? HrPayCurrencyBucket::Ves) === HrPayCurrencyBucket::Ves) {
-            return 0.0;
-        }
-
         return round(min(max(0, $amount), $base), 2);
+    }
+
+    private function normalizedVesCash(float $amount): float
+    {
+        return round(max(0, $amount), 2);
     }
 
     public function fullName(): string

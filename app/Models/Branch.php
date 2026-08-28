@@ -64,6 +64,14 @@ class Branch extends Model
     }
 
     /**
+     * Dirección del establecimiento para facturas fiscales.
+     */
+    public function fiscalAddress(): string
+    {
+        return trim((string) ($this->address ?? ''));
+    }
+
+    /**
      * @return HasMany<Inventory, $this>
      */
     public function inventories(): HasMany

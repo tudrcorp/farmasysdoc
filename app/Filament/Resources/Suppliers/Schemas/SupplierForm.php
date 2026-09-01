@@ -286,7 +286,7 @@ class SupplierForm
                             ->defaultItems(0)
                             ->reorderable()
                             ->orderColumn('sort_order')
-                            ->collapsible()
+                            ->partiallyRenderAfterActionsCalled(false)
                             ->cloneable()
                             ->addActionLabel('Añadir cuenta bancaria')
                             ->itemLabel(function (?array $state): ?string {

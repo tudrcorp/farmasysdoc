@@ -8,6 +8,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Support\Finance\DefaultVatRate;
 use App\Support\Fiscal\CompanyFiscalAddress;
+use App\Support\Inventory\InventoryQuantityFormat;
 use Illuminate\Support\Str;
 
 /**
@@ -237,6 +238,15 @@ final class ThermalFiscalReceiptFormatter
         $wrapped = $this->wrapUpperForPriceRow($desc, $width, $lastLineMax);
 
         $out = [];
+        $quantity = (float) $item->quantity;
+
+        if ($quantity > 1.00001) {
+            $qtyLine = InventoryQuantityFormat::display($quantity)
+                .'x '
+                .$this->bs($this->toBs((float) $item->unit_price, $rate));
+            $out[] = $this->clipLine($qtyLine, $width);
+        }
+
         $lastIndex = count($wrapped) - 1;
 
         foreach ($wrapped as $i => $line) {

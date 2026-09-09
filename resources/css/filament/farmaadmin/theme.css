@@ -6108,9 +6108,37 @@ html.fi.dark .farmadoc-rol-perms__empty-sub {
     color: rgb(113 113 122);
 }
 
+.farmadoc-pos-cart-section
+    .farmadoc-pos-line-items-repeater.fi-fo-table-repeater
+    table
+    tbody
+    tr
+    > td {
+    vertical-align: middle;
+}
+
+.farmadoc-pos-cart-section
+    .farmadoc-pos-line-items-repeater.fi-fo-table-repeater
+    table
+    tbody
+    tr
+    > td:has(.farmadoc-pos-cart-product-cell)
+    > * {
+    height: 100%;
+}
+
+.farmadoc-pos-cart-product-cell {
+    display: flex !important;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+    min-height: 100%;
+}
+
 .farmadoc-pos-cart-product {
     display: flex;
     flex-direction: column;
+    justify-content: center;
     gap: 0.15rem;
     min-width: 0;
 }
@@ -6130,6 +6158,25 @@ html.fi.dark .farmadoc-rol-perms__empty-sub {
 
 .dark .farmadoc-pos-cart-product__name {
     color: rgb(250 250 250);
+}
+
+.farmadoc-pos-line-total-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.1rem;
+}
+
+.farmadoc-pos-line-total-ves {
+    font-size: 0.72rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: rgb(82 82 91);
+    white-space: nowrap;
+}
+
+.dark .farmadoc-pos-line-total-ves {
+    color: rgb(161 161 170);
 }
 
 .farmadoc-pos-cart-empty {

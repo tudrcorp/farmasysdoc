@@ -95,16 +95,8 @@ final class PurchaseFiscalHistoryBackfillSynchronizer
         }
 
         $taxTotal = round((float) $purchase->tax_total, 2);
-        $hadRetention = PurchaseBook::query()->where('purchase_id', $purchase->id)->exists();
-        $ledgerCountBefore = PurchaseLedger::query()->where('purchase_id', $purchase->id)->count();
 
         if ($taxTotal <= 0) {
-            $this->ledgerSynchronizer->syncFromPurchase($purchase, null);
-            $ledgerDelta = PurchaseLedger::query()->where('purchase_id', $purchase->id)->count() - $ledgerCountBefore;
-            if ($ledgerDelta > 0) {
-                $result->ledgerRowsCreated += $ledgerDelta;
-                $changed = true;
-            }
             $result->skippedNoVat++;
             if (! $changed) {
                 $result->alreadySynced++;
@@ -112,6 +104,9 @@ final class PurchaseFiscalHistoryBackfillSynchronizer
 
             return;
         }
+
+        $hadRetention = PurchaseBook::query()->where('purchase_id', $purchase->id)->exists();
+        $ledgerCountBefore = PurchaseLedger::query()->where('purchase_id', $purchase->id)->count();
 
         $purchase->loadMissing('supplier');
         if ($purchase->supplier?->seniat_retention_percent === null) {

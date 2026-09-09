@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Genera filas del Libro de Compras al confirmar una compra.
+ * Genera filas del Libro de Compras al confirmar una compra con IVA
+ * (omite compras sin impuesto causado).
  * Si hay retención (PurchaseBook), crea también la fila COMPROBANTE DE RETENCION
  * y completa columnas 16–18 en la factura.
  */
@@ -40,6 +41,25 @@ final class PurchaseLedgerFromPurchaseSynchronizer
 
         if ($existingFactura !== null) {
             return $this->completeExistingLedgerRows($purchase, $existingFactura, $retention);
+        }
+
+        $taxTotal = round((float) $purchase->tax_total, 2);
+        if ($taxTotal <= 0) {
+            AuditLogger::record(
+                event: 'purchase_ledger_skipped_no_vat',
+                description: 'Libro de Compras: no se generó fila porque la compra no tiene IVA (impuesto causado).',
+                auditableType: Purchase::class,
+                auditableId: (string) $purchase->getKey(),
+                auditableLabel: $purchase->purchase_number,
+                properties: [
+                    'purchase_id' => $purchase->id,
+                    'tax_total' => $purchase->tax_total,
+                    'subtotal_taxable_amount' => $purchase->subtotal_taxable_amount,
+                    'net_taxable_after_document_discount' => $purchase->net_taxable_after_document_discount,
+                ],
+            );
+
+            return [];
         }
 
         $invoiceDate = Carbon::parse(

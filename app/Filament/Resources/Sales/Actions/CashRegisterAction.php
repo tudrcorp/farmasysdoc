@@ -224,6 +224,9 @@ final class CashRegisterAction
                                         Hidden::make('product_id')
                                             ->required(),
                                         Grid::make(1)
+                                            ->extraAttributes([
+                                                'class' => 'farmadoc-pos-cart-product-cell',
+                                            ])
                                             ->schema([
                                                 Placeholder::make('product_display')
                                                     ->hiddenLabel()
@@ -244,7 +247,15 @@ final class CashRegisterAction
 
                                                         return new HtmlString($alert->bannerHtml());
                                                     })
-                                                    ->visible(fn (Get $get): bool => filled($get('product_id'))),
+                                                    ->visible(function (Get $get): bool {
+                                                        $branchId = Auth::user()?->branch_id;
+                                                        $productId = $get('product_id');
+                                                        if (blank($branchId) || blank($productId)) {
+                                                            return false;
+                                                        }
+
+                                                        return self::posNearExpiryLotAlert((int) $branchId, (int) $productId) instanceof NearExpiryLotAlert;
+                                                    }),
                                             ]),
                                         TextInput::make('quantity')
                                             ->hiddenLabel()
@@ -3641,19 +3652,31 @@ final class CashRegisterAction
             ? (int) $get('../../client_id')
             : (filled($get('../client_id')) ? (int) $get('../client_id') : null);
         $discountPercent = app(ClientCommercialDiscountResolver::class)->percentForClientId($clientId);
+        $usdAmount = $original;
+        $usdHtml = '<span class="farmadoc-pos-line-total">'.e(self::formatMoney($original)).'</span>';
 
         if ($discountPercent > 0.00001) {
-            $discounted = round($original * (1 - ($discountPercent / 100)), 2);
-
-            return new HtmlString(
-                '<span class="line-through opacity-70">'.e(self::formatMoney($original)).'</span>'
-                .' <span class="farmadoc-pos-line-total">'.e(self::formatMoney($discounted)).'</span>'
-            );
+            $usdAmount = round($original * (1 - ($discountPercent / 100)), 2);
+            $usdHtml = '<span class="line-through opacity-70">'.e(self::formatMoney($original)).'</span>'
+                .' <span class="farmadoc-pos-line-total">'.e(self::formatMoney($usdAmount)).'</span>';
         }
 
         return new HtmlString(
-            '<span class="farmadoc-pos-line-total">'.e(self::formatMoney($original)).'</span>'
+            '<div class="farmadoc-pos-line-total-stack">'
+            .$usdHtml
+            .'<span class="farmadoc-pos-line-total-ves">'.e(self::posUsdToVesLabel($usdAmount, $get)).'</span>'
+            .'</div>'
         );
+    }
+
+    private static function posUsdToVesLabel(float $usdAmount, Get $get): string
+    {
+        $rate = self::effectiveVesUsdRateForPosProductLabels($get);
+        if ($rate <= 0.0) {
+            return 'Bs. —';
+        }
+
+        return self::formatBolivaresReferenceFromVes(self::posListPriceVesFromUsd($usdAmount, $rate));
     }
 
     private static function formatBolivaresReference(float $usdAmount, Get $get): string
@@ -3755,6 +3778,13 @@ final class CashRegisterAction
             $fromForm = self::effectiveVesUsdRate($get);
             if ($fromForm > 0.0) {
                 return $fromForm;
+            }
+
+            foreach (['../ves_usd_rate', '../../ves_usd_rate', '../ves_usd_rate_manual', '../../ves_usd_rate_manual'] as $path) {
+                $value = $get($path);
+                if (is_numeric($value) && (float) $value > 0) {
+                    return (float) $value;
+                }
             }
         }
 
@@ -5092,7 +5122,7 @@ final class CashRegisterAction
     private static function normalizePosConsultSearchTerm(string $search): string
     {
         $term = trim($search);
-        $term = preg_replace('/\s+/u', '', $term) ?? $term;
+        $term = preg_replace('/\s+/u', ' ', $term) ?? $term;
 
         return $term;
     }
@@ -5261,10 +5291,14 @@ final class CashRegisterAction
         if ($term !== '') {
             $like = '%'.addcslashes($term, '%_\\').'%';
             $ingredientLike = '%'.addcslashes(mb_strtolower($term), '%_\\').'%';
-            $query->where(function ($w) use ($like, $ingredientLike): void {
+            $compact = mb_strtolower(preg_replace('/\s+/u', '', $term) ?? $term);
+            $compactLike = '%'.addcslashes($compact, '%_\\').'%';
+            $query->where(function ($w) use ($like, $ingredientLike, $compactLike): void {
                 $w->where('products.name', 'like', $like)
+                    ->orWhereRaw('REPLACE(LOWER(products.name), " ", "") LIKE ?', [$compactLike])
                     ->orWhere('products.barcode', 'like', $like)
-                    ->orWhereRaw('LOWER(products.active_ingredient) LIKE ?', [$ingredientLike]);
+                    ->orWhereRaw('LOWER(products.active_ingredient) LIKE ?', [$ingredientLike])
+                    ->orWhereRaw('REPLACE(LOWER(products.active_ingredient), " ", "") LIKE ?', [$compactLike]);
 
                 if (SchemaFacade::hasColumn('products', 'sku')) {
                     $w->orWhere('products.sku', 'like', $like);

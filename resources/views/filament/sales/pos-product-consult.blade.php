@@ -67,10 +67,11 @@
                         placeholder="Principio activo, código o nombre…"
                         class="farmadoc-pos-consult__search"
                         x-on:input="onSearchInput()"
-                        x-on:paste.prevent="onPaste($event)"
+                        x-on:paste="onPaste($event)"
+                        x-on:keydown.space.stop
                         x-on:keydown.arrow-down.prevent="move(1)"
                         x-on:keydown.arrow-up.prevent="move(-1)"
-                        x-on:keydown.enter.prevent="confirmSelection()"
+                        x-on:keydown.enter.prevent.stop="confirmSelection()"
                         x-on:keydown.home.prevent="jump(0)"
                         x-on:keydown.end.prevent="jump(-1)"
                     >
@@ -103,7 +104,7 @@
                                         'is-active': index === activeIndex,
                                         'is-out': row.out_of_stock,
                                     }"
-                                    x-on:click="activeIndex = index; confirmSelection()"
+                                    x-on:click.stop="confirmProduct(row)"
                                     x-on:mouseenter="activeIndex = index"
                                 >
                                     <td class="farmadoc-pos-consult__code" x-text="row.code"></td>
@@ -210,7 +211,11 @@
         },
 
         readTerm() {
-            return String(this.searchEl()?.value ?? this.q ?? '').trim();
+            return String(this.searchEl()?.value ?? this.q ?? '');
+        },
+
+        searchTerm() {
+            return this.readTerm().replace(/\s+/g, ' ').trim();
         },
 
         focusSearch() {
@@ -236,12 +241,18 @@
         },
 
         onPaste(event) {
-            const pasted = String(event.clipboardData?.getData('text') ?? '');
+            const pasted = String(event.clipboardData?.getData('text') ?? '').replace(/\s+/g, ' ').trim();
+            if (pasted === '') {
+                return;
+            }
+
+            event.preventDefault();
+
             const input = this.searchEl();
             if (input) {
-                input.value = pasted.trim();
+                input.value = pasted;
             }
-            this.q = pasted.trim();
+            this.q = pasted;
             this.searchNow();
         },
 
@@ -256,8 +267,7 @@
             this.clearSearchTimer();
             this.loading = true;
             const seq = ++this.searchSeq;
-            const term = this.readTerm();
-            this.q = term;
+            const term = this.searchTerm();
 
             try {
                 const rows = await $wire.call('searchPosConsultProducts', term);
@@ -314,6 +324,12 @@
                 ?.scrollIntoView({ block: 'nearest' });
         },
 
+        looksLikeCode(term) {
+            const compact = String(term ?? '').replace(/[\s\-]/g, '');
+
+            return /^\d{8,}$/.test(compact);
+        },
+
         pickRowForTerm(term) {
             if (this.results.length === 0) {
                 return null;
@@ -326,18 +342,22 @@
 
                 return code === term
                     || codeCompact === compact
-                    || (compact.length >= 8 && codeCompact.endsWith(compact));
+                    || (compact.length >= 8 && /^\d+$/.test(compact) && codeCompact.endsWith(compact));
             });
 
             if (exact) {
                 return exact;
             }
 
-            if (/^\d{8,}$/.test(compact) && this.results.length === 1) {
-                return this.results[0];
+            if (this.looksLikeCode(term)) {
+                return this.results.length === 1 ? this.results[0] : null;
             }
 
             return this.results[this.activeIndex] ?? this.results[0];
+        },
+
+        async confirmProduct(row) {
+            await this.addSelectedRow(row);
         },
 
         async confirmSelection() {
@@ -345,12 +365,34 @@
                 return;
             }
 
-            const term = this.readTerm();
-            this.q = term;
+            const term = this.searchTerm();
+            const pendingSearch = this.searchTimer !== null || this.loading;
+            const selectedRow = pendingSearch || this.looksLikeCode(term)
+                ? null
+                : (this.results[this.activeIndex] ?? null);
+
+            if (selectedRow?.id) {
+                await this.addSelectedRow(selectedRow);
+
+                return;
+            }
+
             await this.searchNow();
 
-            const row = this.pickRowForTerm(term);
-            if (! row?.id) {
+            const row = this.looksLikeCode(term)
+                ? this.pickRowForTerm(term)
+                : (this.results[this.activeIndex] ?? this.results[0] ?? null);
+
+            await this.addSelectedRow(row);
+        },
+
+        async addSelectedRow(row) {
+            if (this.adding) {
+                return;
+            }
+
+            const productId = Number(row?.id ?? 0);
+            if (productId <= 0) {
                 this.$nextTick(() => this.focusSearch());
 
                 return;
@@ -359,7 +401,7 @@
             this.adding = true;
 
             try {
-                await $wire.call('addPosConsultProduct', Number(row.id));
+                await $wire.call('addPosConsultProduct', productId);
             } finally {
                 this.adding = false;
                 this.q = '';

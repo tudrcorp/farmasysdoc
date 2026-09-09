@@ -20,7 +20,7 @@ final class SaleCollectedMoneyAggregator
      *     total_ves: float,
      *     pago_movil_ves: float,
      *     punto_venta_ves: float,
-     *     pos_terminals: list<array{id: int|null, label: string, amount_ves: float}>,
+     *     pos_terminals: list<array{id: int|null, label: string, amount_ves: float, bank_code: string|null}>,
      *     transfer_ves: float,
      *     transfer_usd: float,
      *     efectivo_ves: float,

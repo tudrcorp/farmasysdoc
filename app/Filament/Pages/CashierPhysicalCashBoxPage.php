@@ -2,11 +2,13 @@
 
 namespace App\Filament\Pages;
 
+use App\Enums\VenezuelanPagoMovilBank;
 use App\Models\PhysicalCashBox;
 use App\Models\PhysicalCashBoxMovement;
+use App\Models\PosTerminal;
 use App\Models\User;
+use App\Services\Sales\PhysicalCashBoxCloseService;
 use App\Support\Cash\CashierShiftLock;
-use App\Support\Cash\NotifyAdministratorsOnPhysicalCashBoxClose;
 use App\Support\Cash\NotifyOnPhysicalCashBoxOpen;
 use App\Support\Cash\PhysicalCashBoxBillingGate;
 use App\Support\Cash\UsdBillDenominationCalculator;
@@ -16,6 +18,9 @@ use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
@@ -233,14 +238,53 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
             ->label('Cerrar caja física')
             ->color('gray')
             ->modalHeading('Confirmar cierre de caja física')
-            ->modalDescription(fn (): string => 'Adjunte la foto del efectivo USD en caja y el comprobante de cierre del punto de venta. Al confirmar, se cerrará su turno y no podrá ingresar al sistema hasta las '
+            ->modalDescription(fn (): string => 'Declare los totales de punto de venta por banco, el efectivo USD/VES y adjunte las fotos. Al confirmar, se cerrará su turno y no podrá ingresar al sistema hasta las '
                 .CashierShiftLock::dailyUnlockTimeLabel()
                 .' del día siguiente (salvo que un administrador habilite su acceso antes).')
             ->modalIcon(Heroicon::Camera)
-            ->modalWidth(Width::TwoExtraLarge)
+            ->modalWidth(Width::FourExtraLarge)
             ->modalSubmitActionLabel('Confirmar cierre')
             ->closeModalByClickingAway(false)
+            ->fillForm(fn (): array => [
+                'close_usd' => $this->closeUsd,
+                'close_ves' => $this->closeVes,
+                'pos_declarations' => $this->defaultPosDeclarationsForClose(),
+            ])
             ->schema([
+                Repeater::make('pos_declarations')
+                    ->label('Total en punto de venta')
+                    ->helperText('Seleccione el banco de cada punto y cargue el total en bolívares. Si tiene varios puntos, añada una línea por banco. El sistema comparará contra las ventas de esta caja en ese banco.')
+                    ->addActionLabel('Añadir punto de venta')
+                    ->reorderable(false)
+                    ->defaultItems(0)
+                    ->schema([
+                        Select::make('bank_code')
+                            ->label('Banco del punto')
+                            ->options(fn (): array => $this->posBankOptionsForClose())
+                            ->required()
+                            ->searchable()
+                            ->native(false),
+                        TextInput::make('amount_ves')
+                            ->label('Total del punto (Bs.)')
+                            ->required()
+                            ->numeric()
+                            ->minValue(0)
+                            ->inputMode('decimal'),
+                    ])
+                    ->columns(2)
+                    ->columnSpanFull(),
+                TextInput::make('close_usd')
+                    ->label('Total en dólares en la caja física')
+                    ->required()
+                    ->numeric()
+                    ->minValue(0)
+                    ->inputMode('decimal'),
+                TextInput::make('close_ves')
+                    ->label('Total en bolívares en la caja física')
+                    ->required()
+                    ->numeric()
+                    ->minValue(0)
+                    ->inputMode('decimal'),
                 FileUpload::make('close_usd_cash_photo')
                     ->label('Foto del efectivo USD en caja')
                     ->helperText('Tome una foto clara de los billetes en dólares que quedan en la caja física.')
@@ -263,9 +307,13 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
                     ->required(),
             ])
             ->action(function (array $data): void {
+                $this->closeUsd = (string) ($data['close_usd'] ?? $this->closeUsd);
+                $this->closeVes = (string) ($data['close_ves'] ?? $this->closeVes);
+
                 $this->finalizePhysicalCashBoxClose(
                     usdCashPhotoPath: $this->normalizeUploadedPhotoPath($data['close_usd_cash_photo'] ?? null),
                     posReceiptPhotoPath: $this->normalizeUploadedPhotoPath($data['close_pos_receipt_photo'] ?? null),
+                    posDeclarations: $this->normalizePosDeclarations($data['pos_declarations'] ?? []),
                 );
             });
     }
@@ -281,8 +329,11 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
         return is_string($value) ? trim($value) : '';
     }
 
-    private function finalizePhysicalCashBoxClose(string $usdCashPhotoPath, string $posReceiptPhotoPath): void
-    {
+    private function finalizePhysicalCashBoxClose(
+        string $usdCashPhotoPath,
+        string $posReceiptPhotoPath,
+        array $posDeclarations,
+    ): void {
         $user = Auth::user();
         if (! $user instanceof User || ! $user->isCashier()) {
             abort(403);
@@ -322,41 +373,34 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
 
         $usd = round((float) str_replace(',', '.', $this->closeUsd), 2);
         $ves = round((float) str_replace(',', '.', $this->closeVes), 2);
-        $expectedUsd = round((float) $box->amount_usd, 2);
-        $expectedVes = round((float) $box->amount_ves, 2);
-        $openedAt = $box->opened_at ?? now();
-        $closedAt = now();
-
-        DB::transaction(function () use ($box, $usd, $ves, $usdCashPhotoPath, $posReceiptPhotoPath, $closedAt): void {
-            $box->forceFill([
-                'amount_usd' => $usd,
-                'amount_ves' => $ves,
-                'is_open' => false,
-                'closed_at' => $closedAt,
-                'close_usd_cash_photo_path' => $usdCashPhotoPath,
-                'close_pos_receipt_photo_path' => $posReceiptPhotoPath,
-            ])->save();
-        });
 
         try {
-            app(NotifyAdministratorsOnPhysicalCashBoxClose::class)->notify(
+            app(PhysicalCashBoxCloseService::class)->close(
                 cashier: $user,
-                physicalCashBox: $box->fresh() ?? $box,
-                openedAt: $openedAt,
-                closedAt: $closedAt,
-                reconciliationSnapshot: [
-                    'expected_usd' => $expectedUsd,
-                    'expected_ves' => $expectedVes,
-                    'declared_usd' => $usd,
-                    'declared_ves' => $ves,
-                ],
+                physicalCashBox: $box,
+                declaredUsd: $usd,
+                declaredVes: $ves,
+                usdCashPhotoPath: $usdCashPhotoPath,
+                posReceiptPhotoPath: $posReceiptPhotoPath,
+                posDeclarations: $posDeclarations,
             );
         } catch (Throwable $exception) {
-            Log::warning('No se pudo enviar WhatsApp de cierre de caja física', [
+            Log::warning('No se pudo completar el cierre de caja física', [
                 'cashier_id' => $user->getKey(),
                 'physical_cash_box_id' => $box->getKey(),
                 'error' => $exception->getMessage(),
             ]);
+
+            $box->refresh();
+            if ($box->is_open) {
+                Notification::make()
+                    ->title('No se pudo cerrar la caja')
+                    ->body($exception->getMessage())
+                    ->danger()
+                    ->send();
+
+                return;
+            }
         }
 
         CashierShiftLock::lockAfterShiftClose($user);
@@ -751,6 +795,95 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
     private function isManagementUser(User $user): bool
     {
         return $user->isAdministrator() || $user->hasGerenciaRole();
+    }
+
+    /**
+     * @return list<array{bank_code: string, amount_ves: string}>
+     */
+    private function defaultPosDeclarationsForClose(): array
+    {
+        $options = $this->posBankOptionsForClose();
+        if ($options === []) {
+            return [];
+        }
+
+        $lines = [];
+        foreach (array_keys($options) as $bankCode) {
+            $lines[] = [
+                'bank_code' => (string) $bankCode,
+                'amount_ves' => '0',
+            ];
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function posBankOptionsForClose(): array
+    {
+        $user = Auth::user();
+        if (! $user instanceof User || ! filled($user->branch_id)) {
+            return VenezuelanPagoMovilBank::optionsForSelect();
+        }
+
+        $bankCodes = PosTerminal::query()
+            ->where('branch_id', (int) $user->branch_id)
+            ->where('is_active', true)
+            ->whereNotNull('bank_code')
+            ->orderBy('bank_code')
+            ->pluck('bank_code')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($bankCodes->isEmpty()) {
+            return VenezuelanPagoMovilBank::optionsForSelect();
+        }
+
+        $options = [];
+        foreach ($bankCodes as $bankCode) {
+            $code = (string) $bankCode;
+            $options[$code] = VenezuelanPagoMovilBank::tryFrom($code)?->optionLabel() ?? $code;
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<array{bank_code: string, amount_ves: float}>
+     */
+    private function normalizePosDeclarations(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        $merged = [];
+        foreach ($value as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $bankCode = trim((string) ($row['bank_code'] ?? ''));
+            if ($bankCode === '') {
+                continue;
+            }
+
+            $amount = $this->parseMonetaryInput((string) ($row['amount_ves'] ?? '0'));
+            $merged[$bankCode] = round(($merged[$bankCode] ?? 0.0) + max(0.0, $amount), 2);
+        }
+
+        $lines = [];
+        foreach ($merged as $bankCode => $amount) {
+            $lines[] = [
+                'bank_code' => $bankCode,
+                'amount_ves' => $amount,
+            ];
+        }
+
+        return $lines;
     }
 
     private function parseMonetaryInput(string $value): float

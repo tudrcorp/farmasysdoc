@@ -8,7 +8,7 @@ final class PosTerminalCloseLines
 {
     /**
      * @param  array<int, float>  $totalsByTerminalId
-     * @return list<array{id: int|null, label: string, amount_ves: float}>
+     * @return list<array{id: int|null, label: string, amount_ves: float, bank_code: string|null}>
      */
     public function build(?int $branchId, array $totalsByTerminalId, float $unassignedPosVes): array
     {
@@ -47,6 +47,7 @@ final class PosTerminalCloseLines
                 'id' => (int) $terminal->id,
                 'label' => $label,
                 'amount_ves' => round((float) ($totalsByTerminalId[(int) $terminal->id] ?? 0), 2),
+                'bank_code' => filled($terminal->bank_code) ? (string) $terminal->bank_code : null,
             ];
         }
 
@@ -55,6 +56,7 @@ final class PosTerminalCloseLines
                 'id' => null,
                 'label' => 'POS sin punto asignado',
                 'amount_ves' => $unassignedPosVes,
+                'bank_code' => null,
             ];
         }
 

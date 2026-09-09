@@ -62,4 +62,12 @@ class PhysicalCashBox extends Model
     {
         return $this->hasMany(PhysicalCashBoxMovement::class, 'physical_cash_box_id');
     }
+
+    /**
+     * @return HasMany<PhysicalCashBoxCloseReport, $this>
+     */
+    public function closeReports(): HasMany
+    {
+        return $this->hasMany(PhysicalCashBoxCloseReport::class, 'physical_cash_box_id');
+    }
 }

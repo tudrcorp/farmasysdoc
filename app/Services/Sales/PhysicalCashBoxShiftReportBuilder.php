@@ -7,6 +7,7 @@ use App\Models\PhysicalCashBox;
 use App\Models\PhysicalCashBoxMovement;
 use App\Models\Sale;
 use App\Models\User;
+use App\Support\Cash\PhysicalCashBoxPosBankReconciler;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Sales\SaleCollectedMoneyAggregator;
 use Carbon\CarbonInterface;
@@ -24,6 +25,7 @@ final class PhysicalCashBoxShiftReportBuilder
 
     public function __construct(
         private readonly SaleCollectedMoneyAggregator $collectedMoneyAggregator,
+        private readonly PhysicalCashBoxPosBankReconciler $posBankReconciler,
     ) {}
 
     /**
@@ -32,6 +34,7 @@ final class PhysicalCashBoxShiftReportBuilder
      *     expected_ves: float,
      *     declared_usd: float,
      *     declared_ves: float,
+     *     declared_pos_lines?: list<array{bank_code: string, amount_ves: float}>,
      * }|null  $reconciliationSnapshot
      * @return array{
      *     cashier_name: string,
@@ -65,7 +68,7 @@ final class PhysicalCashBoxShiftReportBuilder
      *         total_usd: float,
      *         total_ves: float,
      *         punto_venta_ves: float,
-     *         pos_terminals: list<array{id: int|null, label: string, amount_ves: float}>,
+     *         pos_terminals: list<array{id: int|null, label: string, amount_ves: float, bank_code: string|null}>,
      *         pago_movil_ves: float,
      *         transfer_ves: float,
      *         transfer_usd: float,
@@ -95,6 +98,21 @@ final class PhysicalCashBoxShiftReportBuilder
      *         declared_usd: float,
      *         declared_ves: float,
      *         difference_usd: float,
+     *         difference_ves: float,
+     *         has_mismatch: bool,
+     *     },
+     *     pos_reconciliation: array{
+     *         lines: list<array{
+     *             bank_code: string,
+     *             bank_label: string,
+     *             declared_ves: float,
+     *             system_ves: float,
+     *             difference_ves: float,
+     *             status: string,
+     *             status_label: string,
+     *         }>,
+     *         declared_total_ves: float,
+     *         system_total_ves: float,
      *         difference_ves: float,
      *         has_mismatch: bool,
      *     },
@@ -142,6 +160,10 @@ final class PhysicalCashBoxShiftReportBuilder
         ];
 
         $timezone = (string) config('app.timezone');
+        $closeDetail = $this->buildCloseDetail($sales, $cashier, $physicalCashBox);
+        $declaredPosLines = is_array($reconciliationSnapshot['declared_pos_lines'] ?? null)
+            ? $reconciliationSnapshot['declared_pos_lines']
+            : [];
 
         return [
             'cashier_name' => filled($cashier->name) ? (string) $cashier->name : (string) ($cashier->email ?? 'Cajero'),
@@ -151,13 +173,17 @@ final class PhysicalCashBoxShiftReportBuilder
             'summary' => $summary,
             'payment_breakdown' => $paymentBreakdown,
             'payment_breakdown_totals' => $paymentBreakdownTotals,
-            'close_detail' => $this->buildCloseDetail($sales, $cashier, $physicalCashBox),
+            'close_detail' => $closeDetail,
             'cachea_detail' => $this->collectedMoneyAggregator->cacheaCuotaBreakdown($sales),
             'cash_box_reconciliation' => $this->buildCashBoxReconciliation(
                 $physicalCashBox,
                 $openedAt,
                 $closedAt,
                 $reconciliationSnapshot,
+            ),
+            'pos_reconciliation' => $this->posBankReconciler->reconcile(
+                $declaredPosLines,
+                $closeDetail['pos_terminals'],
             ),
         ];
     }
@@ -168,6 +194,7 @@ final class PhysicalCashBoxShiftReportBuilder
      *     expected_ves?: float,
      *     declared_usd?: float,
      *     declared_ves?: float,
+     *     declared_pos_lines?: list<array{bank_code: string, amount_ves: float}>,
      * }|null  $reconciliationSnapshot
      * @return array{
      *     movements_count: int,
@@ -355,7 +382,7 @@ final class PhysicalCashBoxShiftReportBuilder
      *     total_usd: float,
      *     total_ves: float,
      *     punto_venta_ves: float,
-     *     pos_terminals: list<array{id: int|null, label: string, amount_ves: float}>,
+     *     pos_terminals: list<array{id: int|null, label: string, amount_ves: float, bank_code: string|null}>,
      *     pago_movil_ves: float,
      *     transfer_ves: float,
      *     transfer_usd: float,

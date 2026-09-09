@@ -5838,6 +5838,317 @@ html.fi.dark .farmadoc-rol-perms__empty-sub {
     color: rgb(74 222 128);
 }
 
+.farmadoc-pos-consult {
+    width: 100%;
+}
+
+.farmadoc-pos-consult-field.fi-fo-field {
+    gap: 0;
+}
+
+.farmadoc-pos-consult__open {
+    display: inline-flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    min-height: 2.85rem;
+    font-size: 0.95rem;
+}
+
+.farmadoc-pos-consult__open:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    transform: none;
+    filter: none;
+}
+
+.farmadoc-pos-consult__open-icon {
+    width: 1.15rem;
+    height: 1.15rem;
+}
+
+.farmadoc-pos-consult__hotkey {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.7rem;
+    padding: 0.12rem 0.4rem;
+    border-radius: 0.4rem;
+    border: 1px solid rgb(255 255 255 / 0.45);
+    background: rgb(0 0 0 / 0.18);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+}
+
+.farmadoc-pos-consult-portal {
+    position: fixed;
+    inset: 0;
+    z-index: 210;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.farmadoc-pos-consult-portal[x-cloak] {
+    display: none !important;
+}
+
+.farmadoc-pos-consult__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgb(15 23 42 / 0.55);
+}
+
+.farmadoc-pos-consult__panel {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    width: min(72rem, 100%);
+    max-height: min(90vh, 46rem);
+    overflow: hidden;
+    border-radius: 1.25rem;
+    border: 1px solid rgb(228 228 231);
+    background: rgb(255 255 255);
+    box-shadow:
+        0 24px 64px rgb(15 23 42 / 0.28),
+        0 0 0 1px rgb(255 255 255 / 0.4);
+}
+
+.dark .farmadoc-pos-consult__panel {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27);
+    box-shadow:
+        0 24px 64px rgb(0 0 0 / 0.5),
+        0 0 0 1px rgb(255 255 255 / 0.06);
+}
+
+.farmadoc-pos-consult__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.1rem 0.75rem;
+    border-bottom: 1px solid rgb(228 228 231);
+}
+
+.dark .farmadoc-pos-consult__header {
+    border-bottom-color: rgb(63 63 70);
+}
+
+.farmadoc-pos-consult__heading h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: rgb(24 24 27);
+}
+
+.dark .farmadoc-pos-consult__heading h2 {
+    color: rgb(250 250 250);
+}
+
+.farmadoc-pos-consult__heading p {
+    margin: 0.2rem 0 0;
+    font-size: 0.8rem;
+    color: rgb(113 113 122);
+}
+
+.farmadoc-pos-consult__close {
+    flex-shrink: 0;
+    border-radius: 0.8rem;
+    border: 1px solid rgb(212 212 216);
+    background: rgb(250 250 250);
+    padding: 0.45rem 0.85rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: rgb(63 63 70);
+}
+
+.dark .farmadoc-pos-consult__close {
+    border-color: rgb(82 82 91);
+    background: rgb(39 39 42);
+    color: rgb(228 228 231);
+}
+
+.farmadoc-pos-consult__search-wrap {
+    padding: 0.85rem 1.1rem 0.5rem;
+}
+
+.farmadoc-pos-consult__search {
+    width: 100%;
+    border-radius: 0.9rem;
+    border: 1px solid rgb(212 212 216);
+    background: rgb(250 250 250);
+    padding: 0.7rem 0.9rem;
+    font-size: 1rem;
+    color: rgb(24 24 27);
+    outline: none;
+}
+
+.farmadoc-pos-consult__search:focus {
+    border-color: rgb(6 182 212 / 0.55);
+    box-shadow: 0 0 0 3px rgb(6 182 212 / 0.16);
+    background: rgb(255 255 255);
+}
+
+.dark .farmadoc-pos-consult__search {
+    border-color: rgb(82 82 91);
+    background: rgb(39 39 42);
+    color: rgb(250 250 250);
+}
+
+.farmadoc-pos-consult__hint {
+    margin: 0.45rem 0 0;
+    min-height: 1.1rem;
+    font-size: 0.75rem;
+    color: rgb(113 113 122);
+}
+
+.farmadoc-pos-consult__table-wrap {
+    min-height: 22rem;
+    overflow: auto;
+    padding: 0 0.65rem 0.85rem;
+}
+
+.farmadoc-pos-consult__table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.82rem;
+}
+
+.farmadoc-pos-consult__table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: rgb(250 250 250);
+    padding: 0.55rem 0.6rem;
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(113 113 122);
+    border-bottom: 1px solid rgb(228 228 231);
+}
+
+.dark .farmadoc-pos-consult__table thead th {
+    background: rgb(39 39 42);
+    border-bottom-color: rgb(63 63 70);
+    color: rgb(161 161 170);
+}
+
+.farmadoc-pos-consult__table tbody td {
+    padding: 0.55rem 0.6rem;
+    border-bottom: 1px solid rgb(244 244 245);
+    color: rgb(39 39 42);
+    vertical-align: middle;
+}
+
+.dark .farmadoc-pos-consult__table tbody td {
+    border-bottom-color: rgb(39 39 42);
+    color: rgb(228 228 231);
+}
+
+.farmadoc-pos-consult__table tbody tr {
+    cursor: pointer;
+}
+
+.farmadoc-pos-consult__table tbody tr.is-active td {
+    background: rgb(6 182 212 / 0.12);
+}
+
+.dark .farmadoc-pos-consult__table tbody tr.is-active td {
+    background: rgb(6 182 212 / 0.18);
+}
+
+.farmadoc-pos-consult__table tbody tr.is-out td {
+    opacity: 0.78;
+}
+
+.farmadoc-pos-consult__code,
+.farmadoc-pos-consult__num {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.farmadoc-pos-consult__num {
+    text-align: right;
+}
+
+.farmadoc-pos-consult__name {
+    font-weight: 600;
+}
+
+.farmadoc-pos-consult__pa {
+    color: rgb(82 82 91);
+}
+
+.dark .farmadoc-pos-consult__pa {
+    color: rgb(161 161 170);
+}
+
+.farmadoc-pos-consult__qty.is-zero {
+    font-weight: 700;
+    color: rgb(185 28 28);
+}
+
+.dark .farmadoc-pos-consult__qty.is-zero {
+    color: rgb(252 165 165);
+}
+
+.farmadoc-pos-consult__empty {
+    margin: 1.5rem 0.6rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: rgb(113 113 122);
+}
+
+.farmadoc-pos-cart-product {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.farmadoc-pos-cart-product__code {
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    color: rgb(113 113 122);
+}
+
+.farmadoc-pos-cart-product__name {
+    font-size: 0.88rem;
+    font-weight: 650;
+    color: rgb(24 24 27);
+    line-height: 1.25;
+}
+
+.dark .farmadoc-pos-cart-product__name {
+    color: rgb(250 250 250);
+}
+
+.farmadoc-pos-cart-empty {
+    margin: 0.15rem 0 0.65rem;
+    font-size: 0.82rem;
+    color: rgb(113 113 122);
+}
+
+.farmadoc-pos-line-total {
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    color: rgb(22 101 52);
+    white-space: nowrap;
+}
+
+.dark .farmadoc-pos-line-total {
+    color: rgb(74 222 128);
+}
+
 /*
  * Importe línea: misma “caja” que .fi-fo-text-input (cantidad). La clase va en el div .fi-in-entry
  * mediante extraEntryWrapperAttributes.

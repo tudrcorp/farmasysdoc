@@ -54,6 +54,7 @@ use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\ViewField;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Pages\BasePage;
@@ -73,10 +74,10 @@ use Filament\Support\Enums\Width;
 use Filament\Support\Exceptions\Halt;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Arrayable;
-use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -154,9 +155,8 @@ final class CashRegisterAction
 
                 $livewire = $action->getLivewire();
                 if ($livewire instanceof LivewireComponent) {
-                    $livewire->js(self::mountPosBarcodeAutoAdvanceJs());
                     if (filled($clientId)) {
-                        $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: true));
+                        $livewire->js(self::focusPosConsultButtonJs());
                     } else {
                         $livewire->js(self::mountPosRegisterFocusClientSelectJs());
                     }
@@ -183,310 +183,51 @@ final class CashRegisterAction
                                     ->default(false),
                                 Hidden::make('credit_sale_confirmed')
                                     ->default(false),
-                                Select::make('pos_sale_transfer_id')
-                                    ->label('Buscador de Traslados de Venta (codigo del traslado)')
-                                    ->placeholder('Ej. TV-260002 o parte del código')
-                                    ->live()
-                                    ->searchable()
-                                    ->searchDebounce(150)
-                                    ->getSearchResultsUsing(fn (string $search): array => self::posSaleTransferSearchResults($search))
-                                    ->getOptionLabelUsing(fn ($value): ?string => self::posSaleTransferOptionLabel($value))
-                                    ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
-                                        if (! filled($state)) {
-                                            return;
-                                        }
-
-                                        self::loadPosLineItemsFromSaleTransfer((int) $state, $set);
-
-                                        $livewire = $component->getLivewire();
-                                        if ($livewire instanceof LivewireComponent) {
-                                            $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
-                                        }
-                                    })
-                                    ->native(false)
-                                    ->prefixIcon(Heroicon::Truck)
+                                ViewField::make('pos_product_consult')
+                                    ->hiddenLabel()
+                                    ->view('filament.sales.pos-product-consult')
+                                    ->dehydrated(false)
+                                    ->extraFieldWrapperAttributes([
+                                        'class' => 'farmadoc-pos-consult-field',
+                                    ])
                                     ->columnSpanFull(),
-                                Select::make('pos_product_search')
-                                    ->label('Buscador General de Productos (Nombre, Codigo, PA)')
-                                    ->placeholder('Código, nombre o principio activo')
-                                    ->searchPrompt('Escriba nombre, principio activo o código')
-                                    ->live()
-                                    ->searchable()
-                                    ->searchDebounce(150)
-                                    ->disabled(fn (): bool => blank(Auth::user()?->branch_id))
-                                    ->native(false)
-                                    ->getSearchResultsUsing(function (string $search, Get $get): array {
-                                        $branchId = Auth::user()?->branch_id;
-                                        if (blank($branchId)) {
-                                            return [];
-                                        }
-
-                                        return self::searchInventoryProductsForBranch((int) $branchId, $search, $get);
-                                    })
-                                    ->getOptionLabelUsing(function ($value, Get $get): ?string {
-                                        if (blank($value)) {
-                                            return null;
-                                        }
-
-                                        $branchId = Auth::user()?->branch_id;
-                                        if (blank($branchId)) {
-                                            return null;
-                                        }
-
-                                        return self::buildPosSearchOptionLabelFromCatalog((int) $branchId, (int) $value, $get);
-                                    })
-                                    ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
-                                        if (! filled($state)) {
-                                            return;
-                                        }
-
-                                        $branchId = Auth::user()?->branch_id;
-                                        if (blank($branchId)) {
-                                            return;
-                                        }
-
-                                        self::appendProductToPosLineItems(
-                                            branchId: (int) $branchId,
-                                            productId: (int) $state,
-                                            set: $set,
-                                            get: $get,
-                                        );
-                                        self::ensurePosTrailingEmptyLine($set, $get);
-
-                                        $set('pos_product_search', null);
-
-                                        $livewire = $component->getLivewire();
-                                        if ($livewire instanceof LivewireComponent) {
-                                            $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
-                                        }
-                                    })
+                                Placeholder::make('pos_cart_empty_hint')
+                                    ->hiddenLabel()
+                                    ->dehydrated(false)
+                                    ->visible(fn (Get $get): bool => self::posLineItemsAreEmpty($get('line_items')))
+                                    ->content(new HtmlString(
+                                        '<p class="farmadoc-pos-cart-empty">No hay productos en la venta. Pulse «Consultar Productos» para buscar y añadir.</p>'
+                                    ))
                                     ->columnSpanFull(),
                                 Repeater::make('line_items')
                                     ->label('')
                                     ->reorderable(false)
-                                    ->addActionLabel('Añadir producto')
-                                    ->defaultItems(1)
-                                    ->minItems(1)
+                                    ->addable(false)
+                                    ->defaultItems(0)
+                                    ->minItems(0)
                                     ->live()
                                     ->partiallyRenderAfterActionsCalled(false)
-                                    ->itemLabel(function (array $state, Get $get): string|Htmlable {
-                                        if (! filled($state['product_id'] ?? null)) {
-                                            return 'Nueva línea';
-                                        }
-
-                                        $product = self::posProduct((int) $state['product_id']);
-                                        $title = $product
-                                            ? (filled($product->barcode)
-                                                ? $product->barcode.' · '.$product->name
-                                                : $product->name)
-                                            : 'Producto';
-                                        $branchId = Auth::user()?->branch_id;
-                                        $fefoBadgeHtml = '';
-                                        if ($product instanceof Product && filled($branchId)) {
-                                            $title .= self::posProductBolivaresAndBranchStockSuffix((int) $branchId, $product, $get);
-                                            $fefoAlert = self::posNearExpiryLotAlert((int) $branchId, (int) $product->id);
-                                            if ($fefoAlert instanceof NearExpiryLotAlert) {
-                                                $fefoBadgeHtml = ' '.$fefoAlert->badgeHtml();
-                                            }
-                                        }
-                                        $total = self::formatMoney(self::computeLineTotalFromRowState($state, $get));
-                                        $clientId = filled($get('client_id')) ? (int) $get('client_id') : null;
-                                        $discountPercent = app(ClientCommercialDiscountResolver::class)->percentForClientId($clientId);
-                                        if ($discountPercent > 0.00001) {
-                                            $original = self::computeLineTotalFromRowState($state, $get);
-                                            $discounted = round($original * (1 - ($discountPercent / 100)), 2);
-                                            $total = '<span class="line-through opacity-70">'.self::formatMoney($original)
-                                                .'</span> → <span class="farmadoc-pos-repeater-item-total">'.self::formatMoney($discounted).'</span>';
-                                        } else {
-                                            $total = '<span class="farmadoc-pos-repeater-item-total">'.$total.'</span>';
-                                        }
-
-                                        return new HtmlString(
-                                            e($title).$fefoBadgeHtml.' · '.$total
-                                        );
-                                    })
                                     ->extraAttributes([
                                         'class' => 'farmadoc-pos-line-items-repeater fi-fixed-positioning-context',
                                     ])
+                                    ->visible(fn (Get $get): bool => ! self::posLineItemsAreEmpty($get('line_items')))
                                     ->table([
                                         TableColumn::make('Producto')
-                                            ->width('70%'),
-                                        TableColumn::make('Cantidad'),
+                                            ->width('52%'),
+                                        TableColumn::make('Cantidad')
+                                            ->width('28%'),
+                                        TableColumn::make('Total')
+                                            ->alignment(Alignment::End)
+                                            ->width('20%'),
                                     ])
                                     ->schema([
+                                        Hidden::make('product_id')
+                                            ->required(),
                                         Grid::make(1)
                                             ->schema([
-                                                Select::make('product_id')
-                                                    ->label('Producto')
-                                                    ->searchable()
-                                                    ->searchDebounce(200)
-                                                    ->disabled(fn (): bool => blank(Auth::user()?->branch_id))
-                                                    ->getSearchResultsUsing(function (string $search, Get $get): array {
-                                                        $branchId = Auth::user()?->branch_id;
-                                                        if (blank($branchId)) {
-                                                            return [];
-                                                        }
-
-                                                        return self::searchInventoryProductsForBranch((int) $branchId, $search, $get);
-                                                    })
-                                                    ->getOptionLabelUsing(function ($value, Get $get): ?string {
-                                                        if (blank($value)) {
-                                                            return null;
-                                                        }
-
-                                                        $branchId = Auth::user()?->branch_id;
-                                                        if (blank($branchId)) {
-                                                            return null;
-                                                        }
-
-                                                        $id = (int) $value;
-
-                                                        return self::buildPosSearchOptionLabelFromCatalog((int) $branchId, $id, $get)
-                                                            ?? ('Producto #'.$id);
-                                                    })
-                                                    ->afterStateUpdated(function (
-                                                        mixed $state,
-                                                        mixed $old,
-                                                        Set $set,
-                                                        Get $get,
-                                                        $livewire,
-                                                        Select $component,
-                                                    ): void {
-                                                        if (blank($state) || filled($old)) {
-                                                            return;
-                                                        }
-
-                                                        $fieldPath = $component->getStatePath();
-                                                        if (! is_string($fieldPath) || ! Str::endsWith($fieldPath, '.product_id')) {
-                                                            return;
-                                                        }
-
-                                                        /*
-                                                         * El Select está en el ítem del repeater; un solo «..» devuelve la fila
-                                                         * {product_id, quantity}, no todo line_items. Usamos la ruta absoluta.
-                                                         */
-                                                        $itemContainerPath = Str::beforeLast($fieldPath, '.');
-                                                        $lineItemsPath = Str::beforeLast($itemContainerPath, '.');
-                                                        $currentItemKey = Str::afterLast($itemContainerPath, '.');
-
-                                                        $lineItems = $get($lineItemsPath, isAbsolute: true);
-                                                        if (! is_array($lineItems) || $lineItems === []) {
-                                                            return;
-                                                        }
-
-                                                        $branchId = Auth::user()?->branch_id;
-                                                        if (blank($branchId)) {
-                                                            return;
-                                                        }
-
-                                                        $keys = array_keys($lineItems);
-                                                        $lastKey = $keys[array_key_last($keys)];
-
-                                                        if ((string) $currentItemKey !== (string) $lastKey) {
-                                                            return;
-                                                        }
-
-                                                        $keysList = array_values($keys);
-                                                        $newProductId = (int) $state;
-                                                        self::warmPosDataForBranch((int) $branchId, [$newProductId]);
-
-                                                        $selectedProduct = self::posProduct($newProductId);
-                                                        $selectedProductLabel = $selectedProduct instanceof Product
-                                                            ? $selectedProduct->name
-                                                            : 'Producto #'.$newProductId;
-                                                        $availableForSelectedProduct = self::posAvailableQuantity((int) $branchId, $newProductId);
-                                                        if ($availableForSelectedProduct !== null && $availableForSelectedProduct <= 0.0001) {
-                                                            self::notifyPosStockZero((int) $branchId, $newProductId, $selectedProductLabel);
-                                                            $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
-                                                            $set("{$lineItemsPath}.{$currentItemKey}.quantity", 1, isAbsolute: true);
-
-                                                            if ($livewire instanceof LivewireComponent) {
-                                                                $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
-                                                            }
-
-                                                            return;
-                                                        }
-
-                                                        self::notifyPosNearExpiryLotIfNeeded(
-                                                            (int) $branchId,
-                                                            $newProductId,
-                                                            $selectedProductLabel,
-                                                        );
-
-                                                        $mergeTargetKey = null;
-                                                        foreach ($keysList as $k) {
-                                                            if ((string) $k === (string) $currentItemKey) {
-                                                                continue;
-                                                            }
-
-                                                            $row = $lineItems[$k] ?? null;
-                                                            if (is_array($row) && filled($row['product_id'] ?? null)
-                                                                && (int) $row['product_id'] === $newProductId) {
-                                                                $mergeTargetKey = $k;
-                                                                break;
-                                                            }
-                                                        }
-
-                                                        if ($mergeTargetKey !== null) {
-                                                            $targetRow = $lineItems[$mergeTargetKey] ?? [];
-                                                            $targetQty = is_array($targetRow)
-                                                                ? (float) ($targetRow['quantity'] ?? 1)
-                                                                : 1.0;
-                                                            $currRow = $lineItems[$currentItemKey] ?? [];
-                                                            $currQty = is_array($currRow)
-                                                                ? (float) ($currRow['quantity'] ?? 1)
-                                                                : 1.0;
-                                                            $mergedQty = round(
-                                                                max(0.001, $targetQty + max(0.001, $currQty)),
-                                                                3,
-                                                            );
-
-                                                            if ($availableForSelectedProduct !== null && $mergedQty > ($availableForSelectedProduct + 0.0001)) {
-                                                                self::notifyPosQuantityExceedsStock(
-                                                                    $selectedProductLabel,
-                                                                    $mergedQty,
-                                                                    $availableForSelectedProduct,
-                                                                );
-                                                                $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
-                                                                $set("{$lineItemsPath}.{$currentItemKey}.quantity", 1, isAbsolute: true);
-
-                                                                if ($livewire instanceof LivewireComponent) {
-                                                                    $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
-                                                                }
-
-                                                                return;
-                                                            }
-
-                                                            $set("{$lineItemsPath}.{$mergeTargetKey}.quantity", $mergedQty, isAbsolute: true);
-                                                            $set("{$lineItemsPath}.{$currentItemKey}.product_id", null, isAbsolute: true);
-                                                            $set("{$lineItemsPath}.{$currentItemKey}.quantity", 1, isAbsolute: true);
-
-                                                            if ($livewire instanceof LivewireComponent) {
-                                                                $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
-                                                            }
-
-                                                            return;
-                                                        }
-
-                                                        /*
-                                                 * Solo añadir una fila nueva con Set puntual (data_set). No reemplazar
-                                                 * todo line_items: evita estado desincronizado y remount del Select
-                                                 * que borra la búsqueda / valor en la primera interacción.
-                                                 */
-                                                        $newKey = (string) Str::uuid();
-                                                        $set("{$lineItemsPath}.{$newKey}", [
-                                                            'product_id' => null,
-                                                            'quantity' => 1,
-                                                        ], isAbsolute: true);
-
-                                                        if (! $livewire instanceof LivewireComponent) {
-                                                            return;
-                                                        }
-
-                                                        $livewire->js(self::focusPosLineProductSearchJs(pickFirstItem: false));
-                                                    })
-                                                    ->live()
-                                                    ->native(false),
+                                                Placeholder::make('product_display')
+                                                    ->hiddenLabel()
+                                                    ->content(fn (Get $get): HtmlString => self::posCartProductCellHtml($get)),
                                                 Placeholder::make('fefo_alert_banner')
                                                     ->hiddenLabel()
                                                     ->content(function (Get $get): HtmlString {
@@ -506,7 +247,7 @@ final class CashRegisterAction
                                                     ->visible(fn (Get $get): bool => filled($get('product_id'))),
                                             ]),
                                         TextInput::make('quantity')
-                                            ->label('Cantidad')
+                                            ->hiddenLabel()
                                             ->numeric()
                                             ->minValue(0.001)
                                             ->step(0.001)
@@ -598,6 +339,10 @@ final class CashRegisterAction
                                             ->extraAttributes([
                                                 'class' => 'farmadoc-pos-qty-field',
                                             ]),
+                                        Placeholder::make('line_total_display')
+                                            ->hiddenLabel()
+                                            ->dehydrated(false)
+                                            ->content(fn (Get $get): HtmlString => self::posCartLineTotalHtml($get)),
                                     ]),
                             ])
                             ->columns(1)
@@ -3838,6 +3583,79 @@ final class CashRegisterAction
         return '$'.number_format($amount, 2, '.', ',');
     }
 
+    private static function posLineItemsAreEmpty(mixed $lineItems): bool
+    {
+        if (! is_array($lineItems) || $lineItems === []) {
+            return true;
+        }
+
+        foreach ($lineItems as $row) {
+            if (is_array($row) && filled($row['product_id'] ?? null)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function posCartProductCellHtml(Get $get): HtmlString
+    {
+        $productId = $get('product_id');
+        if (! filled($productId)) {
+            return new HtmlString('<span class="farmadoc-pos-cart-product__code">Sin producto</span>');
+        }
+
+        $product = self::posProduct((int) $productId);
+        $code = $product instanceof Product && filled($product->barcode)
+            ? (string) $product->barcode
+            : '—';
+        $name = $product instanceof Product
+            ? (string) $product->name
+            : 'Producto #'.(int) $productId;
+
+        $badge = '';
+        $branchId = Auth::user()?->branch_id;
+        if ($product instanceof Product && filled($branchId)) {
+            $alert = self::posNearExpiryLotAlert((int) $branchId, (int) $product->id);
+            if ($alert instanceof NearExpiryLotAlert) {
+                $badge = $alert->badgeHtml();
+            }
+        }
+
+        return new HtmlString(
+            '<div class="farmadoc-pos-cart-product">'
+            .'<span class="farmadoc-pos-cart-product__code">'.e($code).'</span>'
+            .'<span class="farmadoc-pos-cart-product__name">'.e($name).$badge.'</span>'
+            .'</div>'
+        );
+    }
+
+    private static function posCartLineTotalHtml(Get $get): HtmlString
+    {
+        $rowState = [
+            'product_id' => $get('product_id'),
+            'quantity' => $get('quantity'),
+        ];
+        $original = self::computeLineTotalFromRowState($rowState, $get);
+        $clientId = filled($get('../../client_id'))
+            ? (int) $get('../../client_id')
+            : (filled($get('../client_id')) ? (int) $get('../client_id') : null);
+        $discountPercent = app(ClientCommercialDiscountResolver::class)->percentForClientId($clientId);
+
+        if ($discountPercent > 0.00001) {
+            $discounted = round($original * (1 - ($discountPercent / 100)), 2);
+
+            return new HtmlString(
+                '<span class="line-through opacity-70">'.e(self::formatMoney($original)).'</span>'
+                .' <span class="farmadoc-pos-line-total">'.e(self::formatMoney($discounted)).'</span>'
+            );
+        }
+
+        return new HtmlString(
+            '<span class="farmadoc-pos-line-total">'.e(self::formatMoney($original)).'</span>'
+        );
+    }
+
     private static function formatBolivaresReference(float $usdAmount, Get $get): string
     {
         $rate = self::effectiveVesUsdRate($get);
@@ -4855,6 +4673,7 @@ final class CashRegisterAction
                 'cost_price',
                 'applies_vat',
                 'product_category_id',
+                'active_ingredient',
             ];
             if (SchemaFacade::hasColumn('products', 'requires_expiry_on_purchase')) {
                 $select[] = 'requires_expiry_on_purchase';
@@ -5192,117 +5011,241 @@ final class CashRegisterAction
      */
     private static function searchInventoryProductsForBranch(int $branchId, string $search, ?Get $get = null, bool $requirePositiveQuantity = false): array
     {
-        $term = trim($search);
+        $rate = self::effectiveVesUsdRateForPosProductLabels($get);
+        $rows = self::consultProductSearchRows(
+            $branchId,
+            $search,
+            $rate,
+            $requirePositiveQuantity,
+            25,
+        );
 
-        if ($term !== '') {
-            $exactProductId = DB::table('inventories')
+        return collect($rows)->mapWithKeys(static fn (array $row): array => [
+            $row['id'] => self::formatPosSearchOptionLabelFast(
+                $row['base_label'],
+                $row['price_usd_raw'],
+                $row['quantity_raw'],
+                $rate,
+            ),
+        ])->all();
+    }
+
+    /**
+     * @return list<array{
+     *     id: int,
+     *     code: string,
+     *     name: string,
+     *     active_ingredient: string,
+     *     price_usd: string,
+     *     price_ves: string,
+     *     quantity: string,
+     *     out_of_stock: bool,
+     *     base_label: string,
+     *     price_usd_raw: float,
+     *     quantity_raw: float
+     * }>
+     */
+    public static function searchPosConsultProductsForCurrentUser(string $search, LivewireComponent $livewire): array
+    {
+        if (! PhysicalCashBoxBillingGate::userMayUseCashRegister(Auth::user())) {
+            return [];
+        }
+
+        $branchId = Auth::user()?->branch_id;
+        if (blank($branchId)) {
+            return [];
+        }
+
+        $rate = 0.0;
+        if ($livewire instanceof BasePage) {
+            foreach ($livewire->mountedActions ?? [] as $entry) {
+                if (! is_array($entry) || ($entry['name'] ?? '') !== self::REGISTER_ACTION_NAME) {
+                    continue;
+                }
+
+                if (is_array($entry['data'] ?? null)) {
+                    $rate = self::effectiveVesUsdRateFromData($entry['data']);
+                }
+
+                break;
+            }
+        }
+
+        if ($rate <= 0.0) {
+            $rate = self::effectiveVesUsdRateForPosProductLabels(null);
+        }
+
+        $rows = self::consultProductSearchRows((int) $branchId, $search, $rate);
+
+        return array_map(static fn (array $row): array => [
+            'id' => $row['id'],
+            'code' => $row['code'],
+            'name' => $row['name'],
+            'active_ingredient' => $row['active_ingredient'],
+            'price_usd' => $row['price_usd'],
+            'price_ves' => $row['price_ves'],
+            'quantity' => $row['quantity'],
+            'out_of_stock' => $row['out_of_stock'],
+        ], $rows);
+    }
+
+    private static function normalizePosConsultSearchTerm(string $search): string
+    {
+        $term = trim($search);
+        $term = preg_replace('/\s+/u', '', $term) ?? $term;
+
+        return $term;
+    }
+
+    private static function posConsultTermLooksLikeCode(string $term): bool
+    {
+        $compact = preg_replace('/[\s\-]/', '', $term) ?? $term;
+
+        return $compact !== '' && ctype_digit($compact) && strlen($compact) >= 8;
+    }
+
+    private static function resolvePosConsultExactProductId(int $branchId, string $term, bool $requirePositiveQuantity): ?int
+    {
+        $candidates = array_values(array_unique(array_filter([
+            $term,
+            preg_replace('/[\s\-]/', '', $term) ?: null,
+        ], static fn (mixed $value): bool => is_string($value) && $value !== '')));
+
+        foreach ($candidates as $candidate) {
+            $id = self::resolvePosProductIdByExactCatalogCode($candidate);
+            if ($id === null && SchemaFacade::hasColumn('products', 'sku') && ctype_digit($candidate)) {
+                $id = Product::query()
+                    ->where('is_active', true)
+                    ->where('sku', 'CSV-'.$candidate)
+                    ->value('id');
+                $id = filled($id) ? (int) $id : null;
+            }
+
+            if ($id === null) {
+                continue;
+            }
+
+            if ($requirePositiveQuantity) {
+                $qty = (float) (DB::table('inventories')
+                    ->where('branch_id', $branchId)
+                    ->where('product_id', $id)
+                    ->value('quantity') ?? 0);
+                if ($qty <= 0.0001) {
+                    continue;
+                }
+            }
+
+            return $id;
+        }
+
+        foreach ($candidates as $candidate) {
+            $id = DB::table('inventories')
                 ->join('products', 'products.id', '=', 'inventories.product_id')
                 ->where('inventories.branch_id', $branchId)
                 ->where('products.is_active', true)
                 ->whereNotNull('inventories.product_id')
                 ->when($requirePositiveQuantity, fn ($q) => $q->where('inventories.quantity', '>', 0))
-                ->where('products.barcode', $term)
+                ->where(function ($w) use ($candidate): void {
+                    $w->where('products.barcode', $candidate)
+                        ->orWhereRaw('REPLACE(REPLACE(products.barcode, " ", ""), "-", "") = ?', [$candidate]);
+
+                    if (SchemaFacade::hasColumn('products', 'sku')) {
+                        $w->orWhere('products.sku', $candidate)
+                            ->orWhere('products.sku', 'CSV-'.$candidate);
+                    }
+                })
                 ->value('products.id');
 
-            if (blank($exactProductId) && SchemaFacade::hasColumn('products', 'sku')) {
-                $exactProductId = DB::table('inventories')
-                    ->join('products', 'products.id', '=', 'inventories.product_id')
-                    ->where('inventories.branch_id', $branchId)
-                    ->where('products.is_active', true)
-                    ->whereNotNull('inventories.product_id')
-                    ->when($requirePositiveQuantity, fn ($q) => $q->where('inventories.quantity', '>', 0))
-                    ->where('products.sku', $term)
-                    ->value('products.id');
+            if (filled($id)) {
+                return (int) $id;
+            }
+        }
+
+        return null;
+    }
+
+    public static function addConsultProductToMountedRegister(LivewireComponent $livewire, int $productId): void
+    {
+        if (! $livewire instanceof BasePage || $productId <= 0) {
+            return;
+        }
+
+        if (! PhysicalCashBoxBillingGate::userMayUseCashRegister(Auth::user())) {
+            return;
+        }
+
+        $branchId = Auth::user()?->branch_id;
+        if (blank($branchId)) {
+            return;
+        }
+
+        $mounted = $livewire->mountedActions ?? null;
+        if (! is_array($mounted) || $mounted === []) {
+            return;
+        }
+
+        foreach ($mounted as $i => $entry) {
+            if (! is_array($entry) || ($entry['name'] ?? '') !== self::REGISTER_ACTION_NAME) {
+                continue;
             }
 
-            if (blank($exactProductId) && SchemaFacade::hasColumn('products', 'slug')) {
-                $exactProductId = DB::table('inventories')
-                    ->join('products', 'products.id', '=', 'inventories.product_id')
-                    ->where('inventories.branch_id', $branchId)
-                    ->where('products.is_active', true)
-                    ->whereNotNull('inventories.product_id')
-                    ->when($requirePositiveQuantity, fn ($q) => $q->where('inventories.quantity', '>', 0))
-                    ->where('products.slug', $term)
-                    ->value('products.id');
-            }
+            $data = is_array($entry['data'] ?? null) ? $entry['data'] : [];
+            $lineItems = is_array($data['line_items'] ?? null) ? $data['line_items'] : [];
+            $mounted[$i]['data']['line_items'] = self::appendProductToLineItemsArray(
+                (int) $branchId,
+                $productId,
+                $lineItems,
+            );
+            $livewire->mountedActions = $mounted;
 
-            // Misma lógica que la compra: producto activo en catálogo aunque aún no tenga fila en inventarios de esta sucursal.
-            if (blank($exactProductId)) {
-                $catalogId = self::resolvePosProductIdByExactCatalogCode($term);
-                if ($catalogId !== null) {
-                    if ($requirePositiveQuantity) {
-                        $catQty = (float) (DB::table('inventories')
-                            ->where('branch_id', $branchId)
-                            ->where('product_id', $catalogId)
-                            ->value('quantity') ?? 0);
-                        if ($catQty > 0.0001) {
-                            $exactProductId = $catalogId;
-                        }
-                    } else {
-                        $exactProductId = $catalogId;
-                    }
-                }
-            }
+            return;
+        }
+    }
+
+    /**
+     * @return list<array{
+     *     id: int,
+     *     code: string,
+     *     name: string,
+     *     active_ingredient: string,
+     *     price_usd: string,
+     *     price_ves: string,
+     *     quantity: string,
+     *     out_of_stock: bool,
+     *     base_label: string,
+     *     price_usd_raw: float,
+     *     quantity_raw: float
+     * }>
+     */
+    private static function consultProductSearchRows(
+        int $branchId,
+        string $search,
+        float $vesUsdRate,
+        bool $requirePositiveQuantity = false,
+        int $emptyLimit = 10,
+        int $searchLimit = 40,
+    ): array {
+        $term = self::normalizePosConsultSearchTerm($search);
+
+        if ($term !== '') {
+            $exactProductId = self::resolvePosConsultExactProductId($branchId, $term, $requirePositiveQuantity);
 
             if (filled($exactProductId)) {
-                $id = (int) $exactProductId;
-                $selectCols = ['id', 'name', 'barcode', 'sale_price', 'applies_vat'];
-                if (SchemaFacade::hasColumn('products', 'sku')) {
-                    $selectCols[] = 'sku';
-                }
+                $mapped = self::mapConsultProductRows(
+                    $branchId,
+                    collect([(object) ['id' => (int) $exactProductId]]),
+                    $vesUsdRate,
+                    $requirePositiveQuantity,
+                );
 
-                $row = DB::table('products')
-                    ->select($selectCols)
-                    ->where('id', $id)
-                    ->where('is_active', true)
-                    ->first();
-
-                if ($row !== null) {
-                    self::warmPosDataForBranch($branchId, [$id]);
-                    $product = self::posProduct($id);
-                    $base = filled($row->barcode)
-                        ? $row->barcode.' · '.$row->name
-                        : $row->name;
-                    $qty = (float) (DB::table('inventories')
-                        ->where('branch_id', $branchId)
-                        ->where('product_id', $id)
-                        ->value('quantity') ?? 0);
-                    $rate = self::effectiveVesUsdRateForPosProductLabels($get);
-                    $unitPricing = $product instanceof Product
-                        ? self::posUnitPricingForBranch($product, $branchId)
-                        : [
-                            'unit_net' => (float) ($row->sale_price ?? 0),
-                            'unit_final' => 0.0,
-                            'applies_vat' => (bool) ($row->applies_vat ?? false),
-                        ];
-
-                    if ($requirePositiveQuantity && max(0.0, $qty) <= 0.0001) {
-                        return [];
-                    }
-
-                    return [$id => self::formatPosSearchOptionLabelFast(
-                        $base,
-                        $unitPricing['unit_final'],
-                        max(0.0, $qty),
-                        $rate,
-                    )];
+                if ($mapped !== []) {
+                    return $mapped;
                 }
             }
-        }
 
-        $selectList = [
-            'products.id',
-            'products.name',
-            'products.barcode',
-            'products.sale_price',
-            'products.applies_vat',
-            'inventories.quantity as branch_quantity',
-        ];
-        if (SchemaFacade::hasColumn('products', 'sku')) {
-            $selectList[] = 'products.sku';
-        }
-        if (SchemaFacade::hasColumn('products', 'slug')) {
-            $selectList[] = 'products.slug';
+            if (self::posConsultTermLooksLikeCode($term)) {
+                return [];
+            }
         }
 
         $query = DB::table('inventories')
@@ -5311,9 +5254,9 @@ final class CashRegisterAction
             ->where('products.is_active', true)
             ->whereNotNull('inventories.product_id')
             ->when($requirePositiveQuantity, fn ($q) => $q->where('inventories.quantity', '>', 0))
-            ->select($selectList)
+            ->select(['products.id'])
             ->orderBy('products.name')
-            ->limit($term === '' ? 25 : 40);
+            ->limit($term === '' ? max(10, $emptyLimit) : $searchLimit);
 
         if ($term !== '') {
             $like = '%'.addcslashes($term, '%_\\').'%';
@@ -5338,35 +5281,113 @@ final class CashRegisterAction
             return [];
         }
 
-        self::warmPosDataForBranch(
-            $branchId,
-            $rows->pluck('id')->map(static fn (mixed $id): int => (int) $id)->all(),
-        );
+        return self::mapConsultProductRows($branchId, $rows, $vesUsdRate, $requirePositiveQuantity);
+    }
 
-        $rate = self::effectiveVesUsdRateForPosProductLabels($get);
+    /**
+     * @param  Collection<int, object>  $rows
+     * @return list<array{
+     *     id: int,
+     *     code: string,
+     *     name: string,
+     *     active_ingredient: string,
+     *     price_usd: string,
+     *     price_ves: string,
+     *     quantity: string,
+     *     out_of_stock: bool,
+     *     base_label: string,
+     *     price_usd_raw: float,
+     *     quantity_raw: float
+     * }>
+     */
+    private static function mapConsultProductRows(int $branchId, Collection $rows, float $vesUsdRate, bool $requirePositiveQuantity): array
+    {
+        $ids = $rows
+            ->map(static fn (mixed $row): int => (int) ($row->id ?? 0))
+            ->filter(static fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
 
-        return $rows->mapWithKeys(function ($row) use ($rate, $branchId): array {
-            $id = (int) $row->id;
+        if ($ids === []) {
+            return [];
+        }
+
+        self::warmPosDataForBranch($branchId, $ids);
+
+        $mapped = [];
+
+        foreach ($rows as $row) {
+            $id = (int) ($row->id ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+
             $product = self::posProduct($id);
-            $base = filled($row->barcode)
-                ? $row->barcode.' · '.$row->name
-                : $row->name;
-            $qty = isset($row->branch_quantity) ? max(0.0, (float) $row->branch_quantity) : 0.0;
-            $unitPricing = $product instanceof Product
-                ? self::posUnitPricingForBranch($product, $branchId)
-                : [
-                    'unit_net' => (float) ($row->sale_price ?? 0),
-                    'unit_final' => 0.0,
-                    'applies_vat' => (bool) ($row->applies_vat ?? false),
-                ];
+            if (! $product instanceof Product) {
+                continue;
+            }
 
-            return [$id => self::formatPosSearchOptionLabelFast(
-                $base,
-                $unitPricing['unit_final'],
-                $qty,
-                $rate,
-            )];
-        })->all();
+            $unitPricing = self::posUnitPricingForBranch($product, $branchId);
+            $unitFinal = $unitPricing['unit_final'];
+            $available = self::posAvailableQuantity($branchId, $id);
+            $qty = $available !== null ? max(0.0, $available) : 0.0;
+
+            if ($requirePositiveQuantity && $qty <= 0.0001) {
+                continue;
+            }
+
+            $barcode = filled($product->barcode) ? (string) $product->barcode : '';
+            $sku = filled($product->sku) ? (string) $product->sku : '';
+            $code = $barcode !== '' ? $barcode : ($sku !== '' ? $sku : '—');
+            $name = (string) $product->name;
+            $base = $barcode !== '' ? $barcode.' · '.$name : $name;
+
+            $mapped[] = [
+                'id' => $id,
+                'code' => $code,
+                'name' => $name,
+                'active_ingredient' => self::formatPosActiveIngredient($product->active_ingredient),
+                'price_usd' => self::formatMoney($unitFinal),
+                'price_ves' => $vesUsdRate > 0.0
+                    ? self::formatBolivaresReferenceFromVes(self::posListPriceVesFromUsd($unitFinal, $vesUsdRate))
+                    : 'Bs. —',
+                'quantity' => InventoryQuantityFormat::display($qty),
+                'out_of_stock' => $qty <= 0.0001,
+                'base_label' => $base,
+                'price_usd_raw' => $unitFinal,
+                'quantity_raw' => $qty,
+            ];
+        }
+
+        return $mapped;
+    }
+
+    private static function formatPosActiveIngredient(mixed $value): string
+    {
+        if (is_string($value) && $value !== '' && (str_starts_with($value, '[') || str_starts_with($value, '{'))) {
+            $decoded = json_decode($value, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $value = $decoded;
+            }
+        }
+
+        if (is_array($value)) {
+            $parts = [];
+            foreach ($value as $item) {
+                if (is_string($item) && $item !== '') {
+                    $parts[] = $item;
+                }
+            }
+
+            return $parts === [] ? '—' : implode(', ', $parts);
+        }
+
+        if (is_string($value) && trim($value) !== '') {
+            return $value;
+        }
+
+        return '—';
     }
 
     /**
@@ -5381,7 +5402,11 @@ final class CashRegisterAction
         return ProductUnitPricingForBranch::resolve($product, $branchId, $inventory);
     }
 
-    private static function appendProductToPosLineItems(int $branchId, int $productId, Set $set, Get $get): void
+    /**
+     * @param  array<string, mixed>  $lineItems
+     * @return array<string, mixed>
+     */
+    private static function appendProductToLineItemsArray(int $branchId, int $productId, array $lineItems): array
     {
         self::warmPosDataForBranch($branchId, [$productId]);
 
@@ -5394,13 +5419,10 @@ final class CashRegisterAction
         if ($available !== null && $available <= 0.0001) {
             self::notifyPosStockZero($branchId, $productId, $productLabel);
 
-            return;
+            return self::pruneEmptyPosLineItems($lineItems);
         }
 
-        $lineItems = $get('line_items');
-        if (! is_array($lineItems)) {
-            $lineItems = [];
-        }
+        self::notifyPosNearExpiryLotIfNeeded($branchId, $productId, $productLabel);
 
         foreach ($lineItems as $key => $row) {
             if (! is_array($row) || ! filled($row['product_id'] ?? null)) {
@@ -5416,12 +5438,12 @@ final class CashRegisterAction
             if ($available !== null && $nextQuantity > ($available + 0.0001)) {
                 self::notifyPosQuantityExceedsStock($productLabel, $nextQuantity, $available);
 
-                return;
+                return self::pruneEmptyPosLineItems($lineItems);
             }
 
-            $set("line_items.{$key}.quantity", $nextQuantity);
+            $lineItems[$key]['quantity'] = $nextQuantity;
 
-            return;
+            return self::pruneEmptyPosLineItems($lineItems);
         }
 
         $targetKey = null;
@@ -5434,55 +5456,30 @@ final class CashRegisterAction
 
         if ($targetKey === null) {
             $targetKey = (string) Str::uuid();
-            $set("line_items.{$targetKey}", [
-                'product_id' => null,
-                'quantity' => 1,
-            ]);
-            $lineItems[$targetKey] = [
-                'product_id' => null,
-                'quantity' => 1,
-            ];
         }
 
-        $set("line_items.{$targetKey}.product_id", $productId);
-        $set("line_items.{$targetKey}.quantity", 1);
+        $lineItems[$targetKey] = [
+            'product_id' => $productId,
+            'quantity' => 1,
+        ];
 
-        $keys = array_keys($lineItems);
-        $lastKey = $keys === [] ? null : $keys[array_key_last($keys)];
-        if ($lastKey !== null && (string) $targetKey === (string) $lastKey) {
-            $set('line_items.'.Str::uuid(), [
-                'product_id' => null,
-                'quantity' => 1,
-            ]);
-        }
+        return self::pruneEmptyPosLineItems($lineItems);
     }
 
-    private static function ensurePosTrailingEmptyLine(Set $set, Get $get): void
+    /**
+     * @param  array<string, mixed>  $lineItems
+     * @return array<string, mixed>
+     */
+    private static function pruneEmptyPosLineItems(array $lineItems): array
     {
-        $lineItems = $get('line_items');
-        if (! is_array($lineItems) || $lineItems === []) {
-            $set('line_items', [[
-                'product_id' => null,
-                'quantity' => 1,
-            ]]);
-
-            return;
-        }
-
-        $hasEmpty = false;
-        foreach ($lineItems as $row) {
-            if (is_array($row) && blank($row['product_id'] ?? null)) {
-                $hasEmpty = true;
-                break;
+        $kept = [];
+        foreach ($lineItems as $key => $row) {
+            if (is_array($row) && filled($row['product_id'] ?? null)) {
+                $kept[$key] = $row;
             }
         }
 
-        if (! $hasEmpty) {
-            $set('line_items.'.Str::uuid(), [
-                'product_id' => null,
-                'quantity' => 1,
-            ]);
-        }
+        return $kept;
     }
 
     /**
@@ -5958,8 +5955,6 @@ final class CashRegisterAction
             'quick_client_name' => null,
             'quick_client_document' => null,
             'quick_client_phone' => null,
-            'pos_sale_transfer_id' => null,
-            'pos_product_search' => null,
             'payment_method' => 'punto_venta_ves',
             'mixed_use_usd_portion' => true,
             'mixed_use_ves_portion' => false,
@@ -5980,17 +5975,12 @@ final class CashRegisterAction
             'mixed_usd_paid' => null,
             'reference' => null,
             'discount_total' => 0.0,
-            'line_items' => [
-                [
-                    'product_id' => null,
-                    'quantity' => 1,
-                ],
-            ],
+            'line_items' => [],
         ], self::initialDolarFormState());
     }
 
     /**
-     * @return array{client_id: int|null, pos_data: array{pos_sale_transfer_id: int, pos_product_search: null, line_items: list<array{product_id: int|null, quantity: float|int}>}}|null
+     * @return array{client_id: int|null, pos_data: array{line_items: list<array{product_id: int|null, quantity: float|int}>}}|null
      */
     public static function prefillArgsFromSaleTransferId(int $transferId): ?array
     {
@@ -6020,85 +6010,12 @@ final class CashRegisterAction
             return null;
         }
 
-        $rows[] = [
-            'product_id' => null,
-            'quantity' => 1,
-        ];
-
         return [
             'client_id' => filled($transfer->client_id) ? (int) $transfer->client_id : null,
             'pos_data' => [
-                'pos_sale_transfer_id' => $transfer->id,
-                'pos_product_search' => null,
                 'line_items' => $rows,
             ],
         ];
-    }
-
-    /**
-     * @return array<int|string, string>
-     */
-    private static function posSaleTransferSearchResults(string $search): array
-    {
-        $query = self::posSaleTransferBaseQuery();
-        $term = trim($search);
-        // Normalizar guiones tipográficos al pegar desde WhatsApp u otros (PHP requiere comillas dobles para \u{…}).
-        $term = str_replace(
-            ["\u{2013}", "\u{2014}", "\u{2212}"],
-            ['-', '-', '-'],
-            $term,
-        );
-        $term = preg_replace('/\s+/u', ' ', $term) ?? $term;
-
-        if ($term !== '') {
-            $like = '%'.addcslashes($term, '%_\\').'%';
-            $digitsOnly = preg_replace('/\D+/', '', $term) ?? '';
-
-            $query->where(function (Builder $q) use ($like, $term, $digitsOnly): void {
-                $q->where('code', 'like', $like);
-
-                if ($digitsOnly !== '' && strlen($digitsOnly) >= 3) {
-                    $q->orWhere('code', 'like', '%'.$digitsOnly.'%');
-                }
-
-                if (ctype_digit($term)) {
-                    $q->orWhereKey((int) $term);
-                }
-
-                $q->orWhereHas('fromBranch', function (Builder $b) use ($like): void {
-                    $b->where('name', 'like', $like)
-                        ->orWhere('code', 'like', $like);
-                })->orWhereHas('toBranch', function (Builder $b) use ($like): void {
-                    $b->where('name', 'like', $like)
-                        ->orWhere('code', 'like', $like);
-                });
-            });
-        }
-
-        return $query
-            ->limit(20)
-            ->get()
-            ->mapWithKeys(fn (ProductTransfer $transfer): array => [
-                $transfer->id => self::posSaleTransferLabel($transfer),
-            ])
-            ->all();
-    }
-
-    private static function posSaleTransferOptionLabel(mixed $value): ?string
-    {
-        if (blank($value)) {
-            return null;
-        }
-
-        $transfer = self::posSaleTransferBaseQuery()
-            ->whereKey((int) $value)
-            ->first();
-
-        if (! $transfer instanceof ProductTransfer) {
-            return null;
-        }
-
-        return self::posSaleTransferLabel($transfer);
     }
 
     /**
@@ -6128,198 +6045,13 @@ final class CashRegisterAction
         return $query;
     }
 
-    private static function posSaleTransferLabel(ProductTransfer $transfer): string
-    {
-        $from = filled($transfer->fromBranch?->name) ? (string) $transfer->fromBranch?->name : 'Origen #'.$transfer->from_branch_id;
-        $to = filled($transfer->toBranch?->name) ? (string) $transfer->toBranch?->name : 'Destino #'.$transfer->to_branch_id;
-        $itemsCount = $transfer->items->count();
-
-        return "{$transfer->code} · {$from} → {$to} · {$itemsCount} ítems";
-    }
-
-    private static function loadPosLineItemsFromSaleTransfer(int $transferId, Set $set): void
-    {
-        $transfer = self::posSaleTransferBaseQuery()
-            ->whereKey($transferId)
-            ->first();
-
-        if (! $transfer instanceof ProductTransfer) {
-            Notification::make()
-                ->title('Traslado no disponible')
-                ->body('El traslado no está «En proceso», no es de venta o su usuario no pertenece a la sucursal origen ni destino.')
-                ->warning()
-                ->send();
-
-            $set('pos_sale_transfer_id', null);
-
-            return;
-        }
-
-        $rows = $transfer->items
-            ->sortBy('id')
-            ->map(function ($item): array {
-                $quantity = max(0.001, (float) ($item->quantity ?? 1));
-
-                return [
-                    'product_id' => filled($item->product_id) ? (int) $item->product_id : null,
-                    'quantity' => round($quantity, 3),
-                ];
-            })
-            ->filter(fn (array $row): bool => filled($row['product_id']))
-            ->values()
-            ->all();
-
-        if ($rows === []) {
-            Notification::make()
-                ->title('Traslado sin productos')
-                ->body('El traslado seleccionado no tiene ítems para cargar en caja.')
-                ->warning()
-                ->send();
-
-            return;
-        }
-
-        $rows[] = [
-            'product_id' => null,
-            'quantity' => 1,
-        ];
-
-        $set('line_items', $rows);
-        $set('pos_product_search', null);
-
-        $branchId = Auth::user()?->branch_id;
-        if (filled($branchId)) {
-            $productIds = collect($rows)
-                ->pluck('product_id')
-                ->filter(fn (mixed $id): bool => filled($id))
-                ->map(fn (mixed $id): int => (int) $id)
-                ->unique()
-                ->values()
-                ->all();
-
-            if ($productIds !== []) {
-                self::warmPosDataForBranch((int) $branchId, $productIds);
-            }
-        }
-
-        Notification::make()
-            ->title('Ítems del traslado cargados')
-            ->body('Se cargaron automáticamente los productos y cantidades del traslado seleccionado.')
-            ->success()
-            ->send();
-    }
-
-    /**
-     * Abre el select de producto en un ítem del repeater y enfoca la búsqueda.
-     *
-     * @param  bool  $pickFirstItem  true = primera línea (tras elegir cliente); false = última (nueva línea).
-     */
-    private static function focusPosLineProductSearchJs(bool $pickFirstItem): string
-    {
-        $targetExpr = $pickFirstItem ? 'items[0]' : 'items[items.length - 1]';
-        $outerMs = $pickFirstItem ? 160 : 320;
-        $innerMs = $pickFirstItem ? 90 : 160;
-
-        return <<<JS
-            setTimeout(() => {
-                const wrap = document.querySelector('.farmadoc-pos-line-items-repeater');
-                if (! wrap) {
-                    return;
-                }
-                let items = wrap.querySelectorAll('.fi-fo-repeater-item');
-                if (! items.length) {
-                    items = wrap.querySelectorAll('table tbody tr');
-                }
-                const target = {$targetExpr};
-                if (! target) {
-                    return;
-                }
-                const btn = target.querySelector('.fi-select-input-btn');
-                if (! btn || typeof btn.click !== 'function') {
-                    return;
-                }
-                btn.click();
-                setTimeout(() => {
-                    const modal = document.querySelector('.fi-modal-window');
-                    let panel = modal?.querySelector('.fi-dropdown-panel');
-                    if (! panel) {
-                        panel = document.querySelector('.fi-dropdown-panel');
-                    }
-                    const input = panel?.querySelector(
-                        'input.fi-input, input[type="search"], input[role="combobox"], input:not([type="hidden"])',
-                    );
-                    input?.focus?.();
-                }, {$innerMs});
-            }, {$outerMs});
-            JS;
-    }
-
-    /**
-     * POS: cuando un lector llena el código y hay resultado exacto, confirma automáticamente la opción
-     * (equivalente a Enter) para que el flujo pase a la siguiente línea del repeater sin intervención manual.
-     */
-    private static function mountPosBarcodeAutoAdvanceJs(): string
+    private static function focusPosConsultButtonJs(): string
     {
         return <<<'JS'
-            (() => {
-                if (window.__farmadocPosBarcodeAutoAdvanceMounted) {
-                    return;
-                }
-                window.__farmadocPosBarcodeAutoAdvanceMounted = true;
-
-                const BARCODE_RE = /^[0-9A-Za-z\-]{4,}$/;
-                let debounceId = null;
-
-                const triggerAutoConfirm = (input) => {
-                    const value = String(input?.value ?? '').trim();
-                    if (!BARCODE_RE.test(value)) {
-                        return;
-                    }
-
-                    const modal = document.querySelector('.fi-modal-window');
-                    if (!modal || !modal.querySelector('.farmadoc-pos-line-items-repeater')) {
-                        return;
-                    }
-
-                    const hasOpenSelect = modal.querySelector(
-                        '.farmadoc-pos-line-items-repeater .fi-select-input-btn[aria-expanded="true"]',
-                    );
-                    if (!hasOpenSelect) {
-                        return;
-                    }
-
-                    input.dispatchEvent(
-                        new KeyboardEvent('keydown', {
-                            key: 'Enter',
-                            code: 'Enter',
-                            bubbles: true,
-                            cancelable: true,
-                        }),
-                    );
-                };
-
-                document.addEventListener(
-                    'input',
-                    (ev) => {
-                        const target = ev.target;
-                        if (!(target instanceof HTMLInputElement)) {
-                            return;
-                        }
-
-                        const panel = target.closest('.fi-dropdown-panel');
-                        if (!panel) {
-                            return;
-                        }
-
-                        if (debounceId) {
-                            clearTimeout(debounceId);
-                        }
-                        debounceId = setTimeout(() => triggerAutoConfirm(target), 90);
-                    },
-                    true,
-                );
-            })();
-        JS;
+            setTimeout(() => {
+                document.querySelector('.farmadoc-pos-consult__open')?.focus?.();
+            }, 180);
+            JS;
     }
 
     /**

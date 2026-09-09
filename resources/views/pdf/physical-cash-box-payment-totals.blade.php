@@ -97,6 +97,8 @@
         .num { text-align: right; font-variant-numeric: tabular-nums; }
         .center { text-align: center; }
         .muted { color: #555; font-size: 8pt; }
+        .mismatch { color: #b91c1c; font-weight: bold; }
+        .balanced { color: #166534; font-weight: bold; }
         .footer-note {
             margin-top: 20px;
             font-size: 7.5pt;
@@ -202,6 +204,94 @@
     </tr>
     </tbody>
 </table>
+
+@php
+    $cash = is_array($cash_box_reconciliation ?? null) ? $cash_box_reconciliation : null;
+    $pos = is_array($pos_reconciliation ?? null) ? $pos_reconciliation : null;
+@endphp
+
+@if ($cash !== null || $pos !== null)
+    <h2>Comparación de cierre (declarado vs sistema)</h2>
+    <p class="muted" style="margin: 0 0 8px 0;">Faltante y sobrante se marcan en rojo. Cuadrado indica que el cajero y el sistema coinciden.</p>
+
+    @if ($cash !== null)
+        <table>
+            <thead>
+            <tr>
+                <th>Efectivo en caja física</th>
+                <th class="num">Sistema</th>
+                <th class="num">Declarado</th>
+                <th class="num">Diferencia</th>
+                <th>Estado</th>
+            </tr>
+            </thead>
+            <tbody>
+            @php
+                $usdMismatch = abs((float) ($cash['difference_usd'] ?? 0)) >= 0.01;
+                $vesMismatch = abs((float) ($cash['difference_ves'] ?? 0)) >= 0.01;
+                $usdLabel = $usdMismatch ? (((float) $cash['difference_usd'] > 0) ? 'Sobrante' : 'Faltante') : 'Cuadrado';
+                $vesLabel = $vesMismatch ? (((float) $cash['difference_ves'] > 0) ? 'Sobrante' : 'Faltante') : 'Cuadrado';
+            @endphp
+            <tr>
+                <td>Dólares</td>
+                <td class="num">$ {{ number_format((float) $cash['expected_usd'], 2, ',', '.') }}</td>
+                <td class="num">$ {{ number_format((float) $cash['declared_usd'], 2, ',', '.') }}</td>
+                <td class="num {{ $usdMismatch ? 'mismatch' : 'balanced' }}">$ {{ number_format((float) $cash['difference_usd'], 2, ',', '.') }}</td>
+                <td class="{{ $usdMismatch ? 'mismatch' : 'balanced' }}">{{ $usdLabel }}</td>
+            </tr>
+            <tr>
+                <td>Bolívares</td>
+                <td class="num">Bs. {{ number_format((float) $cash['expected_ves'], 2, ',', '.') }}</td>
+                <td class="num">Bs. {{ number_format((float) $cash['declared_ves'], 2, ',', '.') }}</td>
+                <td class="num {{ $vesMismatch ? 'mismatch' : 'balanced' }}">Bs. {{ number_format((float) $cash['difference_ves'], 2, ',', '.') }}</td>
+                <td class="{{ $vesMismatch ? 'mismatch' : 'balanced' }}">{{ $vesLabel }}</td>
+            </tr>
+            </tbody>
+        </table>
+    @endif
+
+    @if ($pos !== null)
+        <table>
+            <thead>
+            <tr>
+                <th>Punto de venta (banco)</th>
+                <th class="num">Sistema</th>
+                <th class="num">Declarado</th>
+                <th class="num">Diferencia</th>
+                <th>Estado</th>
+            </tr>
+            </thead>
+            <tbody>
+            @forelse (($pos['lines'] ?? []) as $line)
+                @php
+                    $lineMismatch = abs((float) ($line['difference_ves'] ?? 0)) >= 0.01;
+                @endphp
+                <tr>
+                    <td>{{ $line['bank_label'] }}</td>
+                    <td class="num">Bs. {{ number_format((float) $line['system_ves'], 2, ',', '.') }}</td>
+                    <td class="num">Bs. {{ number_format((float) $line['declared_ves'], 2, ',', '.') }}</td>
+                    <td class="num {{ $lineMismatch ? 'mismatch' : 'balanced' }}">Bs. {{ number_format((float) $line['difference_ves'], 2, ',', '.') }}</td>
+                    <td class="{{ $lineMismatch ? 'mismatch' : 'balanced' }}">{{ $line['status_label'] }}</td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="5" class="muted">Sin declaraciones ni cobros de punto de venta en el turno.</td>
+                </tr>
+            @endforelse
+            </tbody>
+            <tfoot>
+            <tr>
+                <td>Total punto de venta</td>
+                <td class="num">Bs. {{ number_format((float) ($pos['system_total_ves'] ?? 0), 2, ',', '.') }}</td>
+                <td class="num">Bs. {{ number_format((float) ($pos['declared_total_ves'] ?? 0), 2, ',', '.') }}</td>
+                @php $posTotalMismatch = abs((float) ($pos['difference_ves'] ?? 0)) >= 0.01; @endphp
+                <td class="num {{ $posTotalMismatch ? 'mismatch' : 'balanced' }}">Bs. {{ number_format((float) ($pos['difference_ves'] ?? 0), 2, ',', '.') }}</td>
+                <td class="{{ $posTotalMismatch ? 'mismatch' : 'balanced' }}">{{ $posTotalMismatch ? (((float) ($pos['difference_ves'] ?? 0) > 0) ? 'Sobrante' : 'Faltante') : 'Cuadrado' }}</td>
+            </tr>
+            </tfoot>
+        </table>
+    @endif
+@endif
 
 <h2>Totales por tipo de pago</h2>
             <p class="muted" style="margin: 0 0 8px 0;">Canal real de cobro: Cashea y pago múltiple se agrupan en punto de venta, Zelle, efectivo, etc. USD y VES no se convierten entre sí.</p>

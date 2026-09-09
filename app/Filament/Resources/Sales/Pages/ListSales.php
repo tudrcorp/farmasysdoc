@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Sales\Pages;
 
 use App\Filament\Resources\Sales\Actions\CashRegisterAction;
+use App\Filament\Resources\Sales\Pages\Concerns\InteractsWithPosProductConsult;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Filament\Resources\Sales\Widgets\StatsListSaleByPaymentMethod;
 use App\Filament\Resources\Sales\Widgets\StatsListSaleOverview;
@@ -28,6 +29,7 @@ use Illuminate\Support\Js;
 class ListSales extends ListRecords
 {
     use ExposesTableToWidgets;
+    use InteractsWithPosProductConsult;
 
     protected static string $resource = SaleResource::class;
 

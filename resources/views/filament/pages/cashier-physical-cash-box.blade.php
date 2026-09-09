@@ -62,6 +62,11 @@
                 </x-slot>
                 <x-slot name="description">
                     Monitoreo en vivo para administración y gerencia según sucursales asignadas.
+                    Los reportes comparativos de cada cierre quedan en
+                    <a href="{{ \App\Filament\Resources\PhysicalCashBoxCloseReports\PhysicalCashBoxCloseReportResource::getUrl('index') }}" class="font-medium text-primary-600 hover:underline dark:text-primary-400">
+                        Reportes de cierre de caja
+                    </a>
+                    aunque falle WhatsApp o el correo.
                 </x-slot>
 
                 <div class="overflow-x-auto">
@@ -236,10 +241,10 @@
                         <h4 class="text-xs font-semibold uppercase tracking-wide {{ $this->closeReconciliation['has_mismatch'] ? 'text-danger-700 dark:text-danger-300' : 'text-success-700 dark:text-success-300' }}">
                             Diferencia (declarado - esperado)
                         </h4>
-                        <p class="mt-2 text-sm font-semibold {{ (float) $this->closeReconciliation['difference_usd'] === 0.0 ? 'text-gray-800 dark:text-gray-100' : ((float) $this->closeReconciliation['difference_usd'] > 0 ? 'text-success-700 dark:text-success-300' : 'text-danger-700 dark:text-danger-300') }}">
+                        <p class="mt-2 text-sm font-semibold {{ (float) $this->closeReconciliation['difference_usd'] === 0.0 ? 'text-gray-800 dark:text-gray-100' : 'text-danger-700 dark:text-danger-300' }}">
                             USD {{ number_format((float) $this->closeReconciliation['difference_usd'], 2) }}
                         </p>
-                        <p class="mt-1 text-sm font-semibold {{ (float) $this->closeReconciliation['difference_ves'] === 0.0 ? 'text-gray-800 dark:text-gray-100' : ((float) $this->closeReconciliation['difference_ves'] > 0 ? 'text-success-700 dark:text-success-300' : 'text-danger-700 dark:text-danger-300') }}">
+                        <p class="mt-1 text-sm font-semibold {{ (float) $this->closeReconciliation['difference_ves'] === 0.0 ? 'text-gray-800 dark:text-gray-100' : 'text-danger-700 dark:text-danger-300' }}">
                             VES {{ number_format((float) $this->closeReconciliation['difference_ves'], 2, ',', '.') }}
                         </p>
                         <p class="mt-2 text-xs {{ $this->closeReconciliation['has_mismatch'] ? 'text-danger-700 dark:text-danger-300' : 'text-success-700 dark:text-success-300' }}">

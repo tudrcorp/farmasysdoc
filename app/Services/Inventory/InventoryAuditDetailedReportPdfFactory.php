@@ -4,7 +4,10 @@ namespace App\Services\Inventory;
 
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 final class InventoryAuditDetailedReportPdfFactory
 {
@@ -61,11 +64,36 @@ final class InventoryAuditDetailedReportPdfFactory
      */
     public function download(array $filters, User $actor): Response
     {
-        $payload = $this->viewData($filters, $actor);
+        set_time_limit(180);
+        if (function_exists('ini_set')) {
+            ini_set('memory_limit', '512M');
+        }
 
-        return Pdf::loadView('pdf.inventory-audit-detailed-report', $payload)
-            ->setPaper('a4', 'landscape')
-            ->download($this->filename($payload));
+        try {
+            $payload = $this->viewData($filters, $actor);
+            $contents = Pdf::loadView('pdf.inventory-audit-detailed-report', $payload)
+                ->setPaper('a4', 'landscape')
+                ->output();
+            $filename = $this->filename($payload);
+
+            return response()->streamDownload(function () use ($contents): void {
+                echo $contents;
+            }, $filename, [
+                'Content-Type' => 'application/pdf',
+            ]);
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            Log::error('PDF auditoría inventario detallado: no se pudo generar', [
+                'filters' => $filters,
+                'actor_id' => $actor->getKey(),
+                'error' => $exception->getMessage(),
+                'file' => $exception->getFile(),
+                'line' => $exception->getLine(),
+            ]);
+
+            abort(500, 'No se pudo generar el PDF. Si el período incluye muchas sucursales, filtre por sucursal o rango de letras e inténtelo de nuevo.');
+        }
     }
 
     /**

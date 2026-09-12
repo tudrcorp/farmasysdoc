@@ -60,7 +60,7 @@ final class InventoryAuditDetailedReportBuilder
                     'productCategory:id,name',
                     'startedBy:id,name',
                     'closedBy:id,name',
-                    'lines.product:id,name,barcode,sku',
+                    'lines.product:id,name,barcode',
                     'lines.processedBy:id,name',
                 ])
         );
@@ -90,7 +90,7 @@ final class InventoryAuditDetailedReportBuilder
 
                 $audits[] = $mapped;
                 $summary['audits_count']++;
-                $summary['lines_total'] += count($mapped['lines']);
+                $summary['lines_total'] += $mapped['progress']['total'];
                 $summary['pending'] += $mapped['progress']['pending'];
                 $summary['verified'] += $mapped['progress']['verified'];
                 $summary['updated'] += $mapped['progress']['updated'];
@@ -112,8 +112,8 @@ final class InventoryAuditDetailedReportBuilder
         }
 
         return [
-            'generated_at' => now()->timezone(config('app.timezone'))->format('d/m/Y H:i:s'),
-            'generated_by' => filled($actor->name) ? (string) $actor->name : (string) ($actor->email ?? 'administrador'),
+            'generated_at' => now()->format('d/m/Y H:i:s'),
+            'generated_by' => $this->safeText(filled($actor->name) ? (string) $actor->name : (string) ($actor->email ?? 'administrador')),
             'filter_labels' => $this->filterLabels($normalized, $branchName),
             'period_from' => $normalized['from']?->format('d/m/Y'),
             'period_until' => $normalized['until']?->format('d/m/Y'),
@@ -262,7 +262,7 @@ final class InventoryAuditDetailedReportBuilder
                 continue;
             }
 
-            $productName = (string) ($line->product?->name ?? 'Producto #'.(int) $line->product_id);
+            $productName = $this->safeText((string) ($line->product?->name ?? 'Producto #'.(int) $line->product_id));
             if ($letterRange !== null && ! $this->productNameMatchesLetterRange($productName, $letterRange[0], $letterRange[1])) {
                 continue;
             }
@@ -286,24 +286,23 @@ final class InventoryAuditDetailedReportBuilder
             }
 
             $barcode = filled($line->product?->barcode) ? (string) $line->product->barcode : '';
-            $sku = filled($line->product?->sku) ? (string) $line->product->sku : '';
 
             $lines[] = [
-                'code' => $barcode !== '' ? $barcode : ($sku !== '' ? $sku : '—'),
+                'code' => $this->safeText($barcode !== '' ? $barcode : '-'),
                 'name' => $productName,
-                'status' => $status?->label() ?? '—',
+                'status' => $status?->label() ?? '-',
                 'system_quantity' => InventoryQuantityFormat::display($line->system_quantity),
                 'counted_quantity' => $line->counted_quantity !== null
                     ? InventoryQuantityFormat::display($line->counted_quantity)
-                    : '—',
+                    : '-',
                 'quantity_delta' => InventoryQuantityFormat::display($delta),
                 'system_cost' => number_format((float) $line->system_cost_price, 2, ',', '.'),
                 'new_cost' => $line->new_cost_price !== null
                     ? number_format((float) $line->new_cost_price, 2, ',', '.')
-                    : '—',
-                'cost_changed' => $line->cost_changed ? 'Sí' : 'No',
-                'processed_by' => (string) ($line->processedBy?->name ?? '—'),
-                'processed_at' => $line->processed_at?->timezone(config('app.timezone'))->format('d/m/Y H:i') ?? '—',
+                    : '-',
+                'cost_changed' => $line->cost_changed ? 'Si' : 'No',
+                'processed_by' => $this->safeText((string) ($line->processedBy?->name ?? '-')),
+                'processed_at' => $line->processed_at?->format('d/m/Y H:i') ?? '-',
             ];
         }
 
@@ -317,15 +316,15 @@ final class InventoryAuditDetailedReportBuilder
 
         return [
             'id' => (int) $audit->getKey(),
-            'branch_name' => (string) ($audit->branch?->name ?? '—'),
-            'category_name' => (string) ($audit->productCategory?->name ?? 'Todas'),
-            'letter_range' => InventoryAuditLetterRange::label($audit->letter_from, $audit->letter_to) ?? 'A – Z',
-            'status' => $status?->label() ?? '—',
-            'notes' => filled($audit->notes) ? (string) $audit->notes : '—',
-            'started_by' => (string) ($audit->startedBy?->name ?? '—'),
-            'started_at' => $audit->started_at?->timezone(config('app.timezone'))->format('d/m/Y H:i') ?? '—',
-            'closed_by' => (string) ($audit->closedBy?->name ?? '—'),
-            'closed_at' => $audit->closed_at?->timezone(config('app.timezone'))->format('d/m/Y H:i') ?? '—',
+            'branch_name' => $this->safeText((string) ($audit->branch?->name ?? '-')),
+            'category_name' => $this->safeText((string) ($audit->productCategory?->name ?? 'Todas')),
+            'letter_range' => InventoryAuditLetterRange::label($audit->letter_from, $audit->letter_to) ?? 'A - Z',
+            'status' => $status?->label() ?? '-',
+            'notes' => filled($audit->notes) ? $this->safeText((string) $audit->notes) : '-',
+            'started_by' => $this->safeText((string) ($audit->startedBy?->name ?? '-')),
+            'started_at' => $audit->started_at?->format('d/m/Y H:i') ?? '-',
+            'closed_by' => $this->safeText((string) ($audit->closedBy?->name ?? '-')),
+            'closed_at' => $audit->closed_at?->format('d/m/Y H:i') ?? '-',
             'progress' => [
                 'total' => count($lines),
                 'pending' => $pending,
@@ -334,7 +333,7 @@ final class InventoryAuditDetailedReportBuilder
             ],
             'quantity_delta_sum' => round($quantityDeltaSum, 3),
             'cost_changes' => $costChanges,
-            'lines' => $lines,
+            'line_chunks' => array_values(array_chunk($lines, 80)),
         ];
     }
 
@@ -384,5 +383,16 @@ final class InventoryAuditDetailedReportBuilder
         }
 
         return $letter >= $from && $letter <= $to;
+    }
+
+    private function safeText(string $value): string
+    {
+        $value = str_replace(["\x00", "\r"], '', $value);
+
+        if ($value !== '' && ! mb_check_encoding($value, 'UTF-8')) {
+            $value = mb_convert_encoding($value, 'UTF-8', 'UTF-8, ISO-8859-1, Windows-1252') ?: $value;
+        }
+
+        return $value;
     }
 }

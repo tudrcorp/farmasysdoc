@@ -21,7 +21,7 @@
         }
         .header img { max-height: 48px; }
         h1 {
-            font-size: 14pt;
+            font-size: 13pt;
             color: #0e5c5f;
             margin: 8px 0 4px 0;
         }
@@ -64,7 +64,12 @@
         }
         .lines {
             margin-top: 6px;
-            font-size: 7.5pt;
+            font-size: 7pt;
+            page-break-inside: auto;
+        }
+        .lines tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
         }
         .lines th {
             background: #f3f4f6;
@@ -162,13 +167,13 @@
                 </tr>
             </table>
 
-            @if ($audit['lines'] === [])
-                <p class="empty">Esta auditoría no tiene líneas en el rango solicitado.</p>
+            @if (($audit['line_chunks'] ?? []) === [])
+                <p class="empty">Esta auditoria no tiene lineas en el rango solicitado.</p>
             @else
-                <table class="lines">
-                    <thead>
+                @foreach ($audit['line_chunks'] as $chunk)
+                    <table class="lines">
                         <tr>
-                            <th>Código</th>
+                            <th>Codigo</th>
                             <th>Producto</th>
                             <th>Estado</th>
                             <th class="num">Sist.</th>
@@ -176,13 +181,11 @@
                             <th class="num">Delta</th>
                             <th class="num">Costo ant.</th>
                             <th class="num">Costo nuevo</th>
-                            <th>Costo Δ</th>
-                            <th>Procesó</th>
+                            <th>Costo</th>
+                            <th>Proceso</th>
                             <th>Fecha</th>
                         </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($audit['lines'] as $line)
+                        @foreach ($chunk as $line)
                             <tr>
                                 <td>{{ $line['code'] }}</td>
                                 <td>{{ $line['name'] }}</td>
@@ -197,8 +200,8 @@
                                 <td>{{ $line['processed_at'] }}</td>
                             </tr>
                         @endforeach
-                    </tbody>
-                </table>
+                    </table>
+                @endforeach
             @endif
         </div>
     @endforeach

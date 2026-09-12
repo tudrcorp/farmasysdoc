@@ -109,7 +109,7 @@ final class InventoryAuditApplyUpdateForm
                 ->content(new HtmlString(
                     '<div class="rounded-xl border border-warning-500/40 bg-warning-500/10 p-3 text-sm text-warning-700 dark:text-warning-200">'
                     .'<p class="font-medium">Autorización requerida</p>'
-                    .'<p class="mt-1">Para guardar cambios de existencia, costo o categoría solicite un código OTP. Se enviará por email y WhatsApp a los administradores. Válido 3 minutos y de un solo uso.</p>'
+                    .'<p class="mt-1">Para guardar cambios de existencia, costo o categoría solicite un código OTP. Se enviará por email y WhatsApp a los administradores y al gerente de la sucursal. Válido 3 minutos y de un solo uso.</p>'
                     .'</div>'
                 ))
                 ->visible(fn (): bool => self::actorRequiresOtp()),
@@ -141,7 +141,7 @@ final class InventoryAuditApplyUpdateForm
 
                             Notification::make()
                                 ->title('Código OTP enviado')
-                                ->body('Se envió un código de 6 dígitos por email y WhatsApp a los administradores, con el detalle del cambio. Caduca en 3 minutos.')
+                                ->body('Se envió un código de 6 dígitos por email y WhatsApp a los administradores y al gerente de la sucursal, con el detalle del cambio. Caduca en 3 minutos.')
                                 ->success()
                                 ->send();
                         } catch (ValidationException $e) {
@@ -169,6 +169,7 @@ final class InventoryAuditApplyUpdateForm
      * @return array{
      *     product_name: string|null,
      *     branch_name: string|null,
+     *     branch_id: int|null,
      *     changes: list<string>
      * }
      */
@@ -224,9 +225,14 @@ final class InventoryAuditApplyUpdateForm
             $changes[] = 'Categoría: '.$from.' → '.$to;
         }
 
+        $branchId = filled($get('_branch_id'))
+            ? (int) $get('_branch_id')
+            : (filled($get('branch_id')) ? (int) $get('branch_id') : 0);
+
         return [
             'product_name' => filled($get('_product_name')) ? (string) $get('_product_name') : null,
             'branch_name' => filled($get('_branch_name')) ? (string) $get('_branch_name') : null,
+            'branch_id' => $branchId > 0 ? $branchId : null,
             'changes' => $changes,
         ];
     }

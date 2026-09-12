@@ -18,7 +18,7 @@
 
         <div style="padding: 24px;">
             <h1 style="font-size: 18px; margin: 0 0 8px;">OTP — Auditoría de inventario</h1>
-            <p style="margin: 0 0 20px; color: #4b5563;">Revise el cambio solicitado antes de compartir la clave OTP con el gerente.</p>
+            <p style="margin: 0 0 20px; color: #4b5563;">Revise el cambio solicitado. Use o entregue la clave OTP solo si autoriza.</p>
 
             <p style="margin: 0 0 8px;"><strong>Solicitado por:</strong> {{ $managerName }}</p>
             @if (filled($productName))
@@ -43,7 +43,7 @@
 
             <p style="margin: 0 0 8px; font-size: 13px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em;">Clave OTP</p>
             <p style="font-size: 32px; letter-spacing: 0.28em; font-weight: 700; margin: 0 0 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; user-select: all; -webkit-user-select: all;">{{ $otpCode }}</p>
-            <p style="margin: 0 0 20px; font-size: 13px; color: #6b7280;">Selecciona la clave para copiarla. Solo compártala si autoriza el cambio.</p>
+            <p style="margin: 0 0 20px; font-size: 13px; color: #6b7280;">Selecciona la clave para copiarla. Úsela o compártala solo si autoriza el cambio.</p>
 
             <p style="margin: 20px 0 0; color: #6b7280; font-size: 14px;">
                 Código de un solo uso. Caduca en {{ $ttlMinutes }} minutos.

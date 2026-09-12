@@ -41,6 +41,7 @@ final class AuditLogEventPresentation
             'bdv_pagomovil_conciliation_manual' => 'Conciliaci'.chr(0xC3).chr(0xB3).'n PM BDV: registro manual',
             'pos_caja_bdv_modal_abandoned' => 'Caja: conciliaci'.chr(0xC3).chr(0xB3).'n BDV cerrada '.chr(0xC2).chr(0xB7).' cambio de m'.chr(0xC3).chr(0xA9).'todo',
             'pos_caja_close_pdf_downloaded' => 'Caja: descarga PDF cierre de caja',
+            'inventory_audit_detailed_pdf_downloaded' => 'Auditoría de inventario: descarga PDF detallado',
             'pos_caja_fiscal_receipt_viewed' => 'Caja/comprobantes: vista comprobante fiscal',
             'cashier_shift_access_granted' => 'Administraci'.chr(0xC3).chr(0xB3).'n: acceso de cajero habilitado manualmente',
             'branch_daily_operation_opened' => 'Sucursal: apertura de gesti'.chr(0xC3).chr(0xB3).'n del d'.chr(0xC3).chr(0xAD).'a',
@@ -109,6 +110,7 @@ final class AuditLogEventPresentation
             'sale_transfer_admin_status_changed' => 'warning',
             'sale_transfer_deleted' => 'danger',
             'inventory_adjustment_applied' => 'warning',
+            'inventory_audit_detailed_pdf_downloaded' => 'info',
             default => 'gray',
         };
     }

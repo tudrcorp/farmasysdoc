@@ -17,11 +17,12 @@ final class InventoryAuditOtpService
     ) {}
 
     /**
-     * Genera un OTP de 6 dígitos, lo guarda hasheado en caché (TTL 3 min) y lo envía a administradores.
+     * Genera un OTP de 6 dígitos, lo guarda hasheado en caché (TTL 3 min) y lo envía a administradores y gerentes.
      *
      * @param  array{
      *     product_name?: string|null,
      *     branch_name?: string|null,
+     *     branch_id?: int|null,
      *     changes?: list<string>
      * }  $context
      */
@@ -48,6 +49,10 @@ final class InventoryAuditOtpService
             fn (mixed $line): bool => is_string($line) && filled($line),
         ));
 
+        $branchId = isset($context['branch_id']) && is_numeric($context['branch_id'])
+            ? (int) $context['branch_id']
+            : null;
+
         $this->notifier->notify(
             manager: $manager,
             otpCode: $code,
@@ -55,6 +60,7 @@ final class InventoryAuditOtpService
             branchName: filled($context['branch_name'] ?? null) ? (string) $context['branch_name'] : null,
             changes: $changes,
             ttlSeconds: self::TTL_SECONDS,
+            branchId: ($branchId !== null && $branchId > 0) ? $branchId : null,
         );
 
         return $code;
@@ -66,7 +72,7 @@ final class InventoryAuditOtpService
 
         if (strlen($normalized) !== 6) {
             throw ValidationException::withMessages([
-                'otp_code' => 'Ingrese el código OTP de 6 dígitos enviado a los administradores.',
+                'otp_code' => 'Ingrese el código OTP de 6 dígitos enviado a administradores y gerentes.',
             ]);
         }
 

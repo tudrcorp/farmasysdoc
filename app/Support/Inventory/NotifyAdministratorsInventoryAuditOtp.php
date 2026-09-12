@@ -4,6 +4,7 @@ namespace App\Support\Inventory;
 
 use App\Mail\InventoryAuditOtpMail;
 use App\Models\User;
+use App\Support\Branches\BranchDailyOperationRecipients;
 use App\Support\Notifications\UltramsgWhatsAppClient;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -13,6 +14,7 @@ final class NotifyAdministratorsInventoryAuditOtp
 {
     public function __construct(
         private readonly UltramsgWhatsAppClient $ultramsgWhatsAppClient,
+        private readonly BranchDailyOperationRecipients $branchRecipients,
     ) {}
 
     /**
@@ -25,12 +27,14 @@ final class NotifyAdministratorsInventoryAuditOtp
         ?string $branchName = null,
         array $changes = [],
         int $ttlSeconds = 180,
+        ?int $branchId = null,
     ): void {
-        $admins = $this->resolveAdministrators();
+        $recipients = $this->resolveRecipients($manager, $branchId);
 
-        if ($admins === []) {
-            Log::notice('OTP auditoría inventario: no hay administradores para notificar', [
+        if ($recipients === []) {
+            Log::notice('OTP auditoría inventario: no hay destinatarios para notificar', [
                 'manager_id' => $manager->getKey(),
+                'branch_id' => $branchId,
             ]);
 
             return;
@@ -58,25 +62,57 @@ final class NotifyAdministratorsInventoryAuditOtp
             ? $this->ultramsgWhatsAppClient->resolveFarmadocLogoImage()
             : null;
 
-        foreach ($admins as $admin) {
-            $this->sendEmail($admin, $otpCode, $managerLabel, $productName, $branchName, $changes, $ttlMinutes);
+        foreach ($recipients as $recipient) {
+            $this->sendEmail($recipient, $otpCode, $managerLabel, $productName, $branchName, $changes, $ttlMinutes);
 
             if ($whatsAppEnabled) {
-                $this->sendWhatsApp($admin, $caption, $otpCode, $logoImage);
+                $this->sendWhatsApp($recipient, $caption, $otpCode, $logoImage);
             }
         }
     }
 
     /**
+     * Administradores, gerentes de la sucursal y quien solicita el OTP.
+     *
      * @return list<User>
      */
-    private function resolveAdministrators(): array
+    private function resolveRecipients(User $manager, ?int $branchId): array
     {
-        return User::query()
-            ->get(['id', 'name', 'email', 'roles', 'whatsapp_phone', 'delivery_mobile_phone'])
-            ->filter(fn (User $user): bool => $user->isAdministrator())
-            ->values()
-            ->all();
+        $users = User::query()
+            ->with('managedBranches:id')
+            ->get(['id', 'name', 'email', 'roles', 'branch_id', 'whatsapp_phone', 'delivery_mobile_phone']);
+
+        $recipients = $users
+            ->filter(function (User $user) use ($branchId): bool {
+                if ($user->isAdministrator()) {
+                    return true;
+                }
+
+                if ($branchId === null || $branchId <= 0 || ! $user->isManager()) {
+                    return false;
+                }
+
+                return $this->branchRecipients->shouldNotifyUser($user, $branchId);
+            });
+
+        $actor = $users->first(
+            fn (User $user): bool => (int) $user->getKey() === (int) $manager->getKey(),
+        );
+
+        if (! $actor instanceof User) {
+            $actor = User::query()
+                ->with('managedBranches:id')
+                ->whereKey($manager->getKey())
+                ->first(['id', 'name', 'email', 'roles', 'branch_id', 'whatsapp_phone', 'delivery_mobile_phone']);
+        }
+
+        if ($actor instanceof User) {
+            $recipients = $recipients
+                ->reject(fn (User $user): bool => (int) $user->getKey() === (int) $actor->getKey())
+                ->prepend($actor);
+        }
+
+        return $recipients->unique('id')->values()->all();
     }
 
     /**
@@ -94,7 +130,7 @@ final class NotifyAdministratorsInventoryAuditOtp
             '*FARMADOC*',
             'OTP — Auditoría de inventario',
             '',
-            'Revise el cambio solicitado antes de compartir la clave.',
+            'Revise el cambio solicitado. Use o entregue la clave solo si autoriza.',
             '',
         ];
 
@@ -132,7 +168,7 @@ final class NotifyAdministratorsInventoryAuditOtp
      * @param  list<string>  $changes
      */
     private function sendEmail(
-        User $admin,
+        User $recipient,
         string $otpCode,
         string $managerLabel,
         ?string $productName,
@@ -140,12 +176,12 @@ final class NotifyAdministratorsInventoryAuditOtp
         array $changes,
         int $ttlMinutes,
     ): void {
-        if (! filled($admin->email)) {
+        if (! filled($recipient->email)) {
             return;
         }
 
         try {
-            Mail::to((string) $admin->email)->send(new InventoryAuditOtpMail(
+            Mail::to((string) $recipient->email)->send(new InventoryAuditOtpMail(
                 otpCode: $otpCode,
                 managerName: $managerLabel,
                 productName: $productName,
@@ -155,16 +191,16 @@ final class NotifyAdministratorsInventoryAuditOtp
             ));
         } catch (Throwable $exception) {
             Log::warning('OTP auditoría inventario: error al enviar email', [
-                'admin_id' => $admin->getKey(),
+                'recipient_id' => $recipient->getKey(),
                 'error' => $exception->getMessage(),
             ]);
         }
     }
 
-    private function sendWhatsApp(User $admin, string $caption, string $otpCode, ?string $logoImage): void
+    private function sendWhatsApp(User $recipient, string $caption, string $otpCode, ?string $logoImage): void
     {
         $phone = $this->normalizePhone(
-            filled($admin->whatsapp_phone) ? $admin->whatsapp_phone : $admin->delivery_mobile_phone
+            filled($recipient->whatsapp_phone) ? $recipient->whatsapp_phone : $recipient->delivery_mobile_phone
         );
 
         if ($phone === null) {
@@ -182,11 +218,10 @@ final class NotifyAdministratorsInventoryAuditOtp
                 $this->ultramsgWhatsAppClient->sendTextMessage($phone, $caption);
             }
 
-            // Mensaje aparte solo con la clave: en Android e iOS se copia con un toque prolongado.
             $this->ultramsgWhatsAppClient->sendTextMessage($phone, $otpCode);
         } catch (Throwable $exception) {
             Log::warning('OTP auditoría inventario: error al enviar WhatsApp', [
-                'admin_id' => $admin->getKey(),
+                'recipient_id' => $recipient->getKey(),
                 'error' => $exception->getMessage(),
             ]);
         }

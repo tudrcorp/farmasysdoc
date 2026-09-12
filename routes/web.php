@@ -7,6 +7,7 @@ use App\Http\Controllers\FiscalReceiptController;
 use App\Http\Controllers\Hr\EmployeePortalEntryController;
 use App\Http\Controllers\Hr\EmployeePortalLogoutController;
 use App\Http\Controllers\Hr\EmployeePortalPayrollReceiptController;
+use App\Http\Controllers\Inventory\InventoryAuditDetailedReportPdfController;
 use App\Http\Controllers\NominatimProxyController;
 use App\Http\Controllers\ProductTransfers\ProductTransferReportPdfController;
 use App\Http\Controllers\ProductTransfers\ProductTransferSaleReportPdfController;
@@ -150,6 +151,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('sales/cash-close-pdf', CashRegisterClosePdfController::class)
         ->middleware('signed')
         ->name('sales.cash-close-pdf');
+
+    Route::get('inventory-audits/detailed-report-pdf', InventoryAuditDetailedReportPdfController::class)
+        ->middleware('signed')
+        ->name('inventory-audits.detailed-report-pdf');
 
     Route::get('product-transfers/report-pdf', ProductTransferReportPdfController::class)
         ->middleware('signed')

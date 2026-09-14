@@ -25,14 +25,14 @@ return [
     | Número de comprobante de Retenciones
     |--------------------------------------------------------------------------
     |
-    | Formato: YYYY + MM + secuencia de 8 dígitos (p. ej. 20260800000120).
+    | Formato: YYYY + MM + secuencia de 8 dígitos (p. ej. 20260900000148).
     | La secuencia es por mes de la factura. Este valor es el primero del mes
     | que coincida con el prefijo YYYYMM; los demás meses arrancan en 00000001
     | (p. ej. enero 2027 → 20270100000001).
     |
     */
     'purchase_book' => [
-        'initial_voucher_number' => (int) env('FISCAL_PURCHASE_BOOK_INITIAL_VOUCHER', 20260800000120),
+        'initial_voucher_number' => (int) env('FISCAL_PURCHASE_BOOK_INITIAL_VOUCHER', 20260900000148),
     ],
 
 ];

@@ -9,7 +9,7 @@ use Illuminate\Support\Carbon;
  * Número de comprobante SENIAT: YYYY + MM + secuencia de 8 dígitos.
  *
  * La secuencia es por mes de la factura. El primer valor de un mes concreto
- * puede venir de config (p. ej. 20260800000120); el resto de meses arranca en 1
+ * puede venir de config (p. ej. 20260900000148); el resto de meses arranca en 1
  * (p. ej. 20270100000001).
  */
 final class PurchaseBookVoucherNumberAllocator

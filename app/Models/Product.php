@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Services\Pricing\BranchCategoryProfitResolver;
 use App\Services\Pricing\FarmaExpressBranchPriceSynchronizer;
 use App\Services\Products\CatalogImageOptimizer;
+use App\Support\Products\ProductDeletion;
 use App\Support\Shop\ShopCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -164,6 +165,14 @@ class Product extends Model
         });
 
         static::saved(function (): void {
+            ShopCatalog::bump();
+        });
+
+        static::deleting(function (Product $product): void {
+            ProductDeletion::deleteDependentLogs($product);
+        });
+
+        static::deleted(function (): void {
             ShopCatalog::bump();
         });
     }

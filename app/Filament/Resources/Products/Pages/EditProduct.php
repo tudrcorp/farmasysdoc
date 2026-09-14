@@ -4,9 +4,13 @@ namespace App\Filament\Resources\Products\Pages;
 
 use App\Filament\Resources\Products\Concerns\HasFarmaadminIosProductPage;
 use App\Filament\Resources\Products\ProductResource;
+use App\Models\Product;
+use App\Support\Products\ProductDeletion;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Database\QueryException;
 
 class EditProduct extends EditRecord
 {
@@ -35,7 +39,26 @@ class EditProduct extends EditRecord
     {
         return [
             ViewAction::make(),
-            DeleteAction::make(),
+            DeleteAction::make()
+                ->using(function (DeleteAction $action, Product $record): bool {
+                    try {
+                        return (bool) $record->delete();
+                    } catch (QueryException $exception) {
+                        if (! ProductDeletion::isRestrictForeignKeyViolation($exception)) {
+                            throw $exception;
+                        }
+
+                        Notification::make()
+                            ->title('No se puede eliminar el producto')
+                            ->body('Tiene inventario, ventas, compras u otros registros asociados. Desactívalo en su lugar.')
+                            ->danger()
+                            ->send();
+
+                        $action->halt();
+
+                        return false;
+                    }
+                }),
         ];
     }
 }

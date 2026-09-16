@@ -25,7 +25,7 @@ final class PurchaseBookFromPurchaseSynchronizer
         private readonly PurchaseBookVoucherNumberAllocator $voucherNumberAllocator,
     ) {}
 
-    public function syncFromPurchase(Purchase $purchase): ?PurchaseBook
+    public function syncFromPurchase(Purchase $purchase, ?int $forcedVoucherNumber = null): ?PurchaseBook
     {
         $existing = PurchaseBook::query()->where('purchase_id', $purchase->id)->first();
         if ($existing !== null) {
@@ -125,6 +125,7 @@ final class PurchaseBookFromPurchaseSynchronizer
             $supplierAddress,
             $invoiceNumber,
             $actor,
+            $forcedVoucherNumber,
         ): PurchaseBook {
             $again = PurchaseBook::query()
                 ->where('purchase_id', $purchase->id)
@@ -139,7 +140,8 @@ final class PurchaseBookFromPurchaseSynchronizer
                 ->lockForUpdate()
                 ->first();
 
-            $voucherNumber = $this->voucherNumberAllocator->nextForInvoiceDate($invoiceDate);
+            $voucherNumber = $forcedVoucherNumber
+                ?? $this->voucherNumberAllocator->nextForInvoiceDate($invoiceDate);
 
             $lastOperation = PurchaseBook::query()
                 ->where('tax_period', $taxPeriod)

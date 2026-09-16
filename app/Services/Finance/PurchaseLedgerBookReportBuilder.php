@@ -72,6 +72,29 @@ final class PurchaseLedgerBookReportBuilder
             ->orderBy('operation_number')
             ->get();
 
+        $purchaseIdsWithVat = $ledgers
+            ->filter(fn (PurchaseLedger $row): bool => $row->document_type === PurchaseLedgerDocumentType::Factura
+                && $this->hasCausedVat($row))
+            ->map(fn (PurchaseLedger $row): int => (int) $row->purchase_id)
+            ->unique()
+            ->all();
+
+        $ledgers = $ledgers
+            ->filter(function (PurchaseLedger $row) use ($purchaseIdsWithVat): bool {
+                if ($row->document_type === PurchaseLedgerDocumentType::Factura) {
+                    return $this->hasCausedVat($row);
+                }
+
+                if ($row->document_type !== PurchaseLedgerDocumentType::ComprobanteDeRetencion) {
+                    return false;
+                }
+
+                $purchaseId = (int) $row->purchase_id;
+
+                return in_array($purchaseId, $purchaseIdsWithVat, true) || $this->hasCausedVat($row);
+            })
+            ->values();
+
         $facturasByPurchaseId = $ledgers
             ->filter(fn (PurchaseLedger $row): bool => $row->document_type === PurchaseLedgerDocumentType::Factura)
             ->keyBy(fn (PurchaseLedger $row): int => (int) $row->purchase_id);
@@ -159,6 +182,14 @@ final class PurchaseLedgerBookReportBuilder
             'generated_at' => now()->format('d/m/Y H:i:s'),
             'generated_by' => $generatedBy ?: 'sistema',
         ];
+    }
+
+    /**
+     * El libro SENIAT solo incluye compras con impuesto causado (IVA > 0).
+     */
+    private function hasCausedVat(PurchaseLedger $row): bool
+    {
+        return round((float) ($row->tax_caused_ves ?? 0), 2) > 0;
     }
 
     /**

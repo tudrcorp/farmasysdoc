@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\PurchaseLedgers\Pages;
 
+use App\Filament\Resources\PurchaseLedgers\Actions\DownloadPurchaseLedgerBookReportAction;
 use App\Filament\Resources\PurchaseLedgers\PurchaseLedgerResource;
+use Filament\Actions\ActionGroup;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\HtmlString;
@@ -32,5 +34,15 @@ class ListPurchaseLedgers extends ListRecords
         return new HtmlString(
             'Registro automático al guardar compras: factura y, si aplica, comprobante de retención con montos SENIAT.'
         );
+    }
+
+    /**
+     * @return array<int, ActionGroup>
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            DownloadPurchaseLedgerBookReportAction::group(),
+        ];
     }
 }

@@ -15,6 +15,7 @@ use App\Http\Controllers\PublicProductSearchController;
 use App\Http\Controllers\Purchases\PurchaseAnnulmentApprovalController;
 use App\Http\Controllers\Purchases\PurchaseBookRetentionVoucherPdfController;
 use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
+use App\Http\Controllers\Purchases\PurchaseLedgerBookReportController;
 use App\Http\Controllers\Reports\SystemReportsDownloadController;
 use App\Http\Controllers\Sales\CashRegisterClosePdfController;
 use App\Http\Controllers\Shop\ShopCatalogMediaController;
@@ -170,6 +171,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('purchase-books/retention-voucher-pdf', PurchaseBookRetentionVoucherPdfController::class)
         ->middleware('signed')
         ->name('purchase-books.retention-voucher-pdf');
+
+    Route::get('purchase-ledgers/book-report', PurchaseLedgerBookReportController::class)
+        ->middleware('signed')
+        ->name('purchase-ledgers.book-report');
 
     Route::get('accounts-payables/{accountsPayable}/payment-report-pdf', AccountsPayablePaymentReportPdfController::class)
         ->middleware('signed')

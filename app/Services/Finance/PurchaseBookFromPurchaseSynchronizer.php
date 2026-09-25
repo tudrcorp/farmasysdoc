@@ -141,7 +141,7 @@ final class PurchaseBookFromPurchaseSynchronizer
                 ->first();
 
             $voucherNumber = $forcedVoucherNumber
-                ?? $this->voucherNumberAllocator->nextForInvoiceDate($invoiceDate);
+                ?? $this->voucherNumberAllocator->forSupplierOnDate($supplierRif, $invoiceDate);
 
             $lastOperation = PurchaseBook::query()
                 ->where('tax_period', $taxPeriod)

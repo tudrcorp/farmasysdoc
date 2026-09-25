@@ -32,7 +32,7 @@ final class PurchaseBookRetentionVoucherBuilder
      *     balance_to_pay_ves: float,
      * }
      */
-    public function build(string $supplierRif, string $invoiceDate): array
+    public function build(string $supplierRif, string $invoiceDate, ?int $voucherNumber = null): array
     {
         $date = Carbon::parse($invoiceDate)->toDateString();
 
@@ -40,8 +40,9 @@ final class PurchaseBookRetentionVoucherBuilder
         $books = PurchaseBook::query()
             ->where('supplier_rif', $supplierRif)
             ->whereDate('invoice_date', $date)
+            ->when($voucherNumber !== null, fn ($query) => $query->where('voucher_number', $voucherNumber))
             ->orderBy('operation_number')
-            ->orderBy('voucher_number')
+            ->orderBy('id')
             ->get();
 
         if ($books->isEmpty()) {

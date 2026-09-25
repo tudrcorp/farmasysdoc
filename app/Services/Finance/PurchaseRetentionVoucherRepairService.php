@@ -2,22 +2,15 @@
 
 namespace App\Services\Finance;
 
-use App\Enums\PurchaseLedgerDocumentType;
-use App\Models\Purchase;
 use App\Models\PurchaseBook;
+use App\Models\PurchaseHistory;
 use App\Models\PurchaseLedger;
 use App\Services\Audit\AuditLogger;
+use App\Support\Purchases\PurchaseBookVoucherNumberAllocator;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 final class PurchaseRetentionVoucherRepairService
 {
-    public function __construct(
-        private readonly PurchaseBookFromPurchaseSynchronizer $retentionSynchronizer,
-        private readonly PurchaseLedgerFromPurchaseSynchronizer $ledgerSynchronizer,
-        private readonly PurchaseHistoryRetentionVoucherSynchronizer $historyRetentionSynchronizer,
-    ) {}
-
     /**
      * Recrea las filas de Retenciones desde el Libro de Compras y renumera
      * los comprobantes de septiembre 2026 a partir de $septemberStart.
@@ -53,46 +46,33 @@ final class PurchaseRetentionVoucherRepairService
         }
 
         DB::transaction(function () use ($assignments, &$result): void {
-            PurchaseLedger::query()
-                ->whereNotNull('purchase_book_id')
-                ->update(['purchase_book_id' => null]);
-
-            Schema::disableForeignKeyConstraints();
-            try {
-                PurchaseBook::query()->delete();
-            } finally {
-                Schema::enableForeignKeyConstraints();
-            }
-
             foreach ($assignments as $assignment) {
-                $purchase = Purchase::query()
-                    ->with('supplier')
-                    ->find($assignment['purchase_id']);
+                if ($assignment['old_voucher'] === $assignment['new_voucher']) {
+                    continue;
+                }
 
-                if ($purchase === null) {
-                    $result['errors'][] = 'Compra #'.$assignment['purchase_id'].' no existe.';
+                $updated = PurchaseBook::query()
+                    ->whereKey($assignment['book_id'])
+                    ->update(['voucher_number' => $assignment['new_voucher']]);
+
+                if ($updated === 0) {
+                    $result['errors'][] = 'Retención #'.$assignment['book_id'].' no existe.';
 
                     continue;
                 }
 
-                $book = $this->retentionSynchronizer->syncFromPurchase(
-                    $purchase,
-                    $assignment['new_voucher'],
-                );
+                if ($assignment['purchase_id'] > 0) {
+                    PurchaseLedger::query()
+                        ->where('purchase_id', $assignment['purchase_id'])
+                        ->whereNotNull('retention_voucher_number')
+                        ->update(['retention_voucher_number' => $assignment['new_voucher']]);
 
-                if ($book === null) {
-                    $result['errors'][] = ($purchase->purchase_number ?? '#'.$purchase->id)
-                        .': no se pudo recrear la retención (IVA o tasa BCV).';
-
-                    continue;
+                    PurchaseHistory::query()
+                        ->where('purchase_id', $assignment['purchase_id'])
+                        ->whereNotNull('retention_voucher_number')
+                        ->update(['retention_voucher_number' => $assignment['new_voucher']]);
                 }
 
-                if ((int) $book->voucher_number !== $assignment['new_voucher']) {
-                    $book->forceFill(['voucher_number' => $assignment['new_voucher']])->save();
-                    $this->historyRetentionSynchronizer->syncFromPurchaseBook($book);
-                }
-
-                $this->ledgerSynchronizer->syncFromPurchase($purchase, $book);
                 $result['recreated']++;
             }
 
@@ -115,36 +95,43 @@ final class PurchaseRetentionVoucherRepairService
     }
 
     /**
-     * @return list<array{purchase_id: int, old_voucher: int, new_voucher: int, tax_period: string}>
+     * @return list<array{book_id: int, purchase_id: int, old_voucher: int, new_voucher: int, tax_period: string}>
      */
     private function buildAssignments(int $septemberStart): array
     {
-        $comprobantes = PurchaseLedger::query()
-            ->where('document_type', PurchaseLedgerDocumentType::ComprobanteDeRetencion)
-            ->orderBy('tax_period')
-            ->orderBy('retention_voucher_number')
-            ->orderBy('operation_number')
+        $books = PurchaseBook::query()
+            ->where('tax_period', '2026/09')
+            ->orderBy('invoice_date')
+            ->orderBy('supplier_rif')
+            ->orderBy('id')
             ->get();
 
-        $septemberIndex = 0;
+        /** @var array<string, list<PurchaseBook>> $groups */
+        $groups = [];
+
+        foreach ($books as $book) {
+            $key = ($book->supplier_rif ?: $book->supplier_name)
+                .'|'.($book->invoice_date?->toDateString() ?? 'sin-fecha');
+            $groups[$key][] = $book;
+        }
+
+        $nextVoucher = $septemberStart;
         $assignments = [];
 
-        foreach ($comprobantes as $row) {
-            $oldVoucher = (int) $row->retention_voucher_number;
-            $taxPeriod = (string) $row->tax_period;
-            $newVoucher = $oldVoucher;
+        foreach ($groups as $rows) {
+            foreach (array_chunk($rows, PurchaseBookVoucherNumberAllocator::InvoicesPerVoucher) as $chunk) {
+                foreach ($chunk as $book) {
+                    $assignments[] = [
+                        'book_id' => (int) $book->getKey(),
+                        'purchase_id' => (int) ($book->purchase_id ?? 0),
+                        'old_voucher' => (int) $book->voucher_number,
+                        'new_voucher' => $nextVoucher,
+                        'tax_period' => '2026/09',
+                    ];
+                }
 
-            if ($this->isSeptemberPeriod($taxPeriod)) {
-                $newVoucher = $septemberStart + $septemberIndex;
-                $septemberIndex++;
+                $nextVoucher++;
             }
-
-            $assignments[] = [
-                'purchase_id' => (int) $row->purchase_id,
-                'old_voucher' => $oldVoucher,
-                'new_voucher' => $newVoucher,
-                'tax_period' => $taxPeriod,
-            ];
         }
 
         usort(

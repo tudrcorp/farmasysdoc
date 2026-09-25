@@ -14,6 +14,31 @@ use Illuminate\Support\Carbon;
  */
 final class PurchaseBookVoucherNumberAllocator
 {
+    public const int InvoicesPerVoucher = 5;
+
+    /**
+     * Reutiliza el comprobante del mismo proveedor y la misma fecha de factura
+     * mientras tenga menos de 5 facturas. Si ya tiene 5, abre el siguiente correlativo.
+     */
+    public function forSupplierOnDate(string $supplierRif, Carbon $invoiceDate): int
+    {
+        $openVoucher = PurchaseBook::query()
+            ->where('supplier_rif', $supplierRif)
+            ->whereDate('invoice_date', $invoiceDate->toDateString())
+            ->selectRaw('voucher_number, count(*) as invoices')
+            ->groupBy('voucher_number')
+            ->orderByDesc('voucher_number')
+            ->lockForUpdate()
+            ->get()
+            ->first(fn (PurchaseBook $book): bool => (int) $book->getAttribute('invoices') < self::InvoicesPerVoucher);
+
+        if ($openVoucher !== null) {
+            return (int) $openVoucher->voucher_number;
+        }
+
+        return $this->nextForInvoiceDate($invoiceDate);
+    }
+
     public function nextForInvoiceDate(Carbon $invoiceDate): int
     {
         $yearMonth = $invoiceDate->format('Ym');

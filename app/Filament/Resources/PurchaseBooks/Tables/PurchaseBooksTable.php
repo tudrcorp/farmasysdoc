@@ -39,17 +39,17 @@ class PurchaseBooksTable
                 $count = self::invoiceCountForGroup($record);
                 $countLabel = $count === 1 ? '1 factura' : $count.' facturas';
 
-                return $record->supplier_name.' · '.$date.' · '.$countLabel;
+                return $record->supplier_name.' · '.$date.' · '.$countLabel.' · Comprobante '.$record->voucher_number;
             })
             ->getDescriptionFromRecordUsing(fn (PurchaseBook $record): Htmlable => self::groupDescriptionWithPrintAction($record))
             ->orderQueryUsing(fn (Builder $query, string $direction): Builder => $query
-                ->orderBy('supplier_name', $direction)
-                ->orderBy('invoice_date', $direction)
-                ->orderBy('voucher_number', $direction));
+                ->orderBy('created_at', 'desc')
+                ->orderBy('invoice_date', 'desc')
+                ->orderBy('id', 'desc'));
 
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['purchase']))
-            ->defaultSort('supplier_name')
+            ->defaultSort('created_at', 'desc')
             ->defaultGroup($supplierAndDateGroup)
             ->groups([
                 $supplierAndDateGroup,
@@ -284,7 +284,8 @@ class PurchaseBooksTable
     private static function groupKeyForRecord(PurchaseBook $record): string
     {
         return ($record->supplier_rif ?: $record->supplier_name)
-            .'|'.($record->invoice_date?->toDateString() ?? 'sin-fecha');
+            .'|'.($record->invoice_date?->toDateString() ?? 'sin-fecha')
+            .'|'.(string) $record->voucher_number;
     }
 
     private static function groupDescriptionWithPrintAction(PurchaseBook $record): HtmlString
@@ -306,6 +307,7 @@ class PurchaseBooksTable
             [
                 'supplier_rif' => (string) $record->supplier_rif,
                 'invoice_date' => $record->invoice_date->toDateString(),
+                'voucher_number' => (int) $record->voucher_number,
             ],
         );
 
@@ -355,6 +357,8 @@ class PurchaseBooksTable
         } else {
             $query->whereNull('invoice_date');
         }
+
+        $query->where('voucher_number', $record->voucher_number);
 
         return self::$groupInvoiceCounts[$key] = $query->count();
     }

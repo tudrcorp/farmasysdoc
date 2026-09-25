@@ -22,6 +22,8 @@ final class PurchaseBookRetentionVoucherPdfController extends Controller
 
         $supplierRif = trim((string) $request->query('supplier_rif', ''));
         $invoiceDate = trim((string) $request->query('invoice_date', ''));
+        $voucherNumber = $request->query('voucher_number');
+        $voucherNumber = is_numeric($voucherNumber) ? (int) $voucherNumber : null;
 
         if ($supplierRif === '' || $invoiceDate === '') {
             abort(422, 'Debe indicar proveedor y fecha de factura.');
@@ -33,9 +35,9 @@ final class PurchaseBookRetentionVoucherPdfController extends Controller
             abort(422, 'Fecha de factura inválida.');
         }
 
-        $historyRetentionSynchronizer->markIssuedOnPrint($supplierRif, $invoiceDate);
+        $historyRetentionSynchronizer->markIssuedOnPrint($supplierRif, $invoiceDate, $voucherNumber);
 
-        $payload = $builder->build($supplierRif, $invoiceDate);
+        $payload = $builder->build($supplierRif, $invoiceDate, $voucherNumber);
 
         $filename = sprintf(
             'comprobante-retencion-iva-%s-%s.pdf',

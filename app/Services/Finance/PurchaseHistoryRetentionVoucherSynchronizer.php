@@ -56,19 +56,20 @@ final class PurchaseHistoryRetentionVoucherSynchronizer
      *
      * @return Collection<int, PurchaseBook>
      */
-    public function markIssuedOnPrint(string $supplierRif, string $invoiceDate): Collection
+    public function markIssuedOnPrint(string $supplierRif, string $invoiceDate, ?int $voucherNumber = null): Collection
     {
         $date = Carbon::parse($invoiceDate)->toDateString();
         $issuedAt = now()->toDateString();
 
-        return DB::transaction(function () use ($supplierRif, $date, $issuedAt): Collection {
+        return DB::transaction(function () use ($supplierRif, $date, $issuedAt, $voucherNumber): Collection {
             /** @var Collection<int, PurchaseBook> $books */
             $books = PurchaseBook::query()
                 ->where('supplier_rif', $supplierRif)
                 ->whereDate('invoice_date', $date)
+                ->when($voucherNumber !== null, fn ($query) => $query->where('voucher_number', $voucherNumber))
                 ->lockForUpdate()
                 ->orderBy('operation_number')
-                ->orderBy('voucher_number')
+                ->orderBy('id')
                 ->get();
 
             if ($books->isEmpty()) {

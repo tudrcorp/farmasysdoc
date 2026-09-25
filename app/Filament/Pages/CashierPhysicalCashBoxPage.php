@@ -26,6 +26,7 @@ use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -318,6 +319,37 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
             });
     }
 
+    public function viewClosePhotosAction(): Action
+    {
+        return Action::make('viewClosePhotos')
+            ->label('Ver fotos de cierre')
+            ->icon(Heroicon::Photo)
+            ->modalHeading(function (array $arguments): string {
+                $box = $this->administratorCashBox((int) ($arguments['box'] ?? 0));
+
+                $cashier = (string) ($box->user?->name ?? 'Cajero');
+
+                return 'Fotos de cierre · '.$cashier;
+            })
+            ->modalDescription('Foto del efectivo en dólares y foto del cierre del punto de venta que cargó el cajero al cerrar la caja.')
+            ->modalIcon(Heroicon::Photo)
+            ->modalWidth(Width::FiveExtraLarge)
+            ->modalSubmitAction(false)
+            ->modalCancelAction(fn (Action $action): Action => $action->label('Cerrar')->color('gray'))
+            ->modalContent(function (array $arguments): View {
+                $box = $this->administratorCashBox((int) ($arguments['box'] ?? 0));
+
+                return view('filament.pages.partials.physical-cash-box-close-photos', [
+                    'usdUrl' => filled($box->close_usd_cash_photo_path)
+                        ? route('physical-cash-box.close-photo', ['box' => $box, 'kind' => 'usd'])
+                        : null,
+                    'posUrl' => filled($box->close_pos_receipt_photo_path)
+                        ? route('physical-cash-box.close-photo', ['box' => $box, 'kind' => 'pos'])
+                        : null,
+                ]);
+            });
+    }
+
     private function normalizeUploadedPhotoPath(mixed $value): string
     {
         if (is_array($value)) {
@@ -521,6 +553,8 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
             ->get()
             ->map(static function (PhysicalCashBox $box): array {
                 return [
+                    'id' => (int) $box->getKey(),
+                    'has_close_photos' => filled($box->close_usd_cash_photo_path) || filled($box->close_pos_receipt_photo_path),
                     'branch_name' => (string) ($box->user?->branch?->name ?? 'Sin sucursal'),
                     'cashier_name' => (string) ($box->user?->name ?? 'Cajero'),
                     'is_open' => (bool) $box->is_open,
@@ -790,6 +824,16 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
         }
 
         return $user->restrictedBranchIdsForQueries();
+    }
+
+    private function administratorCashBox(int $boxId): PhysicalCashBox
+    {
+        $user = Auth::user();
+        abort_unless($user instanceof User && $user->isAdministrator(), 403);
+
+        return PhysicalCashBox::query()
+            ->with(['user:id,name'])
+            ->findOrFail($boxId);
     }
 
     private function isManagementUser(User $user): bool

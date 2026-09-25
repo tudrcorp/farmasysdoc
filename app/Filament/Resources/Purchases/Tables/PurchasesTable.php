@@ -26,6 +26,7 @@ use Filament\Tables\Table;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\ValidationException;
 
@@ -307,6 +308,7 @@ class PurchasesTable
             ])
             ->recordActions([
                 self::viewPurchaseDetailAction(),
+                self::downloadSupplierInvoiceAction(),
                 self::requestPurchaseAnnulmentAction(),
                 self::openPurchaseAnnulmentApprovalAction(),
             ])
@@ -344,6 +346,44 @@ class PurchasesTable
             ->modalCancelAction(fn (Action $action): Action => $action
                 ->label('Cerrar')
                 ->color('gray'));
+    }
+
+    private static function downloadSupplierInvoiceAction(): Action
+    {
+        return Action::make('downloadSupplierInvoice')
+            ->label('Descargar factura')
+            ->icon(Heroicon::ArrowDownTray)
+            ->color('gray')
+            ->visible(fn (Purchase $record): bool => filled($record->supplier_invoice_photo_path))
+            ->action(function (Purchase $record) {
+                $path = (string) $record->supplier_invoice_photo_path;
+
+                if ($path === '' || ! Storage::disk('local')->exists($path)) {
+                    Notification::make()
+                        ->title('Factura no disponible')
+                        ->body('No se encontró el archivo de la factura cargado en esta compra.')
+                        ->warning()
+                        ->send();
+
+                    return null;
+                }
+
+                $extension = pathinfo($path, PATHINFO_EXTENSION);
+                $base = filled($record->supplier_invoice_number)
+                    ? (string) $record->supplier_invoice_number
+                    : (string) ($record->purchase_number ?? 'compra');
+                $safeBase = trim((string) preg_replace('/[^\w.\-]+/u', '-', $base), '-');
+                $filename = 'factura-'.($safeBase !== '' ? $safeBase : 'compra');
+                if ($extension !== '') {
+                    $filename .= '.'.$extension;
+                }
+
+                $mime = Storage::disk('local')->mimeType($path) ?: 'application/octet-stream';
+
+                return Storage::disk('local')->download($path, $filename, [
+                    'Content-Type' => $mime,
+                ]);
+            });
     }
 
     private static function requestPurchaseAnnulmentAction(): Action

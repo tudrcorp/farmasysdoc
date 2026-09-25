@@ -182,7 +182,7 @@
             <th>Tasa oficial (Bs/USD)</th>
             <td>
                 @if ($purchase->entryCurrency() === \App\Enums\PurchaseEntryCurrency::VES && filled($purchase->official_usd_ves_rate))
-                    {{ number_format((float) $purchase->official_usd_ves_rate, 8, ',', '.') }}
+                    {{ \App\Support\Purchases\PurchaseBcvRate::format((float) $purchase->official_usd_ves_rate) }}
                 @else
                     —
                 @endif

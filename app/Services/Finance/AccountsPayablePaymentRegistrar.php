@@ -9,6 +9,7 @@ use App\Models\Purchase;
 use App\Models\PurchaseHistory;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
+use App\Support\Finance\AccountsPayableInvoiceTaxSnapshot;
 use App\Support\Finance\AccountsPayableStatus;
 use App\Support\Purchases\PurchaseHistoryEntryType;
 use Illuminate\Support\Carbon;
@@ -120,14 +121,20 @@ final class AccountsPayablePaymentRegistrar
                         ]);
                     }
 
-                    $amountPaidVes = round($remainingUsd * $rateFx, 2);
+                    $ap->loadMissing(['purchase.purchaseBook', 'purchase.supplier']);
+                    $amountPaidVes = AccountsPayableInvoiceTaxSnapshot::amountPayableVes($ap);
+                    if ($amountPaidVes <= 0) {
+                        throw ValidationException::withMessages([
+                            'amount_paid_ves' => 'La cuenta #'.$ap->getKey().' no tiene total a pagar en bolívares.',
+                        ]);
+                    }
 
                     $payload = array_merge($sharedData, [
                         'amount_paid_usd' => $remainingUsd,
                         'amount_paid_ves' => $amountPaidVes,
                     ]);
 
-                    $histories[] = $this->applyAfterLock($ap, $payload, $actorLabel);
+                    $histories[] = $this->applyAfterLock($ap, $payload, $actorLabel, requireCurrentBcvCoherence: false);
                 }
 
                 AuditLogger::record(
@@ -180,7 +187,7 @@ final class AccountsPayablePaymentRegistrar
      *     payment_proof_path?: mixed,
      * }  $data
      */
-    private function applyAfterLock(AccountsPayable $ap, array $data, string $actorLabel): PurchaseHistory
+    private function applyAfterLock(AccountsPayable $ap, array $data, string $actorLabel, bool $requireCurrentBcvCoherence = true): PurchaseHistory
     {
         if ($ap->status !== AccountsPayableStatus::POR_PAGAR) {
             throw ValidationException::withMessages([
@@ -202,7 +209,9 @@ final class AccountsPayablePaymentRegistrar
         }
 
         $rateFx = $this->bcvRateForCurrentDayOrFail();
-        $this->assertUsdVesCoherentWithBcv($amountPaidUsd, $amountPaidVes, $rateFx);
+        if ($requireCurrentBcvCoherence) {
+            $this->assertUsdVesCoherentWithBcv($amountPaidUsd, $amountPaidVes, $rateFx);
+        }
 
         $remainingUsd = round((float) ($ap->remaining_principal_usd ?? $ap->purchase_total_usd), 2);
 

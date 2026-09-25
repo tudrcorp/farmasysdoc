@@ -18,7 +18,7 @@ use App\Services\Finance\AccountsPayableFromPurchaseSynchronizer;
 use App\Services\Finance\PurchaseBookFromPurchaseSynchronizer;
 use App\Services\Finance\PurchaseHistoryFromPurchaseSynchronizer;
 use App\Services\Finance\PurchaseLedgerFromPurchaseSynchronizer;
-use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
+use App\Support\Purchases\PurchaseBcvRate;
 use App\Support\Purchases\PurchaseCreateSummaryPresenter;
 use App\Support\Purchases\PurchaseDeclaredInvoiceTotalTolerance;
 use App\Support\Purchases\PurchaseDocumentTotals;
@@ -66,8 +66,7 @@ class CreatePurchase extends CreateRecord
         $this->form->validate();
 
         if (($this->data['entry_currency'] ?? PurchaseEntryCurrency::USD->value) === PurchaseEntryCurrency::VES->value) {
-            $rate = app(VenezuelaOfficialUsdVesRateClient::class)
-                ->rateForDate($this->data['supplier_invoice_date'] ?? null);
+            $rate = PurchaseBcvRate::forInvoiceDate($this->data['supplier_invoice_date'] ?? null);
             if ($rate === null || $rate <= 0) {
                 Notification::make()
                     ->title('Sin tasa oficial Bs/USD')
@@ -430,14 +429,13 @@ class CreatePurchase extends CreateRecord
         }
 
         if (($data['entry_currency'] ?? PurchaseEntryCurrency::USD->value) === PurchaseEntryCurrency::VES->value) {
-            $rate = app(VenezuelaOfficialUsdVesRateClient::class)
-                ->rateForDate($data['supplier_invoice_date'] ?? null);
+            $rate = PurchaseBcvRate::forInvoiceDate($data['supplier_invoice_date'] ?? null);
             if ($rate === null || $rate <= 0) {
                 throw ValidationException::withMessages([
                     'supplier_invoice_date' => 'No se pudo obtener la tasa oficial Bs/USD (promedio) para la fecha de la factura.',
                 ]);
             }
-            $data['official_usd_ves_rate'] = (float) $rate;
+            $data['official_usd_ves_rate'] = $rate;
         } else {
             $data['official_usd_ves_rate'] = null;
         }

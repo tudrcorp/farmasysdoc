@@ -81,6 +81,9 @@
                                 <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">Apertura</th>
                                 <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">Cierre</th>
                                 <th class="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-300">Movimientos</th>
+                                @if (auth()->user()?->isAdministrator())
+                                    <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">Fotos de cierre</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 bg-white dark:divide-white/10 dark:bg-transparent">
@@ -104,10 +107,26 @@
                                     <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-200">{{ $boxRow['opened_at'] }}</td>
                                     <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-200">{{ $boxRow['closed_at'] }}</td>
                                     <td class="whitespace-nowrap px-3 py-2 text-right text-gray-700 dark:text-gray-200">{{ (int) $boxRow['movements_count'] }}</td>
+                                    @if (auth()->user()?->isAdministrator())
+                                        <td class="whitespace-nowrap px-3 py-2">
+                                            @if ($boxRow['has_close_photos'])
+                                                <x-filament::button
+                                                    size="sm"
+                                                    color="gray"
+                                                    icon="heroicon-o-photo"
+                                                    wire:click="mountAction('viewClosePhotos', { box: {{ (int) $boxRow['id'] }} })"
+                                                >
+                                                    Ver fotos
+                                                </x-filament::button>
+                                            @else
+                                                <span class="text-gray-400">—</span>
+                                            @endif
+                                        </td>
+                                    @endif
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="px-3 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                                    <td colspan="{{ auth()->user()?->isAdministrator() ? 9 : 8 }}" class="px-3 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
                                         No hay cajas visibles para su alcance de sucursales.
                                     </td>
                                 </tr>
@@ -115,6 +134,7 @@
                         </tbody>
                     </table>
                 </div>
+                <x-filament-actions::modals />
             @endif
         </x-filament::section>
         </div>

@@ -38,48 +38,51 @@ final class AccountsPayableBulkPaymentFormSchema
                 ->visible(fn (Get $get): bool => filled($get('_bulk_error')))
                 ->columnSpanFull(),
             Section::make('Cuentas seleccionadas')
-                ->description('Principal pendiente en USD × tasa BCV del día.')
+                ->description('Mismo total a pagar del listado: factura en Bs a la tasa de registro, menos la retención.')
                 ->icon(Heroicon::DocumentText)
                 ->compact()
                 ->visible(fn (Get $get): bool => blank($get('_bulk_error')))
                 ->schema([
                     Repeater::make('selected_lines')
-                        ->label('')
+                        ->hiddenLabel()
                         ->addable(false)
                         ->deletable(false)
                         ->reorderable(false)
+                        ->compact()
                         ->defaultItems(0)
+                        ->extraAttributes(['class' => 'max-w-full overflow-x-auto'])
                         ->table([
-                            TableColumn::make('Proveedor · factura')->width('38%'),
-                            TableColumn::make('OC')->width('8rem'),
-                            TableColumn::make('Vence')->width('5.5rem'),
-                            TableColumn::make('USD')->width('7rem')->alignment(Alignment::End),
-                            TableColumn::make('Bs')->width('8.5rem')->alignment(Alignment::End),
+                            TableColumn::make('Proveedor')->width('11rem'),
+                            TableColumn::make('Nº factura')->width('7rem'),
+                            TableColumn::make('RIF')->width('8rem'),
+                            TableColumn::make('Nº orden compra')->width('8rem'),
+                            TableColumn::make('Sucursal')->width('9rem'),
+                            TableColumn::make('Emisión')->width('6rem'),
+                            TableColumn::make('Vencimiento')->width('6.5rem'),
+                            TableColumn::make('Tasa BCV registro')->width('8.5rem')->alignment(Alignment::End),
+                            TableColumn::make('Total (USD)')->width('7rem')->alignment(Alignment::End),
+                            TableColumn::make('Total factura (Bs, tasa emisión)')->width('9rem')->alignment(Alignment::End),
+                            TableColumn::make('IVA factura')->width('7.5rem')->alignment(Alignment::End),
+                            TableColumn::make('% retención')->width('6rem')->alignment(Alignment::End),
+                            TableColumn::make('Total retenido')->width('7.5rem')->alignment(Alignment::End),
+                            TableColumn::make('Total a pagar')->width('8rem')->alignment(Alignment::End),
                         ])
                         ->schema([
                             Hidden::make('accounts_payable_id'),
-                            TextInput::make('supplier_invoice_line')
-                                ->hiddenLabel()
-                                ->disabled()
-                                ->dehydrated(false),
-                            TextInput::make('purchase_number')
-                                ->hiddenLabel()
-                                ->disabled()
-                                ->dehydrated(false),
-                            TextInput::make('due_at_label')
-                                ->hiddenLabel()
-                                ->disabled()
-                                ->dehydrated(false),
-                            TextInput::make('amount_usd_label')
-                                ->hiddenLabel()
-                                ->disabled()
-                                ->dehydrated(false)
-                                ->extraInputAttributes(['class' => 'text-end font-medium tabular-nums']),
-                            TextInput::make('amount_ves_label')
-                                ->hiddenLabel()
-                                ->disabled()
-                                ->dehydrated(false)
-                                ->extraInputAttributes(['class' => 'text-end font-medium tabular-nums']),
+                            self::readOnlyLine('supplier_name'),
+                            self::readOnlyLine('invoice_number'),
+                            self::readOnlyLine('rif'),
+                            self::readOnlyLine('purchase_number'),
+                            self::readOnlyLine('branch_name'),
+                            self::readOnlyLine('issued_at_label'),
+                            self::readOnlyLine('due_at_label'),
+                            self::readOnlyLine('bcv_rate_label', true),
+                            self::readOnlyLine('amount_usd_label', true),
+                            self::readOnlyLine('invoice_total_ves_label', true),
+                            self::readOnlyLine('tax_caused_label', true),
+                            self::readOnlyLine('retention_percent_label', true),
+                            self::readOnlyLine('tax_retained_label', true),
+                            self::readOnlyLine('amount_ves_label', true),
                         ])
                         ->columnSpanFull(),
                 ])
@@ -95,9 +98,7 @@ final class AccountsPayableBulkPaymentFormSchema
                             '<p class="text-sm font-medium text-gray-900 dark:text-gray-100">'
                             .e(self::formatUsd((float) ($get('_total_usd') ?? 0)))
                             .' · '.e(self::formatBs((float) ($get('_total_ves') ?? 0)))
-                            .' <span class="font-normal text-gray-500 dark:text-gray-400">(BCV '
-                            .e(self::formatBcvRateLabel((float) ($get('_bcv_rate') ?? 0)))
-                            .')</span></p>'
+                            .'</p>'
                         ))
                         ->columnSpanFull(),
                 ])
@@ -148,6 +149,20 @@ final class AccountsPayableBulkPaymentFormSchema
         ];
     }
 
+    private static function readOnlyLine(string $name, bool $numeric = false): TextInput
+    {
+        $input = TextInput::make($name)
+            ->hiddenLabel()
+            ->disabled()
+            ->dehydrated(false);
+
+        if ($numeric) {
+            $input->extraInputAttributes(['class' => 'text-end font-medium tabular-nums']);
+        }
+
+        return $input;
+    }
+
     private static function formatUsd(float $amount): string
     {
         return number_format($amount, 2, ',', '.').' USD';
@@ -156,12 +171,5 @@ final class AccountsPayableBulkPaymentFormSchema
     private static function formatBs(float $amount): string
     {
         return 'Bs '.number_format($amount, 2, ',', '.');
-    }
-
-    private static function formatBcvRateLabel(float $rate): string
-    {
-        return $rate > 0
-            ? number_format($rate, 2, ',', '.').' Bs/USD'
-            : '—';
     }
 }

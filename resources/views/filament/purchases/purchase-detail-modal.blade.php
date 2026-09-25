@@ -86,7 +86,7 @@
         @if ($purchase->entryCurrency() === \App\Enums\PurchaseEntryCurrency::VES && filled($purchase->official_usd_ves_rate))
             <div class="sm:col-span-2">
                 <span class="text-gray-500 dark:text-gray-400">Tasa oficial usada (Bs por USD)</span>
-                <p class="font-mono font-semibold text-gray-900 dark:text-white">{{ number_format((float) $purchase->official_usd_ves_rate, 8, ',', '.') }}</p>
+                <p class="font-mono font-semibold text-gray-900 dark:text-white">{{ \App\Support\Purchases\PurchaseBcvRate::format((float) $purchase->official_usd_ves_rate) }}</p>
             </div>
         @endif
     </div>

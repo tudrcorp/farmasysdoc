@@ -14,17 +14,21 @@ use App\Models\AccountsPayable;
 use App\Models\Purchase;
 use App\Models\Supplier;
 use App\Services\Audit\AuditLogger;
+use App\Services\Finance\AccountsPayableCurrentBalanceRecalculator;
 use App\Services\Finance\AccountsPayablePaymentRegistrar;
+use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Finance\AccountsPayableBulkPaymentPayload;
 use App\Support\Finance\AccountsPayableInvoiceTaxSnapshot;
 use App\Support\Finance\AccountsPayableStatus;
+use App\Support\Purchases\PurchaseBcvRate;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Support\Enums\Width;
 use Filament\Support\Exceptions\Halt;
@@ -37,6 +41,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
+use Livewire\Component;
 
 class AccountsPayablesTable
 {
@@ -448,9 +453,9 @@ class AccountsPayablesTable
                         ->label('Pagar seleccionadas')
                         ->icon(Heroicon::Banknotes)
                         ->color('success')
-                        ->modalWidth(Width::FiveExtraLarge)
+                        ->modalWidth(Width::SevenExtraLarge)
                         ->modalHeading('Pago masivo a proveedores')
-                        ->modalDescription('Revise el detalle de cada cuenta por pagar, los totales calculados con la tasa BCV del día y confirme los datos del pago. Solo aplica a cuentas en estado «Por pagar».')
+                        ->modalDescription('El total en bolívares es el mismo «Total a pagar» del listado (factura a la tasa de registro, menos la retención). Solo aplica a cuentas en estado «Por pagar».')
                         ->modalSubmitActionLabel('Confirmar pago masivo')
                         ->deselectRecordsAfterCompletion()
                         ->before(function (Collection $records): void {
@@ -544,6 +549,85 @@ class AccountsPayablesTable
                             }
                         }),
                     BulkDownloadAccountsPayablePaymentReportAction::make(),
+                    BulkAction::make('syncCurrentBalancesBcv')
+                        ->label('Sincronizar saldos BCV')
+                        ->icon(Heroicon::ArrowPath)
+                        ->color('primary')
+                        ->requiresConfirmation()
+                        ->modalIcon(Heroicon::ArrowPath)
+                        ->modalHeading('Sincronizar saldos al día')
+                        ->modalDescription(function (Collection $records): string {
+                            return 'Solo se recalculan las '.$records->count().' cuentas seleccionadas en estado «Por pagar». '
+                                .'La tasa del sistema viene cargada en el campo. Cámbiela si debe indexar estas facturas con otra tasa. '
+                                .'Las que no seleccione conservan la tasa del registro.';
+                        })
+                        ->modalSubmitActionLabel('Sincronizar')
+                        ->fillForm(function (): array {
+                            $rate = app(VenezuelaOfficialUsdVesRateClient::class)->rateForDate(now());
+
+                            return [
+                                'bcv_rate' => ($rate !== null && $rate > 0) ? PurchaseBcvRate::truncate($rate) : null,
+                            ];
+                        })
+                        ->schema([
+                            TextInput::make('bcv_rate')
+                                ->label('Tasa BCV (Bs por USD)')
+                                ->numeric()
+                                ->required()
+                                ->minValue(0.01)
+                                ->step(0.01)
+                                ->dehydrateStateUsing(fn (mixed $state): float => PurchaseBcvRate::truncate((float) str_replace(',', '.', (string) $state)))
+                                ->helperText('Dos decimales, sin redondear. Puede dejar la tasa del sistema o escribir otra.'),
+                        ])
+                        ->deselectRecordsAfterCompletion()
+                        ->action(function (Collection $records, array $data, Component $livewire): void {
+                            $rate = PurchaseBcvRate::truncate((float) ($data['bcv_rate'] ?? 0));
+                            if ($rate <= 0) {
+                                Notification::make()
+                                    ->title('Tasa no válida')
+                                    ->body('Indique una tasa BCV mayor a cero.')
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
+
+                            $ids = $records
+                                ->map(fn (mixed $record): mixed => $record instanceof AccountsPayable ? $record->getKey() : null)
+                                ->filter()
+                                ->values()
+                                ->all();
+
+                            $result = app(AccountsPayableCurrentBalanceRecalculator::class)
+                                ->recalculateMany(AccountsPayable::query()->whereIn('id', $ids), $rate);
+
+                            if (! $result['ok']) {
+                                Notification::make()
+                                    ->title('No se pudo sincronizar')
+                                    ->body((string) $result['error'])
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
+
+                            $rateLabel = PurchaseBcvRate::format((float) $result['rate']);
+
+                            if (property_exists($livewire, 'lastSyncedBcvRateLabel')) {
+                                $livewire->lastSyncedBcvRateLabel = $rateLabel;
+                            }
+
+                            Notification::make()
+                                ->title('Saldos sincronizados')
+                                ->body(
+                                    'Seleccionadas: '.$records->count()
+                                    .' · Procesadas: '.$result['processed']
+                                    .' · Con cambio de saldo: '.$result['changed']
+                                    .' · Tasa BCV actual: '.$rateLabel.' Bs/USD'
+                                )
+                                ->success()
+                                ->send();
+                        }),
                 ]),
             ])
             ->defaultSort('issued_at', 'desc');

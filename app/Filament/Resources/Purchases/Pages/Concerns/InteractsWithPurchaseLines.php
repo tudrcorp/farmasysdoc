@@ -5,8 +5,8 @@ namespace App\Filament\Resources\Purchases\Pages\Concerns;
 use App\Enums\PurchaseEntryCurrency;
 use App\Filament\Resources\Purchases\Schemas\PurchaseForm;
 use App\Models\Product;
-use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use App\Support\Finance\DefaultVatRate;
+use App\Support\Purchases\PurchaseBcvRate;
 use App\Support\Purchases\PurchaseDocumentTotals;
 
 trait InteractsWithPurchaseLines
@@ -51,8 +51,7 @@ trait InteractsWithPurchaseLines
             : (float) ($product->cost_price ?? 0);
 
         if (($this->data['entry_currency'] ?? PurchaseEntryCurrency::USD->value) === PurchaseEntryCurrency::VES->value) {
-            $rate = app(VenezuelaOfficialUsdVesRateClient::class)
-                ->rateForDate($this->data['supplier_invoice_date'] ?? null);
+            $rate = PurchaseBcvRate::forInvoiceDate($this->data['supplier_invoice_date'] ?? null);
             if ($rate !== null && $rate > 0) {
                 $unitCost = round($unitCost * $rate, 2);
             }

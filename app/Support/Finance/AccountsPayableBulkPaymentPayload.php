@@ -3,11 +3,11 @@
 namespace App\Support\Finance;
 
 use App\Models\AccountsPayable;
-use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use Illuminate\Support\Collection;
 
 /**
- * Resumen de filas y totales para el pago masivo de cuentas por pagar (tasa BCV del día actual).
+ * Resumen de filas y totales para el pago masivo de cuentas por pagar.
+ * El monto en Bs es el mismo «Total a pagar» del listado.
  */
 final class AccountsPayableBulkPaymentPayload
 {
@@ -32,12 +32,6 @@ final class AccountsPayableBulkPaymentPayload
             return new self(false, 'No seleccionó ninguna cuenta por pagar.', [], 0.0, 0.0, 0.0);
         }
 
-        $rate = app(VenezuelaOfficialUsdVesRateClient::class)->rateForDate(now()->startOfDay());
-        if ($rate === null || $rate <= 0) {
-            return new self(false, 'No hay tasa BCV oficial (promedio) para el día actual; no se puede armar el pago masivo.', [], 0.0, 0.0, 0.0);
-        }
-
-        $rate = (float) $rate;
         $lines = [];
         $totalUsd = 0.0;
         $totalVes = 0.0;
@@ -53,11 +47,11 @@ final class AccountsPayableBulkPaymentPayload
                     [],
                     0.0,
                     0.0,
-                    $rate,
+                    0.0,
                 );
             }
 
-            $record->loadMissing(['purchase', 'branch']);
+            $record->loadMissing(['purchase', 'branch', 'purchase.purchaseBook', 'purchase.supplier']);
             $usd = round((float) ($record->remaining_principal_usd ?? $record->purchase_total_usd), 2);
             if ($usd <= 0) {
                 return new self(
@@ -66,51 +60,79 @@ final class AccountsPayableBulkPaymentPayload
                     [],
                     0.0,
                     0.0,
-                    $rate,
+                    0.0,
                 );
             }
 
-            $ves = round($usd * $rate, 2);
-            $lines[] = self::lineStateForRepeater($record, $usd, $ves);
+            $ves = AccountsPayableInvoiceTaxSnapshot::amountPayableVes($record);
+            if ($ves <= 0) {
+                return new self(
+                    false,
+                    'La cuenta por pagar #'.$record->getKey().' no tiene total a pagar en bolívares; no puede incluirse en el pago masivo.',
+                    [],
+                    0.0,
+                    0.0,
+                    0.0,
+                );
+            }
+
+            $lines[] = self::lineStateForRepeater($record, $ves);
             $totalUsd += $usd;
             $totalVes += $ves;
         }
 
         if ($lines === []) {
-            return new self(false, 'No hay filas válidas en la selección.', [], 0.0, 0.0, $rate);
+            return new self(false, 'No hay filas válidas en la selección.', [], 0.0, 0.0, 0.0);
         }
 
         $totalUsd = round($totalUsd, 2);
         $totalVes = round($totalVes, 2);
 
-        return new self(true, null, $lines, $totalUsd, $totalVes, $rate);
+        return new self(true, null, $lines, $totalUsd, $totalVes, 0.0);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private static function lineStateForRepeater(AccountsPayable $record, float $usd, float $ves): array
+    private static function lineStateForRepeater(AccountsPayable $record, float $ves): array
     {
         $supplier = trim((string) $record->supplier_name);
         $invoice = trim((string) $record->supplier_invoice_number);
         $rif = trim((string) ($record->supplier_tax_id ?? ''));
-
-        $supplierInvoiceLine = $supplier;
-        if ($invoice !== '') {
-            $supplierInvoiceLine .= ' · Nº '.$invoice;
-        }
-        if ($rif !== '') {
-            $supplierInvoiceLine .= ' · '.$rif;
-        }
+        $snapshot = AccountsPayableInvoiceTaxSnapshot::for($record);
+        $registrationRate = AccountsPayableInvoiceTaxSnapshot::purchaseRegistrationBcvRate($record);
+        $invoiceTotalVes = (float) $record->purchase_total_ves_at_issue;
 
         return [
             'accounts_payable_id' => (int) $record->getKey(),
-            'supplier_invoice_line' => $supplierInvoiceLine,
+            'supplier_name' => $supplier !== '' ? $supplier : '—',
+            'invoice_number' => $invoice !== '' ? $invoice : '—',
+            'rif' => $rif !== '' ? $rif : '—',
             'purchase_number' => (string) ($record->purchase?->purchase_number ?? '—'),
+            'branch_name' => (string) ($record->branch?->name ?? '—'),
+            'issued_at_label' => $record->issued_at?->format('d/m/Y') ?? '—',
             'due_at_label' => $record->due_at?->format('d/m/Y') ?? '—',
-            'amount_usd_label' => self::formatUsd($usd),
+            'bcv_rate_label' => $registrationRate !== null && $registrationRate > 0
+                ? number_format($registrationRate, 4, ',', '.').' Bs/USD'
+                : '—',
+            'amount_usd_label' => self::formatUsd((float) $record->purchase_total_usd),
+            'invoice_total_ves_label' => self::formatBs($invoiceTotalVes),
+            'tax_caused_label' => $snapshot->taxCausedVes !== null ? self::formatBs((float) $snapshot->taxCausedVes) : '—',
+            'retention_percent_label' => $snapshot->retentionPercent !== null
+                ? number_format($snapshot->retentionPercent, 0, ',', '.').'%'
+                : '—',
+            'tax_retained_label' => self::retainedLabel($snapshot),
             'amount_ves_label' => self::formatBs($ves),
         ];
+    }
+
+    private static function retainedLabel(AccountsPayableInvoiceTaxSnapshot $snapshot): string
+    {
+        if ($snapshot->taxRetainedVes === null) {
+            return $snapshot->purchaseId === null ? '—' : 'Sin retención';
+        }
+
+        return self::formatBs((float) $snapshot->taxRetainedVes);
     }
 
     private static function formatUsd(float $amount): string

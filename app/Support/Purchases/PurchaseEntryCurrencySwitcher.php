@@ -3,7 +3,6 @@
 namespace App\Support\Purchases;
 
 use App\Enums\PurchaseEntryCurrency;
-use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 
 /**
  * Ajusta costos de línea al cambiar la moneda del documento (VES ↔ USD) usando la tasa BCV de la fecha de factura.
@@ -32,8 +31,7 @@ final class PurchaseEntryCurrencySwitcher
             return null;
         }
 
-        $rate = app(VenezuelaOfficialUsdVesRateClient::class)
-            ->rateForDate($formData['supplier_invoice_date'] ?? null);
+        $rate = PurchaseBcvRate::forInvoiceDate($formData['supplier_invoice_date'] ?? null);
         if ($rate === null || $rate <= 0) {
             return null;
         }

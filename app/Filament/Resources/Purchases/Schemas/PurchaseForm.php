@@ -7,10 +7,10 @@ use App\Filament\Resources\Purchases\Pages\CreatePurchase;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Supplier;
-use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Finance\DefaultVatRate;
 use App\Support\Purchases\LotExpirationMonthYear;
+use App\Support\Purchases\PurchaseBcvRate;
 use App\Support\Purchases\PurchaseDocumentTotals;
 use App\Support\Purchases\PurchaseEntryCurrencySwitcher;
 use App\Support\Purchases\PurchasePaymentStatus;
@@ -234,8 +234,7 @@ class PurchaseForm
                                 $needsRate = ($code === PurchaseEntryCurrency::VES->value && $previous === PurchaseEntryCurrency::USD->value)
                                     || ($code === PurchaseEntryCurrency::USD->value && $previous === PurchaseEntryCurrency::VES->value);
                                 if ($needsRate && $previous !== $code) {
-                                    $rate = app(VenezuelaOfficialUsdVesRateClient::class)
-                                        ->rateForDate($livewire->data['supplier_invoice_date'] ?? null);
+                                    $rate = PurchaseBcvRate::forInvoiceDate($livewire->data['supplier_invoice_date'] ?? null);
                                     if ($rate === null || $rate <= 0) {
                                         Notification::make()
                                             ->title('Sin tasa oficial Bs/USD')
@@ -717,7 +716,7 @@ class PurchaseForm
             : 'farmadoc-pos-rate-pill farmadoc-pos-rate-pill--error';
 
         $rateValue = $rate !== null && $rate > 0
-            ? '1 USD = Bs. '.number_format($rate, 6, ',', '.')
+            ? '1 USD = Bs. '.PurchaseBcvRate::format($rate)
             : 'Sin tasa BCV para la fecha seleccionada';
 
         $modeHint = $isVes
@@ -746,9 +745,7 @@ class PurchaseForm
             return null;
         }
 
-        $rate = app(VenezuelaOfficialUsdVesRateClient::class)->rateForDate((string) $invoiceDate);
-
-        return $rate !== null && $rate > 0 ? (float) $rate : null;
+        return PurchaseBcvRate::forInvoiceDate((string) $invoiceDate);
     }
 
     /**

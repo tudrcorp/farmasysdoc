@@ -6,6 +6,7 @@ use App\Models\AccountsPayable;
 use App\Services\Audit\AuditLogger;
 use App\Support\Finance\AccountsPayableInvoiceTaxSnapshot;
 use App\Support\Finance\AccountsPayableStatus;
+use App\Support\Purchases\PurchaseBcvRate;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
@@ -27,9 +28,12 @@ final class AccountsPayableCurrentBalanceRecalculator
      *     error: string|null,
      * }
      */
-    public function recalculateMany(Builder $query): array
+    public function recalculateMany(Builder $query, ?float $rateOverride = null): array
     {
-        $rateToday = $this->rateClient->rateForDate(now());
+        $usingOverride = $rateOverride !== null && $rateOverride > 0;
+        $rateToday = $usingOverride
+            ? PurchaseBcvRate::truncate($rateOverride)
+            : $this->rateClient->rateForDate(now());
 
         if ($rateToday === null || $rateToday <= 0) {
             AuditLogger::record(
@@ -56,13 +60,13 @@ final class AccountsPayableCurrentBalanceRecalculator
             ->where('status', AccountsPayableStatus::POR_PAGAR)
             ->with(['purchase.purchaseBook', 'purchase.supplier'])
             ->orderBy('id')
-            ->chunkById(100, function ($chunk) use (&$processed, &$changed): void {
+            ->chunkById(100, function ($chunk) use (&$processed, &$changed, $rateToday): void {
                 foreach ($chunk as $accountsPayable) {
                     if (! $accountsPayable instanceof AccountsPayable) {
                         continue;
                     }
 
-                    $result = $this->recalculate($accountsPayable, audit: false);
+                    $result = $this->recalculate($accountsPayable, audit: false, rateOverride: $rateToday);
 
                     if (! $result['ok']) {
                         continue;
@@ -83,6 +87,7 @@ final class AccountsPayableCurrentBalanceRecalculator
                 'records_processed' => $processed,
                 'records_with_balance_change' => $changed,
                 'bcv_rate_applied' => $rateToday,
+                'bcv_rate_source' => $usingOverride ? 'manual' : 'system',
                 'as_of' => now()->toIso8601String(),
             ],
         );
@@ -109,13 +114,13 @@ final class AccountsPayableCurrentBalanceRecalculator
      *     error: string|null,
      * }
      */
-    public function recalculate(AccountsPayable $accountsPayable, bool $audit = true): array
+    public function recalculate(AccountsPayable $accountsPayable, bool $audit = true, ?float $rateOverride = null): array
     {
         if ($accountsPayable->status !== AccountsPayableStatus::POR_PAGAR) {
             return $this->failure('Solo se pueden sincronizar cuentas en estado «Por pagar».');
         }
 
-        $computed = $this->compute($accountsPayable);
+        $computed = $this->compute($accountsPayable, $rateOverride);
 
         if (! $computed['ok']) {
             if ($audit) {
@@ -183,9 +188,11 @@ final class AccountsPayableCurrentBalanceRecalculator
      *     error: string|null,
      * }
      */
-    public function compute(AccountsPayable $accountsPayable): array
+    public function compute(AccountsPayable $accountsPayable, ?float $rateOverride = null): array
     {
-        $rateToday = $this->rateClient->rateForDate(now());
+        $rateToday = ($rateOverride !== null && $rateOverride > 0)
+            ? PurchaseBcvRate::truncate($rateOverride)
+            : $this->rateClient->rateForDate(now());
 
         if ($rateToday === null || $rateToday <= 0) {
             return $this->failure('No hay tasa BCV disponible para hoy. Intente más tarde.');

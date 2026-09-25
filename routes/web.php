@@ -18,6 +18,7 @@ use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
 use App\Http\Controllers\Purchases\PurchaseLedgerBookReportController;
 use App\Http\Controllers\Reports\SystemReportsDownloadController;
 use App\Http\Controllers\Sales\CashRegisterClosePdfController;
+use App\Http\Controllers\Sales\PhysicalCashBoxClosePhotoController;
 use App\Http\Controllers\Shop\ShopCatalogMediaController;
 use App\Http\Controllers\Shop\ShopGoogleAuthController;
 use App\Http\Controllers\Shop\ShopLogoutController;
@@ -119,6 +120,12 @@ Route::get('/sitemap.xml', function () {
 
     return response($xml, 200, ['Content-Type' => 'application/xml; charset=UTF-8']);
 })->name('sitemap');
+
+Route::middleware(['auth'])->group(function (): void {
+    Route::get('caja-fisica/{box}/fotos-cierre/{kind}', PhysicalCashBoxClosePhotoController::class)
+        ->whereIn('kind', ['usd', 'pos'])
+        ->name('physical-cash-box.close-photo');
+});
 
 Route::middleware(['auth'])->prefix('geo')->name('geo.')->group(function (): void {
     Route::get('nominatim/search', [NominatimProxyController::class, 'search'])->name('nominatim.search');

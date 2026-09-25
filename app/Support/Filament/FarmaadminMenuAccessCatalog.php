@@ -28,6 +28,7 @@ class FarmaadminMenuAccessCatalog
             'purchase_histories' => ['label' => 'Histórico de compras', 'route_name_fragment' => 'resources.purchase-histories.', 'group' => 'Operaciones'],
             'purchase_ledgers' => ['label' => 'Libro de Compras', 'route_name_fragment' => 'resources.purchase-ledgers.', 'group' => 'Operaciones'],
             'purchase_books' => ['label' => 'Retenciones', 'route_name_fragment' => 'resources.purchase-books.', 'group' => 'Operaciones'],
+            'medication_quotes' => ['label' => 'Cotizador de medicamentos', 'route_name_fragment' => 'resources.medication-quotes.', 'group' => 'Operaciones'],
             'deliveries' => ['label' => 'Entregas', 'route_name_fragment' => 'resources.deliveries.', 'group' => 'Operaciones'],
             'clients' => ['label' => 'Clientes', 'route_name_fragment' => 'resources.clients.', 'group' => 'Operaciones'],
             'client_discounts' => ['label' => 'Descuentos de clientes', 'route_name_fragment' => 'descuentos-clientes', 'group' => 'Operaciones'],

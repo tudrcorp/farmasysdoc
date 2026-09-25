@@ -484,31 +484,27 @@ final class CashRegisterAction
                                             ->visible(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)),
                                         Select::make('cachea_complement_payment_method')
                                             ->label('Metodo de Pago')
-                                            ->helperText('Aplica al saldo pendiente después del pago Cashea.')
+                                            ->helperText('Forma en que se cobra la inicial. Pago Multiple reparte ese monto entre varios métodos.')
                                             ->options(CacheaPosPaymentSupport::complementOptions())
                                             ->default('efectivo_usd')
                                             ->required()
                                             ->live()
                                             ->native(false)
                                             ->dehydrated(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN))
-                                            ->visible(function (Get $get): bool {
-                                                if (! filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)) {
-                                                    return false;
-                                                }
-
-                                                $total = self::computeSaleTotal($get);
-
-                                                return CacheaPosPaymentSupport::remainder(
-                                                    $total,
-                                                    CacheaPosPaymentSupport::paidAmountFromGet($get),
-                                                ) > 0.00001;
-                                            })
+                                            ->visible(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN))
                                             ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
                                                 if (! filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)) {
                                                     return;
                                                 }
 
                                                 $set('bdv_pm_conciliated', false);
+
+                                                if ((string) $state === 'mixed') {
+                                                    $set('mixed_use_usd_portion', true);
+                                                    $set('mixed_use_ves_portion', false);
+
+                                                    return;
+                                                }
 
                                                 if ((string) $state !== 'pago_movil') {
                                                     return;
@@ -695,7 +691,7 @@ final class CashRegisterAction
                                             ->inline(true)
                                             ->live()
                                             ->dehydrated(true)
-                                            ->visible(fn (Get $get): bool => ($get('payment_method') ?? '') === 'mixed')
+                                            ->visible(fn (Get $get): bool => self::showsMixedPaymentFields($get))
                                             ->afterStateUpdated(function (mixed $state, Set $set): void {
                                                 if (filter_var($state, FILTER_VALIDATE_BOOLEAN)) {
                                                     $set('mixed_use_ves_portion', false);
@@ -715,7 +711,7 @@ final class CashRegisterAction
                                             ->inline(true)
                                             ->live()
                                             ->dehydrated(true)
-                                            ->visible(fn (Get $get): bool => ($get('payment_method') ?? '') === 'mixed')
+                                            ->visible(fn (Get $get): bool => self::showsMixedPaymentFields($get))
                                             ->afterStateUpdated(function (mixed $state, Set $set): void {
                                                 if (filter_var($state, FILTER_VALIDATE_BOOLEAN)) {
                                                     $set('mixed_use_usd_portion', false);
@@ -1211,10 +1207,14 @@ final class CashRegisterAction
                     $cacheaBreakdown = CacheaPosPaymentSupport::breakdown($documentTotal, $data, $vesUsdRate);
                 }
 
-                if ($paymentMethod === 'mixed') {
+                if ($paymentMethod === 'mixed'
+                    || ($cacheaBreakdown !== null && ($cacheaBreakdown['complement_payment_method'] ?? '') === 'mixed')) {
+                    $mixedTarget = $cacheaBreakdown !== null && ($cacheaBreakdown['complement_payment_method'] ?? '') === 'mixed'
+                        ? (float) $cacheaBreakdown['cachea_paid_amount']
+                        : $documentTotal;
                     $mixedValidation = MixedPosPaymentSupport::validateBeforeRegister(
                         $data,
-                        $documentTotal,
+                        $mixedTarget,
                         $vesUsdRate,
                     );
                     if (! $mixedValidation['valid']) {
@@ -1254,7 +1254,9 @@ final class CashRegisterAction
 
                 if ($cacheaBreakdown !== null) {
                     $paymentUsd = $cacheaBreakdown['payment_usd'];
-                    $paymentVes = $cacheaBreakdown['payment_ves_equivalent'];
+                    $paymentVes = ($cacheaBreakdown['complement_payment_method'] ?? '') === 'mixed'
+                        ? $cacheaBreakdown['payment_ves']
+                        : $cacheaBreakdown['payment_ves_equivalent'];
                 } else {
                     if ($paymentMethod === 'mixed') {
                         $mixedBreakdown = MixedPosPaymentSupport::breakdown($documentTotal, $vesUsdRate, $data);
@@ -1272,16 +1274,18 @@ final class CashRegisterAction
 
                 $pagoMovilVesAmount = $paymentMethod === 'mixed'
                     ? MixedPosPaymentSupport::pagoMovilVesAmount($data, $documentTotal, $vesUsdRate)
-                    : ($cacheaBreakdown !== null
-                        ? $cacheaBreakdown['payment_ves']
-                        : $paymentVes);
+                    : ($cacheaBreakdown !== null && ($cacheaBreakdown['complement_payment_method'] ?? '') === 'mixed'
+                        ? MixedPosPaymentSupport::pagoMovilVesAmount($data, (float) $cacheaBreakdown['cachea_paid_amount'], $vesUsdRate)
+                        : ($cacheaBreakdown !== null
+                            ? $cacheaBreakdown['payment_ves']
+                            : $paymentVes));
 
                 $recentConciliation = null;
 
                 if (
                     (
                         self::usesPagoMovilForVesPortion($paymentMethod, $mixedVesPaymentMethod, $data, $documentTotal, $vesUsdRate)
-                        || CacheaPosPaymentSupport::usesPagoMovilComplement($paymentMethod, $data, $documentTotal)
+                        || CacheaPosPaymentSupport::usesPagoMovilComplement($paymentMethod, $data, $documentTotal, $vesUsdRate)
                     )
                     && $pagoMovilVesAmount > 0.00001
                 ) {
@@ -1378,7 +1382,7 @@ final class CashRegisterAction
 
                 $requiresPosTerminal = (
                     self::usesPointOfSaleForVesPortion($paymentMethod, $mixedVesPaymentMethod, $data, $documentTotal, $vesUsdRate)
-                    || CacheaPosPaymentSupport::usesPointOfSaleComplement($paymentMethod, $data, $documentTotal)
+                    || CacheaPosPaymentSupport::usesPointOfSaleComplement($paymentMethod, $data, $documentTotal, $vesUsdRate)
                 ) && $paymentVes > 0.00001;
 
                 $resolvedPosTerminal = $requiresPosTerminal
@@ -1429,7 +1433,7 @@ final class CashRegisterAction
                     $paymentReference = ($posTerminalCode !== null ? 'POS '.$posTerminalCode : 'POS').' ****'.$cardLast4;
                 } elseif (
                     $paymentMethod === PosPaymentMethodOptions::CACHEA
-                    && CacheaPosPaymentSupport::usesPointOfSaleComplement($paymentMethod, $data, $documentTotal)
+                    && CacheaPosPaymentSupport::usesPointOfSaleComplement($paymentMethod, $data, $documentTotal, $vesUsdRate)
                 ) {
                     $paymentReference = ($posTerminalCode !== null ? 'CASHEA POS '.$posTerminalCode : 'CASHEA POS').' ****'.$cardLast4;
                 } elseif (
@@ -1440,7 +1444,7 @@ final class CashRegisterAction
                 }
 
                 $shouldRequireReference = PosPaymentMethodOptions::requiresPaymentReference($paymentMethod)
-                    || CacheaPosPaymentSupport::complementRequiresReference($paymentMethod, $data, $documentTotal)
+                    || CacheaPosPaymentSupport::complementRequiresReference($paymentMethod, $data, $documentTotal, $vesUsdRate)
                     || (
                         $paymentMethod === 'mixed'
                         && MixedPosPaymentSupport::requiresPaymentReference($data, $documentTotal, $vesUsdRate)
@@ -4038,7 +4042,8 @@ final class CashRegisterAction
         string $paymentMethod,
         string $actor,
     ): void {
-        if ($paymentMethod !== 'mixed') {
+        if ($paymentMethod !== 'mixed'
+            && ! ($paymentMethod === PosPaymentMethodOptions::CACHEA && CacheaPosPaymentSupport::complementMethodFromData($data) === 'mixed')) {
             return;
         }
 
@@ -4046,7 +4051,9 @@ final class CashRegisterAction
             return;
         }
 
-        $documentTotalUsd = (float) $sale->total;
+        $documentTotalUsd = $paymentMethod === PosPaymentMethodOptions::CACHEA
+            ? CacheaPosPaymentSupport::paidAmountFromData($data)
+            : (float) $sale->total;
         $vesUsdRate = $sale->bcv_ves_per_usd !== null ? (float) $sale->bcv_ves_per_usd : 0.0;
         $cashLines = MixedPosPaymentSupport::efectivoVesCashLines($data, $documentTotalUsd, $vesUsdRate);
 
@@ -4366,14 +4373,18 @@ final class CashRegisterAction
         $rate = self::effectiveVesUsdRate($get);
 
         if ($paymentMethod === PosPaymentMethodOptions::CACHEA) {
-            $breakdown = CacheaPosPaymentSupport::breakdown($total, [
+            $cacheaData = [
                 'cachea_paid_amount' => $get('cachea_paid_amount'),
                 'cachea_complement_payment_method' => $get('cachea_complement_payment_method'),
-            ], $rate);
+                ...self::mixedFormDataFromGet($get),
+            ];
+            $breakdown = CacheaPosPaymentSupport::breakdown($total, $cacheaData, $rate);
 
             return [
                 'payment_usd' => $breakdown['payment_usd'],
-                'payment_ves' => $breakdown['payment_ves_equivalent'],
+                'payment_ves' => ($breakdown['complement_payment_method'] ?? '') === 'mixed'
+                    ? $breakdown['payment_ves']
+                    : $breakdown['payment_ves_equivalent'],
             ];
         }
 
@@ -4414,15 +4425,35 @@ final class CashRegisterAction
         ];
     }
 
+    private static function isCacheaMixedInitialFromGet(Get $get): bool
+    {
+        return filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)
+            && (string) ($get('cachea_complement_payment_method') ?? '') === 'mixed';
+    }
+
+    private static function showsMixedPaymentFields(Get $get): bool
+    {
+        return ($get('payment_method') ?? '') === 'mixed' || self::isCacheaMixedInitialFromGet($get);
+    }
+
+    private static function mixedDocumentUsdFromGet(Get $get): float
+    {
+        if (self::isCacheaMixedInitialFromGet($get)) {
+            return CacheaPosPaymentSupport::paidAmountFromGet($get);
+        }
+
+        return self::computeSaleTotal($get);
+    }
+
     private static function isMixedUsdModeFromGet(Get $get): bool
     {
-        return ($get('payment_method') ?? '') === 'mixed'
+        return self::showsMixedPaymentFields($get)
             && MixedPosPaymentSupport::isUsdMode(self::mixedFormDataFromGet($get));
     }
 
     private static function isMixedVesModeFromGet(Get $get): bool
     {
-        return ($get('payment_method') ?? '') === 'mixed'
+        return self::showsMixedPaymentFields($get)
             && MixedPosPaymentSupport::isVesMode(self::mixedFormDataFromGet($get));
     }
 
@@ -4436,26 +4467,26 @@ final class CashRegisterAction
 
     private static function mixedPaymentUsesPagoMovilFromGet(Get $get): bool
     {
-        if (($get('payment_method') ?? '') !== 'mixed') {
+        if (! self::showsMixedPaymentFields($get)) {
             return false;
         }
 
         return MixedPosPaymentSupport::vesPortionUsesPagoMovil(
             self::mixedFormDataFromGet($get),
-            self::computeSaleTotal($get),
+            self::mixedDocumentUsdFromGet($get),
             self::effectiveVesUsdRate($get),
         );
     }
 
     private static function mixedPaymentUsesPointOfSaleFromGet(Get $get): bool
     {
-        if (($get('payment_method') ?? '') !== 'mixed') {
+        if (! self::showsMixedPaymentFields($get)) {
             return false;
         }
 
         return MixedPosPaymentSupport::vesPortionUsesPointOfSale(
             self::mixedFormDataFromGet($get),
-            self::computeSaleTotal($get),
+            self::mixedDocumentUsdFromGet($get),
             self::effectiveVesUsdRate($get),
         );
     }
@@ -4472,8 +4503,10 @@ final class CashRegisterAction
                 [
                     'cachea_paid_amount' => $get('cachea_paid_amount'),
                     'cachea_complement_payment_method' => $get('cachea_complement_payment_method'),
+                    ...self::mixedFormDataFromGet($get),
                 ],
                 self::computeSaleTotal($get),
+                self::effectiveVesUsdRate($get),
             );
         }
 
@@ -4497,7 +4530,7 @@ final class CashRegisterAction
 
         $paymentVes = MixedPosPaymentSupport::pagoMovilVesAmount(
             self::mixedFormDataFromGet($get),
-            self::computeSaleTotal($get),
+            self::mixedDocumentUsdFromGet($get),
             self::effectiveVesUsdRate($get),
         );
         if ($paymentVes <= 0.00001) {
@@ -4529,11 +4562,18 @@ final class CashRegisterAction
             return 'Venta a crédito · cuenta por cobrar registrada desde caja.';
         }
 
-        if ($paymentMethod !== 'mixed') {
-            return null;
+        if ($paymentMethod === 'mixed') {
+            return MixedPosPaymentSupport::buildSaleNotesSuffix($data, $documentTotal, $vesUsdRate);
         }
 
-        return MixedPosPaymentSupport::buildSaleNotesSuffix($data, $documentTotal, $vesUsdRate);
+        if ($paymentMethod === PosPaymentMethodOptions::CACHEA
+            && CacheaPosPaymentSupport::complementMethodFromData($data) === 'mixed') {
+            return MixedPosPaymentSupport::buildSaleNotesSuffix(
+                $data,
+                CacheaPosPaymentSupport::paidAmountFromData($data),
+                $vesUsdRate,
+            );
+        }
     }
 
     private static function selectedMixedVesPaymentMethodFromGet(Get $get): string
@@ -4563,6 +4603,15 @@ final class CashRegisterAction
             return true;
         }
 
+        if ($paymentMethod === PosPaymentMethodOptions::CACHEA
+            && CacheaPosPaymentSupport::complementMethodFromData($data) === 'mixed') {
+            return MixedPosPaymentSupport::vesPortionUsesPagoMovil(
+                $data,
+                CacheaPosPaymentSupport::paidAmountFromData($data),
+                $vesUsdRate,
+            );
+        }
+
         if ($paymentMethod !== 'mixed') {
             return false;
         }
@@ -4582,6 +4631,15 @@ final class CashRegisterAction
     ): bool {
         if ($paymentMethod === 'punto_venta_ves') {
             return true;
+        }
+
+        if ($paymentMethod === PosPaymentMethodOptions::CACHEA
+            && CacheaPosPaymentSupport::complementMethodFromData($data) === 'mixed') {
+            return MixedPosPaymentSupport::vesPortionUsesPointOfSale(
+                $data,
+                CacheaPosPaymentSupport::paidAmountFromData($data),
+                $vesUsdRate,
+            );
         }
 
         if ($paymentMethod !== 'mixed') {
@@ -5965,8 +6023,10 @@ final class CashRegisterAction
                 [
                     'cachea_paid_amount' => $get('cachea_paid_amount'),
                     'cachea_complement_payment_method' => $get('cachea_complement_payment_method'),
+                    ...self::mixedFormDataFromGet($get),
                 ],
                 self::computeSaleTotal($get),
+                self::effectiveVesUsdRate($get),
             );
         }
 

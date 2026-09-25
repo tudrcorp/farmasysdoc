@@ -18,6 +18,7 @@ final class CacheaPosPaymentSupport
             'transfer_ves' => 'Transferencia VES',
             'zelle' => 'Zelle',
             'pago_movil' => 'Pago Movil',
+            'mixed' => 'Pago Multiple',
         ];
     }
 
@@ -47,6 +48,7 @@ final class CacheaPosPaymentSupport
             'pago_movil', 'transfer_ves' => 'info',
             'punto_venta_ves' => 'primary',
             'efectivo_ves' => 'warning',
+            'mixed' => 'primary',
             default => 'gray',
         };
     }
@@ -110,6 +112,19 @@ final class CacheaPosPaymentSupport
         $remainder = self::remainder($documentTotalUsd, $cacheaPaid);
         $complement = self::complementMethodFromData($data);
 
+        if ($complement === 'mixed' && $cacheaPaid > 0.00001) {
+            $mixed = MixedPosPaymentSupport::breakdown($cacheaPaid, $vesUsdRate, $data);
+
+            return [
+                'cachea_paid_amount' => $cacheaPaid,
+                'remainder' => $remainder,
+                'complement_payment_method' => 'mixed',
+                'payment_usd' => (float) ($mixed['payment_usd'] ?? 0.0),
+                'payment_ves' => (float) ($mixed['payment_ves'] ?? 0.0),
+                'payment_ves_equivalent' => (float) ($mixed['payment_ves'] ?? 0.0),
+            ];
+        }
+
         [$complementUsd, $complementVes] = $remainder > 0.00001
             ? self::resolveComplementAmounts($remainder, $complement, $vesUsdRate)
             : [0.0, 0.0];
@@ -129,13 +144,19 @@ final class CacheaPosPaymentSupport
     /**
      * @param  array<string, mixed>  $data
      */
-    public static function usesPagoMovilComplement(string $paymentMethod, array $data, float $documentTotalUsd): bool
+    public static function usesPagoMovilComplement(string $paymentMethod, array $data, float $documentTotalUsd, float $vesUsdRate = 0.0): bool
     {
         if ($paymentMethod !== PosPaymentMethodOptions::CACHEA) {
             return false;
         }
 
-        $remainder = self::remainder($documentTotalUsd, self::paidAmountFromData($data));
+        $initial = min(self::paidAmountFromData($data), round($documentTotalUsd, 2));
+        if (self::complementMethodFromData($data) === 'mixed') {
+            return $initial > 0.00001
+                && MixedPosPaymentSupport::vesPortionUsesPagoMovil($data, $initial, $vesUsdRate);
+        }
+
+        $remainder = self::remainder($documentTotalUsd, $initial);
 
         return self::complementMethodFromData($data) === 'pago_movil'
             && $remainder > 0.00001;
@@ -144,13 +165,19 @@ final class CacheaPosPaymentSupport
     /**
      * @param  array<string, mixed>  $data
      */
-    public static function usesPointOfSaleComplement(string $paymentMethod, array $data, float $documentTotalUsd): bool
+    public static function usesPointOfSaleComplement(string $paymentMethod, array $data, float $documentTotalUsd, float $vesUsdRate = 0.0): bool
     {
         if ($paymentMethod !== PosPaymentMethodOptions::CACHEA) {
             return false;
         }
 
-        $remainder = self::remainder($documentTotalUsd, self::paidAmountFromData($data));
+        $initial = min(self::paidAmountFromData($data), round($documentTotalUsd, 2));
+        if (self::complementMethodFromData($data) === 'mixed') {
+            return $initial > 0.00001
+                && MixedPosPaymentSupport::vesPortionUsesPointOfSale($data, $initial, $vesUsdRate);
+        }
+
+        $remainder = self::remainder($documentTotalUsd, $initial);
 
         return self::complementMethodFromData($data) === 'punto_venta_ves'
             && $remainder > 0.00001;
@@ -159,13 +186,19 @@ final class CacheaPosPaymentSupport
     /**
      * @param  array<string, mixed>  $data
      */
-    public static function complementRequiresReference(string $paymentMethod, array $data, float $documentTotalUsd): bool
+    public static function complementRequiresReference(string $paymentMethod, array $data, float $documentTotalUsd, float $vesUsdRate = 0.0): bool
     {
         if ($paymentMethod !== PosPaymentMethodOptions::CACHEA) {
             return false;
         }
 
-        $remainder = self::remainder($documentTotalUsd, self::paidAmountFromData($data));
+        $initial = min(self::paidAmountFromData($data), round($documentTotalUsd, 2));
+        if (self::complementMethodFromData($data) === 'mixed') {
+            return $initial > 0.00001
+                && MixedPosPaymentSupport::requiresPaymentReference($data, $initial, $vesUsdRate);
+        }
+
+        $remainder = self::remainder($documentTotalUsd, $initial);
         if ($remainder <= 0.00001) {
             return false;
         }

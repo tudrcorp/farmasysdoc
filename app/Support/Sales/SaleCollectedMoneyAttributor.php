@@ -136,6 +136,10 @@ final class SaleCollectedMoneyAttributor
         $cuotaUsd = round((float) ($cachea?->cachea_paid_amount ?? $paymentUsd), 2);
         $channel = $this->resolveCacheaCuotaChannel($sale, $cachea, $terminalId);
 
+        if ($channel === 'mixed') {
+            return $this->attributeMixed($sale, $paymentUsd, $paymentVes, $terminalId);
+        }
+
         if (in_array($channel, self::vesPaymentMethods(), true)) {
             $cuotaVes = $paymentVes > 0.00001 ? $paymentVes : 0.0;
 
@@ -161,6 +165,10 @@ final class SaleCollectedMoneyAttributor
     private function resolveCacheaCuotaChannel(Sale $sale, ?ConciliationCachea $cachea, ?int $terminalId): string
     {
         $complement = (string) ($cachea?->complement_payment_method ?? '');
+        if ($complement === 'mixed') {
+            return 'mixed';
+        }
+
         $reference = mb_strtolower(trim((string) ($sale->reference ?? $cachea?->reference ?? '')));
 
         if (in_array($complement, self::usdPaymentMethods(), true)) {

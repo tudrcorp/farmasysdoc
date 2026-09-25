@@ -43,13 +43,12 @@ class PurchaseBooksTable
             })
             ->getDescriptionFromRecordUsing(fn (PurchaseBook $record): Htmlable => self::groupDescriptionWithPrintAction($record))
             ->orderQueryUsing(fn (Builder $query, string $direction): Builder => $query
-                ->orderBy('created_at', 'desc')
-                ->orderBy('invoice_date', 'desc')
+                ->orderBy('voucher_number', 'desc')
                 ->orderBy('id', 'desc'));
 
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['purchase']))
-            ->defaultSort('created_at', 'desc')
+            ->defaultSort('voucher_number', 'desc')
             ->defaultGroup($supplierAndDateGroup)
             ->groups([
                 $supplierAndDateGroup,

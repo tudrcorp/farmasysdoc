@@ -12,6 +12,7 @@ use App\Http\Controllers\NominatimProxyController;
 use App\Http\Controllers\ProductTransfers\ProductTransferReportPdfController;
 use App\Http\Controllers\ProductTransfers\ProductTransferSaleReportPdfController;
 use App\Http\Controllers\PublicProductSearchController;
+use App\Http\Controllers\Purchases\MedicationQuotePdfController;
 use App\Http\Controllers\Purchases\PurchaseAnnulmentApprovalController;
 use App\Http\Controllers\Purchases\PurchaseBookRetentionVoucherPdfController;
 use App\Http\Controllers\Purchases\PurchaseBookSeniatRetentionTxtController;
@@ -179,6 +180,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('purchase-books/retention-voucher-pdf', PurchaseBookRetentionVoucherPdfController::class)
         ->middleware('signed')
         ->name('purchase-books.retention-voucher-pdf');
+
+    Route::get('medication-quotes/{medicationQuote}/pdf', MedicationQuotePdfController::class)
+        ->middleware('signed')
+        ->name('medication-quotes.pdf');
 
     Route::get('purchase-books/seniat-retention-txt', PurchaseBookSeniatRetentionTxtController::class)
         ->middleware('signed')

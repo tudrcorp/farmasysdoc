@@ -157,7 +157,13 @@ class Product extends Model
                 return;
             }
 
-            if (! $product->wasChanged(['product_category_id', 'cost_price', 'applies_vat'])) {
+            if ($product->wasChanged('cost_price')) {
+                Inventory::propagateSalePricesFromProductCost($product);
+
+                return;
+            }
+
+            if (! $product->wasChanged(['product_category_id', 'applies_vat'])) {
                 return;
             }
 

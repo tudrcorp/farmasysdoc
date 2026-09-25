@@ -81,7 +81,7 @@ final class CacheaConciliationRegistrar
         return self::register($sale, [
             'cachea_paid_amount' => $breakdown['cachea_paid_amount'],
             'remainder' => $breakdown['remainder'],
-            'complement_payment_method' => $breakdown['remainder'] > 0.00001
+            'complement_payment_method' => ($breakdown['complement_payment_method'] === 'mixed' || $breakdown['remainder'] > 0.00001)
                 ? $breakdown['complement_payment_method']
                 : null,
             'reference' => filled($paymentReference) ? $paymentReference : null,

@@ -222,6 +222,36 @@ class Inventory extends Model
     }
 
     /**
+     * Reescribe el precio de venta de cada fila con el costo del producto y el margen de esa sucursal.
+     * No modifica cantidad, costo de compra ni precio directo.
+     */
+    public static function propagateSalePricesFromProductCost(Product $product): void
+    {
+        if (! $product->exists) {
+            return;
+        }
+
+        $cost = $product->cost_price;
+        $costAmount = ($cost === null || $cost === '') ? 0.0 : (float) $cost;
+
+        self::query()
+            ->where('product_id', $product->id)
+            ->orderBy('id')
+            ->each(function (Inventory $inventory) use ($product, $costAmount): void {
+                $branchId = $inventory->branch_id !== null ? (int) $inventory->branch_id : null;
+                $snapshot = self::financialSnapshotFromCostAndProduct($costAmount, $product, $branchId);
+
+                $inventory->final_price_without_vat = $snapshot['final_price_without_vat'];
+                $inventory->vat_final_price_amount = $snapshot['vat_final_price_amount'];
+                $inventory->final_price_with_vat = $snapshot['final_price_with_vat'];
+
+                if ($inventory->isDirty()) {
+                    $inventory->saveQuietly();
+                }
+            });
+    }
+
+    /**
      * Cantidad disponible para venta (existencias menos reservado).
      *
      * @return Attribute<float, never>

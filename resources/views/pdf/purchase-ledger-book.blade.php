@@ -130,9 +130,9 @@
                     <td class="ctr">{{ $row['supplier_rif'] }}</td>
                     <td class="ctr">{{ $row['taxpayer_type'] !== '' ? $row['taxpayer_type'] : '—' }}</td>
                     <td class="num">{{ $row['is_retention'] ? '—' : number_format((float) $row['total_with_vat'], 2, ',', '.') }}</td>
-                    <td class="num">{{ $row['is_retention'] || $row['exempt'] === null ? '—' : number_format((float) $row['exempt'], 2, ',', '.') }}</td>
+                    <td class="num">{{ $row['is_retention'] ? '0,00' : ($row['exempt'] === null ? '—' : number_format((float) $row['exempt'], 2, ',', '.')) }}</td>
                     <td class="num">{{ $row['is_retention'] || $row['export'] === null ? '—' : number_format((float) $row['export'], 2, ',', '.') }}</td>
-                    <td class="num">{{ $row['is_retention'] ? '—' : number_format((float) $row['taxable_base'], 2, ',', '.') }}</td>
+                    <td class="num">{{ $row['is_retention'] ? '0,00' : number_format((float) $row['taxable_base'], 2, ',', '.') }}</td>
                     <td class="num">{{ $row['is_retention'] ? '—' : number_format((float) $row['tax_caused'], 2, ',', '.') }}</td>
                     <td class="num">{{ $row['is_retention'] || $row['taxable_base_reduced'] === null ? '—' : number_format((float) $row['taxable_base_reduced'], 2, ',', '.') }}</td>
                     <td class="num">{{ $row['is_retention'] || $row['tax_reduced'] === null ? '—' : number_format((float) $row['tax_reduced'], 2, ',', '.') }}</td>
@@ -150,6 +150,15 @@
     </table>
 
     <table class="totals">
+        <tr>
+            <td class="lbl">Total Compras no Gravadas o/y sin derecho a Crédito</td>
+            <td>Item 40</td>
+            <td class="num">{{ number_format($totals['exempt'], 2, ',', '.') }}</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
         <tr>
             <td class="lbl">Total Compras Internas gravadas por Alícuota General 16%</td>
             <td>Item 42</td>

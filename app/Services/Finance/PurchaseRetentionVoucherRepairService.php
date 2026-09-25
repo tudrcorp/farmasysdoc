@@ -2,6 +2,7 @@
 
 namespace App\Services\Finance;
 
+use App\Enums\PurchaseLedgerDocumentType;
 use App\Models\PurchaseBook;
 use App\Models\PurchaseHistory;
 use App\Models\PurchaseLedger;
@@ -67,6 +68,11 @@ final class PurchaseRetentionVoucherRepairService
                         ->whereNotNull('retention_voucher_number')
                         ->update(['retention_voucher_number' => $assignment['new_voucher']]);
 
+                    PurchaseLedger::query()
+                        ->where('purchase_id', $assignment['purchase_id'])
+                        ->where('document_type', PurchaseLedgerDocumentType::ComprobanteDeRetencion)
+                        ->update(['document_number' => (string) $assignment['new_voucher']]);
+
                     PurchaseHistory::query()
                         ->where('purchase_id', $assignment['purchase_id'])
                         ->whereNotNull('retention_voucher_number')
@@ -92,6 +98,69 @@ final class PurchaseRetentionVoucherRepairService
         );
 
         return $result;
+    }
+
+    /**
+     * Alinea el número de documento de las filas COMPROBANTE DE RETENCIÓN
+     * del libro de compras de septiembre 2026 con el comprobante de Retenciones.
+     *
+     * @return array{updated: int, unchanged: int}
+     */
+    public function syncSeptemberLedgerDocumentNumbers(bool $dryRun = false): array
+    {
+        $ledgers = PurchaseLedger::query()
+            ->where('tax_period', '2026/09')
+            ->where('document_type', PurchaseLedgerDocumentType::ComprobanteDeRetencion)
+            ->whereNotNull('purchase_book_id')
+            ->get();
+
+        $books = PurchaseBook::query()
+            ->whereIn('id', $ledgers->pluck('purchase_book_id')->filter()->all())
+            ->get()
+            ->keyBy('id');
+
+        $updated = 0;
+        $unchanged = 0;
+
+        DB::transaction(function () use ($ledgers, $books, $dryRun, &$updated, &$unchanged): void {
+            foreach ($ledgers as $ledger) {
+                $book = $books->get($ledger->purchase_book_id);
+                if ($book === null) {
+                    continue;
+                }
+
+                $number = (string) $book->voucher_number;
+                if ((string) $ledger->document_number === $number) {
+                    $unchanged++;
+
+                    continue;
+                }
+
+                $updated++;
+
+                if ($dryRun) {
+                    continue;
+                }
+
+                $ledger->forceFill(['document_number' => $number])->save();
+            }
+        });
+
+        if (! $dryRun && $updated > 0) {
+            AuditLogger::record(
+                event: 'purchase_ledger_retention_document_numbers_synced',
+                description: 'Libro de compras de septiembre 2026: número de documento del comprobante alineado con Retenciones.',
+                properties: [
+                    'tax_period' => '2026/09',
+                    'updated' => $updated,
+                ],
+            );
+        }
+
+        return [
+            'updated' => $updated,
+            'unchanged' => $unchanged,
+        ];
     }
 
     /**

@@ -68,7 +68,7 @@ final class PurchaseBookRetentionVoucherBuilder
             'retention_agent_name' => (string) $first->retention_agent_name,
             'retention_agent_rif' => (string) $first->retention_agent_rif,
             'retention_agent_address' => (string) $first->retention_agent_address,
-            'issue_date' => now()->format('d/m/Y'),
+            'issue_date' => $first->invoice_date?->format('d/m/Y') ?? '',
             'supplier_name' => (string) $first->supplier_name,
             'supplier_rif' => (string) $first->supplier_rif,
             'supplier_address' => $first->supplier_address,

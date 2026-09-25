@@ -7,7 +7,7 @@ use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
-#[Signature('purchases:repair-retention-vouchers {--september-start=20260900000148 : Primer correlativo de septiembre 2026} {--dry-run : Solo muestra el plan, no escribe}')]
+#[Signature('purchases:repair-retention-vouchers {--september-start=20260900000148 : Primer correlativo de septiembre 2026} {--dry-run : Solo muestra el plan, no escribe} {--sync-ledger-documents : Solo alinea el número de documento del comprobante en el libro de septiembre 2026}')]
 #[Description('Recrea Retenciones faltantes y renumera los comprobantes de septiembre 2026 desde el correlativo indicado')]
 final class RepairPurchaseRetentionVouchersCommand extends Command
 {
@@ -15,6 +15,10 @@ final class RepairPurchaseRetentionVouchersCommand extends Command
     {
         $septemberStart = (int) $this->option('september-start');
         $dryRun = (bool) $this->option('dry-run');
+
+        if ($this->option('sync-ledger-documents')) {
+            return $this->syncLedgerDocuments($repairService, $dryRun);
+        }
 
         if ($septemberStart <= 0) {
             $this->error('El correlativo inicial de septiembre no es válido.');
@@ -56,6 +60,20 @@ final class RepairPurchaseRetentionVouchersCommand extends Command
 
             return self::FAILURE;
         }
+
+        return self::SUCCESS;
+    }
+
+    private function syncLedgerDocuments(PurchaseRetentionVoucherRepairService $repairService, bool $dryRun): int
+    {
+        if ($dryRun) {
+            $this->warn('Simulación: no se escribirá nada.');
+        }
+
+        $result = $repairService->syncSeptemberLedgerDocumentNumbers($dryRun);
+
+        $this->info('Comprobantes del libro alineados: '.$result['updated']);
+        $this->info('Ya coincidían: '.$result['unchanged']);
 
         return self::SUCCESS;
     }

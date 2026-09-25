@@ -14,6 +14,7 @@ use App\Http\Controllers\ProductTransfers\ProductTransferSaleReportPdfController
 use App\Http\Controllers\PublicProductSearchController;
 use App\Http\Controllers\Purchases\PurchaseAnnulmentApprovalController;
 use App\Http\Controllers\Purchases\PurchaseBookRetentionVoucherPdfController;
+use App\Http\Controllers\Purchases\PurchaseBookSeniatRetentionTxtController;
 use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
 use App\Http\Controllers\Purchases\PurchaseLedgerBookReportController;
 use App\Http\Controllers\Reports\SystemReportsDownloadController;
@@ -178,6 +179,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('purchase-books/retention-voucher-pdf', PurchaseBookRetentionVoucherPdfController::class)
         ->middleware('signed')
         ->name('purchase-books.retention-voucher-pdf');
+
+    Route::get('purchase-books/seniat-retention-txt', PurchaseBookSeniatRetentionTxtController::class)
+        ->middleware('signed')
+        ->name('purchase-books.seniat-retention-txt');
 
     Route::get('purchase-ledgers/book-report', PurchaseLedgerBookReportController::class)
         ->middleware('signed')

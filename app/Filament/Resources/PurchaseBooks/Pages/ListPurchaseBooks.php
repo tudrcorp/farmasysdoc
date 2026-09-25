@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources\PurchaseBooks\Pages;
 
+use App\Filament\Resources\PurchaseBooks\Actions\DownloadPurchaseBookSeniatRetentionTxtAction;
 use App\Filament\Resources\PurchaseBooks\PurchaseBookResource;
 use App\Filament\Resources\PurchaseBooks\Widgets\StatsPurchaseBookOverview;
+use Filament\Actions\Action;
 use Filament\Pages\Concerns\ExposesTableToWidgets;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Contracts\Support\Htmlable;
@@ -35,7 +37,7 @@ class ListPurchaseBooks extends ListRecords
     {
         return new HtmlString(
             'Registros agrupados por <strong>proveedor</strong> y <strong>fecha de factura</strong>. '
-            .'Expanda un grupo para revisar líneas, o use <strong>Imprimir PDF</strong> para el comprobante de retención.'
+            .'Expanda un grupo para revisar líneas, use <strong>Imprimir PDF</strong> para el comprobante o <strong>TXT SENIAT</strong> para el archivo del portal.'
         );
     }
 
@@ -52,5 +54,15 @@ class ListPurchaseBooks extends ListRecords
     public function getHeaderWidgetsColumns(): int|array
     {
         return 1;
+    }
+
+    /**
+     * @return array<int, Action>
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            DownloadPurchaseBookSeniatRetentionTxtAction::make(),
+        ];
     }
 }

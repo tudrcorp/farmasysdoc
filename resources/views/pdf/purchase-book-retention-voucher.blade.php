@@ -49,19 +49,20 @@
             margin: 14px 12% 6px;
         }
         .period {
-            width: auto;
+            width: 280px;
             margin: 0 auto 8px;
         }
         .period td {
             border: 1px solid #111;
-            padding: 3px 10px;
+            padding: 3px 8px;
             text-align: center;
             font-weight: bold;
+            text-transform: uppercase;
+            font-size: 7pt;
         }
-        .period .lbl {
-            font-size: 6pt;
-            display: block;
-            font-weight: normal;
+        .period .head {
+            background: #f3f3f3;
+            letter-spacing: 0.3px;
         }
         .parties {
             width: 100%;
@@ -211,14 +212,19 @@
 
     <table class="period">
         <tr>
-            <td>
-                <span class="lbl">Año</span>
-                {{ $tax_period_year }}
-            </td>
-            <td>
-                <span class="lbl">Mes</span>
-                {{ $tax_period_month }}
-            </td>
+            <td class="head" colspan="4">Periodo de imposición</td>
+        </tr>
+        <tr>
+            <td>Año:</td>
+            <td>{{ $tax_period_year }}</td>
+            <td>Mes:</td>
+            <td>{{ $tax_period_month }}</td>
+        </tr>
+        <tr>
+            <td class="head" colspan="4">Fecha de emisión</td>
+        </tr>
+        <tr>
+            <td colspan="4">{{ $issue_date ?: '— / — / —' }}</td>
         </tr>
     </table>
 
@@ -231,7 +237,6 @@
                         <div class="name">{{ $retention_agent_name }}</div>
                         <div class="line"><span class="muted">RIF agente de retención:</span> {{ $retention_agent_rif }}</div>
                         <div class="line"><span class="muted">Dirección fiscal:</span> {{ $retention_agent_address }}</div>
-                        <div class="line"><span class="muted">Fecha de emisión:</span> {{ $issue_date ?: '— / — / —' }}</div>
                     </div>
                 </div>
             </td>

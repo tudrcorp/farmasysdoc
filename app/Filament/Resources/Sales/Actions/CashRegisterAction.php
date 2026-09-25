@@ -4574,6 +4574,8 @@ final class CashRegisterAction
                 $vesUsdRate,
             );
         }
+
+        return null;
     }
 
     private static function selectedMixedVesPaymentMethodFromGet(Get $get): string

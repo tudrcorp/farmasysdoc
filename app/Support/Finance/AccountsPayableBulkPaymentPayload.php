@@ -64,7 +64,7 @@ final class AccountsPayableBulkPaymentPayload
                 );
             }
 
-            $ves = AccountsPayableInvoiceTaxSnapshot::amountPayableVes($record);
+            $ves = AccountsPayableInvoiceTaxSnapshot::listedAmountPayableVes($record);
             if ($ves <= 0) {
                 return new self(
                     false,

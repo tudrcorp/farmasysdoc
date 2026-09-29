@@ -122,7 +122,7 @@ final class AccountsPayablePaymentRegistrar
                     }
 
                     $ap->loadMissing(['purchase.purchaseBook', 'purchase.supplier']);
-                    $amountPaidVes = AccountsPayableInvoiceTaxSnapshot::amountPayableVes($ap);
+                    $amountPaidVes = AccountsPayableInvoiceTaxSnapshot::listedAmountPayableVes($ap);
                     if ($amountPaidVes <= 0) {
                         throw ValidationException::withMessages([
                             'amount_paid_ves' => 'La cuenta #'.$ap->getKey().' no tiene total a pagar en bolívares.',

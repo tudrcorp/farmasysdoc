@@ -247,12 +247,16 @@ class AccountsPayablesTable
                     ->alignEnd()
                     ->weight('semibold')
                     ->color('success')
-                    ->state(fn (AccountsPayable $record): float => AccountsPayableInvoiceTaxSnapshot::amountPayableVes($record))
+                    ->state(fn (AccountsPayable $record): float => AccountsPayableInvoiceTaxSnapshot::listedAmountPayableVes($record))
                     ->formatStateUsing(fn (float $state): string => self::formatBs($state))
                     ->copyable()
                     ->copyMessage('Total a pagar copiado')
                     ->copyableState(fn (float $state): string => number_format($state, 2, ',', '.'))
                     ->description(function (AccountsPayable $record): ?string {
+                        if ($record->last_balance_recalculated_at !== null && $record->status === AccountsPayableStatus::POR_PAGAR) {
+                            return 'Saldo al día · '.$record->last_balance_recalculated_at->timezone(config('app.timezone'))->format('d/m/Y H:i');
+                        }
+
                         $retained = AccountsPayableInvoiceTaxSnapshot::for($record)->taxRetainedVes;
 
                         if ($retained === null || (float) $retained <= 0) {
@@ -261,7 +265,7 @@ class AccountsPayablesTable
 
                         return 'Factura − '.self::formatBs((float) $retained);
                     })
-                    ->tooltip('Clic para copiar. Total factura (Bs, tasa emisión) menos el valor retenido por SENIAT.')
+                    ->tooltip('Clic para copiar. Si la cuenta se sincronizó, es el saldo al día: total a pagar ÷ tasa del registro × tasa BCV confirmada.')
                     ->extraAttributes([
                         'class' => 'farmadoc-cxp-copyable',
                     ])
@@ -376,7 +380,7 @@ class AccountsPayablesTable
                                 'accountsPayable' => $record,
                                 'supplier' => $supplier,
                                 'bankAccounts' => $supplier?->bankAccounts ?? collect(),
-                                'amountPayableVes' => AccountsPayableInvoiceTaxSnapshot::amountPayableVes($record),
+                                'amountPayableVes' => AccountsPayableInvoiceTaxSnapshot::listedAmountPayableVes($record),
                                 'supplierName' => filled($record->supplier_name)
                                     ? (string) $record->supplier_name
                                     : ($supplier?->displayName() ?? '—'),

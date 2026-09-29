@@ -124,13 +124,31 @@ final class AccountsPayableInvoiceTaxSnapshot
         return round((float) $record->purchase_total_ves_at_issue - $retained, 2);
     }
 
+    /**
+     * Monto que muestra «Total a pagar»: el saldo recalculado con la tasa BCV de sincronización,
+     * o la factura a la tasa de registro menos la retención si aún no se sincronizó.
+     */
+    public static function listedAmountPayableVes(AccountsPayable $record): float
+    {
+        if (
+            $record->status === AccountsPayableStatus::POR_PAGAR
+            && $record->last_balance_recalculated_at !== null
+            && $record->current_balance_ves !== null
+            && (float) $record->current_balance_ves > 0
+        ) {
+            return round((float) $record->current_balance_ves, 2);
+        }
+
+        return self::amountPayableVes($record);
+    }
+
     public static function sumAmountPayableForQuery(Builder $query): float
     {
         return round($query->clone()
             ->reorder()
             ->with(['purchase.purchaseBook', 'purchase.supplier'])
             ->get()
-            ->sum(fn (AccountsPayable $record): float => self::amountPayableVes($record)), 2);
+            ->sum(fn (AccountsPayable $record): float => self::listedAmountPayableVes($record)), 2);
     }
 
     /**

@@ -171,17 +171,21 @@ final class ProfitabilityKpiBoard
 
         $top = $this->ordersQuery($branchId, $start, $end)
             ->join('partner_companies', 'partner_companies.id', '=', 'orders.partner_company_id')
-            ->selectRaw("COALESCE(NULLIF(partner_companies.trade_name, ''), partner_companies.legal_name) as partner_name, COALESCE(SUM(orders.total - orders.tax_total), 0) as net")
-            ->groupByRaw("COALESCE(NULLIF(partner_companies.trade_name, ''), partner_companies.legal_name)")
+            ->selectRaw('partner_companies.trade_name, partner_companies.legal_name, COALESCE(SUM(orders.total - orders.tax_total), 0) as net')
+            ->groupBy('partner_companies.id', 'partner_companies.trade_name', 'partner_companies.legal_name')
             ->orderByDesc('net')
             ->first();
+        $partnerName = trim((string) ($top?->trade_name ?? ''));
+        if ($partnerName === '') {
+            $partnerName = trim((string) ($top?->legal_name ?? ''));
+        }
 
         return [
             'net' => $net,
             'discounts' => round((float) ($row->discounts ?? 0), 2),
             'invoices' => (int) ($row->invoices ?? 0),
             'cogs' => $cogs,
-            'top_partner' => filled($top->partner_name ?? null) ? (string) $top->partner_name : 'Sin convenios',
+            'top_partner' => $partnerName !== '' ? $partnerName : 'Sin convenios',
         ];
     }
 

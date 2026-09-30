@@ -125,21 +125,65 @@ final class AccountsPayableInvoiceTaxSnapshot
     }
 
     /**
-     * Monto que muestra «Total a pagar»: el saldo recalculado con la tasa BCV de sincronización,
-     * o la factura a la tasa de registro menos la retención si aún no se sincronizó.
+     * Monto que muestra «Total a pagar».
+     *
+     * Si el saldo guardado es el total de la factura, se ignora: ese valor se escribió al crear
+     * la cuenta, antes de restar la retención. Un saldo distinto es el neto revaluado
+     * (factura − retención) ÷ tasa de registro × tasa de sincronización, ya con abonos.
      */
     public static function listedAmountPayableVes(AccountsPayable $record): float
     {
+        $netOutstanding = self::outstandingPayableVes($record);
+
         if (
-            $record->status === AccountsPayableStatus::POR_PAGAR
-            && $record->last_balance_recalculated_at !== null
-            && $record->current_balance_ves !== null
-            && (float) $record->current_balance_ves > 0
+            $record->status !== AccountsPayableStatus::POR_PAGAR
+            || $record->last_balance_recalculated_at === null
+            || $record->current_balance_ves === null
+            || (float) $record->current_balance_ves <= 0
         ) {
-            return round((float) $record->current_balance_ves, 2);
+            return $netOutstanding;
         }
 
-        return self::amountPayableVes($record);
+        $current = round((float) $record->current_balance_ves, 2);
+        $gross = round((float) $record->purchase_total_ves_at_issue, 2);
+
+        if ($gross > 0 && abs($current - $gross) < 0.05 && $netOutstanding + 0.05 < $gross) {
+            return $netOutstanding;
+        }
+
+        return $current;
+    }
+
+    public static function storesGrossInvoiceAsDailyBalance(AccountsPayable $record): bool
+    {
+        if (
+            $record->status !== AccountsPayableStatus::POR_PAGAR
+            || $record->current_balance_ves === null
+            || (float) $record->current_balance_ves <= 0
+        ) {
+            return false;
+        }
+
+        $current = round((float) $record->current_balance_ves, 2);
+        $gross = round((float) $record->purchase_total_ves_at_issue, 2);
+        $netOutstanding = self::outstandingPayableVes($record);
+
+        return $gross > 0 && abs($current - $gross) < 0.05 && $netOutstanding + 0.05 < $gross;
+    }
+
+    /**
+     * Factura − retención, en proporción al principal USD que sigue pendiente.
+     */
+    public static function outstandingPayableVes(AccountsPayable $record): float
+    {
+        $net = self::amountPayableVes($record);
+        $purchaseTotalUsd = (float) $record->purchase_total_usd;
+        $remainingPrincipalUsd = (float) ($record->remaining_principal_usd ?? $purchaseTotalUsd);
+        $ratio = $purchaseTotalUsd > 0.00001
+            ? max(0.0, min(1.0, $remainingPrincipalUsd / $purchaseTotalUsd))
+            : 1.0;
+
+        return round($net * $ratio, 2);
     }
 
     public static function sumAmountPayableForQuery(Builder $query): float

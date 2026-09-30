@@ -76,13 +76,16 @@ final class AccountsPayableFromPurchaseSynchronizer
         $vesAtIssue = $snapshot['ves_at_issue'];
         $originalBalance = $snapshot['ves_at_registration'];
 
-        // Saldo al día = (total a pagar Bs ÷ tasa BCV registro) × tasa BCV del día.
-        // Al crear aún no hay retención; el sync posterior la descuenta.
+        // Saldo al día = ((factura Bs − retención) ÷ tasa BCV registro) × tasa BCV del día.
+        // En el alta normal el libro de compras aún no existe; ese sync vuelve a calcular el neto.
+        $purchase->loadMissing('purchaseBook');
+        $retainedVes = round((float) ($purchase->purchaseBook?->tax_retained_ves ?? 0), 2);
+        $payableVes = max(0, round($vesAtIssue - $retainedVes, 2));
         $todayRate = $this->rateClient->rateForDate(now());
         $registrationRate = $rateAtLoad > 0 ? $rateAtLoad : $rateAtIssue;
         $currentBalance = ($todayRate !== null && $todayRate > 0 && $registrationRate > 0)
-            ? round(($vesAtIssue / $registrationRate) * $todayRate, 2)
-            : $originalBalance;
+            ? round(($payableVes / $registrationRate) * $todayRate, 2)
+            : max(0, round($originalBalance - $retainedVes, 2));
 
         $dueAt = filled($purchase->payment_due_date)
             ? Carbon::parse($purchase->payment_due_date)->startOfDay()

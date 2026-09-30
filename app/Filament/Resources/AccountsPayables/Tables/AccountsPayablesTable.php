@@ -253,7 +253,11 @@ class AccountsPayablesTable
                     ->copyMessage('Total a pagar copiado')
                     ->copyableState(fn (float $state): string => number_format($state, 2, ',', '.'))
                     ->description(function (AccountsPayable $record): ?string {
-                        if ($record->last_balance_recalculated_at !== null && $record->status === AccountsPayableStatus::POR_PAGAR) {
+                        if (
+                            $record->last_balance_recalculated_at !== null
+                            && $record->status === AccountsPayableStatus::POR_PAGAR
+                            && ! AccountsPayableInvoiceTaxSnapshot::storesGrossInvoiceAsDailyBalance($record)
+                        ) {
                             return 'Saldo al día · '.$record->last_balance_recalculated_at->timezone(config('app.timezone'))->format('d/m/Y H:i');
                         }
 

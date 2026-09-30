@@ -3,9 +3,11 @@
 namespace App\Services\Finance;
 
 use App\Enums\PurchaseEntryCurrency;
+use App\Models\AccountsPayable;
 use App\Models\Purchase;
 use App\Models\PurchaseBook;
 use App\Services\Audit\AuditLogger;
+use App\Support\Finance\AccountsPayableStatus;
 use App\Support\Finance\DefaultVatRate;
 use App\Support\Fiscal\CompanyFiscalAddress;
 use App\Support\Fiscal\VenezuelanRifFormatter;
@@ -200,8 +202,30 @@ final class PurchaseBookFromPurchaseSynchronizer
         );
 
         app(PurchaseHistoryRetentionVoucherSynchronizer::class)->syncFromPurchaseBook($book);
+        $this->refreshAccountsPayableBalance($purchase);
 
         return $book;
+    }
+
+    /**
+     * La cuenta por pagar se crea antes del libro. Aquí el saldo pasa a ser
+     * (factura − retención) ÷ tasa de registro × tasa del día.
+     */
+    private function refreshAccountsPayableBalance(Purchase $purchase): void
+    {
+        $purchase->unsetRelation('purchaseBook');
+
+        $accountsPayable = AccountsPayable::query()
+            ->where('purchase_id', $purchase->id)
+            ->where('status', AccountsPayableStatus::POR_PAGAR)
+            ->first();
+
+        if ($accountsPayable === null) {
+            return;
+        }
+
+        app(AccountsPayableCurrentBalanceRecalculator::class)
+            ->recalculate($accountsPayable, audit: false);
     }
 
     private function amountToVes(float $amount, Purchase $purchase, float $rateAtInvoice): float

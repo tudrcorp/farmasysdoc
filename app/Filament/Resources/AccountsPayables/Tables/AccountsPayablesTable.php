@@ -463,7 +463,7 @@ class AccountsPayablesTable
                         ->color('success')
                         ->modalWidth(Width::SevenExtraLarge)
                         ->modalHeading('Pago masivo a proveedores')
-                        ->modalDescription('El total en bolívares es el mismo «Total a pagar» del listado (factura a la tasa de registro, menos la retención). Solo aplica a cuentas en estado «Por pagar».')
+                        ->modalDescription('Solo aplica a cuentas en estado «Por pagar». Máximo '.AccountsPayableBulkPaymentPayload::MAX_RECORDS.' facturas por pago.')
                         ->modalSubmitActionLabel('Confirmar pago masivo')
                         ->deselectRecordsAfterCompletion()
                         ->before(function (Collection $records): void {
@@ -480,21 +480,13 @@ class AccountsPayablesTable
 
                             throw new Halt;
                         })
-                        ->fillForm(fn (Collection $records): array => AccountsPayableBulkPaymentFormSchema::fillFormStateFromPayload(
-                            AccountsPayableBulkPaymentPayload::fromSelection($records),
+                        ->modalContent(fn (Collection $records): View => view(
+                            'filament.accounts-payables.bulk-payment-selection',
+                            ['payload' => AccountsPayableBulkPaymentPayload::fromSelection($records)],
                         ))
+                        ->fillForm(fn (): array => AccountsPayableBulkPaymentFormSchema::defaultFormState())
                         ->schema(AccountsPayableBulkPaymentFormSchema::modalSchema())
                         ->action(function (Collection $records, array $data): void {
-                            if (filled($data['_bulk_error'] ?? null)) {
-                                Notification::make()
-                                    ->title('No se puede continuar')
-                                    ->body((string) $data['_bulk_error'])
-                                    ->danger()
-                                    ->send();
-
-                                return;
-                            }
-
                             $payload = AccountsPayableBulkPaymentPayload::fromSelection($records);
                             if (! $payload->ok) {
                                 Notification::make()

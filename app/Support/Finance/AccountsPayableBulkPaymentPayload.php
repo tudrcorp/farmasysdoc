@@ -11,6 +11,8 @@ use Illuminate\Support\Collection;
  */
 final class AccountsPayableBulkPaymentPayload
 {
+    public const MAX_RECORDS = 100;
+
     /**
      * @param  list<array<string, mixed>>  $selectedLines
      */
@@ -30,6 +32,17 @@ final class AccountsPayableBulkPaymentPayload
     {
         if ($records->isEmpty()) {
             return new self(false, 'No seleccionó ninguna cuenta por pagar.', [], 0.0, 0.0, 0.0);
+        }
+
+        if ($records->count() > self::MAX_RECORDS) {
+            return new self(
+                false,
+                'Puede pagar como máximo '.self::MAX_RECORDS.' cuentas a la vez. Seleccionó '.$records->count().'. Divida la selección y repita el pago.',
+                [],
+                0.0,
+                0.0,
+                0.0,
+            );
         }
 
         $lines = [];

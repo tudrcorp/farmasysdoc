@@ -129,7 +129,7 @@ final class AccountsPayableInvoiceTaxSnapshot
      *
      * Si el saldo guardado es el total de la factura, se ignora: ese valor se escribió al crear
      * la cuenta, antes de restar la retención. Un saldo distinto es el neto revaluado
-     * (factura − retención) ÷ tasa de registro × tasa de sincronización, ya con abonos.
+     * (factura − retención) ÷ tasa de registro, en USD a 2 decimales, × tasa del día a 2 decimales, ya con abonos.
      */
     public static function listedAmountPayableVes(AccountsPayable $record): float
     {

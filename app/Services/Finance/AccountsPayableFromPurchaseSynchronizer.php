@@ -83,9 +83,10 @@ final class AccountsPayableFromPurchaseSynchronizer
         $payableVes = max(0, round($vesAtIssue - $retainedVes, 2));
         $todayRate = $this->rateClient->rateForDate(now());
         $registrationRate = $rateAtLoad > 0 ? $rateAtLoad : $rateAtIssue;
-        $currentBalance = ($todayRate !== null && $todayRate > 0 && $registrationRate > 0)
-            ? round(($payableVes / $registrationRate) * $todayRate, 2)
-            : max(0, round($originalBalance - $retainedVes, 2));
+        $indexedBalance = ($todayRate !== null && $todayRate > 0 && $registrationRate > 0)
+            ? AccountsPayableCurrentBalanceRecalculator::indexedBalanceVes($payableVes, $registrationRate, $todayRate)
+            : null;
+        $currentBalance = $indexedBalance ?? max(0, round($originalBalance - $retainedVes, 2));
 
         $dueAt = filled($purchase->payment_due_date)
             ? Carbon::parse($purchase->payment_due_date)->startOfDay()

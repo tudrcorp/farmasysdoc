@@ -135,7 +135,8 @@ class AccountsPayableInfolist
                                     ->label('Saldo original en Bs (día de registro en sistema)')
                                     ->formatStateUsing(fn ($state): string => self::formatBs((float) $state)),
                                 TextEntry::make('current_balance_ves')
-                                    ->label('Saldo al día actual en Bs')
+                                    ->label('Total a pagar (saldo al día)')
+                                    ->helperText('Único monto que cambia al sincronizar la tasa BCV.')
                                     ->formatStateUsing(fn ($state): string => self::formatBs((float) $state)),
                                 TextEntry::make('last_balance_recalculated_at')
                                     ->label('Último recálculo automático del saldo')

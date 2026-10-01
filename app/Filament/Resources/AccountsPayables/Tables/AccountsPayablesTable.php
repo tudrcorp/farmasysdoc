@@ -21,7 +21,6 @@ use App\Support\Filament\BranchAuthScope;
 use App\Support\Finance\AccountsPayableBulkPaymentPayload;
 use App\Support\Finance\AccountsPayableInvoiceTaxSnapshot;
 use App\Support\Finance\AccountsPayableStatus;
-use App\Support\Purchases\PurchaseBcvRate;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkAction;
@@ -258,7 +257,7 @@ class AccountsPayablesTable
                             && $record->status === AccountsPayableStatus::POR_PAGAR
                             && ! AccountsPayableInvoiceTaxSnapshot::storesGrossInvoiceAsDailyBalance($record)
                         ) {
-                            return 'Saldo al día · '.$record->last_balance_recalculated_at->timezone(config('app.timezone'))->format('d/m/Y H:i');
+                            return 'A tasa de carga '.self::formatBs(AccountsPayableInvoiceTaxSnapshot::outstandingPayableVes($record));
                         }
 
                         $retained = AccountsPayableInvoiceTaxSnapshot::for($record)->taxRetainedVes;
@@ -269,7 +268,7 @@ class AccountsPayablesTable
 
                         return 'Factura − '.self::formatBs((float) $retained);
                     })
-                    ->tooltip('Clic para copiar. Si la cuenta se sincronizó, es el saldo al día: total a pagar ÷ tasa del registro × tasa BCV confirmada.')
+                    ->tooltip('Clic para copiar. Tras sincronizar, este monto es el saldo nuevo. La línea de abajo es el total a pagar a la tasa de carga, antes de indexar.')
                     ->extraAttributes([
                         'class' => 'farmadoc-cxp-copyable',
                     ])
@@ -557,16 +556,17 @@ class AccountsPayablesTable
                         ->modalIcon(Heroicon::ArrowPath)
                         ->modalHeading('Sincronizar saldos al día')
                         ->modalDescription(function (Collection $records): string {
-                            return 'Solo se recalculan las '.$records->count().' cuentas seleccionadas en estado «Por pagar». '
-                                .'La tasa del sistema viene cargada en el campo. Cámbiela si debe indexar estas facturas con otra tasa. '
-                                .'Las que no seleccione conservan la tasa del registro.';
+                            return 'Solo cambia el total a pagar de las '.$records->count().' cuentas seleccionadas que estén «Por pagar». '
+                                .'La tasa se redondea a dos decimales. El resto de la fila no se modifica.';
                         })
                         ->modalSubmitActionLabel('Sincronizar')
                         ->fillForm(function (): array {
                             $rate = app(VenezuelaOfficialUsdVesRateClient::class)->rateForDate(now());
 
                             return [
-                                'bcv_rate' => ($rate !== null && $rate > 0) ? PurchaseBcvRate::truncate($rate) : null,
+                                'bcv_rate' => ($rate !== null && $rate > 0)
+                                    ? AccountsPayableCurrentBalanceRecalculator::roundMoney($rate)
+                                    : null,
                             ];
                         })
                         ->schema([
@@ -576,12 +576,14 @@ class AccountsPayablesTable
                                 ->required()
                                 ->minValue(0.01)
                                 ->step(0.01)
-                                ->dehydrateStateUsing(fn (mixed $state): float => PurchaseBcvRate::truncate((float) str_replace(',', '.', (string) $state)))
-                                ->helperText('Dos decimales, sin redondear. Puede dejar la tasa del sistema o escribir otra.'),
+                                ->dehydrateStateUsing(fn (mixed $state): float => AccountsPayableCurrentBalanceRecalculator::roundMoney(
+                                    (float) str_replace(',', '.', trim((string) $state)),
+                                ))
+                                ->helperText('Dos decimales, con redondeo. Puede dejar la tasa del sistema o escribir otra.'),
                         ])
                         ->deselectRecordsAfterCompletion()
                         ->action(function (Collection $records, array $data, Component $livewire): void {
-                            $rate = PurchaseBcvRate::truncate((float) ($data['bcv_rate'] ?? 0));
+                            $rate = AccountsPayableCurrentBalanceRecalculator::roundMoney((float) ($data['bcv_rate'] ?? 0));
                             if ($rate <= 0) {
                                 Notification::make()
                                     ->title('Tasa no válida')
@@ -598,6 +600,15 @@ class AccountsPayablesTable
                                 ->values()
                                 ->all();
 
+                            if ($ids === []) {
+                                Notification::make()
+                                    ->title('No hay cuentas para sincronizar')
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
+
                             $result = app(AccountsPayableCurrentBalanceRecalculator::class)
                                 ->recalculateMany(AccountsPayable::query()->whereIn('id', $ids), $rate);
 
@@ -611,19 +622,32 @@ class AccountsPayablesTable
                                 return;
                             }
 
-                            $rateLabel = PurchaseBcvRate::format((float) $result['rate']);
+                            $rateLabel = number_format((float) $result['rate'], 2, ',', '.');
 
                             if (property_exists($livewire, 'lastSyncedBcvRateLabel')) {
                                 $livewire->lastSyncedBcvRateLabel = $rateLabel;
                             }
 
+                            if (property_exists($livewire, 'bcvSyncResult') && method_exists($livewire, 'replaceMountedAction')) {
+                                $livewire->bcvSyncResult = [
+                                    'rate_label' => $rateLabel,
+                                    'processed' => $result['processed'],
+                                    'changed' => $result['changed'],
+                                    'failed' => $result['failed'],
+                                    'lines' => $result['lines'],
+                                ];
+                                $livewire->replaceMountedAction('syncBalanceResult');
+
+                                return;
+                            }
+
                             Notification::make()
                                 ->title('Saldos sincronizados')
                                 ->body(
-                                    'Seleccionadas: '.$records->count()
-                                    .' · Procesadas: '.$result['processed']
-                                    .' · Con cambio de saldo: '.$result['changed']
-                                    .' · Tasa BCV actual: '.$rateLabel.' Bs/USD'
+                                    'Procesadas: '.$result['processed']
+                                    .' · Con cambio: '.$result['changed']
+                                    .' · Omitidas: '.$result['failed']
+                                    .' · Tasa BCV: '.$rateLabel.' Bs/USD'
                                 )
                                 ->success()
                                 ->send();

@@ -35,41 +35,32 @@ class RecalculateAccountsPayableCurrentBalancesCommand extends Command
             return self::SUCCESS;
         }
 
-        $processed = 0;
-        $changed = 0;
+        $result = $recalculator->recalculateMany(
+            AccountsPayable::query()->where('status', AccountsPayableStatus::POR_PAGAR),
+            rateOverride: $rateToday,
+            audit: false,
+            withLines: false,
+        );
 
-        AccountsPayable::query()
-            ->where('status', AccountsPayableStatus::POR_PAGAR)
-            ->orderBy('id')
-            ->chunkById(100, function ($chunk) use ($recalculator, &$processed, &$changed): void {
-                foreach ($chunk as $ap) {
-                    /** @var AccountsPayable $ap */
-                    $result = $recalculator->recalculate($ap, audit: false);
+        if (! $result['ok']) {
+            $this->warn((string) $result['error']);
 
-                    if (! $result['ok']) {
-                        continue;
-                    }
-
-                    if (abs((float) $result['previous_balance_ves'] - (float) $result['new_balance_ves']) >= 0.005) {
-                        $changed++;
-                    }
-
-                    $processed++;
-                }
-            });
+            return self::SUCCESS;
+        }
 
         AuditLogger::record(
             event: 'accounts_payable_daily_recalc_completed',
-            description: 'Cuentas por pagar: finalizó la tarea programada de recálculo de saldos en Bs (tasa BCV del día).',
+            description: 'Cuentas por pagar: finalizó la tarea programada de recálculo del total a pagar (tasa BCV del día, 2 decimales).',
             properties: [
-                'records_processed' => $processed,
-                'records_with_balance_change' => $changed,
-                'bcv_rate_applied' => $rateToday,
+                'records_processed' => $result['processed'],
+                'records_with_balance_change' => $result['changed'],
+                'records_failed' => $result['failed'],
+                'bcv_rate_applied' => $result['rate'],
                 'as_of' => now()->toIso8601String(),
             ],
         );
 
-        $this->info("Registros procesados: {$processed} (importe en Bs distinto al anterior: {$changed}).");
+        $this->info('Registros procesados: '.$result['processed'].' (importe en Bs distinto al anterior: '.$result['changed'].', omitidos: '.$result['failed'].').');
 
         return self::SUCCESS;
     }

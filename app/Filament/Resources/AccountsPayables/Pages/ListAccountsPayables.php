@@ -3,10 +3,14 @@
 namespace App\Filament\Resources\AccountsPayables\Pages;
 
 use App\Filament\Resources\AccountsPayables\AccountsPayableResource;
+use App\Services\Finance\AccountsPayableCurrentBalanceRecalculator;
 use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
-use App\Support\Purchases\PurchaseBcvRate;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Support\Enums\Width;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Contracts\View\View;
 
 class ListAccountsPayables extends ListRecords
 {
@@ -15,6 +19,27 @@ class ListAccountsPayables extends ListRecords
     protected static ?string $title = 'Cuentas por pagar';
 
     public ?string $lastSyncedBcvRateLabel = null;
+
+    /**
+     * @var array<string, mixed>
+     */
+    public array $bcvSyncResult = [];
+
+    public function syncBalanceResultAction(): Action
+    {
+        return Action::make('syncBalanceResult')
+            ->modalHeading('Total a pagar sincronizado')
+            ->modalIcon(Heroicon::ArrowPath)
+            ->modalIconColor('primary')
+            ->modalWidth(Width::FourExtraLarge)
+            ->modalSubmitAction(false)
+            ->modalCancelAction(fn (Action $action): Action => $action
+                ->label('Cerrar')
+                ->color('gray'))
+            ->modalContent(fn (): View => view('filament.accounts-payables.bcv-sync-result', [
+                'result' => $this->bcvSyncResult,
+            ]));
+    }
 
     public function getSubheading(): string|Htmlable|null
     {
@@ -28,6 +53,6 @@ class ListAccountsPayables extends ListRecords
             return 'Tasa BCV actual: no disponible.';
         }
 
-        return 'Tasa BCV actual: '.PurchaseBcvRate::format($rate).' Bs/USD.';
+        return 'Tasa BCV actual: '.number_format(AccountsPayableCurrentBalanceRecalculator::roundMoney($rate), 2, ',', '.').' Bs/USD.';
     }
 }

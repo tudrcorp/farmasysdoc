@@ -7,6 +7,8 @@ use App\Models\Client;
 use App\Models\Delivery;
 use App\Models\FinancialSetting;
 use App\Models\FiscalCompanySetting;
+use App\Models\FiscalDocument;
+use App\Models\FiscalPrinter;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\MarketingBroadcast;
@@ -53,6 +55,8 @@ return [
     */
     'models' => [
         Sale::class,
+        FiscalDocument::class,
+        FiscalPrinter::class,
         Purchase::class,
         Product::class,
         Inventory::class,

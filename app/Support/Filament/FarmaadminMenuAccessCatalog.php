@@ -2,6 +2,8 @@
 
 namespace App\Support\Filament;
 
+use App\Support\Sales\PosManualDiscount;
+
 class FarmaadminMenuAccessCatalog
 {
     /**
@@ -17,9 +19,12 @@ class FarmaadminMenuAccessCatalog
             'order_services' => ['label' => 'Ordenes de servicio', 'route_name_fragment' => 'resources.order-services.', 'group' => 'Operaciones'],
             'sales' => ['label' => 'Ventas', 'route_name_fragment' => 'resources.sales.', 'group' => 'Operaciones'],
             'sales_void' => ['label' => 'Anular ventas', 'route_name_fragment' => '__permission_sales_void__', 'group' => 'Operaciones'],
+            PosManualDiscount::SALE_PERMISSION => ['label' => 'Descuento sobre el total (caja)', 'route_name_fragment' => '__permission_pos_sale_discount__', 'group' => 'Operaciones'],
+            PosManualDiscount::LINE_PERMISSION => ['label' => 'Descuento por producto (caja)', 'route_name_fragment' => '__permission_pos_line_discount__', 'group' => 'Operaciones'],
             'physical_cash_box' => ['label' => 'Caja física (vueltos)', 'route_name_fragment' => 'pages.caja-fisica', 'group' => 'Operaciones'],
             'physical_cash_box_movements' => ['label' => 'Movimientos caja física', 'route_name_fragment' => 'resources.physical-cash-box-movements.', 'group' => 'Operaciones'],
             'physical_cash_box_close_reports' => ['label' => 'Reportes de cierre de caja', 'route_name_fragment' => 'resources.physical-cash-box-close-reports.', 'group' => 'Operaciones'],
+            'fiscal_documents' => ['label' => 'Documentos fiscales', 'route_name_fragment' => 'resources.fiscal-documents.', 'group' => 'Operaciones'],
             'cachea_conciliations' => ['label' => 'Conciliaciones Cashea', 'route_name_fragment' => 'resources.conciliation-cacheas.', 'group' => 'Operaciones'],
             'bdv_pagomovil_conciliation' => ['label' => 'Conciliaciones BDV', 'route_name_fragment' => 'pages.conciliacion-pagomovil-bdv', 'group' => 'Operaciones'],
             'purchases' => ['label' => 'Compras', 'route_name_fragment' => 'resources.purchases.', 'group' => 'Operaciones'],
@@ -49,6 +54,7 @@ class FarmaadminMenuAccessCatalog
             'suppliers' => ['label' => 'Proveedores', 'route_name_fragment' => 'resources.suppliers.', 'group' => 'Inventario'],
             'branches' => ['label' => 'Sucursales', 'route_name_fragment' => 'resources.branches.', 'group' => 'Configuración'],
             'pos_terminals' => ['label' => 'Puntos de venta', 'route_name_fragment' => 'resources.pos-terminals.', 'group' => 'Configuración'],
+            'fiscal_printers' => ['label' => 'Máquinas fiscales', 'route_name_fragment' => 'resources.fiscal-printers.', 'group' => 'Configuración'],
             'roles' => ['label' => 'Roles', 'route_name_fragment' => 'resources.roles.', 'group' => 'Configuración'],
             'branch_sales_goals' => ['label' => 'Metas de ventas', 'route_name_fragment' => 'resources.branch-sales-goals.', 'group' => 'Configuración'],
             'users' => ['label' => 'Usuarios', 'route_name_fragment' => 'resources.users.', 'group' => 'Configuración'],

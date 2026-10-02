@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AuthenticateApiClient;
+use App\Http\Middleware\AuthenticateFiscalAgent;
 use App\Http\Middleware\ConditionalConvertEmptyStringsToNull;
 use App\Http\Middleware\ConditionalTrimStrings;
 use App\Http\Middleware\EnsureEmployeePortalAccess;
@@ -9,6 +10,7 @@ use App\Http\Middleware\EnsureLocalEnvironment;
 use App\Http\Middleware\EnsureShopCustomerAuthenticated;
 use App\Http\Middleware\EnsureShopCustomerGuest;
 use App\Http\Middleware\LogInventoryAuditLivewireRequest;
+use App\Http\Middleware\RestoreLivewireTemporaryUploads;
 use App\Support\Livewire\LivewireRequestPayload;
 use App\Support\Shop\ShopTheme;
 use Illuminate\Console\Scheduling\Schedule;
@@ -49,6 +51,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->prependToGroup('web', [
             LogInventoryAuditLivewireRequest::class,
+            RestoreLivewireTemporaryUploads::class,
         ]);
 
         $middleware->appendToGroup('web', [
@@ -63,6 +66,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'api.client' => AuthenticateApiClient::class,
+            'fiscal.agent' => AuthenticateFiscalAgent::class,
             'local' => EnsureLocalEnvironment::class,
             'employee.portal' => EnsureEmployeePortalAccess::class,
             'employee.portal.guest' => EnsureEmployeePortalGuest::class,

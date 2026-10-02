@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{529EFDEC-3F57-4C23-8615-F0D70A9FC5E2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Farmadoc.FiscalAgent.Core", "src\Farmadoc.FiscalAgent.Core\Farmadoc.FiscalAgent.Core.csproj", "{1F062377-B3CE-4663-8D7E-1808DEE86462}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Farmadoc.FiscalAgent.Service", "src\Farmadoc.FiscalAgent.Service\Farmadoc.FiscalAgent.Service.csproj", "{A5425905-39E5-4F45-8D21-D4D05CC2F552}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{728C12C2-6717-4158-8B3E-AB20B2EB18AD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Farmadoc.FiscalAgent.Core.Tests", "tests\Farmadoc.FiscalAgent.Core.Tests\Farmadoc.FiscalAgent.Core.Tests.csproj", "{F4B593CA-9617-4A16-BCF5-040EB2F860C3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1F062377-B3CE-4663-8D7E-1808DEE86462}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1F062377-B3CE-4663-8D7E-1808DEE86462}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1F062377-B3CE-4663-8D7E-1808DEE86462}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1F062377-B3CE-4663-8D7E-1808DEE86462}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A5425905-39E5-4F45-8D21-D4D05CC2F552}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A5425905-39E5-4F45-8D21-D4D05CC2F552}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A5425905-39E5-4F45-8D21-D4D05CC2F552}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A5425905-39E5-4F45-8D21-D4D05CC2F552}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F4B593CA-9617-4A16-BCF5-040EB2F860C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F4B593CA-9617-4A16-BCF5-040EB2F860C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F4B593CA-9617-4A16-BCF5-040EB2F860C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F4B593CA-9617-4A16-BCF5-040EB2F860C3}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{1F062377-B3CE-4663-8D7E-1808DEE86462} = {529EFDEC-3F57-4C23-8615-F0D70A9FC5E2}
+		{A5425905-39E5-4F45-8D21-D4D05CC2F552} = {529EFDEC-3F57-4C23-8615-F0D70A9FC5E2}
+		{F4B593CA-9617-4A16-BCF5-040EB2F860C3} = {728C12C2-6717-4158-8B3E-AB20B2EB18AD}
+	EndGlobalSection
+EndGlobal

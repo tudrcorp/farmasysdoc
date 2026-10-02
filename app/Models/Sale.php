@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\FiscalDocumentType;
 use App\Enums\SaleStatus;
 use App\Support\Sales\InternalBranchTransferSale;
 use Database\Factories\SaleFactory;
@@ -122,6 +123,24 @@ class Sale extends Model
     public function physicalCashBoxMovements(): HasMany
     {
         return $this->hasMany(PhysicalCashBoxMovement::class);
+    }
+
+    /**
+     * Documentos enviados a la máquina fiscal (factura y, si se anuló, nota de crédito).
+     *
+     * @return HasMany<FiscalDocument, $this>
+     */
+    public function fiscalDocuments(): HasMany
+    {
+        return $this->hasMany(FiscalDocument::class);
+    }
+
+    /**
+     * @return HasOne<FiscalDocument, $this>
+     */
+    public function fiscalInvoice(): HasOne
+    {
+        return $this->hasOne(FiscalDocument::class)->where('type', FiscalDocumentType::Invoice);
     }
 
     /**

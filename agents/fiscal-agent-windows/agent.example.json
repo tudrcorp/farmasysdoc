@@ -1,0 +1,31 @@
+{
+  "_instrucciones": "Copiar a C:\\ProgramData\\FarmadocFiscalAgent\\agent.json (lo hace install.ps1). El modo, el registro esperado y los medios de pago de cada máquina se configuran en Farmaadmin; payment_slots y expected_registry aquí son solo respaldo opcional.",
+  "server_url": "https://farmadoc.example.com",
+  "agent_token": "fd_fp_PEGAR_TOKEN_DE_FARMAADMIN",
+  "com_port": "COM5",
+  "baud_rate": null,
+  "expected_registry": "",
+  "claim_wait_seconds": 15,
+  "heartbeat_seconds": 30,
+  "http_timeout_seconds": 30,
+  "send_customer_address": true,
+  "verbose_sdk_log": false,
+  "payment_slots": {},
+  "command_format": {
+    "price_integer_digits": 8,
+    "price_decimals": 2,
+    "quantity_integer_digits": 5,
+    "quantity_decimals": 3,
+    "discount_integer_digits": 7,
+    "discount_decimals": 2,
+    "payment_integer_digits": 10,
+    "payment_decimals": 2,
+    "max_description_length": 40,
+    "max_customer_document_length": 14,
+    "max_customer_name_length": 40,
+    "max_extra_line_length": 40,
+    "credit_note_invoice_number_digits": 11,
+    "credit_note_date_format": "dd-MM-yyyy",
+    "cancel_document_command": "7"
+  }
+}

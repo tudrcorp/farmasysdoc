@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Sales\Tables;
 
+use App\Enums\FiscalDocumentType;
 use App\Enums\SaleStatus;
 use App\Filament\Resources\Branches\BranchResource;
 use App\Filament\Resources\Clients\ClientResource;
@@ -414,7 +415,9 @@ class SalesTable
                                 return;
                             }
 
-                            $printUrl = route('sales.credit-note.print', $sale);
+                            $printUrl = $sale->fiscalDocuments()->where('type', FiscalDocumentType::CreditNote)->exists()
+                                ? route('sales.fiscal-print.show', [$sale, 'type' => FiscalDocumentType::CreditNote->value])
+                                : route('sales.credit-note.print', $sale);
 
                             $action->getLivewire()->js(
                                 'window.open('.Js::from($printUrl).', "_blank")'

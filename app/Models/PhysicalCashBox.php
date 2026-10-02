@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Caja física del cajero: efectivo para vueltos (montos USD y VES).
@@ -61,6 +62,14 @@ class PhysicalCashBox extends Model
     public function movements(): HasMany
     {
         return $this->hasMany(PhysicalCashBoxMovement::class, 'physical_cash_box_id');
+    }
+
+    /**
+     * @return HasOne<FiscalPrinter, $this>
+     */
+    public function fiscalPrinter(): HasOne
+    {
+        return $this->hasOne(FiscalPrinter::class, 'physical_cash_box_id');
     }
 
     /**

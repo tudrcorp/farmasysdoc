@@ -112,8 +112,8 @@ final class AuditLogIosDetailHtml
         $e = strtolower(trim($event));
 
         $level = match ($e) {
-            'login_failed', 'deleted', 'sale_voided', 'purchase_annulled' => 'critical',
-            'login', 'logout', 'created' => 'high',
+            'login_failed', 'deleted', 'sale_voided', 'purchase_annulled', 'pos_discount_denied', 'pos_discount_rejected' => 'critical',
+            'login', 'logout', 'created', 'pos_caja_manual_discount_applied' => 'high',
             'updated', 'http_request' => 'attention',
             'page_view' => 'routine',
             default => 'neutral',
@@ -147,6 +147,9 @@ final class AuditLogIosDetailHtml
             'login_failed' => 'Posible acceso no autorizado: verifique correo intentado, IP y cabeceras.',
             'deleted' => 'Eliminación de datos: confirme autorización y copias de respaldo según política.',
             'sale_voided' => 'Anulación de venta: inventario devuelto y venta marcada como cancelada. Verifique nota de crédito fiscal.',
+            'pos_caja_manual_discount_applied' => 'Descuento manual de caja: revise cajero, porcentajes, productos, montos y si reemplazó el descuento del cliente.',
+            'pos_discount_denied' => 'Intento de descuento sin permiso: el porcentaje no se aplicó. Revise usuario, IP y el valor enviado.',
+            'pos_discount_rejected' => 'Descuento rechazado por porcentaje inválido: la venta no se registró con ese valor.',
             'purchase_annulled' => 'Compra anulada: inventario y registros derivados revertidos.',
             'login' => 'Inicio de sesión correcto: correlacione con IP y horario de turnos.',
             'logout' => 'Cierre de sesión: útil para cadena de custodia de la sesión.',

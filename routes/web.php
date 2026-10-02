@@ -3,6 +3,8 @@
 use App\Http\Controllers\Dev\BdvConciliationTestController;
 use App\Http\Controllers\Finance\AccountsPayableBulkPaymentReportPdfController;
 use App\Http\Controllers\Finance\AccountsPayablePaymentReportPdfController;
+use App\Http\Controllers\FiscalAgentDownloadController;
+use App\Http\Controllers\FiscalPrintStatusController;
 use App\Http\Controllers\FiscalReceiptController;
 use App\Http\Controllers\Hr\EmployeePortalEntryController;
 use App\Http\Controllers\Hr\EmployeePortalLogoutController;
@@ -154,6 +156,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('sales/{sale}/credit-note/whatsapp-image.jpg', [FiscalReceiptController::class, 'creditNoteWhatsappImage'])
         ->name('sales.credit-note.whatsapp-image');
+
+    Route::get('fiscal-agent/download', FiscalAgentDownloadController::class)
+        ->name('fiscal-agent.download');
+
+    Route::get('sales/{sale}/fiscal-print', [FiscalPrintStatusController::class, 'show'])
+        ->name('sales.fiscal-print.show');
+
+    Route::get('sales/{sale}/fiscal-print/status', [FiscalPrintStatusController::class, 'status'])
+        ->name('sales.fiscal-print.status');
+
+    Route::post('sales/{sale}/fiscal-print/retry', [FiscalPrintStatusController::class, 'retry'])
+        ->name('sales.fiscal-print.retry');
 
     Route::get('sales/{sale}/delivery-note/print', [FiscalReceiptController::class, 'printDeliveryNote'])
         ->name('sales.delivery-note.print');

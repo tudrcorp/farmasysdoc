@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\ExternalBranchInventoryController;
 use App\Http\Controllers\Api\ExternalInventoryController;
 use App\Http\Controllers\Api\ExternalOrderController;
 use App\Http\Controllers\Api\ExternalServiceOrderController;
+use App\Http\Controllers\Api\FiscalAgent\FiscalAgentController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1/delivery/auth')
@@ -77,4 +78,19 @@ Route::prefix('external')
             ->name('api.external.orders.store');
         Route::post('/service-orders', [ExternalServiceOrderController::class, 'store'])
             ->name('api.external.service-orders.store');
+    });
+
+Route::prefix('fiscal-agent/v1')
+    ->middleware('fiscal.agent')
+    ->group(function (): void {
+        Route::post('/jobs/claim', [FiscalAgentController::class, 'claim'])
+            ->name('api.fiscal-agent.v1.jobs.claim');
+        Route::post('/jobs/{uuid}/started', [FiscalAgentController::class, 'started'])
+            ->whereUuid('uuid')
+            ->name('api.fiscal-agent.v1.jobs.started');
+        Route::post('/jobs/{uuid}/result', [FiscalAgentController::class, 'result'])
+            ->whereUuid('uuid')
+            ->name('api.fiscal-agent.v1.jobs.result');
+        Route::post('/heartbeat', [FiscalAgentController::class, 'heartbeat'])
+            ->name('api.fiscal-agent.v1.heartbeat');
     });

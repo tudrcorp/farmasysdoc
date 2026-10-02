@@ -2,15 +2,19 @@
 
 namespace App\Services\Sales;
 
+use App\Enums\FiscalDocumentStatus;
+use App\Enums\FiscalDocumentType;
 use App\Enums\InventoryMovementType;
 use App\Enums\SaleStatus;
 use App\Models\AccountsReceivable;
+use App\Models\FiscalDocument;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
+use App\Services\Fiscal\FiscalDocumentRegistrar;
 use App\Support\Finance\AccountsReceivableStatus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -53,6 +57,8 @@ final class SaleVoidService
                     'status' => 'La venta ya no está disponible para anular.',
                 ]);
             }
+
+            $this->guardFiscalInvoiceBeforeVoid($sale, $actorLabel);
 
             $sale->loadMissing(['items']);
 
@@ -103,8 +109,53 @@ final class SaleVoidService
                 ],
             );
 
+            app(FiscalDocumentRegistrar::class)->registerCreditNote($sale, $actorLabel);
+
             return $sale->fresh(['branch', 'client', 'items']);
         });
+    }
+
+    /**
+     * Una factura que la máquina fiscal aún puede imprimir no debe quedar viva tras anular:
+     * si está pendiente se anula en cola; si el agente ya la tomó, se bloquea la anulación.
+     */
+    private function guardFiscalInvoiceBeforeVoid(Sale $sale, string $actorLabel): void
+    {
+        $invoice = FiscalDocument::query()
+            ->where('sale_id', $sale->getKey())
+            ->where('type', FiscalDocumentType::Invoice)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $invoice instanceof FiscalDocument) {
+            return;
+        }
+
+        if ($invoice->simulation) {
+            if (! $invoice->status->isFinal()) {
+                $invoice->forceFill(['status' => FiscalDocumentStatus::Cancelled, 'resolved_by' => $actorLabel])->save();
+            }
+
+            return;
+        }
+
+        if (in_array($invoice->status, [FiscalDocumentStatus::Pending, FiscalDocumentStatus::Failed], true)) {
+            $invoice->forceFill([
+                'status' => FiscalDocumentStatus::Cancelled,
+                'resolved_by' => $actorLabel,
+            ])->save();
+
+            return;
+        }
+
+        if ($invoice->status === FiscalDocumentStatus::Printed || $invoice->status === FiscalDocumentStatus::Cancelled) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'status' => 'La factura fiscal de esta venta está en proceso o requiere revisión ('.$invoice->status->label()
+                .'). Resuélvala en «Documentos fiscales» antes de anular.',
+        ]);
     }
 
     private function restoreInventoryForSaleItem(

@@ -5825,6 +5825,13 @@ html.fi.dark .farmadoc-rol-perms__empty-sub {
     text-align: center;
 }
 
+.farmadoc-pos-cart-section .farmadoc-pos-line-discount-field .fi-input {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    min-width: 0;
+}
+
 /* Total de línea en el título colapsable del ítem del repeater */
 .farmadoc-pos-cart-section .farmadoc-pos-repeater-item-total {
     font-weight: 600;

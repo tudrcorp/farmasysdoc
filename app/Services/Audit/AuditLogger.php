@@ -2,6 +2,7 @@
 
 namespace App\Services\Audit;
 
+use App\Models\FiscalPrinter;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -179,6 +180,10 @@ final class AuditLogger
             foreach ($hidden as $key) {
                 unset($attributes[$key]);
             }
+        }
+
+        if ($modelClass === FiscalPrinter::class) {
+            unset($attributes['agent_token_hash']);
         }
 
         foreach ($attributes as $key => $value) {

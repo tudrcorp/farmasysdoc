@@ -10,9 +10,11 @@ use App\Http\Requests\BdvConciliation\GetMovementRequest;
 use App\Models\Branch;
 use App\Models\Client;
 use App\Models\ConciliationBdv;
+use App\Models\FiscalDocument;
 use App\Models\Inventory;
 use App\Models\PhysicalCashBox;
 use App\Models\PhysicalCashBoxMovement;
+use App\Models\PosTerminal;
 use App\Models\Product;
 use App\Models\ProductTransfer;
 use App\Models\Sale;
@@ -24,6 +26,7 @@ use App\Services\BdvConciliation\ManualBdvConciliationService;
 use App\Services\Dolar\DolarApiDolaresService;
 use App\Services\Dolar\DolarApiEstadoService;
 use App\Services\Finance\AccountsReceivableFromSaleRegistrar;
+use App\Services\Fiscal\FiscalDocumentRegistrar;
 use App\Services\Inventory\FefoLotBalanceQueryService;
 use App\Services\Inventory\FefoLotSaleDispatchService;
 use App\Services\Inventory\FefoPosAlertSaleLinker;
@@ -38,6 +41,7 @@ use App\Support\Inventory\InventoryQuantityFormat;
 use App\Support\Inventory\NearExpiryLotAlert;
 use App\Support\Sales\CacheaPosPaymentSupport;
 use App\Support\Sales\MixedPosPaymentSupport;
+use App\Support\Sales\PosManualDiscount;
 use App\Support\Sales\PosPaymentMethodOptions;
 use App\Support\Sales\PosTerminalCheckout;
 use App\Support\Sales\ProductUnitPricingForBranch;
@@ -211,15 +215,7 @@ final class CashRegisterAction
                                         'class' => 'farmadoc-pos-line-items-repeater fi-fixed-positioning-context',
                                     ])
                                     ->visible(fn (Get $get): bool => ! self::posLineItemsAreEmpty($get('line_items')))
-                                    ->table([
-                                        TableColumn::make('Producto')
-                                            ->width('52%'),
-                                        TableColumn::make('Cantidad')
-                                            ->width('28%'),
-                                        TableColumn::make('Total')
-                                            ->alignment(Alignment::End)
-                                            ->width('20%'),
-                                    ])
+                                    ->table(self::posCartLineTableColumns())
                                     ->schema([
                                         Hidden::make('product_id')
                                             ->required(),
@@ -350,6 +346,7 @@ final class CashRegisterAction
                                             ->extraAttributes([
                                                 'class' => 'farmadoc-pos-qty-field',
                                             ]),
+                                        ...self::posLineDiscountInputs(),
                                         Placeholder::make('line_total_display')
                                             ->hiddenLabel()
                                             ->dehydrated(false)
@@ -377,6 +374,7 @@ final class CashRegisterAction
                                                 'class' => 'farmadoc-pos-total-ios-card',
                                             ])
                                             ->schema([
+                                                ...self::posSaleDiscountInputs(),
                                                 TextEntry::make('pos_total_banner')
                                                     ->hiddenLabel()
                                                     ->alignment(Alignment::Center)
@@ -1080,6 +1078,7 @@ final class CashRegisterAction
                         'product' => $product,
                         'quantity' => $qty,
                         'inventory' => $inventory,
+                        'line_discount_percent' => $row['line_discount_percent'] ?? null,
                     ];
                 }
 
@@ -1093,12 +1092,67 @@ final class CashRegisterAction
                 }
 
                 $clientIdForDiscount = filled($data['client_id'] ?? null) ? (int) $data['client_id'] : null;
-                $discountPercent = app(ClientCommercialDiscountResolver::class)->percentForClientId($clientIdForDiscount);
+                $actorUser = Auth::user();
+                $discountPlan = self::resolvePosDiscountPlan(
+                    $validLines,
+                    $data['sale_discount_percent'] ?? null,
+                    $clientIdForDiscount,
+                    $actorUser instanceof User ? $actorUser : null,
+                );
+
+                if ($discountPlan['invalid']) {
+                    AuditLogger::record(
+                        'pos_discount_rejected',
+                        'Caja · Descuento manual rechazado por porcentaje inválido',
+                        properties: [
+                            'module' => 'pos_caja',
+                            'reason' => 'porcentaje_invalido',
+                            'branch_id' => (int) $branchId,
+                            'client_id' => $clientIdForDiscount,
+                            'cashier_user_id' => $actorUser instanceof User ? $actorUser->id : null,
+                            'cashier_email' => $actorUser instanceof User ? $actorUser->email : null,
+                            'cashier_name' => $actorUser instanceof User ? $actorUser->name : null,
+                            'submitted_sale_percent' => self::auditSubmittedPercent($data['sale_discount_percent'] ?? null),
+                            'commercial_discount_percent' => $discountPlan['commercial_percent'],
+                            'lines' => self::posDiscountLineSnapshots($validLines),
+                        ],
+                    );
+                    Notification::make()
+                        ->title('Descuento inválido')
+                        ->body('El porcentaje debe ser un número entre 0,01 y 100.')
+                        ->danger()
+                        ->send();
+                    $action->halt();
+
+                    return;
+                }
+
+                if ($discountPlan['denied']) {
+                    AuditLogger::record(
+                        'pos_discount_denied',
+                        'Caja · Descuento manual ignorado: el usuario no tiene el permiso',
+                        properties: [
+                            'module' => 'pos_caja',
+                            'branch_id' => (int) $branchId,
+                            'client_id' => $clientIdForDiscount,
+                            'cashier_user_id' => $actorUser instanceof User ? $actorUser->id : null,
+                            'cashier_email' => $actorUser instanceof User ? $actorUser->email : null,
+                            'cashier_name' => $actorUser instanceof User ? $actorUser->name : null,
+                            'can_discount_sale_total' => $actorUser instanceof User && $actorUser->canApplyPosSaleDiscount(),
+                            'can_discount_lines' => $actorUser instanceof User && $actorUser->canApplyPosLineDiscount(),
+                            'attempted_sale_percent' => $discountPlan['attempted_sale_percent'],
+                            'attempted_sale_raw' => $discountPlan['attempted_sale_raw'],
+                            'attempted_line_count' => $discountPlan['attempted_line_count'],
+                            'attempted_lines' => $discountPlan['attempted_lines'],
+                        ],
+                    );
+                }
+
+                $validLines = $discountPlan['lines'];
 
                 $pricing = self::finalizePosPricingFromValidLines(
                     $validLines,
                     $paymentMethod,
-                    discountPercent: $discountPercent,
                 );
 
                 $subtotal = $pricing['subtotal'];
@@ -1504,6 +1558,11 @@ final class CashRegisterAction
                     ?? Auth::user()?->name
                     ?? 'sistema';
 
+                $saleNotes = self::appendPosManualDiscountNote(
+                    self::resolvePosSaleNotes($paymentMethod, $generateAccountsReceivable, $data, $documentTotal, $vesUsdRate),
+                    $discountPlan,
+                );
+
                 self::posSaleRegisterTrace('register_transaction_start', [
                     'payment_method' => $paymentMethod,
                     'document_total' => $documentTotal,
@@ -1515,7 +1574,7 @@ final class CashRegisterAction
                 ]);
 
                 try {
-                    $sale = DB::transaction(function () use ($branchId, $data, $payloadItems, $lines, $products, $subtotal, $taxTotal, $igtfTotal, $discountTotal, $documentTotal, $actor, $paymentMethod, $paymentUsd, $paymentVes, $paymentReference, $bcvVesPerUsd, $generateAccountsReceivable, $vesUsdRate, $resolvedPosTerminal): Sale {
+                    $sale = DB::transaction(function () use ($branchId, $data, $payloadItems, $lines, $products, $subtotal, $taxTotal, $igtfTotal, $discountTotal, $documentTotal, $actor, $paymentMethod, $paymentUsd, $paymentVes, $paymentReference, $bcvVesPerUsd, $generateAccountsReceivable, $resolvedPosTerminal, $saleNotes): Sale {
                         $qtyByProduct = [];
                         foreach ($lines as $row) {
                             $pid = (int) $row['product_id'];
@@ -1565,7 +1624,7 @@ final class CashRegisterAction
                             'payment_status' => $paymentMethod === 'credito_cliente'
                                 ? 'pendiente'
                                 : 'paid',
-                            'notes' => self::resolvePosSaleNotes($paymentMethod, $generateAccountsReceivable, $data, $documentTotal, $vesUsdRate),
+                            'notes' => $saleNotes,
                             'sold_at' => now(),
                             'created_by' => $actor,
                             'updated_by' => $actor,
@@ -1698,7 +1757,20 @@ final class CashRegisterAction
                             && is_array($cacheaBreakdown)
                             ? $cacheaBreakdown['remainder']
                             : null,
+                        'discount_total' => (float) $sale->discount_total,
+                        'manual_sale_discount_percent' => $discountPlan['sale_percent'],
+                        'manual_line_discount_count' => $discountPlan['manual_line_count'],
+                        'manual_line_discounts' => $discountPlan['manual_lines'],
                     ],
+                );
+
+                self::recordPosManualDiscountAudit(
+                    $sale,
+                    $discountPlan,
+                    $payloadItems,
+                    $validLines,
+                    $actorUser instanceof User ? $actorUser : null,
+                    $resolvedPosTerminal,
                 );
 
                 $saleSuccessBody = 'Total '.self::formatMoney($documentTotal).' · '.$sale->sale_number;
@@ -1724,11 +1796,15 @@ final class CashRegisterAction
                     ->success()
                     ->send();
 
-                $nextUrl = config('fiscal.auto_print_on_sale_complete', true)
+                $fiscalDocument = self::registerFiscalInvoiceSafely($sale, $actorUser, $data);
+
+                $nextUrl = $fiscalDocument !== null && ! $fiscalDocument->simulation
+                    ? route('sales.fiscal-print.show', $sale)
+                    : (config('fiscal.auto_print_on_sale_complete', true)
                     ? ($sale->payment_method === 'credito_cliente'
                         ? route('sales.delivery-note.print', $sale)
                         : route('sales.fiscal-receipt.print', $sale))
-                    : SaleResource::getUrl('view', ['record' => $sale], isAbsolute: false);
+                    : SaleResource::getUrl('view', ['record' => $sale], isAbsolute: false));
 
                 $livewire = $action->getLivewire();
                 if ($sale->payment_method === 'efectivo_usd' && $livewire instanceof HasActions) {
@@ -3655,7 +3731,24 @@ final class CashRegisterAction
         $clientId = filled($get('../../client_id'))
             ? (int) $get('../../client_id')
             : (filled($get('../client_id')) ? (int) $get('../client_id') : null);
-        $discountPercent = app(ClientCommercialDiscountResolver::class)->percentForClientId($clientId);
+        $actor = Auth::user();
+        $actor = $actor instanceof User ? $actor : null;
+        $commercialPercent = app(ClientCommercialDiscountResolver::class)->percentForClientId($clientId);
+        $saleParsed = PosManualDiscount::parsePercent(
+            self::posParentInput($get, 'sale_discount_percent'),
+            PosManualDiscount::userCanDiscountSaleTotal($actor),
+        );
+        $lineParsed = PosManualDiscount::parsePercent(
+            $get('line_discount_percent'),
+            PosManualDiscount::userCanDiscountLines($actor),
+        );
+        $discountPercent = PosManualDiscount::effectivePercent(
+            $lineParsed['percent'],
+            $lineParsed['applied'] && ! $lineParsed['invalid'],
+            $saleParsed['percent'],
+            $saleParsed['applied'] && ! $saleParsed['invalid'],
+            $commercialPercent,
+        );
         $usdAmount = $original;
         $usdHtml = '<span class="farmadoc-pos-line-total">'.e(self::formatMoney($original)).'</span>';
 
@@ -4031,6 +4124,43 @@ final class CashRegisterAction
     }
 
     /**
+     * Encola la factura en la máquina fiscal de la caja. Un fallo aquí no revierte la venta:
+     * se avisa al cajero y se mantiene el comprobante no fiscal.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function registerFiscalInvoiceSafely(Sale $sale, mixed $actorUser, array $data): ?FiscalDocument
+    {
+        try {
+            return app(FiscalDocumentRegistrar::class)->registerInvoice(
+                $sale,
+                $actorUser instanceof User ? $actorUser : null,
+                filled($data['mixed_ves_payment_method'] ?? null) ? (string) $data['mixed_ves_payment_method'] : null,
+            );
+        } catch (Throwable $e) {
+            report($e);
+
+            AuditLogger::record(
+                'fiscal_invoice_enqueue_failed',
+                'Fiscal · No se pudo encolar la factura · '.$sale->sale_number,
+                Sale::class,
+                $sale->id,
+                $sale->sale_number,
+                ['module' => 'fiscal', 'message' => Str::limit($e->getMessage(), 500)],
+            );
+
+            Notification::make()
+                ->title('Factura fiscal no enviada')
+                ->body('La venta quedó registrada, pero no se pudo enviar a la máquina fiscal: '.$e->getMessage())
+                ->warning()
+                ->persistent()
+                ->send();
+
+            return null;
+        }
+    }
+
+    /**
      * Registra en caja física el neto en bolívares recibido en efectivo (pago mixto).
      *
      * @param  array<string, mixed>  $data
@@ -4199,6 +4329,7 @@ final class CashRegisterAction
      *     igtf_total: float,
      *     discount_total: float,
      *     discount_percent: float,
+     *     discount_mixed: bool,
      *     document_total: float,
      *     ves_tax_fraction: float,
      *     per_line: list<array{line_subtotal: float, tax_amount: float, line_total: float}>,
@@ -4217,6 +4348,7 @@ final class CashRegisterAction
                 'igtf_total' => 0.0,
                 'discount_total' => 0.0,
                 'discount_percent' => 0.0,
+                'discount_mixed' => false,
                 'document_total' => 0.0,
                 'ves_tax_fraction' => 0.0,
                 'per_line' => [],
@@ -4236,6 +4368,37 @@ final class CashRegisterAction
         }
 
         $subtotal = round(array_sum($lineGross), 2);
+
+        $explicitPercents = [];
+        $hasExplicitPercents = true;
+        foreach ($lines as $index => $line) {
+            if (! array_key_exists('discount_percent', $line)) {
+                $hasExplicitPercents = false;
+                break;
+            }
+
+            $explicitPercents[$index] = max(0.0, min(100.0, round((float) $line['discount_percent'], 2)));
+        }
+
+        if ($hasExplicitPercents && $explicitPercents !== []) {
+            $uniquePercents = array_unique(array_map(
+                fn (float $percent): string => number_format($percent, 2, '.', ''),
+                $explicitPercents,
+            ));
+
+            if (count($uniquePercents) > 1) {
+                return self::finalizeMixedPosLineDiscounts(
+                    $lines,
+                    $lineGross,
+                    $linePricing,
+                    $paymentMethod,
+                    array_values($explicitPercents),
+                );
+            }
+
+            $discountPercent = (float) array_values($explicitPercents)[0];
+            $discountRequested = 0.0;
+        }
 
         $discountPercent = max(0.0, min(100.0, $discountPercent));
         $discountTotal = $discountPercent > 0.00001
@@ -4298,10 +4461,611 @@ final class CashRegisterAction
             'igtf_total' => $igtfTotal,
             'discount_total' => $discountTotal,
             'discount_percent' => $discountPercent,
+            'discount_mixed' => false,
             'document_total' => $documentTotal,
             'ves_tax_fraction' => 0.0,
             'per_line' => $perLine,
         ];
+    }
+
+    /**
+     * @param  list<array{product: Product, quantity: float, inventory: Inventory}>  $lines
+     * @param  list<float>  $lineGross
+     * @param  list<array{unit_net: float, unit_final: float, applies_vat: bool}>  $linePricing
+     * @param  list<float>  $percents
+     * @return array{
+     *     subtotal: float,
+     *     tax_total: float,
+     *     igtf_total: float,
+     *     discount_total: float,
+     *     discount_percent: float,
+     *     discount_mixed: bool,
+     *     document_total: float,
+     *     ves_tax_fraction: float,
+     *     per_line: list<array{line_subtotal: float, tax_amount: float, line_total: float}>,
+     * }
+     */
+    private static function finalizeMixedPosLineDiscounts(
+        array $lines,
+        array $lineGross,
+        array $linePricing,
+        string $paymentMethod,
+        array $percents,
+    ): array {
+        $subtotal = round(array_sum($lineGross), 2);
+        $lineDiscounts = [];
+        $lineNets = [];
+
+        foreach ($lineGross as $index => $gross) {
+            $percent = max(0.0, min(100.0, (float) ($percents[$index] ?? 0)));
+            $discount = app(ClientCommercialDiscountResolver::class)->amountFromSubtotal($gross, $percent);
+            $lineDiscounts[] = $discount;
+            $lineNets[] = round($gross - $discount, 2);
+        }
+
+        $discountTotal = round(min($subtotal, array_sum($lineDiscounts)), 2);
+        $netMerchandise = round($subtotal - $discountTotal, 2);
+        $netsSum = round(array_sum($lineNets), 2);
+        $drift = round($netMerchandise - $netsSum, 2);
+        if ($lineNets !== [] && abs($drift) >= 0.001) {
+            $last = count($lineNets) - 1;
+            $lineNets[$last] = round(max(0.0, $lineNets[$last] + $drift), 2);
+        }
+
+        $vatRate = DefaultVatRate::percent();
+        $perLine = [];
+        $taxTotal = 0.0;
+
+        foreach ($lines as $i => $line) {
+            $lineNet = $lineNets[$i] ?? 0.0;
+            $appliesVat = (bool) ($linePricing[$i]['applies_vat'] ?? false);
+            $tax = $appliesVat && $vatRate > 0
+                ? round($lineNet * $vatRate / 100, 2)
+                : 0.0;
+            $taxTotal += $tax;
+            $perLine[] = [
+                'line_subtotal' => $lineNet,
+                'tax_amount' => $tax,
+                'line_total' => round($lineNet + $tax, 2),
+            ];
+        }
+
+        $taxTotal = round($taxTotal, 2);
+        $invoiceBeforeIgtf = round($netMerchandise + $taxTotal, 2);
+        $igtfTotal = 0.0;
+        if ($paymentMethod === 'efectivo_usd') {
+            $igtfRate = DefaultIgtfRate::percent();
+            if ($igtfRate > 0.00001 && $invoiceBeforeIgtf > 0.00001) {
+                $igtfTotal = round($invoiceBeforeIgtf * $igtfRate / 100, 2);
+            }
+        }
+
+        return [
+            'subtotal' => $subtotal,
+            'tax_total' => $taxTotal,
+            'igtf_total' => $igtfTotal,
+            'discount_total' => $discountTotal,
+            'discount_percent' => 0.0,
+            'discount_mixed' => true,
+            'document_total' => round($invoiceBeforeIgtf + $igtfTotal, 2),
+            'ves_tax_fraction' => 0.0,
+            'per_line' => $perLine,
+        ];
+    }
+
+    /**
+     * @param  list<array{product: Product, quantity: float, inventory: Inventory, line_discount_percent?: mixed}>  $lines
+     * @return array{
+     *     lines: list<array{product: Product, quantity: float, inventory: Inventory, discount_percent: float}>,
+     *     invalid: bool,
+     *     denied: bool,
+     *     commercial_percent: float,
+     *     sale_percent: float|null,
+     *     manual_line_count: int,
+     *     manual_lines: list<array{product_id: int, percent: float}>,
+     *     attempted_sale_percent: float|null,
+     *     attempted_line_count: int,
+     *     caption: string|null,
+     * }
+     */
+    private static function resolvePosDiscountPlan(array $lines, mixed $saleDiscountInput, ?int $clientId, ?User $user): array
+    {
+        $commercialPercent = app(ClientCommercialDiscountResolver::class)->percentForClientId($clientId);
+        $canSale = PosManualDiscount::userCanDiscountSaleTotal($user);
+        $canLine = PosManualDiscount::userCanDiscountLines($user);
+        $saleParsed = PosManualDiscount::parsePercent($saleDiscountInput, $canSale);
+
+        $invalid = $saleParsed['invalid'];
+        $denied = $saleParsed['submitted'] && ! $canSale;
+        $attemptedLineCount = 0;
+        $attemptedLines = [];
+        $manualLineCount = 0;
+        $manualLines = [];
+        $resolvedLines = [];
+        $saleApplied = $saleParsed['applied'] && ! $saleParsed['invalid'];
+
+        foreach ($lines as $line) {
+            $lineParsed = PosManualDiscount::parsePercent($line['line_discount_percent'] ?? null, $canLine);
+            if ($lineParsed['invalid']) {
+                $invalid = true;
+            }
+            if ($lineParsed['submitted'] && ! $canLine) {
+                $denied = true;
+                $attemptedLineCount++;
+            }
+
+            $lineApplied = $lineParsed['applied'] && ! $lineParsed['invalid'];
+            $product = $line['product'];
+            $lineIdentity = [
+                'product_id' => (int) $product->id,
+                'product_name' => (string) $product->name,
+                'sku' => filled($product->barcode) ? (string) $product->barcode : null,
+                'quantity' => round((float) $line['quantity'], 3),
+            ];
+            if ($lineApplied) {
+                $manualLineCount++;
+                $manualLines[] = [
+                    ...$lineIdentity,
+                    'percent' => $lineParsed['percent'],
+                ];
+            }
+            if ($lineParsed['submitted'] && ! $canLine) {
+                $attemptedLines[] = [
+                    ...$lineIdentity,
+                    'submitted_percent' => self::auditSubmittedPercent($line['line_discount_percent'] ?? null),
+                ];
+            }
+
+            $discountSource = 'none';
+            if ($lineApplied) {
+                $discountSource = 'line';
+            } elseif ($saleApplied) {
+                $discountSource = 'sale_total';
+            } elseif ($commercialPercent > 0.00001) {
+                $discountSource = 'commercial';
+            }
+
+            $resolved = $line;
+            unset($resolved['line_discount_percent']);
+            $resolved['discount_percent'] = PosManualDiscount::effectivePercent(
+                $lineParsed['percent'],
+                $lineApplied,
+                $saleParsed['percent'],
+                $saleApplied,
+                $commercialPercent,
+            );
+            $resolved['discount_source'] = $discountSource;
+            $resolvedLines[] = $resolved;
+        }
+
+        $salePercent = $saleApplied ? $saleParsed['percent'] : null;
+        $caption = null;
+        if (($salePercent !== null || $manualLineCount > 0) && $commercialPercent > 0.00001) {
+            $caption = 'Reemplaza el descuento del cliente ('.self::formatDiscountPercent($commercialPercent).'%)';
+        }
+
+        $attemptedSalePercent = null;
+        if ($saleParsed['submitted'] && ! $canSale) {
+            $normalizedAttempt = is_numeric($saleDiscountInput) ? round((float) $saleDiscountInput, 2) : null;
+            if ($normalizedAttempt !== null && $normalizedAttempt > 0 && $normalizedAttempt <= 100) {
+                $attemptedSalePercent = $normalizedAttempt;
+            }
+        }
+
+        return [
+            'lines' => $resolvedLines,
+            'invalid' => $invalid,
+            'denied' => $denied,
+            'commercial_percent' => $commercialPercent,
+            'sale_percent' => $salePercent,
+            'manual_line_count' => $manualLineCount,
+            'manual_lines' => $manualLines,
+            'attempted_sale_percent' => $attemptedSalePercent,
+            'attempted_sale_raw' => ($saleParsed['submitted'] && ! $canSale)
+                ? self::auditSubmittedPercent($saleDiscountInput)
+                : null,
+            'attempted_line_count' => $attemptedLineCount,
+            'attempted_lines' => $attemptedLines,
+            'caption' => $caption,
+        ];
+    }
+
+    /**
+     * @param  array{
+     *     sale_percent: float|null,
+     *     manual_line_count: int,
+     *     commercial_percent: float,
+     * }  $plan
+     */
+    private static function appendPosManualDiscountNote(?string $notes, array $plan): ?string
+    {
+        $manualNote = self::posManualDiscountNote($plan);
+        if ($manualNote === null) {
+            return $notes;
+        }
+
+        if ($notes === null || trim($notes) === '') {
+            return $manualNote;
+        }
+
+        return trim($notes).' '.$manualNote;
+    }
+
+    /**
+     * @param  array{
+     *     sale_percent: float|null,
+     *     manual_line_count: int,
+     *     commercial_percent: float,
+     * }  $plan
+     */
+    private static function posManualDiscountNote(array $plan): ?string
+    {
+        $salePercent = $plan['sale_percent'];
+        $lineCount = $plan['manual_line_count'];
+        if ($salePercent === null && $lineCount === 0) {
+            return null;
+        }
+
+        if ($salePercent !== null && $lineCount > 0) {
+            $sentence = 'Descuento manual de caja '.self::formatDiscountPercent($salePercent)
+                .'% sobre el total, con porcentaje propio en '.$lineCount.' '
+                .($lineCount === 1 ? 'producto' : 'productos').'.';
+        } elseif ($salePercent !== null) {
+            $sentence = 'Descuento manual de caja '.self::formatDiscountPercent($salePercent).'% sobre el total.';
+        } else {
+            $sentence = 'Descuento manual de caja en '.$lineCount.' '
+                .($lineCount === 1 ? 'producto' : 'productos').'.';
+        }
+
+        if ($plan['commercial_percent'] > 0.00001) {
+            $sentence .= ' Reemplaza el descuento comercial del cliente ('
+                .self::formatDiscountPercent($plan['commercial_percent']).'%).';
+        }
+
+        return $sentence;
+    }
+
+    private static function formatDiscountPercent(float $percent): string
+    {
+        return rtrim(rtrim(number_format($percent, 2, '.', ''), '0'), '.');
+    }
+
+    private static function posDiscountSourceLabel(string $source): string
+    {
+        return match ($source) {
+            'line' => 'Por producto',
+            'sale_total' => 'Sobre el total',
+            'commercial' => 'Comercial del cliente',
+            default => 'Sin descuento',
+        };
+    }
+
+    private static function auditSubmittedPercent(mixed $value): float|string|null
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_int($value) || (is_float($value) && is_finite($value))) {
+            return round((float) $value, 2);
+        }
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $trimmed = trim(str_replace(',', '.', $value));
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (is_numeric($trimmed)) {
+            return round((float) $trimmed, 2);
+        }
+
+        return Str::limit($trimmed, 40, '');
+    }
+
+    /**
+     * @param  list<array{product?: Product, quantity?: float, line_discount_percent?: mixed}>  $lines
+     * @return list<array{product_id: int, product_name: string, sku: string|null, quantity: float, submitted_percent: float|string|null}>
+     */
+    private static function posDiscountLineSnapshots(array $lines): array
+    {
+        $rows = [];
+
+        foreach ($lines as $line) {
+            $product = $line['product'] ?? null;
+            if (! $product instanceof Product) {
+                continue;
+            }
+
+            $rows[] = [
+                'product_id' => (int) $product->id,
+                'product_name' => (string) $product->name,
+                'sku' => filled($product->barcode) ? (string) $product->barcode : null,
+                'quantity' => round((float) ($line['quantity'] ?? 0), 3),
+                'submitted_percent' => self::auditSubmittedPercent($line['line_discount_percent'] ?? null),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array{
+     *     commercial_percent: float,
+     *     sale_percent: float|null,
+     *     manual_line_count: int,
+     * }  $discountPlan
+     * @param  list<array<string, mixed>>  $payloadItems
+     * @param  list<array<string, mixed>>  $validLines
+     */
+    private static function recordPosManualDiscountAudit(
+        Sale $sale,
+        array $discountPlan,
+        array $payloadItems,
+        array $validLines,
+        ?User $user,
+        ?PosTerminal $posTerminal,
+    ): void {
+        $salePercent = $discountPlan['sale_percent'];
+        $manualLineCount = (int) $discountPlan['manual_line_count'];
+        if ($salePercent === null && $manualLineCount === 0) {
+            return;
+        }
+
+        $branchName = Branch::query()->whereKey($sale->branch_id)->value('name');
+        $clientName = $sale->client_id !== null
+            ? Client::query()->whereKey($sale->client_id)->value('name')
+            : null;
+
+        $lines = [];
+        $manualDescriptions = [];
+
+        foreach ($payloadItems as $index => $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $source = (string) ($validLines[$index]['discount_source'] ?? 'none');
+            $percent = round((float) ($validLines[$index]['discount_percent'] ?? 0), 2);
+            $quantity = round((float) ($item['quantity'] ?? 0), 3);
+            $unitPrice = round((float) ($item['unit_price'] ?? 0), 2);
+            $discountAmount = round((float) ($item['discount_amount'] ?? 0), 2);
+            $manual = in_array($source, ['line', 'sale_total'], true);
+            $row = [
+                'product_id' => (int) ($item['product_id'] ?? 0),
+                'product_name' => (string) ($item['product_name_snapshot'] ?? ''),
+                'sku' => filled($item['sku_snapshot'] ?? null) ? (string) $item['sku_snapshot'] : null,
+                'quantity' => $quantity,
+                'unit_price_usd' => $unitPrice,
+                'gross_usd' => round($quantity * $unitPrice, 2),
+                'discount_percent' => $percent,
+                'discount_source' => $source,
+                'discount_source_label' => self::posDiscountSourceLabel($source),
+                'manual' => $manual,
+                'discount_amount_usd' => $discountAmount,
+                'line_net_usd' => round((float) ($item['line_subtotal'] ?? 0), 2),
+                'tax_usd' => round((float) ($item['tax_amount'] ?? 0), 2),
+                'line_total_usd' => round((float) ($item['line_total'] ?? 0), 2),
+            ];
+            $lines[] = $row;
+
+            if ($manual) {
+                $sku = $row['sku'] !== null ? ' · SKU '.$row['sku'] : '';
+                $manualDescriptions[] = $row['product_name'].$sku
+                    .' · cant. '.$row['quantity']
+                    .' · precio $'.number_format($unitPrice, 2, '.', '')
+                    .' · '.$row['discount_source_label'].' '.self::formatDiscountPercent($percent).'%'
+                    .' · descuento $'.number_format($discountAmount, 2, '.', '')
+                    .' · neto $'.number_format($row['line_net_usd'], 2, '.', '');
+            }
+        }
+
+        $roles = $user?->getAttributeValue('roles');
+        $branchLabel = is_string($branchName) && $branchName !== ''
+            ? $branchName
+            : '#'.$sale->branch_id;
+        $clientLabel = is_string($clientName) && $clientName !== ''
+            ? $clientName
+            : ($sale->client_id !== null ? '#'.$sale->client_id : 'sin cliente');
+        $cashierLabel = $user instanceof User
+            ? trim((string) $user->name).' <'.(string) $user->email.'>'
+            : 'usuario no identificado';
+
+        $narrative = [
+            'Descuento manual aplicado en la venta '.$sale->sale_number.'.',
+            'Cajero: '.$cashierLabel.'.',
+            'Sucursal: '.$branchLabel.'.',
+            'Cliente: '.$clientLabel.'.',
+        ];
+
+        if ($salePercent !== null) {
+            $narrative[] = 'Descuento sobre el total: '.self::formatDiscountPercent((float) $salePercent).'%.';
+        }
+
+        if ($manualLineCount > 0) {
+            $narrative[] = 'Descuentos por producto: '.$manualLineCount.'.';
+        }
+
+        if ((float) $discountPlan['commercial_percent'] > 0.00001) {
+            $narrative[] = 'Reemplaza el descuento comercial del cliente ('
+                .self::formatDiscountPercent((float) $discountPlan['commercial_percent']).'%).';
+        }
+
+        $narrative[] = 'Subtotal $'.number_format((float) $sale->subtotal, 2, '.', '')
+            .' · descuento $'.number_format((float) $sale->discount_total, 2, '.', '')
+            .' · IVA $'.number_format((float) $sale->tax_total, 2, '.', '')
+            .' · IGTF $'.number_format((float) $sale->igtf_total, 2, '.', '')
+            .' · total $'.number_format((float) $sale->total, 2, '.', '').'.';
+
+        if ($manualDescriptions !== []) {
+            $narrative[] = 'Detalle de líneas con descuento manual:';
+            foreach ($manualDescriptions as $manualDescription) {
+                $narrative[] = '- '.$manualDescription;
+            }
+        }
+
+        AuditLogger::record(
+            'pos_caja_manual_discount_applied',
+            implode("\n", $narrative),
+            Sale::class,
+            $sale->id,
+            $sale->sale_number,
+            [
+                'module' => 'pos_caja',
+                'sale_id' => (int) $sale->id,
+                'sale_number' => (string) $sale->sale_number,
+                'sold_at' => $sale->sold_at?->toIso8601String(),
+                'branch_id' => (int) $sale->branch_id,
+                'branch_name' => is_string($branchName) ? $branchName : null,
+                'client_id' => $sale->client_id !== null ? (int) $sale->client_id : null,
+                'client_name' => is_string($clientName) ? $clientName : null,
+                'pos_terminal_id' => $posTerminal?->id,
+                'pos_terminal_code' => $posTerminal?->code,
+                'payment_method' => (string) $sale->payment_method,
+                'cashier' => [
+                    'id' => $user?->id,
+                    'name' => $user?->name,
+                    'email' => $user?->email,
+                    'roles' => is_array($roles) ? array_values($roles) : [],
+                ],
+                'permissions' => [
+                    'sale_total' => $user instanceof User && $user->canApplyPosSaleDiscount(),
+                    'line' => $user instanceof User && $user->canApplyPosLineDiscount(),
+                ],
+                'commercial_discount_percent' => (float) $discountPlan['commercial_percent'],
+                'replaced_commercial_discount' => (float) $discountPlan['commercial_percent'] > 0.00001,
+                'sale_discount_percent' => $salePercent,
+                'manual_line_count' => $manualLineCount,
+                'subtotal_usd' => round((float) $sale->subtotal, 2),
+                'discount_total_usd' => round((float) $sale->discount_total, 2),
+                'tax_total_usd' => round((float) $sale->tax_total, 2),
+                'igtf_total_usd' => round((float) $sale->igtf_total, 2),
+                'document_total_usd' => round((float) $sale->total, 2),
+                'lines' => $lines,
+            ],
+            user: $user,
+        );
+    }
+
+    private static function posParentInput(Get $get, string $field): mixed
+    {
+        $value = $get('../../'.$field);
+        if ($value !== null && $value !== '') {
+            return $value;
+        }
+
+        $fallback = $get('../'.$field);
+        if ($fallback !== null && $fallback !== '') {
+            return $fallback;
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return list<TableColumn>
+     */
+    private static function posCartLineTableColumns(): array
+    {
+        $withDiscount = self::authenticatedUserCanApplyPosLineDiscount();
+        $columns = [
+            TableColumn::make('Producto')
+                ->width($withDiscount ? '40%' : '52%'),
+            TableColumn::make('Cantidad')
+                ->width($withDiscount ? '22%' : '28%'),
+        ];
+
+        if ($withDiscount) {
+            $columns[] = TableColumn::make('Desc. %')
+                ->alignment(Alignment::End)
+                ->width('16%');
+        }
+
+        $columns[] = TableColumn::make('Total')
+            ->alignment(Alignment::End)
+            ->width($withDiscount ? '22%' : '20%');
+
+        return $columns;
+    }
+
+    /**
+     * @return list<TextInput>
+     */
+    private static function posLineDiscountInputs(): array
+    {
+        if (! self::authenticatedUserCanApplyPosLineDiscount()) {
+            return [];
+        }
+
+        return [
+            TextInput::make('line_discount_percent')
+                ->hiddenLabel()
+                ->numeric()
+                ->minValue(0)
+                ->maxValue(100)
+                ->step(0.01)
+                ->suffix('%')
+                ->placeholder('0')
+                ->live(debounce: 300)
+                ->inputMode('decimal')
+                ->rules(['nullable'])
+                ->validationMessages([
+                    'numeric' => 'Indique un porcentaje válido.',
+                    'min' => 'El porcentaje no puede ser negativo.',
+                    'max' => 'El porcentaje no puede superar 100.',
+                ])
+                ->extraAttributes([
+                    'class' => 'farmadoc-pos-line-discount-field',
+                ]),
+        ];
+    }
+
+    /**
+     * @return list<TextInput>
+     */
+    private static function posSaleDiscountInputs(): array
+    {
+        if (! self::authenticatedUserCanApplyPosSaleDiscount()) {
+            return [];
+        }
+
+        return [
+            TextInput::make('sale_discount_percent')
+                ->label('Descuento sobre el total')
+                ->numeric()
+                ->minValue(0)
+                ->maxValue(100)
+                ->step(0.01)
+                ->suffix('%')
+                ->placeholder('0')
+                ->live(debounce: 300)
+                ->inputMode('decimal')
+                ->helperText('Reemplaza el descuento comercial del cliente. Déjelo vacío para conservarlo. Si un producto tiene su propio porcentaje, ese manda en esa línea.')
+                ->rules(['nullable'])
+                ->validationMessages([
+                    'numeric' => 'Indique un porcentaje válido.',
+                    'min' => 'El porcentaje no puede ser negativo.',
+                    'max' => 'El porcentaje no puede superar 100.',
+                ])
+                ->columnSpanFull(),
+        ];
+    }
+
+    private static function authenticatedUserCanApplyPosLineDiscount(): bool
+    {
+        $user = Auth::user();
+
+        return $user instanceof User && $user->canApplyPosLineDiscount();
+    }
+
+    private static function authenticatedUserCanApplyPosSaleDiscount(): bool
+    {
+        $user = Auth::user();
+
+        return $user instanceof User && $user->canApplyPosSaleDiscount();
     }
 
     /**
@@ -4357,6 +5121,7 @@ final class CashRegisterAction
                 'product' => $product,
                 'quantity' => $qty,
                 'inventory' => $inventory,
+                'line_discount_percent' => $row['line_discount_percent'] ?? null,
             ];
         }
 
@@ -4659,6 +5424,7 @@ final class CashRegisterAction
      *         igtf_total: float,
      *         discount_total: float,
      *         discount_percent: float,
+     *         discount_mixed: bool,
      *         document_total: float,
      *         ves_tax_fraction: float,
      *         per_line: list<array{line_subtotal: float, tax_amount: float, line_total: float}>,
@@ -4684,13 +5450,21 @@ final class CashRegisterAction
 
         $paymentMethod = (string) ($get('payment_method') ?? 'punto_venta_ves');
         $clientId = filled($get('client_id')) ? (int) $get('client_id') : null;
-        $discountPercent = app(ClientCommercialDiscountResolver::class)->percentForClientId($clientId);
-
-        return self::finalizePosPricingFromValidLines(
+        $actor = Auth::user();
+        $plan = self::resolvePosDiscountPlan(
             $valid,
-            $paymentMethod,
-            discountPercent: $discountPercent,
+            $get('sale_discount_percent'),
+            $clientId,
+            $actor instanceof User ? $actor : null,
         );
+
+        $pricing = self::finalizePosPricingFromValidLines(
+            $plan['lines'],
+            $paymentMethod,
+        );
+        $pricing['manual_discount_caption'] = $plan['caption'];
+
+        return $pricing;
     }
 
     private static function computeSaleTotal(Get $get): float
@@ -6336,10 +7110,19 @@ final class CashRegisterAction
         $lines[] = 'Precio original '.self::formatMoney($p['subtotal']);
 
         if ($p['discount_total'] > 0.00001) {
-            $percentLabel = ($p['discount_percent'] ?? 0) > 0.00001
-                ? ' ('.rtrim(rtrim(number_format((float) $p['discount_percent'], 2, '.', ''), '0'), '.').'%)'
-                : '';
-            $lines[] = 'Descuento'.$percentLabel.' −'.self::formatMoney($p['discount_total']);
+            if (! empty($p['discount_mixed'])) {
+                $percentLabel = '';
+                $discountLabel = 'Descuento manual';
+            } else {
+                $percentLabel = ($p['discount_percent'] ?? 0) > 0.00001
+                    ? ' ('.self::formatDiscountPercent((float) $p['discount_percent']).'%)'
+                    : '';
+                $discountLabel = 'Descuento';
+            }
+            $lines[] = $discountLabel.$percentLabel.' −'.self::formatMoney($p['discount_total']);
+            if (filled($p['manual_discount_caption'] ?? null)) {
+                $lines[] = (string) $p['manual_discount_caption'];
+            }
             $lines[] = 'Subtotal con descuento '.self::formatMoney(round($p['subtotal'] - $p['discount_total'], 2));
         }
 

@@ -10,6 +10,7 @@ use App\Observers\AuditModelObserver;
 use App\Observers\InventoryObserver;
 use App\Observers\PurchaseItemObserver;
 use App\Support\Filesystem\ResilientFilesystem;
+use App\Support\Livewire\LivewireTemporaryUploadMirror;
 use Carbon\CarbonImmutable;
 use Filament\Auth\Http\Responses\Contracts\LogoutResponse as FilamentLogoutResponseContract;
 use Filament\Support\Facades\FilamentView;
@@ -77,6 +78,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->configureLivewireReleaseToken();
         $this->ensureLivewireTemporaryUploadDirectoriesExist();
+        $this->restoreLivewireTemporaryUploadsBeforeValidation();
         $this->disableLivewireChecksumFailureThrottling();
         $this->observeLivewireChecksumFailures();
 
@@ -138,6 +140,18 @@ class AppServiceProvider extends ServiceProvider
                 16,
             ),
         ]);
+    }
+
+    /**
+     * Antes de validar el modal, copia el temporal si quedó en el otro disco local.
+     */
+    protected function restoreLivewireTemporaryUploadsBeforeValidation(): void
+    {
+        on('hydrate', function (object $component, mixed $memo = null, mixed $context = null): void {
+            unset($memo, $context);
+
+            app(LivewireTemporaryUploadMirror::class)->restoreComponent($component);
+        });
     }
 
     /**

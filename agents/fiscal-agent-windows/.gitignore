@@ -1,0 +1,7 @@
+bin/
+obj/
+publish/
+*.user
+.vs/
+# SDK propietario de The Factory HKA: se copia desde la PC de caja, no se versiona.
+lib/*.dll

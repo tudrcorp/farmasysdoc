@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Version>1.2.0</Version>
+    <Company>Farmadoc</Company>
+    <Product>Farmadoc Fiscal Agent</Product>
+  </PropertyGroup>
+</Project>

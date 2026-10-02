@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Support\Cash\CashierShiftLock;
 use App\Support\Filament\FarmaadminMenuAccessCatalog;
+use App\Support\Sales\PosManualDiscount;
 use App\Support\Sales\SalesBillingAccess;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
@@ -420,6 +421,22 @@ class User extends Authenticatable implements FilamentUser
     public function canAccessFarmaadminMenuKey(string $menuKey): bool
     {
         return in_array($menuKey, $this->resolvedAllowedFarmaadminMenuItems(), true);
+    }
+
+    /**
+     * Descuento porcentual sobre el total de la venta en caja.
+     */
+    public function canApplyPosSaleDiscount(): bool
+    {
+        return $this->canAccessFarmaadminMenuKey(PosManualDiscount::SALE_PERMISSION);
+    }
+
+    /**
+     * Descuento porcentual por producto en la caja.
+     */
+    public function canApplyPosLineDiscount(): bool
+    {
+        return $this->canAccessFarmaadminMenuKey(PosManualDiscount::LINE_PERMISSION);
     }
 
     /**

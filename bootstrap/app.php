@@ -10,6 +10,7 @@ use App\Http\Middleware\EnsureLocalEnvironment;
 use App\Http\Middleware\EnsureShopCustomerAuthenticated;
 use App\Http\Middleware\EnsureShopCustomerGuest;
 use App\Http\Middleware\LogInventoryAuditLivewireRequest;
+use App\Http\Middleware\LogLivewireSaveFailures;
 use App\Http\Middleware\RestoreLivewireTemporaryUploads;
 use App\Support\Livewire\LivewireRequestPayload;
 use App\Support\Shop\ShopTheme;
@@ -53,6 +54,8 @@ return Application::configure(basePath: dirname(__DIR__))
             LogInventoryAuditLivewireRequest::class,
             RestoreLivewireTemporaryUploads::class,
         ]);
+
+        $middleware->prependToGroup('web', LogLivewireSaveFailures::class);
 
         $middleware->appendToGroup('web', [
             ConditionalTrimStrings::class,

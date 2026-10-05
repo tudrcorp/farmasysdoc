@@ -126,6 +126,9 @@ if (-not $existing) {
     sc.exe description $serviceName 'Imprime en la máquina fiscal HKA las facturas encoladas en Farmadoc.' | Out-Null
 }
 
+# Windows PowerShell 5.1 quita las comillas internas al llamar a sc.exe; la ruta tiene espacios y debe ir entre comillas.
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName" -Name ImagePath -Value "`"$exe`""
+
 # Reinicio automático ante fallos: 5 s, 5 s y luego 30 s.
 sc.exe failure $serviceName reset= 86400 actions= restart/5000/restart/5000/restart/30000 | Out-Null
 

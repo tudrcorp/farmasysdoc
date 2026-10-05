@@ -23,7 +23,7 @@ namespace Farmadoc.FiscalAgent.Service
     {
         public static int Main(string[] args)
         {
-            Console.OutputEncoding = Encoding.UTF8;
+            UseUtf8ConsoleOutput();
 
             var configPath = OptionValue(args, "--config") ?? AgentHost.DefaultConfigPath;
 
@@ -58,6 +58,20 @@ namespace Farmadoc.FiscalAgent.Service
             {
                 Console.Error.WriteLine(ex.Message);
                 return 2;
+            }
+        }
+
+        /// <summary>
+        /// Como servicio no hay consola y fijar la codificación lanza IOException: se ignora.
+        /// </summary>
+        private static void UseUtf8ConsoleOutput()
+        {
+            try
+            {
+                Console.OutputEncoding = Encoding.UTF8;
+            }
+            catch (IOException)
+            {
             }
         }
 

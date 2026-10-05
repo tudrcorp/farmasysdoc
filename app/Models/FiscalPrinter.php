@@ -121,15 +121,16 @@ class FiscalPrinter extends Model
 
     /**
      * Configuración que el agente descarga en cada heartbeat y con cada trabajo.
+     * payment_slots va como objeto para que sin medios asignados se serialice `{}` y no `[]` (el agente espera un diccionario).
      *
-     * @return array{mode: string, fiscal_registry: string, payment_slots: array<string, string>, command_format: ?array<string, mixed>}
+     * @return array{mode: string, fiscal_registry: string, payment_slots: object, command_format: ?array<string, mixed>}
      */
     public function agentConfig(): array
     {
         return [
             'mode' => $this->currentMode()->value,
             'fiscal_registry' => (string) $this->fiscal_registry,
-            'payment_slots' => array_filter(
+            'payment_slots' => (object) array_filter(
                 is_array($this->payment_slots) ? $this->payment_slots : [],
                 fn (mixed $slot): bool => filled($slot),
             ),

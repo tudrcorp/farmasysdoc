@@ -38,7 +38,7 @@ final class FiscalAgentInstallGuide
             'Luego (reemplace el token):<br><code style="user-select:all">'.$command.'</code>',
             'El instalador hace un diagnóstico y <strong>solo inicia el servicio si todo está OK</strong>. Ya puede volver a abrir Valery.',
             'En Farmaadmin, cargue los <strong>medios de pago</strong> de esa máquina y pásela a <strong>Simulación</strong>. Cuando la lista de chequeo esté completa, pásela a <strong>Activa</strong>.',
-            'Para actualizar el agente más adelante: descargue la nueva versión y ejecute <code>.\\install.ps1</code> sin parámetros (conserva la configuración).',
+            'Para actualizar el agente más adelante: descargue la nueva versión y ejecute <code>.\\install.ps1</code> sin parámetros (conserva la configuración). Para corregir la URL, el token o el puerto, vuelva a ejecutarlo con <code>-ServerUrl</code>, <code>-Token</code> o <code>-ComPort</code>: sobrescriben solo esos valores.',
         ];
 
         $list = collect($steps)

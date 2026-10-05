@@ -9,6 +9,7 @@
   El modo, el registro esperado y los medios de pago se configuran por máquina en Farmaadmin.
 
   En una actualización basta con .\install.ps1 (conserva agent.json y la bitácora).
+  Si agent.json ya existe, -ServerUrl, -Token, -ComPort y -Registry que se indiquen lo sobrescriben.
 #>
 param(
     [string]$ServerUrl,
@@ -19,6 +20,43 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Recibe la URL de Farmadoc tal como la pegue el usuario y devuelve la raíz del sitio:
+# quita espacios, barras finales y rutas del panel o de la API (el agente agrega /api/fiscal-agent/v1/).
+function ConvertTo-ServerRootUrl([string]$url) {
+    $clean = $url.Trim().TrimEnd('/')
+    $uri = $null
+    if (-not [Uri]::TryCreate($clean, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -notin @('http', 'https')) {
+        throw "-ServerUrl no es una URL válida: '$url'. Ejemplo: https://farmasysdoc.farmadoc.net"
+    }
+
+    $path = $uri.AbsolutePath.TrimEnd('/')
+    $root = $uri.GetLeftPart([UriPartial]::Authority)
+    if ($path -match '^(.*?)/(farmaadmin|business-partners|api)(/.*)?$') {
+        $root = $root + $Matches[1]
+        Write-Warning "-ServerUrl incluía una ruta del sistema; se usará la raíz del sitio: $root"
+    } elseif ($path) {
+        $root = $root + $path
+    }
+
+    return $root
+}
+
+function Test-PlaceholderValue([string]$value) {
+    return -not $value -or $value -match 'TU-DOMINIO|example\.com|PEGAR_TOKEN'
+}
+
+function Set-ConfigValue($config, [string]$name, $value) {
+    $config | Add-Member -NotePropertyName $name -NotePropertyValue $value -Force
+}
+
+if ($ServerUrl) { $ServerUrl = ConvertTo-ServerRootUrl $ServerUrl }
+if ($Token) {
+    $Token = $Token.Trim()
+    if ($Token -notmatch '^fd_fp_[0-9a-f]+$') {
+        Write-Warning 'El token no tiene el formato esperado (fd_fp_…). Cópielo de nuevo desde Farmaadmin.'
+    }
+}
 
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -55,6 +93,26 @@ if (-not (Test-Path $configPath)) {
     if ($Registry) { $config.expected_registry = $Registry }
     $config | ConvertTo-Json -Depth 5 | Set-Content -Path $configPath -Encoding UTF8
     Write-Host "Configuración creada: $configPath"
+} else {
+    $config = Get-Content $configPath -Raw | ConvertFrom-Json
+    $changed = @()
+
+    if ($ServerUrl) { Set-ConfigValue $config 'server_url' $ServerUrl; $changed += 'server_url' }
+    if ($Token) { Set-ConfigValue $config 'agent_token' $Token; $changed += 'agent_token' }
+    if ($PSBoundParameters.ContainsKey('ComPort')) { Set-ConfigValue $config 'com_port' $ComPort; $changed += 'com_port' }
+    if ($Registry) { Set-ConfigValue $config 'expected_registry' $Registry; $changed += 'expected_registry' }
+
+    if ($changed.Count -gt 0) {
+        Copy-Item $configPath "$configPath.bak" -Force
+        $config | ConvertTo-Json -Depth 5 | Set-Content -Path $configPath -Encoding UTF8
+        Write-Host "Configuración actualizada ($($changed -join ', ')): $configPath (respaldo en agent.json.bak)"
+    } else {
+        Write-Host "Se conserva la configuración existente: $configPath"
+    }
+
+    if ((Test-PlaceholderValue $config.server_url) -or (Test-PlaceholderValue $config.agent_token)) {
+        throw "agent.json todavía tiene valores de ejemplo (server_url: '$($config.server_url)'). Ejecute de nuevo con -ServerUrl y -Token."
+    }
 }
 
 # El token solo lo pueden leer SYSTEM y Administradores.

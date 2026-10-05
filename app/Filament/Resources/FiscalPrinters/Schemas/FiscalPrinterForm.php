@@ -132,19 +132,34 @@ class FiscalPrinterForm
                     ->columnSpanFull(),
 
                 Section::make('Formato de montos')
-                    ->description('Cuántos dígitos acepta la máquina en el precio de cada producto. Lo indica el flag 21 que muestra el diagnóstico del agente; confírmelo con el técnico de HKA.')
+                    ->description('Dígitos que acepta la máquina en cada campo, según su flag 21 (lo muestra el diagnóstico del agente). Vacío = formato estándar HKA (flag 21 = 00). Referencia para flag 21 = 30 en Aclas PP9-PLUS: precio 14 + 2, pagos 15 + 2; confírmelo con el técnico de HKA y verifique con «Simular factura» antes de una factura real.')
                     ->icon(Heroicon::Calculator)
                     ->schema([
-                        Select::make('command_format.price_integer_digits')
-                            ->label('Precio por producto')
-                            ->options([
-                                10 => 'Extendido: 10 enteros + 2 decimales',
-                            ])
-                            ->placeholder('Estándar: 8 enteros + 2 decimales (flag 21 = 00)')
-                            ->dehydrateStateUsing(fn (mixed $state): ?int => filled($state) ? (int) $state : null),
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                            'lg' => 4,
+                        ])
+                            ->schema([
+                                self::commandFormatDigits('price_integer_digits', 'Precio: enteros', 8),
+                                self::commandFormatDigits('quantity_integer_digits', 'Cantidad: enteros', 5),
+                                self::commandFormatDigits('quantity_decimals', 'Cantidad: decimales', 3),
+                                self::commandFormatDigits('payment_integer_digits', 'Pagos: enteros', 10),
+                            ]),
                     ])
                     ->collapsible()
                     ->columnSpanFull(),
             ]);
+    }
+
+    private static function commandFormatDigits(string $field, string $label, int $standardDigits): TextInput
+    {
+        return TextInput::make('command_format.'.$field)
+            ->label($label)
+            ->integer()
+            ->minValue(1)
+            ->maxValue(20)
+            ->placeholder('Estándar: '.$standardDigits)
+            ->dehydrateStateUsing(fn (mixed $state): ?int => filled($state) ? (int) $state : null);
     }
 }

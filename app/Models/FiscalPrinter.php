@@ -134,8 +134,23 @@ class FiscalPrinter extends Model
                 is_array($this->payment_slots) ? $this->payment_slots : [],
                 fn (mixed $slot): bool => filled($slot),
             ),
-            'command_format' => is_array($this->command_format) && $this->command_format !== [] ? $this->command_format : null,
+            'command_format' => $this->agentCommandFormat(),
         ];
+    }
+
+    /**
+     * Solo los campos con valor: el agente completa el resto con el formato estándar HKA.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function agentCommandFormat(): ?array
+    {
+        $format = array_filter(
+            is_array($this->command_format) ? $this->command_format : [],
+            fn (mixed $value): bool => filled($value),
+        );
+
+        return $format === [] ? null : $format;
     }
 
     public function pendingDocumentsCount(): int

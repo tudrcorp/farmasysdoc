@@ -130,6 +130,21 @@ class FiscalPrinterForm
                     ])
                     ->collapsible()
                     ->columnSpanFull(),
+
+                Section::make('Formato de montos')
+                    ->description('Cuántos dígitos acepta la máquina en el precio de cada producto. Lo indica el flag 21 que muestra el diagnóstico del agente; confírmelo con el técnico de HKA.')
+                    ->icon(Heroicon::Calculator)
+                    ->schema([
+                        Select::make('command_format.price_integer_digits')
+                            ->label('Precio por producto')
+                            ->options([
+                                10 => 'Extendido: 10 enteros + 2 decimales',
+                            ])
+                            ->placeholder('Estándar: 8 enteros + 2 decimales (flag 21 = 00)')
+                            ->dehydrateStateUsing(fn (mixed $state): ?int => filled($state) ? (int) $state : null),
+                    ])
+                    ->collapsible()
+                    ->columnSpanFull(),
             ]);
     }
 }

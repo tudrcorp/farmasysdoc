@@ -42,6 +42,11 @@ namespace Farmadoc.FiscalAgent.Processing
 
         private string CancelCommand => _settings.CommandFormat.CancelDocumentCommand;
 
+        /// <summary>Tiempo máximo que se espera a que la máquina termine de imprimir y cierre el documento tras el pago.</summary>
+        public TimeSpan CloseWaitTimeout { get; set; } = TimeSpan.FromSeconds(20);
+
+        public TimeSpan CloseWaitInterval { get; set; } = TimeSpan.FromMilliseconds(500);
+
         /// <summary>
         /// Procesa el trabajo y deja el resultado en la bitácora local (el runner lo entrega al servidor).
         /// Lanza excepción solo cuando no es posible saber si el documento salió: el trabajo se reintenta
@@ -225,10 +230,10 @@ namespace Farmadoc.FiscalAgent.Processing
                 return VerifyAfterError(job.Type, before, session, amountPayable, taxes, ex);
             }
 
-            var after = session.ReadSnapshot();
+            var after = await WaitForDocumentCloseAsync(job.Type, before, session, cancellationToken).ConfigureAwait(false);
             var current = Counter(job.Type, after);
 
-            if (current == before + 1 && !after.InFiscalTransaction)
+            if (current == before + 1)
             {
                 return Printed(current, amountPayable, after, taxes);
             }
@@ -393,9 +398,36 @@ namespace Farmadoc.FiscalAgent.Processing
                 : JobResult.Uncertain("counter_mismatch", "Contador de Z antes " + before + ", después " + after.DailyClosureCounter + ".");
         }
 
+        /// <summary>
+        /// Tras el último pago la máquina sigue «en transacción» mientras imprime el pie del documento;
+        /// el contador fiscal solo sube al cerrarse. Se consulta hasta que cierre o se agote el tiempo.
+        /// </summary>
+        private async Task<PrinterSnapshot> WaitForDocumentCloseAsync(string type, int before, IPrinterSession session, CancellationToken cancellationToken)
+        {
+            var deadline = DateTime.UtcNow + CloseWaitTimeout;
+
+            while (true)
+            {
+                var snapshot = session.ReadSnapshot();
+
+                if (!snapshot.InFiscalTransaction || Counter(type, snapshot) == before + 1 || DateTime.UtcNow >= deadline)
+                {
+                    return snapshot;
+                }
+
+                await Task.Delay(CloseWaitInterval, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
         private JobResult Abort(string type, int before, IPrinterSession session, string code, string message)
         {
             var errorSnapshot = TryRead(session);
+
+            if (errorSnapshot != null && Counter(type, errorSnapshot) == before + 1)
+            {
+                return JobResult.Uncertain(code, message + ErrorSuffix(errorSnapshot) + ". La máquina ya emitió el documento Nº "
+                    + Counter(type, errorSnapshot) + "; no se anuló. Verifíquelo y resuélvalo a mano.");
+            }
             session.Send(CancelCommand);
             var after = session.ReadSnapshot();
             var detail = message + ErrorSuffix(errorSnapshot) + ".";

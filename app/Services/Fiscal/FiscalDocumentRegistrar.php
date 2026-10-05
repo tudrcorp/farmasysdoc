@@ -173,10 +173,11 @@ final class FiscalDocumentRegistrar
     /**
      * Cierra a mano un documento en revisión tras verificar físicamente la máquina fiscal.
      * Con número fiscal queda «Impreso»; sin él, «Fallido» (no salió y se puede reintentar).
+     * Una factura de prueba resuelta como impresa encola su nota de crédito automática.
      */
     public function resolveManually(FiscalDocument $document, ?string $fiscalNumber, string $actor, ?string $notes = null): FiscalDocument
     {
-        return DB::transaction(function () use ($document, $fiscalNumber, $actor, $notes): FiscalDocument {
+        $resolved = DB::transaction(function () use ($document, $fiscalNumber, $actor, $notes): FiscalDocument {
             $locked = FiscalDocument::query()->whereKey($document->getKey())->lockForUpdate()->firstOrFail();
 
             if (! in_array($locked->status, [FiscalDocumentStatus::NeedsReview, ...FiscalDocumentStatus::inFlight()], true)) {
@@ -197,6 +198,12 @@ final class FiscalDocumentRegistrar
 
             return $locked;
         });
+
+        if ($resolved->status === FiscalDocumentStatus::Printed) {
+            app(FiscalTestLab::class)->queueAutoCreditNote($resolved);
+        }
+
+        return $resolved;
     }
 
     /**

@@ -57,6 +57,9 @@ class FarmaadminPanelProvider extends PanelProvider
             ->passwordReset(RequestPasswordReset::class, ResetPassword::class)
             ->profile(EditProfile::class)
             ->spa()
+            ->spaUrlExceptions([
+                '*/fiscal-agent/download',
+            ])
             ->emailVerification(EmailVerificationPrompt::class)
             ->emailChangeVerification()
             ->favicon(asset('images/logos/favicon.png'))

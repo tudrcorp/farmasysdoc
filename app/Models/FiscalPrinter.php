@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\FiscalDocumentStatus;
 use App\Enums\FiscalPrinterMode;
 use App\Enums\FiscalPrinterModel;
+use App\Support\Fiscal\HkaFlag21Formats;
 use Database\Factories\FiscalPrinterFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -139,16 +140,21 @@ class FiscalPrinter extends Model
     }
 
     /**
-     * Solo los campos con valor: el agente completa el resto con el formato estándar HKA.
+     * Con flag 21 elegido se envía su tabla completa; si no, solo los campos con valor
+     * y el agente completa el resto con el formato estándar HKA.
      *
      * @return array<string, mixed>|null
      */
     private function agentCommandFormat(): ?array
     {
-        $format = array_filter(
-            is_array($this->command_format) ? $this->command_format : [],
-            fn (mixed $value): bool => filled($value),
-        );
+        $stored = is_array($this->command_format) ? $this->command_format : [];
+
+        $preset = HkaFlag21Formats::format(isset($stored['flag_21']) ? (string) $stored['flag_21'] : null);
+        if ($preset !== null) {
+            return $preset;
+        }
+
+        $format = array_filter($stored, fn (mixed $value): bool => filled($value));
 
         return $format === [] ? null : $format;
     }

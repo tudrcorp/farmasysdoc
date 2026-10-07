@@ -74,6 +74,11 @@ class FiscalDocumentInfolist
                                     ->label('Total máquina (Bs)')
                                     ->numeric(2, ',', '.')
                                     ->placeholder('—'),
+                                TextEntry::make('payload.expected.sale_total_ves')
+                                    ->label('Total de la venta (Bs, referencia)')
+                                    ->helperText('Venta en USD × tasa BCV; puede diferir en céntimos del total fiscal por redondeo.')
+                                    ->numeric(2, ',', '.')
+                                    ->placeholder('—'),
                             ]),
                     ])
                     ->columnSpanFull(),

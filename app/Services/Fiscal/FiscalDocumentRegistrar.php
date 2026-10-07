@@ -62,7 +62,7 @@ final class FiscalDocumentRegistrar
             $payload = $this->payloads->forInvoice($sale, $mixedVesPaymentMethod);
         }
 
-        return $this->createForSale(
+        $document = $this->createForSale(
             $sale,
             $printer,
             FiscalDocumentType::Invoice,
@@ -70,6 +70,10 @@ final class FiscalDocumentRegistrar
             $cashier?->email ?? $cashier?->name ?? 'sistema',
             simulation: $printer->currentMode() === FiscalPrinterMode::Simulation,
         );
+
+        $this->recordSaleTotalDrift($document, $payload);
+
+        return $document;
     }
 
     /**
@@ -268,6 +272,47 @@ final class FiscalDocumentRegistrar
 
             return $locked;
         });
+    }
+
+    /**
+     * Deja constancia (sin bloquear la impresión) cuando el total armado desde los ítems se aleja del total
+     * de la venta más de lo que explica el redondeo: señal de que el payload no refleja bien la venta.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function recordSaleTotalDrift(FiscalDocument $document, array $payload): void
+    {
+        $expectedTotal = $payload['expected']['total_ves'] ?? null;
+        $saleTotal = $payload['expected']['sale_total_ves'] ?? null;
+
+        if ($expectedTotal === null || $saleTotal === null) {
+            return;
+        }
+
+        $difference = round((float) $expectedTotal - (float) $saleTotal, 2);
+        $tolerance = $this->payloads->saleTotalDriftToleranceVes($payload);
+
+        if (abs($difference) <= $tolerance + 0.000001) {
+            return;
+        }
+
+        AuditLogger::record(
+            'fiscal_invoice_sale_total_drift',
+            'Fiscal · Factura de '.($payload['sale_number'] ?? $document->uuid)
+                .' · total por ítems ('.number_format((float) $expectedTotal, 2, ',', '.')
+                .') distinto al de la venta ('.number_format((float) $saleTotal, 2, ',', '.').')',
+            FiscalDocument::class,
+            $document->id,
+            (string) ($payload['sale_number'] ?? $document->uuid),
+            [
+                'module' => 'fiscal',
+                'sale_id' => $document->sale_id,
+                'expected_total_ves' => (float) $expectedTotal,
+                'sale_total_ves' => (float) $saleTotal,
+                'difference_ves' => $difference,
+                'tolerance_ves' => $tolerance,
+            ],
+        );
     }
 
     private function saleRequiresFiscalInvoice(Sale $sale): bool

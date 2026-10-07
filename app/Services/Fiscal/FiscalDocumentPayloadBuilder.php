@@ -35,6 +35,7 @@ final class FiscalDocumentPayloadBuilder
 
         $rate = $this->vesPerUsd($sale);
         $merchandiseUsd = round((float) $sale->subtotal - (float) $sale->discount_total + (float) $sale->tax_total, 2);
+        $items = $this->items($sale, $rate);
 
         return [
             'version' => self::VERSION,
@@ -43,9 +44,9 @@ final class FiscalDocumentPayloadBuilder
             'sold_at' => ($sale->sold_at ?? $sale->created_at)?->toIso8601String(),
             'exchange_rate_ves_per_usd' => $rate,
             'customer' => $this->customer($sale->client),
-            'items' => $this->items($sale, $rate),
+            'items' => $items,
             'payments' => $this->payments($sale, $rate, $merchandiseUsd, $mixedVesPaymentMethod),
-            'expected' => $this->expectedTotals($sale, $rate),
+            'expected' => $this->expectedTotals($sale, $rate, $items),
         ];
     }
 
@@ -64,6 +65,7 @@ final class FiscalDocumentPayloadBuilder
 
         $invoicePayload = is_array($invoice->payload) ? $invoice->payload : [];
         $rate = (float) ($invoicePayload['exchange_rate_ves_per_usd'] ?? $this->vesPerUsd($sale));
+        $items = $invoicePayload['items'] ?? $this->items($sale, $rate);
 
         return [
             'version' => self::VERSION,
@@ -77,9 +79,9 @@ final class FiscalDocumentPayloadBuilder
                 'date' => ($invoice->printer_datetime ?? $invoice->printed_at)?->format('Y-m-d'),
                 'time' => ($invoice->printer_datetime ?? $invoice->printed_at)?->format('H:i'),
             ],
-            'items' => $invoicePayload['items'] ?? $this->items($sale, $rate),
+            'items' => $items,
             'payments' => $invoicePayload['payments'] ?? [],
-            'expected' => $invoicePayload['expected'] ?? $this->expectedTotals($sale, $rate),
+            'expected' => $invoicePayload['expected'] ?? $this->expectedTotals($sale, $rate, $items),
         ];
     }
 
@@ -93,17 +95,11 @@ final class FiscalDocumentPayloadBuilder
     {
         $vatRate = DefaultVatRate::percent();
         $items = [];
-        $subtotal = 0.0;
-        $tax = 0.0;
 
         foreach ($data['items'] as $item) {
             $quantity = round((float) $item['quantity'], 3);
             $unitPrice = round((float) $item['unit_price_ves'], 2);
             $isTaxed = ($item['tax'] ?? 'E') === self::TAX_CODE_GENERAL;
-            $lineBase = round($quantity * $unitPrice, 2);
-
-            $subtotal += $lineBase;
-            $tax += $isTaxed ? round($lineBase * $vatRate / 100, 2) : 0.0;
 
             $items[] = [
                 'code' => null,
@@ -116,8 +112,7 @@ final class FiscalDocumentPayloadBuilder
             ];
         }
 
-        $subtotal = round($subtotal, 2);
-        $tax = round($tax, 2);
+        ['subtotal_ves' => $subtotal, 'tax_ves' => $tax] = $this->itemTotals($items);
         $total = round($subtotal + $tax, 2);
         $method = (string) $data['payment_method'];
 
@@ -350,16 +345,79 @@ final class FiscalDocumentPayloadBuilder
     }
 
     /**
-     * @return array{subtotal_ves: float, discount_ves: float, tax_ves: float, igtf_ves: float, total_ves: float}
+     * Total que debe dar la máquina fiscal, calculado como ella lo hace: a partir de los mismos ítems en Bs
+     * del payload (precio × cantidad − descuento) y con el IVA aplicado una sola vez sobre la base de cada alícuota.
+     *
+     * `sale_total_ves` (total de la venta USD × tasa) queda solo como referencia; puede diferir en céntimos por redondeo.
+     *
+     * @param  list<array{quantity: float, unit_price_ves: float, discount_ves: float, tax_code: string, tax_rate_percent: float}>  $items
+     * @return array{subtotal_ves: float, discount_ves: float, tax_ves: float, igtf_ves: float, total_ves: float, sale_total_ves: float}
      */
-    private function expectedTotals(Sale $sale, float $rate): array
+    private function expectedTotals(Sale $sale, float $rate, array $items): array
     {
+        ['subtotal_ves' => $subtotal, 'discount_ves' => $discount, 'tax_ves' => $tax] = $this->itemTotals($items);
+        $igtf = round((float) ($sale->igtf_total ?? 0) * $rate, 2);
+
         return [
-            'subtotal_ves' => round((float) $sale->subtotal * $rate, 2),
-            'discount_ves' => round((float) $sale->discount_total * $rate, 2),
-            'tax_ves' => round((float) $sale->tax_total * $rate, 2),
-            'igtf_ves' => round((float) ($sale->igtf_total ?? 0) * $rate, 2),
-            'total_ves' => round((float) $sale->total * $rate, 2),
+            'subtotal_ves' => $subtotal,
+            'discount_ves' => $discount,
+            'tax_ves' => $tax,
+            'igtf_ves' => $igtf,
+            'total_ves' => round($subtotal - $discount + $tax + $igtf, 2),
+            'sale_total_ves' => round((float) $sale->total * $rate, 2),
         ];
+    }
+
+    /**
+     * Totales en Bs de los ítems tal como los calcula la máquina fiscal: cada línea se redondea
+     * (precio × cantidad − descuento) y el IVA se aplica una sola vez sobre la base acumulada de cada alícuota.
+     *
+     * @param  list<array{quantity: float, unit_price_ves: float, discount_ves: float, tax_code: string, tax_rate_percent: float}>  $items
+     * @return array{subtotal_ves: float, discount_ves: float, tax_ves: float}
+     */
+    private function itemTotals(array $items): array
+    {
+        $subtotal = 0.0;
+        $discount = 0.0;
+        $taxableBaseByRate = [];
+
+        foreach ($items as $item) {
+            $lineGross = round((float) $item['quantity'] * (float) $item['unit_price_ves'], 2);
+            $lineDiscount = round(max(0.0, (float) $item['discount_ves']), 2);
+
+            $subtotal += $lineGross;
+            $discount += $lineDiscount;
+
+            if ($item['tax_code'] !== self::TAX_CODE_EXEMPT && (float) $item['tax_rate_percent'] > 0) {
+                $rateKey = number_format((float) $item['tax_rate_percent'], 2, '.', '');
+                $taxableBaseByRate[$rateKey] = ($taxableBaseByRate[$rateKey] ?? 0.0) + $lineGross - $lineDiscount;
+            }
+        }
+
+        $tax = 0.0;
+
+        foreach ($taxableBaseByRate as $ratePercent => $base) {
+            $tax += round(round($base, 2) * (float) $ratePercent / 100, 2);
+        }
+
+        return [
+            'subtotal_ves' => round($subtotal, 2),
+            'discount_ves' => round($discount, 2),
+            'tax_ves' => round($tax, 2),
+        ];
+    }
+
+    /**
+     * Diferencia máxima aceptable entre el total armado desde los ítems y el de la venta:
+     * un céntimo de dólar por línea (más uno) convertido a Bs, lo que cubre el redondeo en USD de cada línea.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function saleTotalDriftToleranceVes(array $payload): float
+    {
+        $rate = (float) ($payload['exchange_rate_ves_per_usd'] ?? 0);
+        $lines = is_array($payload['items'] ?? null) ? count($payload['items']) : 0;
+
+        return round($rate * 0.01 * ($lines + 1), 2);
     }
 }

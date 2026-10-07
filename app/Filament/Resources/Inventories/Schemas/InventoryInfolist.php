@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Inventories\Schemas;
 
 use App\Models\Inventory;
+use App\Models\User;
 use App\Support\Inventory\InventoryQuantityFormat;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -10,6 +11,7 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\Auth;
 
 class InventoryInfolist
 {
@@ -135,6 +137,18 @@ class InventoryInfolist
                                     ->placeholder('—')
                                     ->money('USD')
                                     ->icon(Heroicon::CurrencyDollar),
+                                TextEntry::make('branch_special_price')
+                                    ->label('Precio especial de la sucursal (sin IVA)')
+                                    ->placeholder('Sin precio especial: se usa el precio calculado')
+                                    ->money('USD')
+                                    ->badge()
+                                    ->color('warning')
+                                    ->icon(Heroicon::Tag)
+                                    ->helperText(fn (Inventory $record): ?string => $record->branchSpecialPriceAmount() !== null
+                                        ? 'Manda en la caja sobre el precio calculado y el precio directo. Asignado por '
+                                            .($record->branch_special_price_set_by ?? '—').' el '.($record->branch_special_price_set_at?->format('d/m/Y H:i') ?? '—').'.'
+                                        : null)
+                                    ->visible(fn (): bool => (Auth::user() instanceof User) && Auth::user()->canSeeBranchSpecialPrice()),
                             ]),
                     ])
                     ->columns(1)

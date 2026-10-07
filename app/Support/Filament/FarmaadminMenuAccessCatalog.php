@@ -41,6 +41,7 @@ class FarmaadminMenuAccessCatalog
             'products' => ['label' => 'Productos', 'route_name_fragment' => 'resources.products.', 'group' => 'Inventario'],
             'products_edit' => ['label' => 'Editar producto', 'route_name_fragment' => 'resources.products.edit', 'group' => 'Inventario'],
             'product_direct_price' => ['label' => 'Ver precio directo (productos)', 'route_name_fragment' => '__permission_product_direct_price__', 'group' => 'Inventario'],
+            'inventory_branch_special_price' => ['label' => 'Asignar precio especial por sucursal', 'route_name_fragment' => '__permission_inventory_branch_special_price__', 'group' => 'Inventario'],
             'product_categories' => ['label' => 'Categorias de productos', 'route_name_fragment' => 'resources.product-categories.', 'group' => 'Inventario'],
             'inventories' => ['label' => 'Inventario', 'route_name_fragment' => 'resources.inventories.', 'group' => 'Inventario'],
             'inventory_movements' => ['label' => 'Movimientos de inventario', 'route_name_fragment' => 'resources.inventory-movements.', 'group' => 'Inventario'],

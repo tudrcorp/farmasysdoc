@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Inventories\Pages;
 
+use App\Filament\Resources\Inventories\Actions\BranchSpecialPriceActions;
 use App\Filament\Resources\Inventories\InventoryResource;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
@@ -15,6 +16,8 @@ class ViewInventory extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            BranchSpecialPriceActions::assign(),
+            BranchSpecialPriceActions::clear(),
             EditAction::make(),
         ];
     }

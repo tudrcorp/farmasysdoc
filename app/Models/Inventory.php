@@ -43,6 +43,9 @@ class Inventory extends Model
         'final_price_without_vat',
         'vat_final_price_amount',
         'final_price_with_vat',
+        'branch_special_price',
+        'branch_special_price_set_at',
+        'branch_special_price_set_by',
     ];
 
     /**
@@ -66,6 +69,8 @@ class Inventory extends Model
             'final_price_without_vat' => 'decimal:8',
             'vat_final_price_amount' => 'decimal:8',
             'final_price_with_vat' => 'decimal:8',
+            'branch_special_price' => 'decimal:2',
+            'branch_special_price_set_at' => 'datetime',
         ];
     }
 
@@ -249,6 +254,20 @@ class Inventory extends Model
                     $inventory->saveQuietly();
                 }
             });
+    }
+
+    /**
+     * Precio especial de esta sucursal (USD sin IVA) o null si la fila usa el precio calculado.
+     */
+    public function branchSpecialPriceAmount(): ?float
+    {
+        $raw = $this->getAttribute('branch_special_price');
+
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        return round(max(0.0, (float) $raw), 2);
     }
 
     /**

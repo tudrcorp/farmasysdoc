@@ -460,6 +460,46 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * Ver el precio especial por sucursal: administradores, gerentes y quien tenga el permiso asignado en su rol.
+     */
+    public function canSeeBranchSpecialPrice(): bool
+    {
+        return $this->isAdministrator()
+            || $this->isManager()
+            || $this->hasExplicitFarmaadminPermission('inventory_branch_special_price');
+    }
+
+    /**
+     * Asignar o quitar el precio especial por sucursal: administradores y roles a los que el administrador
+     * les marcó el permiso (p. ej. CAJERO). Los roles con acceso total implícito no lo heredan.
+     */
+    public function canEditBranchSpecialPrice(): bool
+    {
+        return $this->isAdministrator()
+            || $this->hasExplicitFarmaadminPermission('inventory_branch_special_price');
+    }
+
+    /**
+     * El permiso está marcado explícitamente en algún rol activo del usuario
+     * (no cuenta el acceso total de los roles sin lista de permisos).
+     */
+    public function hasExplicitFarmaadminPermission(string $menuKey): bool
+    {
+        $roles = $this->roles;
+
+        if (! is_array($roles) || $roles === []) {
+            return false;
+        }
+
+        return Rol::query()
+            ->whereIn('name', $roles)
+            ->where('is_active', true)
+            ->get(['allowed_menu_items'])
+            ->contains(fn (Rol $rol): bool => is_array($rol->allowed_menu_items)
+                && in_array($menuKey, $rol->allowed_menu_items, true));
+    }
+
+    /**
      * Anular ventas completadas: solo Administrador o Gerencia, con permiso asignado al rol.
      */
     public function canVoidSales(): bool

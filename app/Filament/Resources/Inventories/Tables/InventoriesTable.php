@@ -3,11 +3,14 @@
 namespace App\Filament\Resources\Inventories\Tables;
 
 use App\Filament\Exports\InventoryExporter;
+use App\Filament\Resources\Inventories\Actions\BranchSpecialPriceActions;
 use App\Filament\Resources\Inventories\InventoryResource;
 use App\Models\Branch;
 use App\Models\Inventory;
+use App\Models\User;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Inventory\InventoryQuantityFormat;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -24,6 +27,7 @@ use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use League\Csv\Bom;
 use League\Csv\Writer;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -129,6 +133,20 @@ class InventoriesTable
                     ->money()
                     ->alignEnd()
                     ->sortable()
+                    ->toggleable(),
+                TextColumn::make('branch_special_price')
+                    ->label('Precio especial (sucursal)')
+                    ->money()
+                    ->badge()
+                    ->color('warning')
+                    ->placeholder('—')
+                    ->tooltip(fn (Inventory $record): ?string => $record->branchSpecialPriceAmount() !== null
+                        ? 'Sin IVA. Manda en la caja sobre el precio calculado. Asignado por '
+                            .($record->branch_special_price_set_by ?? '—').' el '.($record->branch_special_price_set_at?->format('d/m/Y H:i') ?? '—')
+                        : null)
+                    ->alignEnd()
+                    ->sortable()
+                    ->visible(fn (): bool => self::currentUserCanSeeBranchSpecialPrice())
                     ->toggleable(),
                 TextColumn::make('product.discount_percent')
                     ->label('Desc. %')
@@ -279,6 +297,13 @@ class InventoriesTable
                 EditAction::make()
                     ->label('Editar')
                     ->icon(Heroicon::PencilSquare),
+                ActionGroup::make([
+                    BranchSpecialPriceActions::assign(),
+                    BranchSpecialPriceActions::clear(),
+                ])
+                    ->label('Precio especial')
+                    ->icon(Heroicon::Tag)
+                    ->color('warning'),
             ])
             ->recordActionsColumnLabel('Acciones')
             ->toolbarActions([
@@ -291,6 +316,13 @@ class InventoriesTable
                         ->action(fn (Collection $records): StreamedResponse => self::streamSelectedInventoriesCsv($records)),
                 ]),
             ]);
+    }
+
+    private static function currentUserCanSeeBranchSpecialPrice(): bool
+    {
+        $user = Auth::user();
+
+        return $user instanceof User && $user->canSeeBranchSpecialPrice();
     }
 
     /**

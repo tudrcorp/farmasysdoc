@@ -261,6 +261,7 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
                     'quantity',
                     'final_price_without_vat',
                     'final_price_with_vat',
+                    'branch_special_price',
                 ]);
 
             foreach ($inventories as $inv) {

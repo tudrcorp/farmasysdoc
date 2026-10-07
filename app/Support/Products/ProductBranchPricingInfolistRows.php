@@ -17,6 +17,7 @@ final class ProductBranchPricingInfolistRows
      *     profit_percentage: float,
      *     final_price_without_vat: float,
      *     final_price_with_vat: float,
+     *     branch_special_price: float|null,
      *     quantity: float
      * }>
      */
@@ -50,6 +51,7 @@ final class ProductBranchPricingInfolistRows
                     'profit_percentage' => round($profitPercentage, 4),
                     'final_price_without_vat' => round(max(0.0, (float) ($inventory->final_price_without_vat ?? 0)), 2),
                     'final_price_with_vat' => round(max(0.0, (float) ($inventory->final_price_with_vat ?? 0)), 2),
+                    'branch_special_price' => $inventory->branchSpecialPriceAmount(),
                     'quantity' => round(max(0.0, (float) ($inventory->quantity ?? 0)), 3),
                 ];
             })

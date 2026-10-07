@@ -16,12 +16,18 @@ final class ProductUnitPricingForBranch
     private static array $expressProfitByBranch = [];
 
     /**
-     * Precio unitario de venta para caja y buscador global (precio directo → inventario → lista / express).
+     * Precio unitario de venta para caja y buscador global
+     * (precio especial de la sucursal → precio directo → inventario → lista / express).
      *
      * @return array{unit_net: float, unit_final: float, applies_vat: bool}
      */
     public static function resolve(Product $product, int $branchId, ?Inventory $inventory = null): array
     {
+        $branchSpecialPricing = self::branchSpecialPricePricing($product, $branchId, $inventory);
+        if ($branchSpecialPricing !== null) {
+            return $branchSpecialPricing;
+        }
+
         $directPricing = self::directPricePricing($product);
         if ($directPricing !== null) {
             return $directPricing;
@@ -125,6 +131,25 @@ final class ProductUnitPricingForBranch
     }
 
     /**
+     * Precio especial asignado a la fila de inventario de esta sucursal (USD sin IVA).
+     *
+     * @return array{unit_net: float, unit_final: float, applies_vat: bool}|null
+     */
+    private static function branchSpecialPricePricing(Product $product, int $branchId, ?Inventory $inventory): ?array
+    {
+        if ($branchId <= 0 || ! $inventory instanceof Inventory || (int) $inventory->branch_id !== $branchId) {
+            return null;
+        }
+
+        $specialPrice = $inventory->branchSpecialPriceAmount();
+        if ($specialPrice === null) {
+            return null;
+        }
+
+        return self::pricingFromNetUnitPrice($product, $specialPrice);
+    }
+
+    /**
      * @return array{unit_net: float, unit_final: float, applies_vat: bool}|null
      */
     private static function directPricePricing(Product $product): ?array
@@ -134,7 +159,14 @@ final class ProductUnitPricingForBranch
             return null;
         }
 
-        $unitNet = round(max(0.0, (float) $rawDirectPrice), 2);
+        return self::pricingFromNetUnitPrice($product, round(max(0.0, (float) $rawDirectPrice), 2));
+    }
+
+    /**
+     * @return array{unit_net: float, unit_final: float, applies_vat: bool}
+     */
+    private static function pricingFromNetUnitPrice(Product $product, float $unitNet): array
+    {
         $appliesVat = (bool) ($product->applies_vat ?? false);
         $vatRate = max(0.0, DefaultVatRate::percent());
 

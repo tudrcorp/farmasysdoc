@@ -298,6 +298,8 @@ class ProductInfolist
                                     ->alignment(Alignment::End),
                                 TableColumn::make('Final con IVA')
                                     ->alignment(Alignment::End),
+                                TableColumn::make('Precio especial')
+                                    ->alignment(Alignment::End),
                             ])
                             ->schema([
                                 TextEntry::make('branch_name')
@@ -330,6 +332,13 @@ class ProductInfolist
                                     ->weight('bold')
                                     ->color('success')
                                     ->formatStateUsing(fn ($state): string => '$'.number_format((float) $state, 2, '.', ',')),
+                                TextEntry::make('branch_special_price')
+                                    ->label('')
+                                    ->alignment(Alignment::End)
+                                    ->badge()
+                                    ->color('warning')
+                                    ->placeholder('—')
+                                    ->formatStateUsing(fn ($state): string => '$'.number_format((float) $state, 2, '.', ',').' s/IVA'),
                             ])
                             ->columnSpanFull(),
                     ])

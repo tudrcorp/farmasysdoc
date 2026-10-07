@@ -390,6 +390,8 @@ final class PhysicalCashBoxShiftReportBuilder
      *     efectivo_usd: float,
      *     usd_methods_total: float,
      *     ves_methods_total: float,
+     *     total_equivalent_ves: float,
+     *     usd_without_rate: float,
      * }
      */
     private function buildCloseDetail(Collection $sales, User $cashier, PhysicalCashBox $physicalCashBox): array

@@ -202,6 +202,18 @@
         <td><strong>Total VES cobrado</strong></td>
         <td class="num"><strong>Bs. {{ number_format($detail['ves_methods_total'], 2, ',', '.') }}</strong></td>
     </tr>
+    @if (isset($detail['total_equivalent_ves']))
+        <tr>
+            <td>
+                <strong>Total equivalente en Bs (reporte Z)</strong><br>
+                <span class="muted">VES cobrado + USD a la tasa BCV de cada venta. Debe coincidir con el reporte Z de la máquina fiscal (salvo céntimos por redondeo).</span>
+                @if ((float) ($detail['usd_without_rate'] ?? 0) > 0.004)
+                    <br><span class="muted">Sin convertir por falta de tasa: $ {{ number_format((float) $detail['usd_without_rate'], 2, ',', '.') }}</span>
+                @endif
+            </td>
+            <td class="num"><strong>Bs. {{ number_format((float) $detail['total_equivalent_ves'], 2, ',', '.') }}</strong></td>
+        </tr>
+    @endif
     </tbody>
 </table>
 

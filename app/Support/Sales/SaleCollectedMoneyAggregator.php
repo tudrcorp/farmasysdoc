@@ -25,6 +25,8 @@ final class SaleCollectedMoneyAggregator
      *     transfer_usd: float,
      *     efectivo_ves: float,
      *     efectivo_usd: float,
+     *     total_equivalent_ves: float,
+     *     usd_without_rate: float,
      * }
      */
     public function closeTotals(Collection $sales, ?int $branchId): array
@@ -32,10 +34,19 @@ final class SaleCollectedMoneyAggregator
         $totalsByTerminalId = [];
         $unassignedPosVes = 0.0;
         $combined = SaleCollectedMoney::empty();
+        $usdAsVes = 0.0;
+        $usdWithoutRate = 0.0;
 
         foreach ($sales as $sale) {
             $money = $this->attributor->attribute($sale);
             $combined = $combined->add($money);
+
+            $saleRate = (float) ($sale->bcv_ves_per_usd ?? 0);
+            if ($saleRate > 0) {
+                $usdAsVes = round($usdAsVes + round($money->usdTotal() * $saleRate, 2), 2);
+            } else {
+                $usdWithoutRate = round($usdWithoutRate + $money->usdTotal(), 2);
+            }
 
             if ($money->posVes <= 0.00001) {
                 continue;
@@ -65,6 +76,8 @@ final class SaleCollectedMoneyAggregator
             'transfer_usd' => $combined->transferUsd,
             'efectivo_ves' => $combined->efectivoVes,
             'efectivo_usd' => $combined->efectivoUsd,
+            'total_equivalent_ves' => round($combined->vesTotal() + $usdAsVes, 2),
+            'usd_without_rate' => $usdWithoutRate,
         ];
     }
 

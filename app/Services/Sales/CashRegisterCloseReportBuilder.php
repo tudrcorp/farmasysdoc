@@ -70,6 +70,8 @@ final class CashRegisterCloseReportBuilder
      *         transfer_usd: float,
      *         efectivo_ves: float,
      *         efectivo_usd: float,
+     *         total_equivalent_ves: float,
+     *         usd_without_rate: float,
      *     },
      *     cachea_detail: array{
      *         sale_count: int,

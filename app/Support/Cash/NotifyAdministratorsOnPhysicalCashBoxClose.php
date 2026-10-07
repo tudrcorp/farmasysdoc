@@ -240,6 +240,8 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
      *         efectivo_usd: float,
      *         usd_methods_total: float,
      *         ves_methods_total: float,
+     *         total_equivalent_ves?: float,
+     *         usd_without_rate?: float,
      *     },
      *     cash_box_reconciliation: array{
      *         movements_count: int,
@@ -380,6 +382,19 @@ final class NotifyAdministratorsOnPhysicalCashBoxClose
         $lines[] = 'Efectivo USD: '.$this->formatMoney((float) ($detail['efectivo_usd'] ?? 0));
         $lines[] = 'Total USD cobrado: '.$this->formatMoney($detail['usd_methods_total']);
         $lines[] = 'Total VES cobrado: Bs. '.$this->formatMoney($detail['ves_methods_total']);
+
+        if (isset($detail['total_equivalent_ves'])) {
+            $lines[] = '';
+            $lines[] = '[ TOTAL EQUIVALENTE EN BS (REPORTE Z) ]';
+            $lines[] = 'Bs. '.$this->formatMoney((float) $detail['total_equivalent_ves']);
+            $lines[] = 'VES cobrado + USD a la tasa BCV de cada venta.';
+            $lines[] = 'Debe coincidir con el reporte Z de la maquina fiscal (salvo centimos por redondeo).';
+
+            if ((float) ($detail['usd_without_rate'] ?? 0) > 0.004) {
+                $lines[] = 'Sin convertir por falta de tasa: '.$this->formatMoney((float) $detail['usd_without_rate']).' USD';
+            }
+        }
+
         $lines[] = '';
         $lines[] = 'Reporte automatico al cerrar caja fisica.';
         $lines[] = 'Adjunto: totales por tipo de pago (PDF).';

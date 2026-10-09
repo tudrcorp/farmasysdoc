@@ -6,6 +6,7 @@ use App\Enums\EmployeeBankAccountType;
 use App\Enums\VenezuelanPagoMovilBank;
 use App\Services\Hr\HrBcvRateResolver;
 use App\Services\Hr\HrUsdVesConverter;
+use App\Support\Finance\BcvRate;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -335,7 +336,7 @@ class EmployeeForm
         }
 
         $ves = number_format(HrUsdVesConverter::toVes((float) $usd, $rate), 2, ',', '.');
-        $rateFmt = number_format($rate, 6, ',', '.');
+        $rateFmt = BcvRate::format((float) $rate);
 
         return new HtmlString("≈ <strong>Bs {$ves}</strong> (tasa BCV {$rateFmt})");
     }

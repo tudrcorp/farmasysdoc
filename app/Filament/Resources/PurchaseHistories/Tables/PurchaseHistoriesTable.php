@@ -6,6 +6,7 @@ use App\Filament\Resources\AccountsPayables\AccountsPayableResource;
 use App\Filament\Resources\Branches\BranchResource;
 use App\Models\PurchaseHistory;
 use App\Support\Filament\BranchAuthScope;
+use App\Support\Finance\BcvRate;
 use App\Support\Fiscal\VenezuelanRifFormatter;
 use App\Support\Purchases\PurchaseHistoryEntryType;
 use App\Support\Purchases\PurchaseHistoryPaymentForm;
@@ -153,7 +154,7 @@ class PurchaseHistoriesTable
                 TextColumn::make('bcv_rate_at_payment')
                     ->label('Tasa BCV pago')
                     ->alignEnd()
-                    ->formatStateUsing(fn ($state): string => $state !== null ? number_format((float) $state, 6, ',', '.').' Bs/USD' : '—')
+                    ->formatStateUsing(fn ($state): string => $state !== null ? BcvRate::format((float) $state).' Bs/USD' : '—')
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('accounts_payable_id')

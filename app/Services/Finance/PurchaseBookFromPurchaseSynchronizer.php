@@ -2,13 +2,12 @@
 
 namespace App\Services\Finance;
 
-use App\Enums\PurchaseEntryCurrency;
 use App\Models\AccountsPayable;
 use App\Models\Purchase;
 use App\Models\PurchaseBook;
 use App\Services\Audit\AuditLogger;
 use App\Support\Finance\AccountsPayableStatus;
-use App\Support\Finance\DefaultVatRate;
+use App\Support\Finance\PurchaseFiscalVesAmounts;
 use App\Support\Fiscal\CompanyFiscalAddress;
 use App\Support\Fiscal\VenezuelanRifFormatter;
 use App\Support\Purchases\PurchaseBookVoucherNumberAllocator;
@@ -78,15 +77,14 @@ final class PurchaseBookFromPurchaseSynchronizer
         }
 
         $taxPeriod = $invoiceDate->format('Y/m');
-        $invoiceTotalVes = $this->amountToVes((float) $purchase->total, $purchase, $rateAtInvoice);
-        $taxableBaseDocument = (float) ($purchase->net_taxable_after_document_discount
-            ?? $purchase->subtotal_taxable_amount
-            ?? 0);
-        $taxableBaseVes = $this->amountToVes($taxableBaseDocument, $purchase, $rateAtInvoice);
-        $taxCausedVes = $this->amountToVes((float) $purchase->tax_total, $purchase, $rateAtInvoice);
+        $vesAmounts = PurchaseFiscalVesAmounts::fromPurchase($purchase, $rateAtInvoice);
+        $invoiceTotalVes = $vesAmounts->totalVes;
+        $taxableBaseVes = $vesAmounts->taxableBaseVes;
+        $taxCausedVes = $vesAmounts->taxCausedVes;
+        $vatRatePercent = $vesAmounts->vatRatePercent;
 
         $retentionPercent = (float) ($purchase->supplier?->seniat_retention_percent ?? 0);
-        $taxRetainedVes = round($taxCausedVes * ($retentionPercent / 100), 2);
+        $taxRetainedVes = $vesAmounts->retainedVes($retentionPercent);
 
         $supplier = $purchase->supplier;
         $supplierName = $supplier !== null
@@ -120,6 +118,7 @@ final class PurchaseBookFromPurchaseSynchronizer
             $invoiceTotalVes,
             $taxableBaseVes,
             $taxCausedVes,
+            $vatRatePercent,
             $taxRetainedVes,
             $retentionPercent,
             $supplierName,
@@ -161,7 +160,7 @@ final class PurchaseBookFromPurchaseSynchronizer
                 'retention_agent_rif' => (string) config('fiscal.retention_agent.rif'),
                 'tax_period' => $taxPeriod,
                 'retention_agent_address' => CompanyFiscalAddress::line(),
-                'issue_date' => null,
+                'issue_date' => $invoiceDate->toDateString(),
                 'supplier_name' => $supplierName,
                 'supplier_rif' => $supplierRif !== '' ? $supplierRif : (string) ($purchase->supplier?->tax_id ?? '—'),
                 'supplier_address' => $supplierAddress,
@@ -174,7 +173,7 @@ final class PurchaseBookFromPurchaseSynchronizer
                 'invoice_total_ves' => $invoiceTotalVes,
                 'purchases_without_vat_credit' => null,
                 'taxable_base_ves' => $taxableBaseVes,
-                'vat_rate_percent' => DefaultVatRate::percent(),
+                'vat_rate_percent' => $vatRatePercent,
                 'tax_caused_ves' => $taxCausedVes,
                 'tax_retained_ves' => $taxRetainedVes,
                 'bcv_rate_at_invoice' => $rateAtInvoice,
@@ -226,14 +225,5 @@ final class PurchaseBookFromPurchaseSynchronizer
 
         app(AccountsPayableCurrentBalanceRecalculator::class)
             ->recalculate($accountsPayable, audit: false);
-    }
-
-    private function amountToVes(float $amount, Purchase $purchase, float $rateAtInvoice): float
-    {
-        if ($purchase->entryCurrency() === PurchaseEntryCurrency::VES) {
-            return round($amount, 2);
-        }
-
-        return round($amount * $rateAtInvoice, 2);
     }
 }

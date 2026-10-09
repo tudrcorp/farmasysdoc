@@ -21,6 +21,7 @@ use App\Support\Filament\BranchAuthScope;
 use App\Support\Finance\AccountsPayableBulkPaymentPayload;
 use App\Support\Finance\AccountsPayableInvoiceTaxSnapshot;
 use App\Support\Finance\AccountsPayableStatus;
+use App\Support\Finance\BcvRate;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkAction;
@@ -145,7 +146,7 @@ class AccountsPayablesTable
                     ->iconColor(fn (?float $state): string => ($state ?? 0) > 0 ? 'warning' : 'gray')
                     ->state(fn (AccountsPayable $record): ?float => AccountsPayableInvoiceTaxSnapshot::purchaseRegistrationBcvRate($record))
                     ->formatStateUsing(fn (?float $state): string => $state !== null
-                        ? number_format($state, 4, ',', '.').' Bs/USD'
+                        ? BcvRate::format((float) $state).' Bs/USD'
                         : '—')
                     ->tooltip('Tasa BCV del día del registro de la compra (usada para convertir el total a pagar a USD).'),
                 TextColumn::make('purchase_total_usd')

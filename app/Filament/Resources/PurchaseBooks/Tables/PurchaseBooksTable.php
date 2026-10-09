@@ -4,6 +4,7 @@ namespace App\Filament\Resources\PurchaseBooks\Tables;
 
 use App\Filament\Resources\PurchaseBooks\PurchaseBookResource;
 use App\Models\PurchaseBook;
+use App\Support\Finance\BcvRate;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Support\Icons\Heroicon;
@@ -183,7 +184,7 @@ class PurchaseBooksTable
                     ->alignEnd()
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->formatStateUsing(fn ($state): string => $state !== null
-                        ? number_format((float) $state, 4, ',', '.')
+                        ? BcvRate::format((float) $state)
                         : '—'),
                 TextColumn::make('created_at')
                     ->label('Registrado')

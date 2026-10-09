@@ -5,6 +5,7 @@ namespace App\Services\Hr;
 use App\Enums\PayrollPeriodStatus;
 use App\Models\PayrollLine;
 use App\Models\PayrollPeriod;
+use App\Support\Finance\BcvRate;
 use Barryvdh\DomPDF\Facade\Pdf;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -44,7 +45,7 @@ final class PayrollPeriodReportExporter
             fputcsv($stream, [
                 'Tasa BCV',
                 $period->bcv_ves_per_usd !== null
-                    ? number_format((float) $period->bcv_ves_per_usd, 6, ',', '.')
+                    ? BcvRate::format((float) $period->bcv_ves_per_usd)
                     : '—',
             ], ';');
             fputcsv($stream, ['Generado', $payload['generated_at'].' por '.$payload['generated_by']], ';');
@@ -166,7 +167,7 @@ final class PayrollPeriodReportExporter
             $this->num((float) $line->cash_paid_ves),
             $this->num((float) $line->net_usd),
             $this->num((float) $line->net_ves),
-            number_format((float) $line->bcv_ves_per_usd, 6, ',', '.'),
+            BcvRate::format((float) $line->bcv_ves_per_usd),
         ];
     }
 

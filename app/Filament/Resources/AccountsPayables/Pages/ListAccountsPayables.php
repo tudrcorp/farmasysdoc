@@ -3,8 +3,8 @@
 namespace App\Filament\Resources\AccountsPayables\Pages;
 
 use App\Filament\Resources\AccountsPayables\AccountsPayableResource;
-use App\Services\Finance\AccountsPayableCurrentBalanceRecalculator;
 use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
+use App\Support\Finance\BcvRate;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Support\Enums\Width;
@@ -53,6 +53,6 @@ class ListAccountsPayables extends ListRecords
             return 'Tasa BCV actual: no disponible.';
         }
 
-        return 'Tasa BCV actual: '.number_format(AccountsPayableCurrentBalanceRecalculator::roundMoney($rate), 2, ',', '.').' Bs/USD.';
+        return 'Tasa BCV actual: '.BcvRate::format($rate).' Bs/USD.';
     }
 }

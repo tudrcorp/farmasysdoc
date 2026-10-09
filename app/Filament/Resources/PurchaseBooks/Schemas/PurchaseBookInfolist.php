@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\PurchaseBooks\Schemas;
 
 use App\Models\PurchaseBook;
+use App\Support\Finance\BcvRate;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -189,7 +190,7 @@ class PurchaseBookInfolist
                                 TextEntry::make('bcv_rate_at_invoice')
                                     ->label('Tasa BCV aplicada')
                                     ->formatStateUsing(fn ($state): string => $state !== null
-                                        ? number_format((float) $state, 6, ',', '.').' Bs/USD'
+                                        ? BcvRate::format((float) $state).' Bs/USD'
                                         : '—')
                                     ->icon(Heroicon::ArrowPath),
                                 TextEntry::make('seniat_retention_percent')

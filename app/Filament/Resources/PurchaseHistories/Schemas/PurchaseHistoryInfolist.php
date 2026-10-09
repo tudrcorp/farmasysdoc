@@ -4,6 +4,7 @@ namespace App\Filament\Resources\PurchaseHistories\Schemas;
 
 use App\Filament\Resources\AccountsPayables\AccountsPayableResource;
 use App\Models\PurchaseHistory;
+use App\Support\Finance\BcvRate;
 use App\Support\Fiscal\VenezuelanRifFormatter;
 use App\Support\Purchases\PurchaseHistoryEntryType;
 use App\Support\Purchases\PurchaseHistoryPaymentForm;
@@ -148,7 +149,7 @@ class PurchaseHistoryInfolist
                             ->formatStateUsing(fn ($state): string => number_format((float) $state, 2, ',', '.').' USD'),
                         TextEntry::make('bcv_rate_at_payment')
                             ->label('Tasa BCV (Bs/USD) aplicada al pago')
-                            ->formatStateUsing(fn ($state): string => $state !== null ? number_format((float) $state, 6, ',', '.').' Bs/USD' : '—'),
+                            ->formatStateUsing(fn ($state): string => $state !== null ? BcvRate::format((float) $state).' Bs/USD' : '—'),
                         TextEntry::make('payment_reference')
                             ->label('Referencia del pago')
                             ->placeholder('—'),

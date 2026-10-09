@@ -15,6 +15,7 @@ use App\Support\Filament\BranchAuthScope;
 use App\Support\Filament\SaleEffectiveDateScope;
 use App\Support\Filament\SaleIosBreakdownHtml;
 use App\Support\Filament\SlideoverModalScrollFix;
+use App\Support\Finance\BcvRate;
 use App\Support\Sales\PosPaymentMethodOptions;
 use App\Support\Sales\SaleCollectedMoneyAggregator;
 use App\Support\Sales\SaleCollectedMoneyAttributor;
@@ -259,7 +260,7 @@ class SalesTable
                     ->label('Tasa BCV')
                     ->tooltip('Bolívares por 1 USD aplicados al cobrar (referencia para validar el pago en Bs.)')
                     ->formatStateUsing(fn ($state): string => $state !== null && (float) $state > 0
-                        ? 'Bs. '.number_format((float) $state, 6, ',', '.').' / USD'
+                        ? 'Bs. '.BcvRate::format((float) $state).' / USD'
                         : '—')
                     ->sortable()
                     ->alignEnd()

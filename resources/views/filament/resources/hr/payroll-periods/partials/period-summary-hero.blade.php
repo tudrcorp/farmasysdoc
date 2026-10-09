@@ -16,7 +16,7 @@
 
     $employeesCount = (int) ($employeesCount ?? 0);
     $rate = $period->bcv_ves_per_usd
-        ? number_format((float) $period->bcv_ves_per_usd, 4, ',', '.')
+        ? \App\Support\Finance\BcvRate::format((float) $period->bcv_ves_per_usd)
         : '—';
 @endphp
 

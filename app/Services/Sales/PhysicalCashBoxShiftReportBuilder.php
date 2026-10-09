@@ -23,6 +23,8 @@ final class PhysicalCashBoxShiftReportBuilder
 
     private const KIND_MIXED_EFECTIVO_VES_VUELTO = 'mixed_efectivo_ves_vuelto';
 
+    private const KIND_EFECTIVO_VES_VUELTO = 'efectivo_ves_vuelto';
+
     public function __construct(
         private readonly SaleCollectedMoneyAggregator $collectedMoneyAggregator,
         private readonly PhysicalCashBoxPosBankReconciler $posBankReconciler,
@@ -268,7 +270,7 @@ final class PhysicalCashBoxShiftReportBuilder
                 continue;
             }
 
-            if ($kind !== self::KIND_MIXED_EFECTIVO_VES_VUELTO) {
+            if (! in_array($kind, [self::KIND_MIXED_EFECTIVO_VES_VUELTO, self::KIND_EFECTIVO_VES_VUELTO], true)) {
                 continue;
             }
 

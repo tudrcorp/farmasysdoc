@@ -7,6 +7,7 @@ use App\Filament\Resources\AccountsReceivables\AccountsReceivableResource;
 use App\Filament\Resources\Branches\BranchResource;
 use App\Filament\Resources\Clients\ClientResource;
 use App\Models\Sale;
+use App\Support\Finance\BcvRate;
 use App\Support\Sales\InternalBranchTransferSale;
 use App\Support\Sales\PosPaymentMethodOptions;
 use App\Support\Sales\SaleCollectedMoneyAttributor;
@@ -180,7 +181,7 @@ class SaleInfolist
                                     ->label('Tasa BCV (Bs. / USD)')
                                     ->helperText('Valor usado al registrar el cobro en bolívares (API oficial o tasa manual en caja).')
                                     ->formatStateUsing(fn (?float $state): string => $state !== null && (float) $state > 0
-                                        ? '1 USD = Bs. '.number_format((float) $state, 6, ',', '.')
+                                        ? '1 USD = Bs. '.BcvRate::format((float) $state)
                                         : '—')
                                     ->placeholder('—')
                                     ->icon(Heroicon::ChartBar),
@@ -189,6 +190,12 @@ class SaleInfolist
                                     ->placeholder('—')
                                     ->copyable()
                                     ->icon(Heroicon::Hashtag),
+                                TextEntry::make('conciliationCachea.order_number')
+                                    ->label('Nro. de Orden Cashea')
+                                    ->placeholder('—')
+                                    ->copyable()
+                                    ->icon(Heroicon::Hashtag)
+                                    ->visible(fn (Sale $record): bool => PosPaymentMethodOptions::isCachea($record->payment_method)),
                                 TextEntry::make('payment_status')
                                     ->label('Estado del cobro')
                                     ->formatStateUsing(fn (?string $state): string => self::formatPaymentStatus($state))

@@ -6,6 +6,7 @@ use App\Filament\Resources\Branches\BranchResource;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Models\AccountsReceivable;
 use App\Support\Finance\AccountsReceivableStatus;
+use App\Support\Finance\BcvRate;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -88,7 +89,7 @@ class AccountsReceivableInfolist
                                     ->label('Tasa BCV (instantáneo)')
                                     ->placeholder('—')
                                     ->formatStateUsing(fn (?float $state): string => $state !== null && $state > 0
-                                        ? 'Bs. '.number_format((float) $state, 6, ',', '.').' / USD'
+                                        ? 'Bs. '.BcvRate::format((float) $state).' / USD'
                                         : '—'),
                                 TextEntry::make('sale_total_ves_reference')
                                     ->label('Total venta en Bs. (referencia)')

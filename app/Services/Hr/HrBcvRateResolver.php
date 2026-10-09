@@ -4,6 +4,7 @@ namespace App\Services\Hr;
 
 use App\Services\Dolar\DolarApiDolaresService;
 use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
+use App\Support\Finance\BcvRate;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 
@@ -33,7 +34,7 @@ final class HrBcvRateResolver
         }
 
         if ($manualFallback !== null && $manualFallback > 0) {
-            return $manualFallback;
+            return BcvRate::truncate($manualFallback);
         }
 
         return null;

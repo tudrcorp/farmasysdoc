@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Support\Finance\AccountsPayableInvoiceTaxSnapshot;
 use App\Support\Finance\AccountsPayableStatus;
+use App\Support\Finance\BcvRate;
 use App\Support\Purchases\PurchaseHistoryEntryType;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -352,7 +353,7 @@ final class AccountsPayablePaymentRegistrar
 
         if (abs($ves - $expectedVes) > $tolerance) {
             throw ValidationException::withMessages([
-                'amount_paid_ves' => 'El monto en Bs no coincide con el USD indicado usando la tasa BCV del día actual ('.number_format($rateFx, 6, ',', '.').' Bs/USD). Esperado aprox.: '.number_format($expectedVes, 2, ',', '.').' Bs.',
+                'amount_paid_ves' => 'El monto en Bs no coincide con el USD indicado usando la tasa BCV del día actual ('.BcvRate::format((float) $rateFx).' Bs/USD). Esperado aprox.: '.number_format($expectedVes, 2, ',', '.').' Bs.',
             ]);
         }
     }

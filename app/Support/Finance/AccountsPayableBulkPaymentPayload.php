@@ -126,7 +126,7 @@ final class AccountsPayableBulkPaymentPayload
             'issued_at_label' => $record->issued_at?->format('d/m/Y') ?? '—',
             'due_at_label' => $record->due_at?->format('d/m/Y') ?? '—',
             'bcv_rate_label' => $registrationRate !== null && $registrationRate > 0
-                ? number_format($registrationRate, 4, ',', '.').' Bs/USD'
+                ? BcvRate::format((float) $registrationRate).' Bs/USD'
                 : '—',
             'amount_usd_label' => self::formatUsd((float) $record->purchase_total_usd),
             'invoice_total_ves_label' => self::formatBs($invoiceTotalVes),

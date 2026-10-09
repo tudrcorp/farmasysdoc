@@ -63,7 +63,7 @@ final class AccountsPayablePaymentReportBuilder
                 'amount_paid_usd' => round((float) ($history->amount_paid_usd ?? 0), 2),
                 'amount_paid_ves' => round((float) ($history->amount_paid_ves ?? 0), 2),
                 'bcv_rate' => $history->bcv_rate_at_payment !== null
-                    ? round((float) $history->bcv_rate_at_payment, 4)
+                    ? BcvRate::truncate((float) $history->bcv_rate_at_payment)
                     : null,
                 'payment_reference' => filled($history->payment_reference)
                     ? (string) $history->payment_reference

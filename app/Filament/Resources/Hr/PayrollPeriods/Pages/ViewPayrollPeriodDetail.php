@@ -16,6 +16,7 @@ use App\Services\Hr\PayrollReceiptAvailability;
 use App\Services\Hr\PayrollReceiptIssuer;
 use App\Services\Hr\PayrollReceiptPdfFactory;
 use App\Services\Hr\PayrollReceiptSender;
+use App\Support\Finance\BcvRate;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\TextInput;
@@ -98,15 +99,15 @@ class ViewPayrollPeriodDetail extends Page implements HasTable
                     TextInput::make('manual_rate')
                         ->label('Tasa BCV manual (opcional)')
                         ->numeric()
-                        ->minValue(0.000001)
-                        ->step(0.000001)
+                        ->minValue(0.01)
+                        ->step(0.01)
                         ->helperText(function (): string {
                             /** @var PayrollPeriod $period */
                             $period = $this->getRecord();
                             $rate = app(HrBcvRateResolver::class)->resolveForDate($period->period_date);
 
                             return $rate !== null
-                                ? 'Tasa sugerida: '.number_format($rate, 6, ',', '.')
+                                ? 'Tasa sugerida: '.BcvRate::format((float) $rate)
                                 : 'No hay tasa automática; indique una tasa manual.';
                         }),
                 ])

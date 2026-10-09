@@ -10,6 +10,7 @@ use App\Models\HrPayrollConcept;
 use App\Models\PayrollPeriod;
 use App\Services\Hr\HrBcvRateResolver;
 use App\Services\Hr\HrUsdVesConverter;
+use App\Support\Finance\BcvRate;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -247,7 +248,7 @@ class HrPayrollConceptForm
         }
 
         $ves = number_format(HrUsdVesConverter::toVes((float) $amount, $rate), 2, ',', '.');
-        $rateFmt = number_format($rate, 6, ',', '.');
+        $rateFmt = BcvRate::format((float) $rate);
 
         return new HtmlString("≈ <strong>Bs {$ves}</strong> (tasa BCV {$rateFmt})");
     }

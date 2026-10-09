@@ -2,6 +2,7 @@
 
 namespace App\Services\Dolar;
 
+use App\Support\Finance\BcvRate;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
@@ -18,7 +19,7 @@ final class DolarApiDolaresService
     }
 
     /**
-     * Tasa oficial BCV con representación textual de todos los decimales reportados por la API.
+     * Tasa oficial BCV truncada a 2 decimales ({@see BcvRate}) y su representación para mostrar.
      *
      * @return array{rate: float, display: string}|null
      */
@@ -33,7 +34,6 @@ final class DolarApiDolaresService
                 return null;
             }
 
-            $body = $response->body();
             $items = $response->json();
             if (! is_array($items)) {
                 return null;
@@ -50,13 +50,12 @@ final class DolarApiDolaresService
                         return null;
                     }
 
-                    $rate = (float) $promedio;
-                    if ($rate <= 0) {
+                    $rate = BcvRate::truncateOrNull($promedio);
+                    if ($rate === null) {
                         return null;
                     }
 
-                    $display = self::extractPromedioLiteralFromBody($body)
-                        ?? self::formatAllDecimals($promedio);
+                    $display = BcvRate::format($rate);
 
                     return [
                         'rate' => $rate,
@@ -69,52 +68,5 @@ final class DolarApiDolaresService
         } catch (Throwable) {
             return null;
         }
-    }
-
-    /**
-     * Extrae el literal decimal de `promedio` del objeto oficial USD en el JSON crudo.
-     */
-    private static function extractPromedioLiteralFromBody(string $body): ?string
-    {
-        if (! preg_match_all('/\{[^{}]*\}/', $body, $matches)) {
-            return null;
-        }
-
-        foreach ($matches[0] as $chunk) {
-            if (! str_contains($chunk, '"oficial"') || ! str_contains($chunk, '"USD"')) {
-                continue;
-            }
-
-            if (preg_match('/"promedio"\s*:\s*([0-9]+(?:\.[0-9]+)?)/', $chunk, $match) === 1) {
-                return $match[1];
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Conserva todos los decimales del valor reportado por la API (sin redondear a escala fija).
-     */
-    public static function formatAllDecimals(int|float|string $value): string
-    {
-        if (is_string($value)) {
-            $trimmed = trim($value);
-            if ($trimmed !== '' && is_numeric($trimmed)) {
-                if (str_contains($trimmed, 'e') || str_contains($trimmed, 'E')) {
-                    return self::formatAllDecimals((float) $trimmed);
-                }
-
-                return $trimmed;
-            }
-        }
-
-        if (is_int($value)) {
-            return (string) $value;
-        }
-
-        $asString = sprintf('%.10F', (float) $value);
-
-        return rtrim(rtrim($asString, '0'), '.') ?: '0';
     }
 }

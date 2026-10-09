@@ -5,6 +5,7 @@ namespace App\Support\Filament;
 use App\Enums\SaleStatus;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Support\Finance\BcvRate;
 use App\Support\Sales\PosPaymentMethodOptions;
 use App\Support\Sales\SaleCollectedMoneyAttributor;
 use App\Support\Sales\SalePaymentMethodLabels;
@@ -66,7 +67,7 @@ final class SaleIosBreakdownHtml
         if ($hasRate) {
             $html .= '<p class="farmadoc-sale-sheet__rate-pill" role="status">'
                 .'<span class="farmadoc-sale-sheet__rate-pill-label">Tasa en documento</span> '
-                .'<span class="farmadoc-sale-sheet__rate-pill-value">'.e(number_format((float) $rate, 6, ',', '.')).' Bs./USD</span>'
+                .'<span class="farmadoc-sale-sheet__rate-pill-value">'.e(BcvRate::format((float) $rate)).' Bs./USD</span>'
                 .'</p>';
         }
 

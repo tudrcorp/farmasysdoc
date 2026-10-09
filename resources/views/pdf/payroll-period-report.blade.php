@@ -107,7 +107,7 @@
             <td class="summary-label">Tasa BCV</td>
             <td class="numeric">
                 {{ $period->bcv_ves_per_usd !== null
-                    ? number_format((float) $period->bcv_ves_per_usd, 6, ',', '.')
+                    ? \App\Support\Finance\BcvRate::format((float) $period->bcv_ves_per_usd)
                     : '—' }}
             </td>
         </tr>

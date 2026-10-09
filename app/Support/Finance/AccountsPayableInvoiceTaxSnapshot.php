@@ -262,14 +262,16 @@ final class AccountsPayableInvoiceTaxSnapshot
 
     private static function taxTotalToVes(Purchase $purchase): float
     {
-        $taxTotal = round((float) $purchase->tax_total, 2);
-
-        if ($purchase->entryCurrency() === PurchaseEntryCurrency::VES) {
-            return $taxTotal;
+        if (round((float) $purchase->tax_total, 2) <= 0) {
+            return 0.0;
         }
 
         $rate = (float) ($purchase->official_usd_ves_rate ?? 0);
 
-        return $rate > 0 ? round($taxTotal * $rate, 2) : 0.0;
+        if ($purchase->entryCurrency() !== PurchaseEntryCurrency::VES && $rate <= 0) {
+            return 0.0;
+        }
+
+        return PurchaseFiscalVesAmounts::fromPurchase($purchase, $rate)->taxCausedVes;
     }
 }

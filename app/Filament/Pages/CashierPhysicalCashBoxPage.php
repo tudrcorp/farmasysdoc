@@ -791,6 +791,10 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
         $clientBillUsd = (float) $movement->client_bill_usd;
         $drawerOutUsd = (float) $movement->drawer_out_usd;
         $finalChangeVes = (float) ($movement->final_change_ves ?? 0);
+        $meta = is_array($movement->meta) ? $movement->meta : [];
+        $vesDelta = in_array($movement->kind, ['mixed_efectivo_ves_vuelto', 'efectivo_ves_vuelto'], true)
+            ? round((float) ($meta['net_ves_to_drawer'] ?? 0), 2)
+            : round(-1 * abs($finalChangeVes), 2);
         $branchName = $movement->sale?->branch?->name
             ?? $movement->physicalCashBox?->user?->branch?->name
             ?? 'Sin sucursal';
@@ -806,7 +810,7 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
             'drawer_out_usd' => round($drawerOutUsd, 2),
             'final_change_ves' => round($finalChangeVes, 2),
             'usd_delta' => round($clientBillUsd - $drawerOutUsd, 2),
-            'ves_delta' => round(-1 * abs($finalChangeVes), 2),
+            'ves_delta' => $vesDelta,
         ];
     }
 

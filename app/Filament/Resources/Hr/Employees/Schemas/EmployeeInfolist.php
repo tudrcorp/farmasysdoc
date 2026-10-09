@@ -13,6 +13,7 @@ use App\Models\HrDeduction;
 use App\Models\HrLoan;
 use App\Services\Hr\HrBcvRateResolver;
 use App\Services\Hr\HrUsdVesConverter;
+use App\Support\Finance\BcvRate;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -426,7 +427,7 @@ class EmployeeInfolist
                 : null,
             'biweekly_usd' => 'US$ '.number_format($biweekly, 2, ',', '.'),
             'biweekly_ves' => $rate ? 'Bs '.number_format(HrUsdVesConverter::toVes($biweekly, $rate), 2, ',', '.') : null,
-            'rate_label' => $rate ? 'Tasa BCV '.number_format($rate, 4, ',', '.') : 'Tasa BCV no disponible',
+            'rate_label' => $rate ? 'Tasa BCV '.BcvRate::format((float) $rate) : 'Tasa BCV no disponible',
             'assignments_count' => $record->assignments->where('is_active', true)->count(),
             'deductions_count' => $record->deductions->where('is_active', true)->count(),
             'active_loans_count' => $activeLoans->count(),
@@ -442,7 +443,7 @@ class EmployeeInfolist
         }
 
         return 'Bs '.number_format(HrUsdVesConverter::toVes($usd, $rate), 2, ',', '.')
-            .' · tasa '.number_format($rate, 4, ',', '.');
+            .' · tasa '.BcvRate::format((float) $rate);
     }
 
     private static function vesCashLabel(Employee $record, bool $isMonthEnd): string

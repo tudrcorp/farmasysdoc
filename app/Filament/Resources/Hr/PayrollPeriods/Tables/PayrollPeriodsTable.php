@@ -8,6 +8,7 @@ use App\Models\PayrollPeriod;
 use App\Services\Hr\HrBcvRateResolver;
 use App\Services\Hr\PayrollCalculator;
 use App\Services\Hr\PayrollPeriodVisibility;
+use App\Support\Finance\BcvRate;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\Select;
@@ -145,7 +146,7 @@ class PayrollPeriodsTable
                 TextColumn::make('bcv_ves_per_usd')
                     ->label('Tasa BCV')
                     ->alignEnd()
-                    ->numeric(decimalPlaces: 4)
+                    ->formatStateUsing(fn (mixed $state): string => is_numeric($state) ? BcvRate::format((float) $state) : '—')
                     ->placeholder('Sin tasa')
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->description(fn (PayrollPeriod $record): ?string => $record->calculated_at
@@ -237,13 +238,13 @@ class PayrollPeriodsTable
                             TextInput::make('manual_rate')
                                 ->label('Tasa BCV manual (opcional)')
                                 ->numeric()
-                                ->minValue(0.000001)
-                                ->step(0.000001)
+                                ->minValue(0.01)
+                                ->step(0.01)
                                 ->helperText(function (PayrollPeriod $record): string {
                                     $rate = app(HrBcvRateResolver::class)->resolveForDate($record->period_date);
 
                                     return $rate !== null
-                                        ? 'Tasa sugerida: '.number_format($rate, 6, ',', '.')
+                                        ? 'Tasa sugerida: '.BcvRate::format((float) $rate)
                                         : 'No hay tasa automática; indique una tasa manual.';
                                 }),
                         ])

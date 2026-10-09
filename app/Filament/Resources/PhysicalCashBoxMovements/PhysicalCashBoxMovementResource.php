@@ -10,6 +10,7 @@ use App\Models\PhysicalCashBoxMovement;
 use App\Models\Sale;
 use App\Models\User;
 use App\Support\Filament\FarmaadminDeliveryUserAccess;
+use App\Support\Finance\BcvRate;
 use BackedEnum;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
@@ -152,16 +153,17 @@ class PhysicalCashBoxMovementResource extends Resource
                     ->formatStateUsing(fn (?string $state): string => match ($state) {
                         'efectivo_usd_vuelto' => 'Vuelto efectivo USD',
                         'mixed_efectivo_ves_vuelto' => 'Vuelto efectivo VES (pago mixto)',
+                        'efectivo_ves_vuelto' => 'Vuelto efectivo VES',
                         default => (string) ($state ?? '—'),
                     }),
-                TextEntry::make('meta.ves_cash_received')
+                TextEntry::make('meta.ves_cash_received_total')
                     ->label('Bolívares recibidos (cliente)')
                     ->numeric(decimalPlaces: 2)
-                    ->visible(fn (?PhysicalCashBoxMovement $record): bool => $record?->kind === 'mixed_efectivo_ves_vuelto'),
-                TextEntry::make('meta.ves_payment_due')
-                    ->label('Parte VES del pago')
+                    ->visible(fn (?PhysicalCashBoxMovement $record): bool => in_array($record?->kind, ['mixed_efectivo_ves_vuelto', 'efectivo_ves_vuelto'], true)),
+                TextEntry::make('meta.ves_payment_due_total')
+                    ->label('Monto a cobrar en VES')
                     ->numeric(decimalPlaces: 2)
-                    ->visible(fn (?PhysicalCashBoxMovement $record): bool => $record?->kind === 'mixed_efectivo_ves_vuelto'),
+                    ->visible(fn (?PhysicalCashBoxMovement $record): bool => in_array($record?->kind, ['mixed_efectivo_ves_vuelto', 'efectivo_ves_vuelto'], true)),
                 TextEntry::make('client_bill_usd')
                     ->label('Billete cliente (USD)')
                     ->numeric(decimalPlaces: 2),
@@ -187,7 +189,7 @@ class PhysicalCashBoxMovementResource extends Resource
                     ->placeholder('—'),
                 TextEntry::make('bcv_ves_per_usd')
                     ->label('Tasa BCV (Bs./USD)')
-                    ->numeric(decimalPlaces: 6)
+                    ->formatStateUsing(fn (mixed $state): string => is_numeric($state) ? BcvRate::format((float) $state) : '—')
                     ->placeholder('—'),
                 TextEntry::make('created_by')
                     ->label('Registrado por')
@@ -207,6 +209,7 @@ class PhysicalCashBoxMovementResource extends Resource
                     ->formatStateUsing(fn (?string $state): string => match ($state) {
                         'efectivo_usd_vuelto' => 'Vuelto USD',
                         'mixed_efectivo_ves_vuelto' => 'Vuelto VES mixto',
+                        'efectivo_ves_vuelto' => 'Vuelto VES',
                         default => (string) ($state ?? '—'),
                     })
                     ->toggleable(),

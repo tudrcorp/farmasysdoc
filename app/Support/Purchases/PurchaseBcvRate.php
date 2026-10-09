@@ -3,6 +3,7 @@
 namespace App\Support\Purchases;
 
 use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
+use App\Support\Finance\BcvRate;
 use Carbon\CarbonInterface;
 
 /**
@@ -23,17 +24,11 @@ final class PurchaseBcvRate
 
     public static function truncate(float $rate): float
     {
-        $plain = sprintf('%.8F', $rate);
-        $negative = str_starts_with($plain, '-');
-        $plain = ltrim($plain, '-');
-        [$whole, $fraction] = array_pad(explode('.', $plain, 2), 2, '');
-        $cents = substr(str_pad($fraction, 2, '0'), 0, 2);
-
-        return (float) (($negative ? '-' : '').$whole.'.'.$cents);
+        return BcvRate::truncate($rate);
     }
 
     public static function format(float $rate): string
     {
-        return number_format(self::truncate($rate), 2, ',', '.');
+        return BcvRate::format($rate);
     }
 }

@@ -11,6 +11,7 @@ use App\Models\Sale;
 use App\Models\User;
 use App\Services\Dashboard\BranchSalesDayPaymentMethodChartDataService;
 use App\Support\Filament\DashboardBranchFilter;
+use App\Support\Finance\BcvRate;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Filament\Facades\Filament;
@@ -108,7 +109,7 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
             return null;
         }
 
-        return number_format((float) $rate, 6, ',', '.').' Bs/USD';
+        return BcvRate::format((float) $rate).' Bs/USD';
     }
 
     public function getHeading(): string|Htmlable|null

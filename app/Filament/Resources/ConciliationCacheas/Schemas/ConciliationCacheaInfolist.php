@@ -31,6 +31,10 @@ class ConciliationCacheaInfolist
                                 TextEntry::make('sale_number')
                                     ->label('Número de venta')
                                     ->copyable(),
+                                TextEntry::make('order_number')
+                                    ->label('Nro. de Orden Cashea')
+                                    ->placeholder('—')
+                                    ->copyable(),
                                 TextEntry::make('branch.name')
                                     ->label('Sucursal'),
                                 TextEntry::make('user.name')

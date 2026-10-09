@@ -19,6 +19,9 @@ final class ProductUnitPricingForBranch
      * Precio unitario de venta para caja y buscador global
      * (precio especial de la sucursal → precio directo → inventario → lista / express).
      *
+     * El precio con IVA siempre se deriva del precio sin IVA ya redondeado (igual que el cobro y la
+     * factura fiscal), nunca del precio con IVA guardado con más decimales.
+     *
      * @return array{unit_net: float, unit_final: float, applies_vat: bool}
      */
     public static function resolve(Product $product, int $branchId, ?Inventory $inventory = null): array
@@ -43,11 +46,7 @@ final class ProductUnitPricingForBranch
 
                 if ($withoutVat > 0.0 || $withVat > 0.0) {
                     if ($appliesVat && $withVat > 0.0) {
-                        return [
-                            'unit_net' => $withoutVat > 0.0 ? $withoutVat : $withVat,
-                            'unit_final' => $withVat,
-                            'applies_vat' => true,
-                        ];
+                        return self::pricingFromNetUnitPrice($product, $withoutVat > 0.0 ? $withoutVat : $withVat);
                     }
 
                     $unit = $withoutVat > 0.0 ? $withoutVat : $withVat;
@@ -93,17 +92,7 @@ final class ProductUnitPricingForBranch
         }
 
         if ($appliesVat) {
-            if ($expressWithVat === null) {
-                $expressWithVat = $vatRate > 0.0
-                    ? round($expressWithoutVat + round($expressWithoutVat * $vatRate / 100, 2), 2)
-                    : $expressWithoutVat;
-            }
-
-            return [
-                'unit_net' => round(max(0.0, $expressWithoutVat), 2),
-                'unit_final' => round(max(0.0, $expressWithVat), 2),
-                'applies_vat' => true,
-            ];
+            return self::pricingFromNetUnitPrice($product, round(max(0.0, $expressWithoutVat), 2));
         }
 
         $withoutVatForNoVatProduct = $expressWithoutVat > 0.0

@@ -44,6 +44,11 @@ class ConciliationCacheasTable
                     ->sortable()
                     ->weight('medium')
                     ->tooltip('Abrir detalle de la conciliación'),
+                TextColumn::make('order_number')
+                    ->label('Nro. de Orden')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->copyable(),
                 TextColumn::make('recorded_at')
                     ->label('Registrado')
                     ->dateTime('d/m/Y H:i')

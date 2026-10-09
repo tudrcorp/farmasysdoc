@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\Client;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Support\Finance\BcvRate;
 use App\Support\Finance\DefaultVatRate;
 use App\Support\Fiscal\CompanyFiscalAddress;
 use App\Support\Inventory\InventoryQuantityFormat;
@@ -84,7 +85,7 @@ final class ThermalFiscalReceiptFormatter
         $lines[] = $this->row($this->paymentLabel($sale->payment_method), $this->bs($totalBs), $width);
         $bcvStored = (float) ($sale->bcv_ves_per_usd ?? 0);
         if ($bcvStored > 0) {
-            $lines[] = $this->leftRow('TASA BCV:', '1 USD = Bs '.number_format($bcvStored, 6, ',', '.'));
+            $lines[] = $this->leftRow('TASA BCV:', '1 USD = Bs '.BcvRate::format((float) $bcvStored));
         }
         $lines[] = '';
         $lines[] = $this->row((string) config('fiscal.mh_footer', 'MH'), (string) config('fiscal.printer_serial', 'ZZP0000000'), $width);
@@ -162,7 +163,7 @@ final class ThermalFiscalReceiptFormatter
         $lines[] = $this->row('TOTAL', $this->bs($totalBs), $width);
         $bcvStored = (float) ($sale->bcv_ves_per_usd ?? 0);
         if ($bcvStored > 0) {
-            $lines[] = $this->leftRow('TASA BCV:', '1 USD = Bs '.number_format($bcvStored, 6, ',', '.'));
+            $lines[] = $this->leftRow('TASA BCV:', '1 USD = Bs '.BcvRate::format((float) $bcvStored));
         }
         $lines[] = '';
         $lines[] = $this->row((string) config('fiscal.mh_footer', 'MH'), $controlSerial, $width);

@@ -10,6 +10,7 @@ use App\Http\Requests\BdvConciliation\GetMovementRequest;
 use App\Models\Branch;
 use App\Models\Client;
 use App\Models\ConciliationBdv;
+use App\Models\ConciliationCachea;
 use App\Models\FiscalDocument;
 use App\Models\Inventory;
 use App\Models\PhysicalCashBox;
@@ -35,6 +36,7 @@ use App\Services\Inventory\PosInventoryStockFailureRegistrar;
 use App\Services\Sales\CacheaConciliationRegistrar;
 use App\Services\Sales\ClientCommercialDiscountResolver;
 use App\Support\Cash\PhysicalCashBoxBillingGate;
+use App\Support\Finance\BcvRate;
 use App\Support\Finance\DefaultIgtfRate;
 use App\Support\Finance\DefaultVatRate;
 use App\Support\Inventory\InventoryQuantityFormat;
@@ -107,6 +109,8 @@ final class CashRegisterAction
     public const EFECTIVO_USD_POST_SALE_CHANGE_ACTION_NAME = 'posEfectivoUsdPostSaleChange';
 
     public const MIXED_EFECTIVO_VES_VUELTO_KIND = 'mixed_efectivo_ves_vuelto';
+
+    public const EFECTIVO_VES_VUELTO_KIND = 'efectivo_ves_vuelto';
 
     /**
      * Abre la caja registradora (cliente, productos y cobro en un solo modal).
@@ -410,10 +414,10 @@ final class CashRegisterAction
                                                     ->default(null),
                                                 TextInput::make('ves_usd_rate_manual')
                                                     ->label('Tasa Bs. por 1 USD (manual)')
-                                                    ->helperText('Solo si la API no está disponible. Se usa para convertir USD a bolívares.')
+                                                    ->helperText('Solo si la API no está disponible. Se usa con 2 decimales, sin redondear, para convertir USD a bolívares.')
                                                     ->numeric()
-                                                    ->minValue(0.000001)
-                                                    ->step(0.000001)
+                                                    ->minValue(0.01)
+                                                    ->step(0.01)
                                                     ->prefix('Bs.')
                                                     ->suffix('× 1 USD')
                                                     ->live(debounce: 300)
@@ -450,6 +454,7 @@ final class CashRegisterAction
                                                 }
 
                                                 $set('cachea_paid_amount', null);
+                                                $set('cachea_order_number', null);
                                                 $set('cachea_complement_payment_method', 'efectivo_usd');
 
                                                 if (($get('payment_method') ?? '') === PosPaymentMethodOptions::CACHEA) {
@@ -477,6 +482,26 @@ final class CashRegisterAction
                                             ->validationMessages([
                                                 'required' => 'Indique el monto inicial del cliente.',
                                                 'min' => 'El monto inicial del cliente debe ser mayor a cero.',
+                                            ])
+                                            ->dehydrated(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN))
+                                            ->visible(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)),
+                                        TextInput::make('cachea_order_number')
+                                            ->label('Nro. de Orden')
+                                            ->helperText('Número de orden que muestra Cashea para esta compra.')
+                                            ->maxLength(64)
+                                            ->live(onBlur: true)
+                                            ->markAsRequired(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN))
+                                            ->rules(fn (Get $get): array => [
+                                                Rule::requiredIf(fn (): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)),
+                                                'max:64',
+                                                'regex:/^\S+$/',
+                                                Rule::unique('conciliation_cacheas', 'order_number'),
+                                            ])
+                                            ->validationMessages([
+                                                'required' => 'Indique el Nro. de Orden de Cashea.',
+                                                'regex' => 'El Nro. de Orden no debe tener espacios.',
+                                                'unique' => 'Ese Nro. de Orden de Cashea ya fue registrado en otra venta.',
+                                                'max' => 'El Nro. de Orden admite máximo 64 caracteres.',
                                             ])
                                             ->dehydrated(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN))
                                             ->visible(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)),
@@ -581,6 +606,10 @@ final class CashRegisterAction
                                             ->disabled(fn (Get $get): bool => filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)
                                                 || filter_var($get('generate_accounts_receivable') ?? false, FILTER_VALIDATE_BOOLEAN))
                                             ->afterStateUpdated(function (mixed $state, Set $set, Get $get, Select $component): void {
+                                                if ($state !== 'efectivo_ves') {
+                                                    $set('efectivo_ves_cash_received', null);
+                                                }
+
                                                 if ($state === 'credito_cliente') {
                                                     $set('generate_accounts_receivable', true);
                                                     $set('pay_with_cachea', false);
@@ -636,6 +665,41 @@ final class CashRegisterAction
                                             })
                                             ->native(false)
                                             ->prefixIcon(Heroicon::CreditCard),
+                                        TextInput::make('efectivo_ves_cash_received')
+                                            ->label('Bolívares recibidos en efectivo (cliente)')
+                                            ->helperText(fn (Get $get): string => 'Monto a cobrar: '
+                                                .self::formatBolivaresReferenceFromVes(self::computePaymentBreakdownForForm($get)['payment_ves'])
+                                                .'. Indique lo que entrega el cliente; el vuelto sale de la caja física.')
+                                            ->numeric()
+                                            ->minValue(0.01)
+                                            ->step(0.01)
+                                            ->prefix('Bs')
+                                            ->live(debounce: 300)
+                                            ->markAsRequired(fn (Get $get): bool => self::showsEfectivoVesCashReceivedField($get))
+                                            ->rules(fn (Get $get): array => [
+                                                Rule::requiredIf(fn (): bool => self::showsEfectivoVesCashReceivedField($get)),
+                                            ])
+                                            ->validationMessages([
+                                                'required' => 'Indique los bolívares en efectivo que recibe del cliente.',
+                                            ])
+                                            ->visible(fn (Get $get): bool => self::showsEfectivoVesCashReceivedField($get)),
+                                        TextEntry::make('efectivo_ves_change_preview')
+                                            ->label('Vuelto en bolívares')
+                                            ->state(function (Get $get): string {
+                                                $due = self::computePaymentBreakdownForForm($get)['payment_ves'];
+                                                $received = round((float) ($get('efectivo_ves_cash_received') ?? 0), 2);
+                                                if ($received <= 0.00001) {
+                                                    return '—';
+                                                }
+
+                                                if ($received + 0.02 < $due) {
+                                                    return 'Faltan '.self::formatBolivaresReferenceFromVes(round($due - $received, 2));
+                                                }
+
+                                                return self::formatBolivaresReferenceFromVes(max(0.0, round($received - $due, 2)));
+                                            })
+                                            ->dehydrated(false)
+                                            ->visible(fn (Get $get): bool => self::showsEfectivoVesCashReceivedField($get)),
                                         Select::make('pos_terminal_id')
                                             ->label('Punto de venta a utilizar')
                                             ->options(fn (): array => PosTerminalCheckout::optionsForAuthenticatedCashier())
@@ -1258,6 +1322,27 @@ final class CashRegisterAction
                         return;
                     }
 
+                    $cacheaOrderNumber = CacheaPosPaymentSupport::orderNumberFromData($data);
+                    if ($cacheaOrderNumber === null) {
+                        Notification::make()
+                            ->title('Indique el Nro. de Orden')
+                            ->body('Debe registrar el Nro. de Orden de Cashea de esta compra.')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+
+                    if (ConciliationCachea::query()->where('order_number', $cacheaOrderNumber)->exists()) {
+                        Notification::make()
+                            ->title('Nro. de Orden repetido')
+                            ->body('El Nro. de Orden '.$cacheaOrderNumber.' de Cashea ya fue registrado en otra venta.')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+
                     $cacheaBreakdown = CacheaPosPaymentSupport::breakdown($documentTotal, $data, $vesUsdRate);
                 }
 
@@ -1323,6 +1408,20 @@ final class CashRegisterAction
                             mixedUsdPaid: (float) ($data['mixed_usd_paid'] ?? 0),
                             vesUsdRate: $vesUsdRate
                         );
+                    }
+                }
+
+                if ($paymentMethod === 'efectivo_ves' && $cacheaBreakdown === null && $paymentVes > 0.00001) {
+                    $efectivoVesReceived = round((float) ($data['efectivo_ves_cash_received'] ?? 0), 2);
+                    if ($efectivoVesReceived + 0.02 < round($paymentVes, 2)) {
+                        Notification::make()
+                            ->title('Efectivo en bolívares insuficiente')
+                            ->body('Los bolívares recibidos ('.self::formatBolivaresReferenceFromVes($efectivoVesReceived)
+                                .') no cubren el monto a cobrar ('.self::formatBolivaresReferenceFromVes($paymentVes).').')
+                            ->danger()
+                            ->send();
+
+                        return;
                     }
                 }
 
@@ -1702,6 +1801,14 @@ final class CashRegisterAction
                                 actor: $actor,
                             );
 
+                            self::recordEfectivoVesPhysicalCashBoxMovementIfNeeded(
+                                sale: $sale,
+                                user: $user,
+                                data: $data,
+                                paymentMethod: $paymentMethod,
+                                actor: $actor,
+                            );
+
                             app(FefoPosAlertSaleLinker::class)->linkSale(
                                 $sale,
                                 (int) $branchId,
@@ -1785,7 +1892,7 @@ final class CashRegisterAction
                 }
                 if (PhysicalCashBoxMovement::query()
                     ->where('sale_id', $sale->id)
-                    ->where('kind', self::MIXED_EFECTIVO_VES_VUELTO_KIND)
+                    ->whereIn('kind', [self::MIXED_EFECTIVO_VES_VUELTO_KIND, self::EFECTIVO_VES_VUELTO_KIND])
                     ->exists()) {
                     $saleSuccessBody .= ' · Efectivo VES registrado en caja física.';
                 }
@@ -3727,7 +3834,7 @@ final class CashRegisterAction
             'product_id' => $get('product_id'),
             'quantity' => $get('quantity'),
         ];
-        $original = self::computeLineTotalFromRowState($rowState, $get);
+        $original = self::computeLineTotalFromRowState($rowState);
         $clientId = filled($get('../../client_id'))
             ? (int) $get('../../client_id')
             : (filled($get('../client_id')) ? (int) $get('../client_id') : null);
@@ -3753,7 +3860,7 @@ final class CashRegisterAction
         $usdHtml = '<span class="farmadoc-pos-line-total">'.e(self::formatMoney($original)).'</span>';
 
         if ($discountPercent > 0.00001) {
-            $usdAmount = round($original * (1 - ($discountPercent / 100)), 2);
+            $usdAmount = self::computeLineTotalFromRowState($rowState, $discountPercent);
             $usdHtml = '<span class="line-through opacity-70">'.e(self::formatMoney($original)).'</span>'
                 .' <span class="farmadoc-pos-line-total">'.e(self::formatMoney($usdAmount)).'</span>';
         }
@@ -4283,6 +4390,109 @@ final class CashRegisterAction
                 'ves_cash_received_total' => $totalReceived,
             ],
         );
+    }
+
+    /**
+     * Venta cobrada solo en efectivo VES: el efectivo de la venta y el fondo de vuelto comparten la gaveta,
+     * así que ingresa a la caja física lo recibido menos el vuelto entregado (= monto cobrado en Bs).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function recordEfectivoVesPhysicalCashBoxMovementIfNeeded(
+        Sale $sale,
+        User $user,
+        array $data,
+        string $paymentMethod,
+        string $actor,
+    ): void {
+        if ($paymentMethod !== 'efectivo_ves') {
+            return;
+        }
+
+        if (! SchemaFacade::hasTable('cajas_fisicas_movimientos')) {
+            return;
+        }
+
+        $due = round((float) $sale->payment_ves, 2);
+        if ($due <= 0.00001) {
+            return;
+        }
+
+        if (PhysicalCashBoxMovement::query()->where('sale_id', $sale->id)->exists()) {
+            return;
+        }
+
+        $received = round((float) ($data['efectivo_ves_cash_received'] ?? 0), 2);
+        if ($received < $due) {
+            $received = $due;
+        }
+
+        $change = round($received - $due, 2);
+        $netVes = round($received - $change, 2);
+
+        $boxDefaults = [
+            'amount_usd' => 0,
+            'amount_ves' => 0,
+        ];
+        if (SchemaFacade::hasColumn('cajas_fisicas', 'is_open')) {
+            $boxDefaults['is_open'] = false;
+        }
+
+        $box = PhysicalCashBox::query()->firstOrCreate(
+            ['user_id' => $user->id],
+            $boxDefaults,
+        );
+
+        $bcv = $sale->bcv_ves_per_usd !== null ? (float) $sale->bcv_ves_per_usd : null;
+
+        PhysicalCashBoxMovement::query()->create([
+            'physical_cash_box_id' => $box->id,
+            'sale_id' => $sale->id,
+            'kind' => self::EFECTIVO_VES_VUELTO_KIND,
+            'client_bill_usd' => 0,
+            'document_total_usd' => round((float) $sale->total, 2),
+            'change_on_bill_usd' => 0,
+            'change_on_bill_ves' => $change,
+            'drawer_out_usd' => 0,
+            'final_change_usd' => 0,
+            'final_change_ves' => $change,
+            'bcv_ves_per_usd' => $bcv !== null && $bcv > 0 ? round($bcv, 6) : null,
+            'meta' => [
+                'payment_method' => 'efectivo_ves',
+                'ves_cash_received' => $received,
+                'ves_payment_due' => $due,
+                'ves_cash_received_total' => $received,
+                'ves_payment_due_total' => $due,
+                'change_ves_total' => $change,
+                'net_ves_to_drawer' => $netVes,
+            ],
+            'created_by' => $actor,
+        ]);
+
+        self::applyEfectivoVesNetToPhysicalCashBox($box, $netVes);
+
+        AuditLogger::record(
+            'pos_efectivo_ves_caja_change_recorded',
+            'Caja · Efectivo VES registrado en caja física · '.$sale->sale_number,
+            Sale::class,
+            $sale->id,
+            $sale->sale_number,
+            [
+                'module' => 'pos_caja',
+                'sale_id' => $sale->id,
+                'net_ves_to_drawer' => $netVes,
+                'change_ves_total' => $change,
+                'ves_cash_received_total' => $received,
+            ],
+        );
+    }
+
+    private static function showsEfectivoVesCashReceivedField(Get $get): bool
+    {
+        return (string) ($get('payment_method') ?? '') === 'efectivo_ves'
+            && ! filter_var($get('pay_with_cachea') ?? false, FILTER_VALIDATE_BOOLEAN)
+            && ! filter_var($get('generate_accounts_receivable') ?? false, FILTER_VALIDATE_BOOLEAN)
+            && self::computePaymentBreakdownForForm($get)['payment_ves'] > 0.00001;
     }
 
     private static function applyEfectivoVesNetToPhysicalCashBox(PhysicalCashBox $box, float $netVes): void
@@ -5475,11 +5685,12 @@ final class CashRegisterAction
     }
 
     /**
-     * Total de una línea desde el estado del ítem del repeater (precio lista × cantidad; con IVA si el producto grava).
+     * Total de una línea desde el estado del ítem del repeater, calculado igual que el cobro:
+     * precio sin IVA × cantidad, descuento %, y luego el IVA sobre ese neto.
      *
      * @param  array<string, mixed>  $rowState
      */
-    private static function computeLineTotalFromRowState(array $rowState, Get $get): float
+    private static function computeLineTotalFromRowState(array $rowState, float $discountPercent = 0.0): float
     {
         $branchId = Auth::user()?->branch_id;
         if (blank($branchId)) {
@@ -5506,7 +5717,17 @@ final class CashRegisterAction
 
         $unitPricing = self::posUnitPricingForBranch($product, (int) $branchId);
 
-        return round($qty * $unitPricing['unit_final'], 2);
+        $lineNet = round($qty * $unitPricing['unit_net'], 2);
+        if ($discountPercent > 0.00001) {
+            $lineNet = round($lineNet * (1 - (min(100.0, $discountPercent) / 100)), 2);
+        }
+
+        $vatRate = DefaultVatRate::percent();
+        $tax = $unitPricing['applies_vat'] && $vatRate > 0
+            ? round($lineNet * $vatRate / 100, 2)
+            : 0.0;
+
+        return round($lineNet + $tax, 2);
     }
 
     /**
@@ -6830,6 +7051,7 @@ final class CashRegisterAction
             'mixed_use_ves_portion' => false,
             'mixed_ves_payment_method' => 'punto_venta_ves',
             'mixed_ves_cash_received' => null,
+            'efectivo_ves_cash_received' => null,
             'mixed_ves_split_method_1' => 'punto_venta_ves',
             'mixed_ves_split_method_2' => 'transfer_ves',
             'mixed_ves_split_amount_1' => null,
@@ -6838,6 +7060,7 @@ final class CashRegisterAction
             'generate_accounts_receivable' => false,
             'pay_with_cachea' => false,
             'cachea_paid_amount' => null,
+            'cachea_order_number' => null,
             'cachea_complement_payment_method' => 'efectivo_usd',
             'bdv_pm_conciliated' => false,
             'pos_terminal_id' => null,
@@ -7059,17 +7282,9 @@ final class CashRegisterAction
 
     private static function effectiveVesUsdRate(Get $get): float
     {
-        $api = $get('ves_usd_rate');
-        if (is_numeric($api) && (float) $api > 0) {
-            return (float) $api;
-        }
-
-        $manual = $get('ves_usd_rate_manual');
-        if (is_numeric($manual) && (float) $manual > 0) {
-            return (float) $manual;
-        }
-
-        return 0.0;
+        return BcvRate::truncateOrNull($get('ves_usd_rate'))
+            ?? BcvRate::truncateOrNull($get('ves_usd_rate_manual'))
+            ?? 0.0;
     }
 
     /**
@@ -7077,17 +7292,9 @@ final class CashRegisterAction
      */
     private static function effectiveVesUsdRateFromData(array $data): float
     {
-        $api = $data['ves_usd_rate'] ?? null;
-        if (is_numeric($api) && (float) $api > 0) {
-            return (float) $api;
-        }
-
-        $manual = $data['ves_usd_rate_manual'] ?? null;
-        if (is_numeric($manual) && (float) $manual > 0) {
-            return (float) $manual;
-        }
-
-        return 0.0;
+        return BcvRate::truncateOrNull($data['ves_usd_rate'] ?? null)
+            ?? BcvRate::truncateOrNull($data['ves_usd_rate_manual'] ?? null)
+            ?? 0.0;
     }
 
     private static function requiresVesConversion(string $paymentMethod, float $documentTotalUsd, float $mixedUsdPaid): bool
@@ -7155,9 +7362,9 @@ final class CashRegisterAction
             : 'farmadoc-pos-rate-pill farmadoc-pos-rate-pill--error';
 
         if ($hasApi) {
-            $rateLabel = '1 USD = Bs. '.number_format((float) $apiRate, 6, ',', '.').' (API oficial)';
+            $rateLabel = '1 USD = Bs. '.BcvRate::format((float) $apiRate).' (API oficial)';
         } elseif ($hasManual) {
-            $rateLabel = '1 USD = Bs. '.number_format((float) $manual, 6, ',', '.').' (manual)';
+            $rateLabel = '1 USD = Bs. '.BcvRate::format((float) $manual).' (manual)';
         } else {
             $rateLabel = 'Sin tasa · ingrese manualmente';
         }

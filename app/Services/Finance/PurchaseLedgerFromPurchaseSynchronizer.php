@@ -2,13 +2,12 @@
 
 namespace App\Services\Finance;
 
-use App\Enums\PurchaseEntryCurrency;
 use App\Enums\PurchaseLedgerDocumentType;
 use App\Models\Purchase;
 use App\Models\PurchaseBook;
 use App\Models\PurchaseLedger;
 use App\Services\Audit\AuditLogger;
-use App\Support\Finance\DefaultVatRate;
+use App\Support\Finance\PurchaseFiscalVesAmounts;
 use App\Support\Fiscal\VenezuelanRifFormatter;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -84,16 +83,12 @@ final class PurchaseLedgerFromPurchaseSynchronizer
         }
 
         $taxPeriod = $invoiceDate->format('Y/m');
-        $invoiceTotalVes = $this->amountToVes((float) $purchase->total, $purchase, $rateAtInvoice);
-        $taxableBaseDocument = (float) ($purchase->net_taxable_after_document_discount
-            ?? $purchase->subtotal_taxable_amount
-            ?? 0);
-        $exemptDocument = (float) ($purchase->net_exempt_after_document_discount
-            ?? $purchase->subtotal_exempt_amount
-            ?? 0);
-        $taxableBaseVes = $this->amountToVes($taxableBaseDocument, $purchase, $rateAtInvoice);
-        $exemptVes = $this->amountToVes($exemptDocument, $purchase, $rateAtInvoice);
-        $taxCausedVes = $this->amountToVes((float) $purchase->tax_total, $purchase, $rateAtInvoice);
+        $vesAmounts = PurchaseFiscalVesAmounts::fromPurchase($purchase, $rateAtInvoice, $retention?->vat_rate_percent !== null ? (float) $retention->vat_rate_percent : null);
+        $invoiceTotalVes = $vesAmounts->totalVes;
+        $taxableBaseVes = $vesAmounts->taxableBaseVes;
+        $exemptVes = $vesAmounts->exemptVes;
+        $taxCausedVes = $vesAmounts->taxCausedVes;
+        $vatRatePercent = $vesAmounts->vatRatePercent;
 
         $supplier = $purchase->supplier;
         $supplierName = $supplier !== null
@@ -119,6 +114,7 @@ final class PurchaseLedgerFromPurchaseSynchronizer
             $taxableBaseVes,
             $exemptVes,
             $taxCausedVes,
+            $vatRatePercent,
             $supplierName,
             $supplierRif,
             $invoiceNumber,
@@ -145,7 +141,7 @@ final class PurchaseLedgerFromPurchaseSynchronizer
                 'tax_caused_ves' => $taxCausedVes,
                 'taxable_base_reduced_ves' => null,
                 'tax_reduced_ves' => null,
-                'vat_rate_percent' => DefaultVatRate::percent(),
+                'vat_rate_percent' => $vatRatePercent,
                 'retention_voucher_issued_at' => $retention?->issue_date?->toDateString(),
                 'retention_voucher_number' => $retention?->voucher_number,
                 'retention_amount_ves' => $retention !== null ? $retention->tax_retained_ves : null,
@@ -173,7 +169,7 @@ final class PurchaseLedgerFromPurchaseSynchronizer
                     'tax_caused_ves' => $taxCausedVes,
                     'taxable_base_reduced_ves' => null,
                     'tax_reduced_ves' => null,
-                    'vat_rate_percent' => DefaultVatRate::percent(),
+                    'vat_rate_percent' => $vatRatePercent,
                     'retention_voucher_issued_at' => $retention->issue_date?->toDateString(),
                     'retention_voucher_number' => $retention->voucher_number,
                     'retention_amount_ves' => $retention->tax_retained_ves,
@@ -323,14 +319,5 @@ final class PurchaseLedgerFromPurchaseSynchronizer
             ->first();
 
         return $last !== null ? ((int) $last->operation_number) + 1 : 1;
-    }
-
-    private function amountToVes(float $amount, Purchase $purchase, float $rateAtInvoice): float
-    {
-        if ($purchase->entryCurrency() === PurchaseEntryCurrency::VES) {
-            return round($amount, 2);
-        }
-
-        return round($amount * $rateAtInvoice, 2);
     }
 }

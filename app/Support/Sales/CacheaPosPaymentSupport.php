@@ -72,6 +72,18 @@ final class CacheaPosPaymentSupport
         return self::normalizePaidAmount($data['cachea_paid_amount'] ?? 0);
     }
 
+    /**
+     * Nro. de orden de Cashea escrito por el cajero, sin espacios; null si viene vacío.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public static function orderNumberFromData(array $data): ?string
+    {
+        $orderNumber = preg_replace('/\s+/', '', (string) ($data['cachea_order_number'] ?? ''));
+
+        return $orderNumber !== '' ? $orderNumber : null;
+    }
+
     public static function remainder(float $documentTotalUsd, float $cacheaPaidUsd): float
     {
         return round(max(0.0, $documentTotalUsd - self::normalizePaidAmount($cacheaPaidUsd)), 2);

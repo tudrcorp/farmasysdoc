@@ -17,6 +17,7 @@ class ConciliationCachea extends Model
         'user_id',
         'sale_id',
         'sale_number',
+        'order_number',
         'sale_total',
         'cachea_paid_amount',
         'remainder',

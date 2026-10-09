@@ -2,6 +2,7 @@
 
 namespace App\Services\Finance;
 
+use App\Support\Finance\BcvRate;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -21,8 +22,8 @@ final class VenezuelaOfficialUsdVesRateClient
     private const CACHE_TTL_SECONDS = 3600;
 
     /**
-     * Bs por 1 USD (campo {@code promedio}) para la fecha de factura: coincidencia exacta
-     * o, si no existe, la cotización más reciente con fecha menor o igual a la pedida.
+     * Bs por 1 USD (campo {@code promedio}, truncado a 2 decimales por {@see BcvRate}) para la fecha de
+     * factura: coincidencia exacta o, si no existe, la cotización más reciente con fecha menor o igual a la pedida.
      */
     public function rateForDate(CarbonInterface|string|null $invoiceDate): ?float
     {
@@ -152,6 +153,6 @@ final class VenezuelaOfficialUsdVesRateClient
         }
         $f = (float) $value;
 
-        return $f > 0 ? $f : null;
+        return $f > 0 ? BcvRate::truncate($f) : null;
     }
 }

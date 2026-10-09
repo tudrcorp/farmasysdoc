@@ -6,6 +6,7 @@ use App\Models\AccountsPayable;
 use App\Services\Audit\AuditLogger;
 use App\Support\Finance\AccountsPayableInvoiceTaxSnapshot;
 use App\Support\Finance\AccountsPayableStatus;
+use App\Support\Finance\BcvRate;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
@@ -37,7 +38,7 @@ final class AccountsPayableCurrentBalanceRecalculator
         float $rateToday,
         float $remainingRatio = 1.0,
     ): ?float {
-        $rateToday = self::roundMoney($rateToday);
+        $rateToday = BcvRate::truncate($rateToday);
         $amountPayableVes = self::roundMoney($amountPayableVes);
 
         if ($rateToday <= 0 || $registrationRate <= 0 || $amountPayableVes < 0) {
@@ -399,7 +400,7 @@ final class AccountsPayableCurrentBalanceRecalculator
     private function resolveTodayRate(?float $rateOverride): ?float
     {
         if ($rateOverride !== null && $rateOverride > 0) {
-            $rate = self::roundMoney($rateOverride);
+            $rate = BcvRate::truncate($rateOverride);
         } else {
             $fetched = $this->rateClient->rateForDate(now());
 
@@ -407,7 +408,7 @@ final class AccountsPayableCurrentBalanceRecalculator
                 return null;
             }
 
-            $rate = self::roundMoney($fetched);
+            $rate = BcvRate::truncate($fetched);
         }
 
         return $rate > 0 ? $rate : null;

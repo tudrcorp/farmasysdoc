@@ -212,7 +212,7 @@
                 · {{ $row['branch_name'] }}
                 · {{ $row['payment_form'] ?? '—' }}
                 @if (! empty($row['bcv_rate']))
-                    · BCV {{ number_format((float) $row['bcv_rate'], 4, ',', '.') }}
+                    · BCV {{ \App\Support\Finance\BcvRate::format((float) $row['bcv_rate']) }}
                 @endif
             </div>
             @if ($payments->isEmpty())
@@ -240,7 +240,7 @@
                                 <td class="num">{{ number_format($payment['amount_paid_usd'], 2, ',', '.') }}</td>
                                 <td class="num">{{ number_format($payment['amount_paid_ves'], 2, ',', '.') }}</td>
                                 <td class="num">
-                                    {{ $payment['bcv_rate'] !== null ? number_format((float) $payment['bcv_rate'], 4, ',', '.') : '—' }}
+                                    {{ $payment['bcv_rate'] !== null ? \App\Support\Finance\BcvRate::format((float) $payment['bcv_rate']) : '—' }}
                                 </td>
                                 <td>{{ $payment['payment_reference'] ?: '—' }}</td>
                                 <td class="num">

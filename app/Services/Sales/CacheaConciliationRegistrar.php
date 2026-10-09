@@ -19,6 +19,7 @@ final class CacheaConciliationRegistrar
      *     remainder: float,
      *     complement_payment_method?: string|null,
      *     reference?: string|null,
+     *     order_number?: string|null,
      * }  $payload
      */
     public static function register(Sale $sale, array $payload, ?User $user = null): ConciliationCachea
@@ -39,6 +40,7 @@ final class CacheaConciliationRegistrar
                 ? (string) $payload['complement_payment_method']
                 : null,
             'reference' => filled($payload['reference'] ?? null) ? (string) $payload['reference'] : null,
+            'order_number' => filled($payload['order_number'] ?? null) ? (string) $payload['order_number'] : $record->order_number,
             'recorded_at' => now(),
             'created_by' => $actor,
         ]);
@@ -76,6 +78,11 @@ final class CacheaConciliationRegistrar
             throw new RuntimeException('No se registró la conciliación Cashea: el monto Cashea supera el total de la venta.');
         }
 
+        $orderNumber = CacheaPosPaymentSupport::orderNumberFromData($data);
+        if ($orderNumber === null) {
+            throw new RuntimeException('No se registró la conciliación Cashea: falta el Nro. de Orden de Cashea.');
+        }
+
         $breakdown = CacheaPosPaymentSupport::breakdown($documentTotal, $data, $vesUsdRate);
 
         return self::register($sale, [
@@ -85,6 +92,7 @@ final class CacheaConciliationRegistrar
                 ? $breakdown['complement_payment_method']
                 : null,
             'reference' => filled($paymentReference) ? $paymentReference : null,
+            'order_number' => $orderNumber,
         ], $user);
     }
 }

@@ -264,7 +264,7 @@
                         <td class="num">{{ number_format($payment['amount_paid_ves'], 2, ',', '.') }}</td>
                         <td class="num">
                             @if ($payment['bcv_rate'] !== null)
-                                {{ number_format($payment['bcv_rate'], 4, ',', '.') }}
+                                {{ \App\Support\Finance\BcvRate::format((float) $payment['bcv_rate']) }}
                             @else
                                 —
                             @endif

@@ -435,7 +435,7 @@
                         <td><strong>Referencia</strong></td>
                         <td>{{ filled($sale->reference) ? $sale->reference : '—' }}</td>
                         <td><strong>BCV (Bs/USD)</strong></td>
-                        <td>{{ $sale->bcv_ves_per_usd !== null ? number_format((float) $sale->bcv_ves_per_usd, 6, ',', '.') : '—' }}</td>
+                        <td>{{ $sale->bcv_ves_per_usd !== null ? \App\Support\Finance\BcvRate::format((float) $sale->bcv_ves_per_usd) : '—' }}</td>
                     </tr>
                     <tr>
                         <td><strong>Subtotal</strong></td>

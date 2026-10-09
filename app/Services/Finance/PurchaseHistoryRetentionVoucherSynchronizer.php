@@ -51,15 +51,15 @@ final class PurchaseHistoryRetentionVoucherSynchronizer
     }
 
     /**
-     * Al imprimir el comprobante: fija fecha de emisión (hoy) en Libro e histórico del grupo,
-     * y asegura número/monto de retención en el histórico.
+     * Al imprimir el comprobante: fija la fecha de emisión (= fecha de la factura) en Libro e histórico
+     * del grupo, y asegura número/monto de retención en el histórico. Reimprimir no altera la fecha.
      *
      * @return Collection<int, PurchaseBook>
      */
     public function markIssuedOnPrint(string $supplierRif, string $invoiceDate, ?int $voucherNumber = null): Collection
     {
         $date = Carbon::parse($invoiceDate)->toDateString();
-        $issuedAt = now()->toDateString();
+        $issuedAt = $date;
 
         return DB::transaction(function () use ($supplierRif, $date, $issuedAt, $voucherNumber): Collection {
             /** @var Collection<int, PurchaseBook> $books */

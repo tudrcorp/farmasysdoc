@@ -31,7 +31,7 @@ class StatsListSaleOverview extends StatsOverviewWidget
 
     protected ?string $heading = 'Resumen del período';
 
-    protected ?string $description = 'Alineado al rango «Fecha de venta» de los filtros de la tabla. Incluye las ventas del criterio (rol cajero: solo las registradas por usted), sin filtrar por método de pago.';
+    protected ?string $description = 'Alineado al rango «Fecha de venta» de los filtros de la tabla. Incluye las ventas del criterio (rol cajero: solo las registradas por usted), sin filtrar por método de pago. Las ventas anuladas o reembolsadas no suman.';
 
     /**
      * @return array<Stat>

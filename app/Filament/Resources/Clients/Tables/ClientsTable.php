@@ -37,7 +37,10 @@ class ClientsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->withCount(['sales', 'orders']))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->withCount([
+                'sales' => fn (Builder $sales): Builder => $sales->countingTowardTotals(),
+                'orders',
+            ]))
             ->columns([
                 TextColumn::make('name')
                     ->label('Cliente')
@@ -259,9 +262,9 @@ class ClientsTable
 
                         $hasSales = $data['has_sales'] ?? 'all';
                         if ($hasSales === '1') {
-                            $query->has('sales');
+                            $query->whereHas('sales', fn (Builder $sales): Builder => $sales->countingTowardTotals());
                         } elseif ($hasSales === '0') {
-                            $query->doesntHave('sales');
+                            $query->whereDoesntHave('sales', fn (Builder $sales): Builder => $sales->countingTowardTotals());
                         }
 
                         return $query;

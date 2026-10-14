@@ -58,6 +58,20 @@ class ConciliationCachea extends Model
     }
 
     /**
+     * Excluye operaciones cuya venta fue anulada o reembolsada (no deben figurar como monto por cobrar ni sumar).
+     *
+     * @param  Builder<ConciliationCachea>  $query
+     * @return Builder<ConciliationCachea>
+     */
+    public function scopeForSalesCountingTowardTotals(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q): void {
+            $q->whereNull($q->qualifyColumn('sale_id'))
+                ->orWhereHas('sale', fn (Builder $sale): Builder => $sale->countingTowardTotals());
+        });
+    }
+
+    /**
      * @return BelongsTo<Branch, $this>
      */
     public function branch(): BelongsTo

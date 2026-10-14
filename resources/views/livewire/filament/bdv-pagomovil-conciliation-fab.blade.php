@@ -15,13 +15,12 @@
             aria-label="Conciliar Pago Móvil BDV"
             title="Conciliar Pago Móvil BDV"
         >
-            <span class="farmadoc-bdv-pm-fab__halo" aria-hidden="true"></span>
             <img
                 src="{{ $logoUrl }}"
                 alt=""
                 class="farmadoc-bdv-pm-fab__logo"
-                width="28"
-                height="28"
+                width="26"
+                height="26"
                 decoding="async"
             />
             <span class="farmadoc-bdv-pm-fab__label">BDV</span>

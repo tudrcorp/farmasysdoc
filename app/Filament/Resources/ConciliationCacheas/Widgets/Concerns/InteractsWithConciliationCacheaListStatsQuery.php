@@ -23,7 +23,7 @@ trait InteractsWithConciliationCacheaListStatsQuery
      */
     protected function scopedConciliationCacheaQuery(): Builder
     {
-        $query = ConciliationCachea::query();
+        $query = ConciliationCachea::query()->forSalesCountingTowardTotals();
         BranchAuthScope::apply($query);
 
         $filters = $this->tableFilters ?? [];

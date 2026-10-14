@@ -37,6 +37,7 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Js;
 use Illuminate\Validation\ValidationException;
@@ -165,7 +166,8 @@ class SalesTable
                     ->summarize(
                         Sum::make()
                             ->money()
-                            ->label('Σ total'),
+                            ->label('Σ total')
+                            ->query(fn (QueryBuilder $query): QueryBuilder => $query->where('status', SaleStatus::Completed->value)),
                     ),
                 TextColumn::make('subtotal')
                     ->label('Subtotal')
@@ -176,7 +178,8 @@ class SalesTable
                     ->summarize(
                         Sum::make()
                             ->money()
-                            ->label('Σ subtotal'),
+                            ->label('Σ subtotal')
+                            ->query(fn (QueryBuilder $query): QueryBuilder => $query->where('status', SaleStatus::Completed->value)),
                     ),
                 TextColumn::make('tax_total')
                     ->label('Impuestos')
@@ -187,7 +190,8 @@ class SalesTable
                     ->summarize(
                         Sum::make()
                             ->money()
-                            ->label('Σ impuestos'),
+                            ->label('Σ impuestos')
+                            ->query(fn (QueryBuilder $query): QueryBuilder => $query->where('status', SaleStatus::Completed->value)),
                     ),
                 TextColumn::make('discount_total')
                     ->label('Descuentos')
@@ -198,7 +202,8 @@ class SalesTable
                     ->summarize(
                         Sum::make()
                             ->money()
-                            ->label('Σ descuentos'),
+                            ->label('Σ descuentos')
+                            ->query(fn (QueryBuilder $query): QueryBuilder => $query->where('status', SaleStatus::Completed->value)),
                     ),
                 TextColumn::make('payment_method')
                     ->label('Medio de pago')
@@ -396,10 +401,11 @@ class SalesTable
                         ->color('danger')
                         ->requiresConfirmation()
                         ->modalHeading('Anular venta')
-                        ->modalDescription(fn (Sale $record): string => 'Se revertirá el inventario de los productos de la venta '.$record->sale_number
-                            .', la venta quedará como «Cancelada» y se abrirá la impresión de la nota de crédito fiscal.')
+                        ->modalDescription(fn (Sale $record): string => 'Se revertirá el inventario (incluidos los lotes), el efectivo en caja física y la cuenta por cobrar de la venta '.$record->sale_number
+                            .'. La venta quedará como «Cancelada», dejará de sumar en reportes y dashboards, y se abrirá la impresión de la nota de crédito fiscal.')
                         ->modalSubmitActionLabel('Sí, anular venta')
                         ->visible(fn (Sale $record): bool => $record->status === SaleStatus::Completed
+                            && ($record->sold_at ?? $record->created_at)?->copy()->timezone((string) config('app.timezone'))->isToday() === true
                             && ! $record->isInternalBranchTransfer()
                             && Auth::user() instanceof User
                             && Auth::user()->canVoidSales())
@@ -505,6 +511,7 @@ class SalesTable
         }
 
         $sales = $query
+            ->countingTowardTotals()
             ->with(['conciliationCachea', 'posTerminal'])
             ->get();
 

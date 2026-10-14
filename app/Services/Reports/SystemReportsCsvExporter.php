@@ -110,13 +110,14 @@ final class SystemReportsCsvExporter
         BranchAuthScope::applyToSalesQuery($q);
         $sales = $q->orderByDesc('sold_at')->get();
 
-        $headers = ['id', 'sale_number', 'sucursal', 'cliente', 'total_documento', 'cobro_usd', 'cobro_ves', 'bcv_ves_per_usd', 'sold_at', 'created_by'];
+        $headers = ['id', 'sale_number', 'estado', 'sucursal', 'cliente', 'total_documento', 'cobro_usd', 'cobro_ves', 'bcv_ves_per_usd', 'sold_at', 'created_by'];
         $rows = [];
         foreach ($sales as $s) {
             $pair = $this->collectedMoneyAttributor->collectedPair($s);
             $rows[] = [
                 $s->id,
                 $s->sale_number,
+                $s->status?->label(),
                 $s->branch?->name,
                 $s->client?->name,
                 $this->formatAmountEs($s->total),
@@ -134,6 +135,7 @@ final class SystemReportsCsvExporter
     private function streamVentasPorUsuario(User $user, Carbon $from, Carbon $to): StreamedResponse
     {
         $q = Sale::query()
+            ->countingTowardTotals()
             ->with(['conciliationCachea', 'posTerminal'])
             ->whereBetween('sold_at', [$from, $to]);
         BranchAuthScope::applyToSalesQuery($q);
@@ -169,6 +171,7 @@ final class SystemReportsCsvExporter
     private function streamVentasPorSucursal(User $user, Carbon $from, Carbon $to): StreamedResponse
     {
         $q = Sale::query()
+            ->countingTowardTotals()
             ->with(['conciliationCachea', 'posTerminal'])
             ->whereBetween('sold_at', [$from, $to]);
         BranchAuthScope::applyToSalesQuery($q);
@@ -614,6 +617,7 @@ final class SystemReportsCsvExporter
         $top = in_array($top, [5, 10, 20], true) ? $top : 10;
         $q = Sale::query()
             ->selectRaw('branch_id, client_id, SUM(total) as total_comprado')
+            ->countingTowardTotals()
             ->whereBetween('sold_at', [$from, $to])
             ->whereNotNull('client_id')
             ->groupBy('branch_id', 'client_id');
@@ -645,7 +649,7 @@ final class SystemReportsCsvExporter
 
     private function streamProductosMasVendidos(User $user, Carbon $from, Carbon $to, string $agrupar): StreamedResponse
     {
-        $saleIds = Sale::query()->whereBetween('sold_at', [$from, $to]);
+        $saleIds = Sale::query()->countingTowardTotals()->whereBetween('sold_at', [$from, $to]);
         BranchAuthScope::applyToSalesQuery($saleIds);
         $ids = $saleIds->pluck('id');
 

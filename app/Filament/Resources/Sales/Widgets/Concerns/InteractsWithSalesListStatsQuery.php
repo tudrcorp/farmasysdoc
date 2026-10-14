@@ -47,7 +47,7 @@ trait InteractsWithSalesListStatsQuery
      */
     protected function scopedSaleQuery(): Builder
     {
-        $query = Sale::query();
+        $query = Sale::query()->countingTowardTotals();
         BranchAuthScope::applyToSalesQuery($query);
 
         $filters = $this->tableFilters ?? [];

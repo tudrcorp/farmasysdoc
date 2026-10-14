@@ -170,6 +170,18 @@ class Sale extends Model
     }
 
     /**
+     * Ventas que afectan totales, reportes y dashboards: solo «Completada»
+     * (excluye borradores, canceladas/anuladas y reembolsadas).
+     *
+     * @param  Builder<Sale>  $query
+     * @return Builder<Sale>
+     */
+    public function scopeCountingTowardTotals(Builder $query): Builder
+    {
+        return $query->where($query->qualifyColumn('status'), SaleStatus::Completed);
+    }
+
+    /**
      * Solo ventas internas generadas al completar un traslado entre sucursales.
      *
      * @param  Builder<Sale>  $query

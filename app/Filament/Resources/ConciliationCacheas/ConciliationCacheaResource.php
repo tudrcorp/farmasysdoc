@@ -77,7 +77,7 @@ class ConciliationCacheaResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        $query = BranchAuthScope::apply(parent::getEloquentQuery());
+        $query = BranchAuthScope::apply(parent::getEloquentQuery()->forSalesCountingTowardTotals());
 
         $user = Auth::user();
         if ($user instanceof User && ! $user->isAdministrator()) {

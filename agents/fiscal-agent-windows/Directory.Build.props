@@ -4,7 +4,7 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <Version>1.2.2</Version>
+    <Version>1.3.0</Version>
     <Company>Farmadoc</Company>
     <Product>Farmadoc Fiscal Agent</Product>
   </PropertyGroup>

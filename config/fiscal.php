@@ -73,6 +73,21 @@ return [
         'max_invoice_total_ves' => (float) env('FISCAL_TEST_LAB_MAX_INVOICE_TOTAL_VES', 10),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Reportes Z y Libro de Ventas
+    |--------------------------------------------------------------------------
+    |
+    | retry_after_minutes: espera mínima entre lecturas automáticas de Z
+    | faltantes para una misma máquina.
+    | Las facturas a contribuyentes (RIF J/G/C o RIF de persona natural) se
+    | detallan una por una en el libro y se descuentan del resumen del Z.
+    |
+    */
+    'z_reports' => [
+        'retry_after_minutes' => (int) env('FISCAL_Z_REPORTS_RETRY_AFTER_MINUTES', 15),
+    ],
+
     'agent' => [
         'max_wait_seconds' => (int) env('FISCAL_AGENT_MAX_WAIT_SECONDS', 15),
         'poll_interval_ms' => (int) env('FISCAL_AGENT_POLL_INTERVAL_MS', 500),

@@ -146,6 +146,63 @@ final class FiscalDocumentRegistrar
     }
 
     /**
+     * Pide al agente leer reportes Z de la memoria fiscal (no imprime nada) para el Libro de Ventas.
+     * Si ya hay una lectura en cola para la máquina, se devuelve esa en vez de duplicarla.
+     *
+     * @param  bool  $automatic  Las lecturas automáticas solo se piden a máquinas en modo «Activa»
+     *                           (en los otros modos el puerto lo usa el sistema actual de la caja).
+     */
+    public function requestZReading(FiscalPrinter $printer, int $fromZ, ?int $toZ, string $actor, bool $automatic = false): ?FiscalDocument
+    {
+        if ($toZ !== null && $toZ < $fromZ) {
+            throw ValidationException::withMessages([
+                'to_z' => 'El Z final no puede ser menor que el inicial.',
+            ]);
+        }
+
+        if ($automatic && $printer->currentMode() !== FiscalPrinterMode::Active) {
+            return null;
+        }
+
+        return DB::transaction(function () use ($printer, $fromZ, $toZ, $actor, $automatic): FiscalDocument {
+            FiscalPrinter::query()->whereKey($printer->id)->lockForUpdate()->first();
+
+            $queued = FiscalDocument::query()
+                ->where('fiscal_printer_id', $printer->id)
+                ->where('type', FiscalDocumentType::ZReading)
+                ->whereIn('status', [FiscalDocumentStatus::Pending, ...FiscalDocumentStatus::inFlight()])
+                ->orderBy('id')
+                ->first();
+
+            if ($queued instanceof FiscalDocument) {
+                return $queued;
+            }
+
+            $document = FiscalDocument::query()->create([
+                'uuid' => (string) Str::uuid(),
+                'fiscal_printer_id' => $printer->id,
+                'sale_id' => null,
+                'type' => FiscalDocumentType::ZReading,
+                'status' => FiscalDocumentStatus::Pending,
+                'payload' => $this->payloads->forZReading($fromZ, $toZ),
+                'requested_by' => $actor,
+            ]);
+
+            AuditLogger::record(
+                'fiscal_z_reading_requested',
+                'Fiscal · Lectura de reportes Z '.$fromZ.($toZ !== null ? '–'.$toZ : ' en adelante').' · '.$printer->name
+                    .($automatic ? ' (automática)' : ''),
+                FiscalDocument::class,
+                $document->id,
+                FiscalDocumentType::ZReading->label(),
+                ['module' => 'fiscal', 'fiscal_printer_id' => $printer->id, 'from_z' => $fromZ, 'to_z' => $toZ],
+            );
+
+            return $document;
+        });
+    }
+
+    /**
      * Reencola un documento fallido, opcionalmente en otra máquina fiscal.
      */
     public function retry(FiscalDocument $document, string $actor, ?FiscalPrinter $printer = null): FiscalDocument

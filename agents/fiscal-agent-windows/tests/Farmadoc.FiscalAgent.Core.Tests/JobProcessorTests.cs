@@ -281,6 +281,72 @@ namespace Farmadoc.FiscalAgent.Tests
         }
 
         [Fact]
+        public async Task ZReportAttachesTotalsReadFromFiscalMemory()
+        {
+            var job = new AgentJob { Uuid = Guid.NewGuid().ToString(), Type = FiscalDocumentTypes.ZReport };
+
+            var result = await Processor().ProcessAsync(job, CancellationToken.None);
+
+            Assert.Equal(JobOutcomes.Printed, result.Outcome);
+            Assert.NotNull(result.ZReports);
+            var report = Assert.Single(result.ZReports);
+            Assert.Equal(283, report.ZNumber);
+            Assert.Equal(200m, report.GeneralBaseSales);
+            Assert.Equal(32m, report.GeneralTaxSales);
+        }
+
+        [Fact]
+        public async Task ZReportStillPrintedWhenTotalsCannotBeRead()
+        {
+            _printer.FailZRead = true;
+            var job = new AgentJob { Uuid = Guid.NewGuid().ToString(), Type = FiscalDocumentTypes.ZReport };
+
+            var result = await Processor().ProcessAsync(job, CancellationToken.None);
+
+            Assert.Equal(JobOutcomes.Printed, result.Outcome);
+            Assert.Equal("283", result.ZNumber);
+            Assert.Null(result.ZReports);
+            Assert.True(result.Raw.ContainsKey("z_report_read_error"));
+        }
+
+        [Fact]
+        public async Task ZReadingReturnsRangeFromMemoryWithoutPrinting()
+        {
+            _printer.DailyClosureCounter = 290;
+            for (var n = 285; n <= 290; n++)
+            {
+                _printer.ZMemory.Add(new ZReportData { ZNumber = n, ZDatetime = "2026-10-01T20:00:00", GeneralBaseSales = n });
+            }
+
+            var job = new AgentJob
+            {
+                Uuid = Guid.NewGuid().ToString(),
+                Type = FiscalDocumentTypes.ZReading,
+                Payload = Newtonsoft.Json.Linq.JObject.Parse(@"{ ""version"": 1, ""type"": ""lectura_z"", ""from_z"": 287, ""to_z"": 299 }"),
+            };
+
+            var result = await Processor().ProcessAsync(job, CancellationToken.None);
+
+            Assert.Equal(JobOutcomes.Printed, result.Outcome);
+            Assert.Equal(new[] { 287, 288, 289, 290 }, result.ZReports.Select(z => z.ZNumber).ToArray());
+            Assert.Equal(290, _printer.DailyClosureCounter);
+            Assert.DoesNotContain("I0Z", _printer.Sent);
+            Assert.Contains("U3A000287000290", _printer.Sent);
+        }
+
+        [Fact]
+        public async Task ZReadingIsRefusedOnWrongPrinter()
+        {
+            _printer.Registry = "Z7C7039908";
+            var job = new AgentJob { Uuid = Guid.NewGuid().ToString(), Type = FiscalDocumentTypes.ZReading };
+
+            var result = await Processor().ProcessAsync(job, CancellationToken.None);
+
+            Assert.Equal(JobOutcomes.Failed, result.Outcome);
+            Assert.Equal("wrong_printer", result.ErrorCode);
+        }
+
+        [Fact]
         public async Task PrintsCreditNoteUsingCreditNoteCounter()
         {
             var job = Samples.InvoiceJob();

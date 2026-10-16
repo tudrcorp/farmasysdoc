@@ -3,6 +3,7 @@
 use App\Http\Controllers\Dev\BdvConciliationTestController;
 use App\Http\Controllers\Finance\AccountsPayableBulkPaymentReportPdfController;
 use App\Http\Controllers\Finance\AccountsPayablePaymentReportPdfController;
+use App\Http\Controllers\Fiscal\SalesBookReportController;
 use App\Http\Controllers\FiscalAgentDownloadController;
 use App\Http\Controllers\FiscalPrintStatusController;
 use App\Http\Controllers\FiscalReceiptController;
@@ -206,6 +207,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('purchase-ledgers/book-report', PurchaseLedgerBookReportController::class)
         ->middleware('signed')
         ->name('purchase-ledgers.book-report');
+
+    Route::get('sales-books/report', SalesBookReportController::class)
+        ->middleware('signed')
+        ->name('sales-books.report');
 
     Route::get('accounts-payables/{accountsPayable}/payment-report-pdf', AccountsPayablePaymentReportPdfController::class)
         ->middleware('signed')

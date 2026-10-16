@@ -203,6 +203,21 @@ final class FiscalDocumentPayloadBuilder
         ];
     }
 
+    /**
+     * Lectura de reportes Z de la memoria fiscal (no imprime): rango inclusivo de números de Z.
+     *
+     * @return array{version: int, type: string, from_z: int, to_z: ?int}
+     */
+    public function forZReading(int $fromZ, ?int $toZ): array
+    {
+        return [
+            'version' => self::VERSION,
+            'type' => FiscalDocumentType::ZReading->value,
+            'from_z' => max(1, $fromZ),
+            'to_z' => $toZ,
+        ];
+    }
+
     public function vesPerUsd(Sale $sale): float
     {
         $stored = (float) ($sale->bcv_ves_per_usd ?? 0);

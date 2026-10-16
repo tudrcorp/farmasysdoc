@@ -34,6 +34,13 @@ class FiscalAgentResultRequest extends FormRequest
             'error_code' => ['nullable', 'string', 'max:40'],
             'error_message' => ['nullable', 'string', 'max:2000'],
             'raw' => ['nullable', 'array'],
+            'z_reports' => ['nullable', 'array', 'max:400'],
+            'z_reports.*' => ['array'],
+            'z_reports.*.z_number' => ['required', 'integer', 'min:1'],
+            'z_reports.*.z_datetime' => ['required', 'date'],
+            'z_reports.*.last_invoice_number' => ['required', 'integer', 'min:0'],
+            'z_reports.*.last_credit_note_number' => ['nullable', 'integer', 'min:0'],
+            'z_reports.*.last_debit_note_number' => ['nullable', 'integer', 'min:0'],
         ];
     }
 
@@ -48,6 +55,9 @@ class FiscalAgentResultRequest extends FormRequest
             'printer_computes_igtf.boolean' => 'printer_computes_igtf debe ser verdadero o falso.',
             'printer_datetime.date' => 'La fecha de la máquina fiscal no es válida.',
             'printer_total_ves.numeric' => 'El total de la máquina fiscal debe ser numérico.',
+            'z_reports.*.z_number.required' => 'Cada reporte Z debe traer su número.',
+            'z_reports.*.z_datetime.required' => 'Cada reporte Z debe traer su fecha.',
+            'z_reports.*.last_invoice_number.required' => 'Cada reporte Z debe traer el número de la última factura.',
         ];
     }
 }

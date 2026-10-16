@@ -68,7 +68,7 @@ namespace Farmadoc.FiscalAgent.Server
         }
 
         /// <summary>Capacidades que este agente declara al servidor (p. ej. procesar simulaciones sin imprimir).</summary>
-        public static readonly string[] Capabilities = { "simulation", "test_lab" };
+        public static readonly string[] Capabilities = { "simulation", "test_lab", "z_reading" };
 
         public async Task<ClaimResponse> ClaimAsync(int waitSeconds, CancellationToken cancellationToken)
         {

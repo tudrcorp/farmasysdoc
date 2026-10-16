@@ -9,6 +9,7 @@ use App\Models\FinancialSetting;
 use App\Models\FiscalCompanySetting;
 use App\Models\FiscalDocument;
 use App\Models\FiscalPrinter;
+use App\Models\FiscalZReport;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\MarketingBroadcast;
@@ -27,6 +28,8 @@ use App\Models\ProductTransfer;
 use App\Models\Purchase;
 use App\Models\Rol;
 use App\Models\Sale;
+use App\Models\SalesBook;
+use App\Models\SalesVatRetention;
 use App\Models\Supplier;
 use App\Models\User;
 
@@ -56,6 +59,9 @@ return [
     'models' => [
         Sale::class,
         FiscalDocument::class,
+        FiscalZReport::class,
+        SalesBook::class,
+        SalesVatRetention::class,
         FiscalPrinter::class,
         Purchase::class,
         Product::class,

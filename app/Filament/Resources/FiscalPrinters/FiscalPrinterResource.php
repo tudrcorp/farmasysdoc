@@ -8,6 +8,7 @@ use App\Filament\Resources\FiscalPrinters\Pages\EditFiscalPrinter;
 use App\Filament\Resources\FiscalPrinters\Pages\ListFiscalPrinters;
 use App\Filament\Resources\FiscalPrinters\Pages\ViewFiscalPrinter;
 use App\Filament\Resources\FiscalPrinters\RelationManagers\DocumentsRelationManager;
+use App\Filament\Resources\FiscalPrinters\RelationManagers\ZReportsRelationManager;
 use App\Filament\Resources\FiscalPrinters\Schemas\FiscalPrinterForm;
 use App\Filament\Resources\FiscalPrinters\Schemas\FiscalPrinterInfolist;
 use App\Filament\Resources\FiscalPrinters\Tables\FiscalPrintersTable;
@@ -79,6 +80,7 @@ class FiscalPrinterResource extends Resource
     {
         return [
             DocumentsRelationManager::class,
+            ZReportsRelationManager::class,
         ];
     }
 

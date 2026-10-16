@@ -14,6 +14,7 @@ enum FiscalDocumentType: string
     case ZReport = 'reporte_z';
     case StatusRead = 'lectura_estado';
     case NonFiscalTicket = 'ticket_no_fiscal';
+    case ZReading = 'lectura_z';
 
     public function label(): string
     {
@@ -24,6 +25,7 @@ enum FiscalDocumentType: string
             self::ZReport => 'Reporte Z',
             self::StatusRead => 'Lectura de estado',
             self::NonFiscalTicket => 'Ticket no fiscal',
+            self::ZReading => 'Lectura de reportes Z',
         };
     }
 

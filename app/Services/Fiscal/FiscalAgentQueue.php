@@ -7,6 +7,7 @@ use App\Enums\FiscalDocumentType;
 use App\Enums\FiscalPrinterMode;
 use App\Models\FiscalDocument;
 use App\Models\FiscalPrinter;
+use App\Models\FiscalZReport;
 use App\Services\Audit\AuditLogger;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -35,6 +36,13 @@ final class FiscalAgentQueue
     public const CAPABILITY_SIMULATION = 'simulation';
 
     public const CAPABILITY_TEST_LAB = 'test_lab';
+
+    public const CAPABILITY_Z_READING = 'z_reading';
+
+    public function __construct(
+        private FiscalZReportRecorder $zReports,
+        private FiscalDocumentRegistrar $registrar,
+    ) {}
 
     /**
      * Espera (long-poll) hasta que haya un documento para la máquina o venza el plazo.
@@ -66,6 +74,7 @@ final class FiscalAgentQueue
      * - Documentos reales pendientes de ventas: solo en modo «Activa».
      * - Simulaciones de ventas: solo en modo «Simulación» y si el agente declara la capacidad (un agente antiguo las imprimiría).
      * - Pruebas del laboratorio: en cualquier modo (las pide un administrador) y solo a agentes con la capacidad «test_lab».
+     * - Lecturas de reportes Z: en cualquier modo (las automáticas solo se crean en «Activa») y solo a agentes con «z_reading».
      *
      * @param  list<string>  $capabilities
      * @return array{document: FiscalDocument, recovery: bool}|null
@@ -75,8 +84,9 @@ final class FiscalAgentQueue
         $mode = $printer->currentMode();
         $canSimulate = in_array(self::CAPABILITY_SIMULATION, $capabilities, true);
         $canTest = in_array(self::CAPABILITY_TEST_LAB, $capabilities, true);
+        $canReadZ = in_array(self::CAPABILITY_Z_READING, $capabilities, true);
 
-        return DB::transaction(function () use ($printer, $mode, $canSimulate, $canTest): ?array {
+        return DB::transaction(function () use ($printer, $mode, $canSimulate, $canTest, $canReadZ): ?array {
             $inFlight = FiscalDocument::query()
                 ->where('fiscal_printer_id', $printer->id)
                 ->whereIn('status', FiscalDocumentStatus::inFlight())
@@ -98,11 +108,16 @@ final class FiscalAgentQueue
             $pending = FiscalDocument::query()
                 ->where('fiscal_printer_id', $printer->id)
                 ->where('status', FiscalDocumentStatus::Pending)
-                ->where(function (Builder $query) use ($mode, $canSimulate, $canTest): void {
+                ->where(function (Builder $query) use ($mode, $canSimulate, $canTest, $canReadZ): void {
                     $query->whereRaw('1 = 0');
 
                     if ($mode === FiscalPrinterMode::Active) {
-                        $query->orWhere(fn (Builder $q) => $q->where('is_test', false)->where('simulation', false));
+                        $query->orWhere(fn (Builder $q) => $q->where('is_test', false)->where('simulation', false)
+                            ->where('type', '!=', FiscalDocumentType::ZReading));
+                    }
+
+                    if ($canReadZ) {
+                        $query->orWhere(fn (Builder $q) => $q->where('type', FiscalDocumentType::ZReading)->where('simulation', false));
                     }
 
                     if ($mode === FiscalPrinterMode::Simulation && $canSimulate) {
@@ -166,7 +181,7 @@ final class FiscalAgentQueue
     }
 
     /**
-     * @param  array{outcome: string, fiscal_number?: ?string, printer_serial?: ?string, z_number?: ?string, printer_datetime?: ?string, printer_total_ves?: float|string|null, printer_computes_igtf?: ?bool, error_code?: ?string, error_message?: ?string, raw?: ?array<string, mixed>}  $result
+     * @param  array{outcome: string, fiscal_number?: ?string, printer_serial?: ?string, z_number?: ?string, printer_datetime?: ?string, printer_total_ves?: float|string|null, printer_computes_igtf?: ?bool, z_reports?: ?list<array<string, mixed>>, error_code?: ?string, error_message?: ?string, raw?: ?array<string, mixed>}  $result
      */
     public function applyResult(FiscalDocument $document, array $result): FiscalDocument
     {
@@ -280,6 +295,8 @@ final class FiscalAgentQueue
             app(FiscalTestLab::class)->queueAutoCreditNote($document);
         }
 
+        $this->captureZReports($document, $result);
+
         AuditLogger::record(
             'fiscal_document_'.$document->status->value,
             'Fiscal · '.$document->type->label().' · '.$document->status->label()
@@ -310,6 +327,78 @@ final class FiscalAgentQueue
             'last_fiscal_number' => $data['last_fiscal_number'] ?? $printer->last_fiscal_number,
             'last_z_number' => $data['last_z_number'] ?? $printer->last_z_number,
         ])->saveQuietly();
+
+        $this->requestMissingZReports($printer, $data['last_z_number'] ?? null);
+    }
+
+    /**
+     * Los Z emitidos o leídos se guardan para el Libro de Ventas. Si un Z salió pero sus totales no llegaron,
+     * se pide de inmediato una lectura de ese Z a la memoria fiscal.
+     *
+     * @param  array<string, mixed>  $result
+     */
+    private function captureZReports(FiscalDocument $document, array $result): void
+    {
+        if (! in_array($document->type, [FiscalDocumentType::ZReport, FiscalDocumentType::ZReading], true)
+            || ! in_array($document->status, [FiscalDocumentStatus::Printed, FiscalDocumentStatus::NeedsReview], true)) {
+            return;
+        }
+
+        $reports = array_values(array_filter((array) ($result['z_reports'] ?? []), 'is_array'));
+        $raw = is_array($result['raw'] ?? null) ? $result['raw'] : [];
+
+        $summary = $this->zReports->recordFromAgent($document, $reports, $document->printer_serial, $raw);
+
+        $zNumber = filter_var($document->z_number, FILTER_VALIDATE_INT);
+        $printer = $document->fiscalPrinter;
+
+        if ($document->type === FiscalDocumentType::ZReport && $reports === [] && $zNumber !== false && $printer instanceof FiscalPrinter) {
+            $this->registrar->requestZReading($printer, $zNumber, $zNumber, 'sistema');
+        }
+
+        if ($summary['rejected'] !== [] || $summary['conflicts'] !== []) {
+            $document->forceFill([
+                'status' => FiscalDocumentStatus::NeedsReview,
+                'error_code' => $summary['rejected'] !== [] ? 'z_report_rejected' : 'z_report_conflict',
+                'error_message' => $summary['rejected'] !== []
+                    ? 'Los reportes Z leídos no corresponden a esta máquina o vinieron incompletos; no se guardaron.'
+                    : 'Los Z '.implode(', ', $summary['conflicts']).' ya estaban guardados con montos distintos; revise la auditoría.',
+            ])->save();
+        }
+    }
+
+    /**
+     * Si la máquina reporta un Z más reciente que el último guardado, se piden los que faltan (solo en «Activa»).
+     */
+    private function requestMissingZReports(FiscalPrinter $printer, mixed $lastZNumber): void
+    {
+        $last = filter_var($lastZNumber, FILTER_VALIDATE_INT);
+
+        if ($last === false || $last <= 0 || $printer->currentMode() !== FiscalPrinterMode::Active) {
+            return;
+        }
+
+        $stored = FiscalZReport::query()
+            ->where('printer_serial', FiscalZReportRecorder::normalizeSerial($printer->fiscal_registry))
+            ->max('z_number');
+
+        if ($stored !== null && (int) $stored >= $last) {
+            return;
+        }
+
+        $recentlyRequested = FiscalDocument::query()
+            ->where('fiscal_printer_id', $printer->id)
+            ->where('type', FiscalDocumentType::ZReading)
+            ->where('created_at', '>=', now()->subMinutes(max(1, (int) config('fiscal.z_reports.retry_after_minutes', 15))))
+            ->exists();
+
+        if ($recentlyRequested) {
+            return;
+        }
+
+        $from = $stored !== null ? (int) $stored + 1 : $last;
+
+        $this->registrar->requestZReading($printer, $from, $last, 'sistema', automatic: true);
     }
 
     /**

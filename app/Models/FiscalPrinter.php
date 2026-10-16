@@ -107,6 +107,14 @@ class FiscalPrinter extends Model
         return $this->hasMany(FiscalDocument::class);
     }
 
+    /**
+     * @return HasMany<FiscalZReport, $this>
+     */
+    public function zReports(): HasMany
+    {
+        return $this->hasMany(FiscalZReport::class);
+    }
+
     public function isOnline(): bool
     {
         $threshold = max(30, (int) config('fiscal.agent.offline_after_seconds', 120));

@@ -44,6 +44,12 @@ namespace Farmadoc.FiscalAgent.Tests
 
         public decimal IgtfRate { get; set; }
 
+        /// <summary>Reportes Z guardados en la «memoria fiscal» simulada.</summary>
+        public List<ZReportData> ZMemory { get; } = new List<ZReportData>();
+
+        /// <summary>Simula que la máquina no responde a la lectura del último Z.</summary>
+        public bool FailZRead { get; set; }
+
         public IPrinterSession Open()
         {
             if (!Available)
@@ -155,6 +161,33 @@ namespace Farmadoc.FiscalAgent.Tests
             {
                 _p.Sent.Add("I0Z");
                 _p.DailyClosureCounter++;
+                _p.ZMemory.Add(new ZReportData
+                {
+                    ZNumber = _p.DailyClosureCounter,
+                    ZDatetime = "2026-10-02T20:00:00",
+                    LastInvoiceNumber = _p.LastInvoiceNumber,
+                    LastCreditNoteNumber = _p.LastCreditNoteNumber,
+                    ExemptSales = 100m,
+                    GeneralBaseSales = 200m,
+                    GeneralTaxSales = 32m,
+                });
+            }
+
+            public ZReportData ReadLastZReport()
+            {
+                if (_p.FailZRead)
+                {
+                    throw new TimeoutException("Sin respuesta a U0Z");
+                }
+
+                return _p.ZMemory.Count == 0 ? null : _p.ZMemory[_p.ZMemory.Count - 1];
+            }
+
+            public IList<ZReportData> ReadZReports(int fromNumber, int toNumber)
+            {
+                _p.Sent.Add("U3A" + fromNumber.ToString("D6") + toNumber.ToString("D6"));
+
+                return _p.ZMemory.FindAll(z => z.ZNumber >= fromNumber && z.ZNumber <= toNumber);
             }
 
             public void Dispose()

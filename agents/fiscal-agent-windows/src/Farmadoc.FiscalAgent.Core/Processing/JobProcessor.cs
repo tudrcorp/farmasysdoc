@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -157,6 +158,9 @@ namespace Farmadoc.FiscalAgent.Processing
 
                 case FiscalDocumentTypes.ZReport:
                     return await PrintZReportAsync(job, counterBefore, snapshot, session, cancellationToken).ConfigureAwait(false);
+
+                case FiscalDocumentTypes.ZReading:
+                    return ReadZReports(job, snapshot, session);
 
                 case FiscalDocumentTypes.Invoice:
                 case FiscalDocumentTypes.CreditNote:
@@ -365,7 +369,7 @@ namespace Farmadoc.FiscalAgent.Processing
         {
             if (counterBefore != null && snapshot.DailyClosureCounter == counterBefore.Value + 1)
             {
-                return ZPrinted(snapshot);
+                return ZPrinted(snapshot, session);
             }
 
             if (counterBefore != null && snapshot.DailyClosureCounter != counterBefore.Value)
@@ -390,7 +394,7 @@ namespace Farmadoc.FiscalAgent.Processing
 
             if (after.DailyClosureCounter == before + 1)
             {
-                return ZPrinted(after);
+                return ZPrinted(after, session);
             }
 
             return after.DailyClosureCounter == before
@@ -484,12 +488,94 @@ namespace Farmadoc.FiscalAgent.Processing
             return result;
         }
 
-        private static JobResult ZPrinted(PrinterSnapshot snapshot)
+        /// <summary>
+        /// Z emitido: se adjuntan sus totales leídos de la memoria fiscal para el Libro de Ventas.
+        /// Si la lectura falla el Z igual queda registrado; el servidor pedirá una «lectura_z» después.
+        /// </summary>
+        private JobResult ZPrinted(PrinterSnapshot snapshot, IPrinterSession session)
         {
             var result = Printed(null, null, snapshot, null);
             result.ZNumber = snapshot.DailyClosureCounter.ToString(CultureInfo.InvariantCulture);
 
+            try
+            {
+                var report = session.ReadLastZReport();
+
+                if (report != null && report.ZNumber == snapshot.DailyClosureCounter)
+                {
+                    result.ZReports = new List<ZReportData> { report };
+                    AttachTaxRates(result, session);
+                }
+                else
+                {
+                    result.Raw["z_report_read_error"] = report == null
+                        ? "La máquina no devolvió los datos del Z."
+                        : "La máquina devolvió el Z " + report.ZNumber + " en lugar del " + snapshot.DailyClosureCounter + ".";
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.Error("No se pudieron leer los totales del reporte Z", ex);
+                result.Raw["z_report_read_error"] = ex.Message;
+            }
+
             return result;
+        }
+
+        /// <summary>
+        /// Lee de la memoria fiscal los reportes Z del rango pedido, sin imprimir. Solo en la máquina configurada:
+        /// los totales se atribuyen a este registro fiscal en el Libro de Ventas.
+        /// </summary>
+        private JobResult ReadZReports(AgentJob job, PrinterSnapshot snapshot, IPrinterSession session)
+        {
+            var payload = job.ReadPayload();
+            var last = snapshot.DailyClosureCounter;
+            var from = Math.Max(1, payload?.FromZ ?? last);
+            var to = Math.Min(last, payload?.ToZ ?? last);
+
+            if (last < 1)
+            {
+                return JobResult.Failed("no_z_reports", "La máquina fiscal todavía no tiene reportes Z.");
+            }
+
+            if (from > to)
+            {
+                return JobResult.Failed("invalid_z_range", "Rango de reportes Z inválido (" + from + " a " + to + "); el último Z de la máquina es " + last + ".");
+            }
+
+            var reports = (session.ReadZReports(from, to) ?? new List<ZReportData>())
+                .Where(r => r != null && r.ZNumber >= from && r.ZNumber <= to)
+                .GroupBy(r => r.ZNumber)
+                .Select(g => g.First())
+                .OrderBy(r => r.ZNumber)
+                .ToList();
+
+            if (reports.Count == 0)
+            {
+                return JobResult.Failed("z_reading_empty", "La máquina no devolvió reportes Z entre " + from + " y " + to + ErrorSuffix(TryRead(session)) + ".");
+            }
+
+            var result = Printed(null, null, snapshot, null);
+            result.ZNumber = reports[reports.Count - 1].ZNumber.ToString(CultureInfo.InvariantCulture);
+            result.ZReports = reports;
+            result.Raw["requested_from"] = from;
+            result.Raw["requested_to"] = to;
+            AttachTaxRates(result, session);
+
+            return result;
+        }
+
+        private static void AttachTaxRates(JobResult result, IPrinterSession session)
+        {
+            try
+            {
+                var taxes = session.ReadTaxes();
+                result.Raw["tax_rates"] = new[] { taxes.Tax1, taxes.Tax2, taxes.Tax3 };
+                result.Raw["igtf_rate"] = taxes.IgtfRate;
+            }
+            catch (Exception)
+            {
+            }
         }
 
         private static int Counter(string type, PrinterSnapshot snapshot)

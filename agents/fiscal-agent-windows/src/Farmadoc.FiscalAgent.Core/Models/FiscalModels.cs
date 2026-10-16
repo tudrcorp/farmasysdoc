@@ -11,6 +11,9 @@ namespace Farmadoc.FiscalAgent.Models
         public const string ZReport = "reporte_z";
         public const string StatusRead = "lectura_estado";
         public const string NonFiscalTicket = "ticket_no_fiscal";
+
+        /// <summary>Lee reportes Z de la memoria fiscal (no imprime ni cierra la jornada).</summary>
+        public const string ZReading = "lectura_z";
     }
 
     public static class JobOutcomes
@@ -107,6 +110,12 @@ namespace Farmadoc.FiscalAgent.Models
 
         /// <summary>Líneas del ticket no fiscal (laboratorio).</summary>
         public List<string> Lines { get; set; } = new List<string>();
+
+        /// <summary>Lectura de reportes Z: primer número a leer.</summary>
+        public int? FromZ { get; set; }
+
+        /// <summary>Lectura de reportes Z: último número a leer.</summary>
+        public int? ToZ { get; set; }
     }
 
     public sealed class FiscalCustomer
@@ -187,6 +196,9 @@ namespace Farmadoc.FiscalAgent.Models
         public decimal? PrinterTotalVes { get; set; }
 
         public bool? PrinterComputesIgtf { get; set; }
+
+        /// <summary>Totales de los reportes Z leídos de la memoria fiscal (tras imprimir un Z o en una lectura).</summary>
+        public List<Printing.ZReportData> ZReports { get; set; }
 
         public string ErrorCode { get; set; }
 

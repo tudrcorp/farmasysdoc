@@ -27,6 +27,12 @@ namespace Farmadoc.FiscalAgent.Printing
         void PrintXReport();
 
         void PrintZReport();
+
+        /// <summary>Datos del último reporte Z emitido (comando U0Z). Null si la máquina no respondió.</summary>
+        ZReportData ReadLastZReport();
+
+        /// <summary>Reportes Z guardados en la memoria fiscal entre dos números (comando U3A), sin imprimir nada.</summary>
+        IList<ZReportData> ReadZReports(int fromNumber, int toNumber);
     }
 
     public sealed class PrinterSnapshot
@@ -80,6 +86,82 @@ namespace Farmadoc.FiscalAgent.Printing
                 ["printer_datetime"] = PrinterDateTime?.ToString("yyyy-MM-ddTHH:mm:ss"),
             };
         }
+    }
+
+    /// <summary>
+    /// Totales de un reporte Z tal como los guarda la memoria fiscal (Bs, 2 decimales).
+    /// Ventas = facturas; Devoluciones = notas de crédito; Débitos = notas de débito.
+    /// </summary>
+    public sealed class ZReportData
+    {
+        public int ZNumber { get; set; }
+
+        /// <summary>Fecha (y hora, si la máquina la envía) del reporte Z, formato yyyy-MM-ddTHH:mm:ss.</summary>
+        public string ZDatetime { get; set; }
+
+        public int LastInvoiceNumber { get; set; }
+
+        public string LastInvoiceDatetime { get; set; }
+
+        public int LastCreditNoteNumber { get; set; }
+
+        public int LastDebitNoteNumber { get; set; }
+
+        public int LastNonFiscalNumber { get; set; }
+
+        public decimal ExemptSales { get; set; }
+
+        public decimal GeneralBaseSales { get; set; }
+
+        public decimal GeneralTaxSales { get; set; }
+
+        public decimal ReducedBaseSales { get; set; }
+
+        public decimal ReducedTaxSales { get; set; }
+
+        public decimal AdditionalBaseSales { get; set; }
+
+        public decimal AdditionalTaxSales { get; set; }
+
+        public decimal ExemptCreditNotes { get; set; }
+
+        public decimal GeneralBaseCreditNotes { get; set; }
+
+        public decimal GeneralTaxCreditNotes { get; set; }
+
+        public decimal ReducedBaseCreditNotes { get; set; }
+
+        public decimal ReducedTaxCreditNotes { get; set; }
+
+        public decimal AdditionalBaseCreditNotes { get; set; }
+
+        public decimal AdditionalTaxCreditNotes { get; set; }
+
+        public decimal ExemptDebitNotes { get; set; }
+
+        public decimal GeneralBaseDebitNotes { get; set; }
+
+        public decimal GeneralTaxDebitNotes { get; set; }
+
+        public decimal ReducedBaseDebitNotes { get; set; }
+
+        public decimal ReducedTaxDebitNotes { get; set; }
+
+        public decimal AdditionalBaseDebitNotes { get; set; }
+
+        public decimal AdditionalTaxDebitNotes { get; set; }
+
+        public decimal IgtfBaseSales { get; set; }
+
+        public decimal IgtfTaxSales { get; set; }
+
+        public decimal IgtfBaseCreditNotes { get; set; }
+
+        public decimal IgtfTaxCreditNotes { get; set; }
+
+        public decimal IgtfBaseDebitNotes { get; set; }
+
+        public decimal IgtfTaxDebitNotes { get; set; }
     }
 
     public sealed class PrinterTaxes

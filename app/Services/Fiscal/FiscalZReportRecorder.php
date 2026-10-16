@@ -206,7 +206,7 @@ final class FiscalZReportRecorder
 
     /**
      * Defensas contra datos falsos: sin trama cruda no hay evidencia (agentes < 1.3.1 usaban el parser del SDK,
-     * que deja montos en cero sin avisar), y un Z sin montos cuando la numeración de facturas avanzó no es creíble.
+     * que deja montos en cero sin avisar), y los montos deben ser coherentes con la numeración respecto al Z anterior.
      *
      * @param  array<string, mixed>  $attributes
      * @param  array<string, mixed>  $report
@@ -217,27 +217,37 @@ final class FiscalZReportRecorder
             return 'llegó sin la trama cruda de la máquina (actualice el agente a '.FiscalPrinter::Z_READING_MIN_AGENT_VERSION.').';
         }
 
-        $hasAmounts = false;
-
-        foreach (FiscalZReport::AMOUNT_COLUMNS as $column) {
-            if ((float) $attributes[$column] !== 0.0) {
-                $hasAmounts = true;
-
-                break;
-            }
-        }
-
-        if ($hasAmounts) {
-            return null;
-        }
-
         $previous = FiscalZReport::query()
             ->where('printer_serial', $attributes['printer_serial'])
             ->where('z_number', $attributes['z_number'] - 1)
             ->first();
 
-        if ($previous instanceof FiscalZReport && $attributes['last_invoice_number'] > $previous->last_invoice_number) {
-            return 'todos sus montos están en cero pero se emitieron facturas ('.($previous->last_invoice_number + 1).' a '.$attributes['last_invoice_number'].').';
+        if (! $previous instanceof FiscalZReport) {
+            return null;
+        }
+
+        $groupTotal = function (string $group) use ($attributes): float {
+            $total = 0.0;
+
+            foreach (FiscalZReport::AMOUNT_COLUMNS as $column) {
+                if (str_ends_with($column, "_{$group}_ves") && ! str_starts_with($column, 'igtf_')) {
+                    $total += abs((float) $attributes[$column]);
+                }
+            }
+
+            return $total;
+        };
+
+        if ($attributes['last_invoice_number'] > $previous->last_invoice_number && $groupTotal('sales') === 0.0) {
+            return 'sus ventas están en cero pero se emitieron facturas ('.($previous->last_invoice_number + 1).' a '.$attributes['last_invoice_number'].').';
+        }
+
+        if ($attributes['last_credit_note_number'] > $previous->last_credit_note_number && $groupTotal('credit_notes') === 0.0) {
+            return 'se emitieron notas de crédito pero sus montos están en cero (posible orden de campos distinto en esta máquina).';
+        }
+
+        if ($attributes['last_debit_note_number'] === $previous->last_debit_note_number && $groupTotal('debit_notes') !== 0.0) {
+            return 'trae montos de notas de débito sin que se haya emitido ninguna (posible orden de campos distinto en esta máquina).';
         }
 
         return null;

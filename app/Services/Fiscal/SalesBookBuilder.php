@@ -279,12 +279,30 @@ final class SalesBookBuilder
             ->where('is_test', false);
 
         $pendingZ = (clone $base)
+            ->with('fiscalPrinter')
             ->whereIn('type', [FiscalDocumentType::ZReport, FiscalDocumentType::ZReading])
             ->whereIn('status', [FiscalDocumentStatus::Pending, ...FiscalDocumentStatus::inFlight()])
-            ->count();
+            ->get();
 
-        if ($pendingZ > 0) {
-            $this->issue(self::LEVEL_ERROR, 'Hay '.$pendingZ.' reporte(s)/lectura(s) Z en cola sin terminar en las máquinas de la sucursal.');
+        foreach ($pendingZ->groupBy('fiscal_printer_id') as $documents) {
+            $printer = $documents->first()?->fiscalPrinter;
+
+            if (! $printer instanceof FiscalPrinter) {
+                continue;
+            }
+
+            $label = $printer->name.' ('.$printer->fiscal_registry.')';
+            $readings = $documents->where('type', FiscalDocumentType::ZReading)->count();
+
+            if ($readings > 0 && ! $printer->agentSupportsZReading()) {
+                $this->issue(self::LEVEL_ERROR, $label.': el agente de la caja es la versión '.($printer->agent_version ?: 'desconocida')
+                    .' y no sabe leer reportes Z (requiere '.FiscalPrinter::Z_READING_MIN_AGENT_VERSION.' o superior). Actualice el agente en esa PC, o anule la lectura en «Documentos fiscales».');
+
+                continue;
+            }
+
+            $this->issue(self::LEVEL_ERROR, $label.': hay '.$documents->count().' reporte(s)/lectura(s) Z en cola sin terminar'
+                .($printer->isOnline() ? '.' : ' y el agente no está en línea (encienda la PC de la caja o revise el servicio).'));
         }
 
         $toReview = (clone $base)

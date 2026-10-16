@@ -352,7 +352,7 @@ final class FiscalAgentQueue
         $zNumber = filter_var($document->z_number, FILTER_VALIDATE_INT);
         $printer = $document->fiscalPrinter;
 
-        if ($document->type === FiscalDocumentType::ZReport && $reports === [] && $zNumber !== false && $printer instanceof FiscalPrinter) {
+        if ($document->type === FiscalDocumentType::ZReport && $reports === [] && $zNumber !== false && $printer instanceof FiscalPrinter && $printer->agentSupportsZReading()) {
             $this->registrar->requestZReading($printer, $zNumber, $zNumber, 'sistema');
         }
 
@@ -368,13 +368,14 @@ final class FiscalAgentQueue
     }
 
     /**
-     * Si la máquina reporta un Z más reciente que el último guardado, se piden los que faltan (solo en «Activa»).
+     * Si la máquina reporta un Z más reciente que el último guardado, se piden los que faltan
+     * (solo en «Activa» y con un agente que sepa leer Z; a uno viejo la lectura se le quedaría en cola).
      */
     private function requestMissingZReports(FiscalPrinter $printer, mixed $lastZNumber): void
     {
         $last = filter_var($lastZNumber, FILTER_VALIDATE_INT);
 
-        if ($last === false || $last <= 0 || $printer->currentMode() !== FiscalPrinterMode::Active) {
+        if ($last === false || $last <= 0 || $printer->currentMode() !== FiscalPrinterMode::Active || ! $printer->agentSupportsZReading()) {
             return;
         }
 

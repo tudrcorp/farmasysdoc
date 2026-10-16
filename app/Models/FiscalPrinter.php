@@ -115,6 +115,18 @@ class FiscalPrinter extends Model
         return $this->hasMany(FiscalZReport::class);
     }
 
+    /**
+     * Primera versión del agente que lee reportes Z de la memoria fiscal (trabajo «lectura_z»).
+     */
+    public const Z_READING_MIN_AGENT_VERSION = '1.3.0';
+
+    public function agentSupportsZReading(): bool
+    {
+        $version = trim((string) preg_replace('/[+\s].*$/', '', (string) $this->agent_version));
+
+        return $version !== '' && version_compare($version, self::Z_READING_MIN_AGENT_VERSION, '>=');
+    }
+
     public function isOnline(): bool
     {
         $threshold = max(30, (int) config('fiscal.agent.offline_after_seconds', 120));

@@ -160,8 +160,15 @@ final class FiscalDocumentRegistrar
             ]);
         }
 
-        if ($automatic && $printer->currentMode() !== FiscalPrinterMode::Active) {
+        if ($automatic && ($printer->currentMode() !== FiscalPrinterMode::Active || ! $printer->agentSupportsZReading())) {
             return null;
+        }
+
+        if (! $printer->agentSupportsZReading()) {
+            throw ValidationException::withMessages([
+                'fiscal_printer_id' => 'El agente de '.$printer->name.' es la versión '.($printer->agent_version ?: 'desconocida')
+                    .' y no sabe leer reportes Z. Actualícelo a '.FiscalPrinter::Z_READING_MIN_AGENT_VERSION.' o superior en la PC de la caja.',
+            ]);
         }
 
         return DB::transaction(function () use ($printer, $fromZ, $toZ, $actor, $automatic): FiscalDocument {

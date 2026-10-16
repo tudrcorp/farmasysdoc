@@ -3,6 +3,7 @@
 namespace App\Http\Requests\FiscalAgent;
 
 use App\Services\Fiscal\FiscalAgentQueue;
+use App\Services\Fiscal\FiscalZReportRecorder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -18,7 +19,7 @@ class FiscalAgentResultRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
+        return array_merge([
             'outcome' => ['required', 'string', Rule::in([
                 FiscalAgentQueue::OUTCOME_PRINTED,
                 FiscalAgentQueue::OUTCOME_FAILED,
@@ -41,7 +42,28 @@ class FiscalAgentResultRequest extends FormRequest
             'z_reports.*.last_invoice_number' => ['required', 'integer', 'min:0'],
             'z_reports.*.last_credit_note_number' => ['nullable', 'integer', 'min:0'],
             'z_reports.*.last_debit_note_number' => ['nullable', 'integer', 'min:0'],
-        ];
+            'z_reports.*.last_non_fiscal_number' => ['nullable', 'integer', 'min:0'],
+            'z_reports.*.last_invoice_datetime' => ['nullable', 'date'],
+            'z_reports.*.field_count' => ['nullable', 'integer', 'min:0'],
+            'z_reports.*.raw_record' => ['nullable', 'string', 'max:20000'],
+        ], $this->zReportAmountRules());
+    }
+
+    /**
+     * Cada monto del Z necesita su propia regla: Laravel descarta de validated() las claves de un arreglo
+     * que no tienen regla, y sin esto los montos y la trama cruda nunca llegaban al servidor.
+     *
+     * @return array<string, array<int, string>>
+     */
+    private function zReportAmountRules(): array
+    {
+        $rules = [];
+
+        foreach (FiscalZReportRecorder::AGENT_AMOUNT_FIELDS as $field) {
+            $rules['z_reports.*.'.$field] = ['nullable', 'numeric'];
+        }
+
+        return $rules;
     }
 
     /**

@@ -27,7 +27,7 @@ final class FiscalZReportRecorder
      *
      * @var list<string>
      */
-    private const AGENT_AMOUNT_FIELDS = [
+    public const AGENT_AMOUNT_FIELDS = [
         'exempt_sales', 'general_base_sales', 'general_tax_sales', 'reduced_base_sales', 'reduced_tax_sales',
         'additional_base_sales', 'additional_tax_sales', 'igtf_base_sales', 'igtf_tax_sales',
         'exempt_credit_notes', 'general_base_credit_notes', 'general_tax_credit_notes', 'reduced_base_credit_notes',

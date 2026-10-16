@@ -291,8 +291,10 @@ namespace Farmadoc.FiscalAgent.Tests
             Assert.NotNull(result.ZReports);
             var report = Assert.Single(result.ZReports);
             Assert.Equal(283, report.ZNumber);
+            Assert.Equal(100m, report.ExemptSales);
             Assert.Equal(200m, report.GeneralBaseSales);
             Assert.Equal(32m, report.GeneralTaxSales);
+            Assert.NotNull(report.RawRecord);
         }
 
         [Fact]
@@ -315,7 +317,7 @@ namespace Farmadoc.FiscalAgent.Tests
             _printer.DailyClosureCounter = 290;
             for (var n = 285; n <= 290; n++)
             {
-                _printer.ZMemory.Add(new ZReportData { ZNumber = n, ZDatetime = "2026-10-01T20:00:00", GeneralBaseSales = n });
+                _printer.ZMemory[n] = Samples.ZRecord(n, 5000 + n, 0, n * 100, 16 * n);
             }
 
             var job = new AgentJob
@@ -332,6 +334,28 @@ namespace Farmadoc.FiscalAgent.Tests
             Assert.Equal(290, _printer.DailyClosureCounter);
             Assert.DoesNotContain("I0Z", _printer.Sent);
             Assert.Contains("U3A000287000290", _printer.Sent);
+        }
+
+        [Fact]
+        public async Task ZReadingWithUnreadableRecordFailsAndSavesNothing()
+        {
+            _printer.DailyClosureCounter = 290;
+            _printer.ZMemory[289] = Samples.ZRecord(289, 5289, 0, 100, 16);
+            _printer.ZMemory[290] = Samples.ZRecord(290, 5290, 0, 100, 16).Replace("000000000100", "1.00");
+
+            var job = new AgentJob
+            {
+                Uuid = Guid.NewGuid().ToString(),
+                Type = FiscalDocumentTypes.ZReading,
+                Payload = Newtonsoft.Json.Linq.JObject.Parse(@"{ ""version"": 1, ""type"": ""lectura_z"", ""from_z"": 289, ""to_z"": 290 }"),
+            };
+
+            var result = await Processor().ProcessAsync(job, CancellationToken.None);
+
+            Assert.Equal(JobOutcomes.Failed, result.Outcome);
+            Assert.Equal("z_parse_error", result.ErrorCode);
+            Assert.Null(result.ZReports);
+            Assert.True(result.Raw.ContainsKey("z_raw_records"));
         }
 
         [Fact]

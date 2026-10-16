@@ -490,27 +490,37 @@ namespace Farmadoc.FiscalAgent.Processing
 
         /// <summary>
         /// Z emitido: se adjuntan sus totales leídos de la memoria fiscal para el Libro de Ventas.
-        /// Si la lectura falla el Z igual queda registrado; el servidor pedirá una «lectura_z» después.
+        /// Si la lectura o su interpretación falla, el Z igual queda registrado (sin totales) con la trama cruda
+        /// para revisión; nunca se envían montos en cero por un error de lectura.
         /// </summary>
         private JobResult ZPrinted(PrinterSnapshot snapshot, IPrinterSession session)
         {
             var result = Printed(null, null, snapshot, null);
             result.ZNumber = snapshot.DailyClosureCounter.ToString(CultureInfo.InvariantCulture);
+            IList<string> records = null;
 
             try
             {
-                var report = session.ReadLastZReport();
+                records = session.ReadReportRecords("U0Z");
+                var last = records == null || records.Count == 0 ? null : records[records.Count - 1];
 
-                if (report != null && report.ZNumber == snapshot.DailyClosureCounter)
+                if (last == null)
                 {
-                    result.ZReports = new List<ZReportData> { report };
-                    AttachTaxRates(result, session);
+                    result.Raw["z_report_read_error"] = "La máquina no devolvió los datos del Z.";
                 }
                 else
                 {
-                    result.Raw["z_report_read_error"] = report == null
-                        ? "La máquina no devolvió los datos del Z."
-                        : "La máquina devolvió el Z " + report.ZNumber + " en lugar del " + snapshot.DailyClosureCounter + ".";
+                    var report = ZReportParser.Parse(last);
+
+                    if (report.ZNumber == snapshot.DailyClosureCounter)
+                    {
+                        result.ZReports = new List<ZReportData> { report };
+                        AttachTaxRates(result, session);
+                    }
+                    else
+                    {
+                        result.Raw["z_report_read_error"] = "La máquina devolvió el Z " + report.ZNumber + " en lugar del " + snapshot.DailyClosureCounter + ".";
+                    }
                 }
             }
             catch (Exception ex)
@@ -519,12 +529,18 @@ namespace Farmadoc.FiscalAgent.Processing
                 result.Raw["z_report_read_error"] = ex.Message;
             }
 
+            if (result.ZReports == null && records != null)
+            {
+                result.Raw["z_raw_records"] = records;
+            }
+
             return result;
         }
 
         /// <summary>
         /// Lee de la memoria fiscal los reportes Z del rango pedido, sin imprimir. Solo en la máquina configurada:
-        /// los totales se atribuyen a este registro fiscal en el Libro de Ventas.
+        /// los totales se atribuyen a este registro fiscal en el Libro de Ventas. Si una sola trama no se puede
+        /// interpretar, la lectura completa falla (con las tramas crudas) y no se guarda ningún Z.
         /// </summary>
         private JobResult ReadZReports(AgentJob job, PrinterSnapshot snapshot, IPrinterSession session)
         {
@@ -543,8 +559,29 @@ namespace Farmadoc.FiscalAgent.Processing
                 return JobResult.Failed("invalid_z_range", "Rango de reportes Z inválido (" + from + " a " + to + "); el último Z de la máquina es " + last + ".");
             }
 
-            var reports = (session.ReadZReports(from, to) ?? new List<ZReportData>())
-                .Where(r => r != null && r.ZNumber >= from && r.ZNumber <= to)
+            var records = session.ReadReportRecords("U3A" + from.ToString("D6", CultureInfo.InvariantCulture) + to.ToString("D6", CultureInfo.InvariantCulture))
+                ?? new List<string>();
+            var reports = new List<ZReportData>();
+
+            foreach (var record in records)
+            {
+                try
+                {
+                    reports.Add(ZReportParser.Parse(record));
+                }
+                catch (ZReportParseException ex)
+                {
+                    var failed = JobResult.Failed("z_parse_error", "No se pudo interpretar un reporte Z de la memoria fiscal: " + ex.Message + " No se guardó ningún Z de esta lectura.");
+                    failed.Raw["z_raw_records"] = records;
+                    failed.Raw["requested_from"] = from;
+                    failed.Raw["requested_to"] = to;
+
+                    return failed;
+                }
+            }
+
+            reports = reports
+                .Where(r => r.ZNumber >= from && r.ZNumber <= to)
                 .GroupBy(r => r.ZNumber)
                 .Select(g => g.First())
                 .OrderBy(r => r.ZNumber)
@@ -552,7 +589,10 @@ namespace Farmadoc.FiscalAgent.Processing
 
             if (reports.Count == 0)
             {
-                return JobResult.Failed("z_reading_empty", "La máquina no devolvió reportes Z entre " + from + " y " + to + ErrorSuffix(TryRead(session)) + ".");
+                var empty = JobResult.Failed("z_reading_empty", "La máquina no devolvió reportes Z entre " + from + " y " + to + ErrorSuffix(TryRead(session)) + ".");
+                empty.Raw["z_raw_records"] = records;
+
+                return empty;
             }
 
             var result = Printed(null, null, snapshot, null);

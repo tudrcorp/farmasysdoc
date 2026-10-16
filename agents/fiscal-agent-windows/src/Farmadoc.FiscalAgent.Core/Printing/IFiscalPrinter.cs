@@ -28,11 +28,11 @@ namespace Farmadoc.FiscalAgent.Printing
 
         void PrintZReport();
 
-        /// <summary>Datos del último reporte Z emitido (comando U0Z). Null si la máquina no respondió.</summary>
-        ZReportData ReadLastZReport();
-
-        /// <summary>Reportes Z guardados en la memoria fiscal entre dos números (comando U3A), sin imprimir nada.</summary>
-        IList<ZReportData> ReadZReports(int fromNumber, int toNumber);
+        /// <summary>
+        /// Tramas crudas de un comando de lectura de reportes (U0Z = último Z, U3A = rango de la memoria fiscal).
+        /// Se interpretan con <see cref="ZReportParser"/>, nunca con el parser del SDK.
+        /// </summary>
+        IList<string> ReadReportRecords(string command);
     }
 
     public sealed class PrinterSnapshot
@@ -94,6 +94,11 @@ namespace Farmadoc.FiscalAgent.Printing
     /// </summary>
     public sealed class ZReportData
     {
+        /// <summary>Trama tal como la envió la máquina (evidencia para auditoría).</summary>
+        public string RawRecord { get; set; }
+
+        public int FieldCount { get; set; }
+
         public int ZNumber { get; set; }
 
         /// <summary>Fecha (y hora, si la máquina la envía) del reporte Z, formato yyyy-MM-ddTHH:mm:ss.</summary>

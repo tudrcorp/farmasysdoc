@@ -100,6 +100,23 @@ final class FiscalZReportRecorder
                 continue;
             }
 
+            $suspicion = $this->suspicion($attributes, $report);
+
+            if ($suspicion !== null) {
+                $summary['rejected'][] = 'suspicious:'.$attributes['z_number'];
+
+                AuditLogger::record(
+                    'fiscal_z_report_rejected',
+                    'Fiscal · Z Nº '.$attributes['z_number'].' de '.$serial.' rechazado: '.$suspicion,
+                    FiscalDocument::class,
+                    $document->id,
+                    $document->uuid,
+                    ['module' => 'fiscal', 'fiscal_printer_id' => $printer->id, 'report' => $report],
+                );
+
+                continue;
+            }
+
             $outcome = $this->store($printer, $document, $attributes, $source, $rates, $report);
 
             match ($outcome) {
@@ -185,6 +202,45 @@ final class FiscalZReportRecorder
         }
 
         return $outcome;
+    }
+
+    /**
+     * Defensas contra datos falsos: sin trama cruda no hay evidencia (agentes < 1.3.1 usaban el parser del SDK,
+     * que deja montos en cero sin avisar), y un Z sin montos cuando la numeración de facturas avanzó no es creíble.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, mixed>  $report
+     */
+    private function suspicion(array $attributes, array $report): ?string
+    {
+        if (! is_string($report['raw_record'] ?? null) || trim($report['raw_record']) === '') {
+            return 'llegó sin la trama cruda de la máquina (actualice el agente a '.FiscalPrinter::Z_READING_MIN_AGENT_VERSION.').';
+        }
+
+        $hasAmounts = false;
+
+        foreach (FiscalZReport::AMOUNT_COLUMNS as $column) {
+            if ((float) $attributes[$column] !== 0.0) {
+                $hasAmounts = true;
+
+                break;
+            }
+        }
+
+        if ($hasAmounts) {
+            return null;
+        }
+
+        $previous = FiscalZReport::query()
+            ->where('printer_serial', $attributes['printer_serial'])
+            ->where('z_number', $attributes['z_number'] - 1)
+            ->first();
+
+        if ($previous instanceof FiscalZReport && $attributes['last_invoice_number'] > $previous->last_invoice_number) {
+            return 'todos sus montos están en cero pero se emitieron facturas ('.($previous->last_invoice_number + 1).' a '.$attributes['last_invoice_number'].').';
+        }
+
+        return null;
     }
 
     /**

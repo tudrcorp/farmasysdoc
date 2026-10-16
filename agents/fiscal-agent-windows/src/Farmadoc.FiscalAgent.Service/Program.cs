@@ -17,6 +17,7 @@ namespace Farmadoc.FiscalAgent.Service
     /// FarmadocFiscalAgent.exe --console           → mismo agente en primer plano (Ctrl+C para salir).
     /// FarmadocFiscalAgent.exe --check             → diagnóstico de solo lectura: máquina fiscal + servidor.
     /// FarmadocFiscalAgent.exe --preview doc.json  → muestra los comandos que se enviarían, sin imprimir.
+    /// FarmadocFiscalAgent.exe --read-z 461 [470]  → lee Z de la memoria fiscal y muestra trama cruda e interpretación (no imprime ni envía nada).
     /// Opcional en todos: --config C:\ruta\agent.json
     /// </summary>
     public static class Program
@@ -38,6 +39,15 @@ namespace Farmadoc.FiscalAgent.Service
                 if (args.Contains("--check"))
                 {
                     return Check(configPath);
+                }
+
+                var readZ = OptionValue(args, "--read-z");
+                if (readZ != null)
+                {
+                    var toIndex = Array.IndexOf(args, "--read-z") + 2;
+                    var to = toIndex < args.Length && int.TryParse(args[toIndex], out var parsedTo) ? parsedTo : (int?)null;
+
+                    return ReadZ(configPath, int.Parse(readZ), to);
                 }
 
                 var previewFile = OptionValue(args, "--preview");
@@ -214,6 +224,53 @@ namespace Farmadoc.FiscalAgent.Service
             }
 
             return 0;
+        }
+
+        /// <summary>Diagnóstico de la lectura de Z: muestra cada trama cruda (campos numerados) y cómo se interpreta.</summary>
+        private static int ReadZ(string configPath, int from, int? to)
+        {
+            var config = AgentConfig.Load(configPath);
+            var last = to ?? from;
+            var command = "U3A" + from.ToString("D6") + last.ToString("D6");
+
+            using (var session = new HkaFiscalPrinter(config.ComPort, config.BaudRate, false).Open())
+            {
+                var records = session.ReadReportRecords(command);
+                Console.WriteLine("Comando " + command + " → " + records.Count + " trama(s). Último Z (U0Z):");
+
+                foreach (var record in session.ReadReportRecords("U0Z"))
+                {
+                    records.Add(record);
+                }
+
+                var ok = true;
+
+                foreach (var record in records)
+                {
+                    var fields = record.Split('\n');
+                    Console.WriteLine();
+                    Console.WriteLine("Trama (" + fields.Length + " campos):");
+                    for (var i = 0; i < fields.Length; i++)
+                    {
+                        Console.WriteLine("  [" + i.ToString("D2") + "] " + fields[i].Replace("\r", "\\r"));
+                    }
+
+                    try
+                    {
+                        var z = ZReportParser.Parse(record);
+                        Console.WriteLine("  → Z " + z.ZNumber + " · " + z.ZDatetime + " · última factura " + z.LastInvoiceNumber
+                            + " · exento " + z.ExemptSales + " · base 16% " + z.GeneralBaseSales + " · IVA 16% " + z.GeneralTaxSales
+                            + " · NC base " + z.GeneralBaseCreditNotes);
+                    }
+                    catch (ZReportParseException ex)
+                    {
+                        ok = false;
+                        Console.WriteLine("  ✗ " + ex.Message);
+                    }
+                }
+
+                return ok ? 0 : 1;
+            }
         }
 
         private static string OptionValue(string[] args, string name)

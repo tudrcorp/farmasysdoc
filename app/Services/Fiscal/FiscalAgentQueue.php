@@ -361,7 +361,7 @@ final class FiscalAgentQueue
                 'status' => FiscalDocumentStatus::NeedsReview,
                 'error_code' => $summary['rejected'] !== [] ? 'z_report_rejected' : 'z_report_conflict',
                 'error_message' => $summary['rejected'] !== []
-                    ? 'Los reportes Z leídos no corresponden a esta máquina o vinieron incompletos; no se guardaron.'
+                    ? 'Uno o más reportes Z no se guardaron (máquina distinta, datos incompletos o montos no creíbles); revise la auditoría.'
                     : 'Los Z '.implode(', ', $summary['conflicts']).' ya estaban guardados con montos distintos; revise la auditoría.',
             ])->save();
         }

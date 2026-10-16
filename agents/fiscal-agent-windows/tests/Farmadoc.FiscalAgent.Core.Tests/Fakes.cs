@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Farmadoc.FiscalAgent.Logging;
@@ -44,8 +45,8 @@ namespace Farmadoc.FiscalAgent.Tests
 
         public decimal IgtfRate { get; set; }
 
-        /// <summary>Reportes Z guardados en la «memoria fiscal» simulada.</summary>
-        public List<ZReportData> ZMemory { get; } = new List<ZReportData>();
+        /// <summary>Tramas crudas de reportes Z guardadas en la «memoria fiscal» simulada, por número de Z.</summary>
+        public SortedDictionary<int, string> ZMemory { get; } = new SortedDictionary<int, string>();
 
         /// <summary>Simula que la máquina no responde a la lectura del último Z.</summary>
         public bool FailZRead { get; set; }
@@ -161,33 +162,27 @@ namespace Farmadoc.FiscalAgent.Tests
             {
                 _p.Sent.Add("I0Z");
                 _p.DailyClosureCounter++;
-                _p.ZMemory.Add(new ZReportData
-                {
-                    ZNumber = _p.DailyClosureCounter,
-                    ZDatetime = "2026-10-02T20:00:00",
-                    LastInvoiceNumber = _p.LastInvoiceNumber,
-                    LastCreditNoteNumber = _p.LastCreditNoteNumber,
-                    ExemptSales = 100m,
-                    GeneralBaseSales = 200m,
-                    GeneralTaxSales = 32m,
-                });
+                _p.ZMemory[_p.DailyClosureCounter] = Samples.ZRecord(_p.DailyClosureCounter, _p.LastInvoiceNumber, 10000, 20000, 3200);
             }
 
-            public ZReportData ReadLastZReport()
+            public IList<string> ReadReportRecords(string command)
             {
-                if (_p.FailZRead)
+                _p.Sent.Add(command);
+
+                if (command == "U0Z")
                 {
-                    throw new TimeoutException("Sin respuesta a U0Z");
+                    if (_p.FailZRead)
+                    {
+                        throw new TimeoutException("Sin respuesta a U0Z");
+                    }
+
+                    return _p.ZMemory.Count == 0 ? new List<string>() : new List<string> { _p.ZMemory.Values.Last() };
                 }
 
-                return _p.ZMemory.Count == 0 ? null : _p.ZMemory[_p.ZMemory.Count - 1];
-            }
+                var from = int.Parse(command.Substring(3, 6));
+                var to = int.Parse(command.Substring(9, 6));
 
-            public IList<ZReportData> ReadZReports(int fromNumber, int toNumber)
-            {
-                _p.Sent.Add("U3A" + fromNumber.ToString("D6") + toNumber.ToString("D6"));
-
-                return _p.ZMemory.FindAll(z => z.ZNumber >= fromNumber && z.ZNumber <= toNumber);
+                return _p.ZMemory.Where(z => z.Key >= from && z.Key <= to).Select(z => z.Value).ToList();
             }
 
             public void Dispose()
@@ -237,6 +232,25 @@ namespace Farmadoc.FiscalAgent.Tests
 
     public static class Samples
     {
+        /// <summary>
+        /// Trama de Z con IGTF (39 campos + vacío final). Montos en céntimos.
+        /// </summary>
+        public static string ZRecord(int z, int lastInvoice, long exemptCents, long baseCents, long taxCents, string date = "261015", string time = "2026")
+        {
+            var fields = new List<string>
+            {
+                z.ToString("D4"), date, time, lastInvoice.ToString("D8"), date, "2025", "00000000", "00000026", "00000320",
+                exemptCents.ToString("D12"), baseCents.ToString("D12"), taxCents.ToString("D12"),
+            };
+
+            while (fields.Count < 39)
+            {
+                fields.Add("000000000000");
+            }
+
+            return string.Join("\n", fields) + "\n";
+        }
+
         public static AgentConfig Config() => new AgentConfig
         {
             ServerUrl = "https://farmadoc.test",

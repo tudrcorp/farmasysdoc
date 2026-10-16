@@ -118,7 +118,7 @@ class FiscalPrinter extends Model
     /**
      * Primera versión del agente que lee reportes Z de la memoria fiscal (trabajo «lectura_z»).
      */
-    public const Z_READING_MIN_AGENT_VERSION = '1.3.0';
+    public const Z_READING_MIN_AGENT_VERSION = '1.3.1';
 
     public function agentSupportsZReading(): bool
     {

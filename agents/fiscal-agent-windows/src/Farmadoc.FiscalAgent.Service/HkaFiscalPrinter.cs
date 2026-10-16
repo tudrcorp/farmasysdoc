@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
+using System.IO;
+using System.Text;
 using Farmadoc.FiscalAgent.Printing;
 using TfhkaNet.IF.VE;
 
@@ -144,75 +144,38 @@ namespace Farmadoc.FiscalAgent.Service
                 _fiscal.PrintZReport();
             }
 
-            public ZReportData ReadLastZReport()
+            /// <summary>
+            /// UploadReportCmd guarda en un archivo las tramas crudas tal como llegan de la máquina; así no se
+            /// depende del parser del SDK (que deja montos en cero sin avisar si un campo no le cuadra).
+            /// </summary>
+            public IList<string> ReadReportRecords(string command)
             {
-                return Map(_fiscal.GetZReport());
-            }
+                var file = Path.GetTempFileName();
 
-            public IList<ZReportData> ReadZReports(int fromNumber, int toNumber)
-            {
-                var reports = _fiscal.GetZReport(fromNumber, toNumber);
+                try
+                {
+                    if (!_fiscal.UploadReportCmd(command, file))
+                    {
+                        return new List<string>();
+                    }
 
-                return reports == null
-                    ? new List<ZReportData>()
-                    : reports.Select(Map).Where(r => r != null).ToList();
+                    return ZReportParser.SplitRecords(File.ReadAllText(file, Encoding.ASCII));
+                }
+                finally
+                {
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
             }
 
             public void Dispose()
             {
                 SafeClose(_fiscal);
-            }
-
-            /// <summary>Una trama que el SDK no pudo interpretar deja todo en cero: se descarta (número de Z 0).</summary>
-            private static ZReportData Map(ReportData data)
-            {
-                if (data == null || data.NumberOfLastZReport <= 0)
-                {
-                    return null;
-                }
-
-                return new ZReportData
-                {
-                    ZNumber = data.NumberOfLastZReport,
-                    ZDatetime = FormatDate(data.ZReportDate),
-                    LastInvoiceNumber = data.NumberOfLastInvoice,
-                    LastInvoiceDatetime = FormatDate(data.LastInvoiceDate),
-                    LastCreditNoteNumber = data.NumberOfLastCreditNote,
-                    LastDebitNoteNumber = data.NumberOfLastDebitNote,
-                    LastNonFiscalNumber = data.NumberOfLastNonFiscal,
-                    ExemptSales = ToMoney(data.FreeSalesTax),
-                    GeneralBaseSales = ToMoney(data.GeneralRate1Sale),
-                    GeneralTaxSales = ToMoney(data.GeneralRate1Tax),
-                    ReducedBaseSales = ToMoney(data.ReducedRate2Sale),
-                    ReducedTaxSales = ToMoney(data.ReducedRate2Tax),
-                    AdditionalBaseSales = ToMoney(data.AdditionalRate3Sale),
-                    AdditionalTaxSales = ToMoney(data.AdditionalRate3Tax),
-                    ExemptCreditNotes = ToMoney(data.FreeTaxDevolution),
-                    GeneralBaseCreditNotes = ToMoney(data.GeneralRateDevolution),
-                    GeneralTaxCreditNotes = ToMoney(data.GeneralRateTaxDevolution),
-                    ReducedBaseCreditNotes = ToMoney(data.ReducedRateDevolution),
-                    ReducedTaxCreditNotes = ToMoney(data.ReducedRateTaxDevolution),
-                    AdditionalBaseCreditNotes = ToMoney(data.AdditionalRateDevolution),
-                    AdditionalTaxCreditNotes = ToMoney(data.AdditionalRateTaxDevolution),
-                    ExemptDebitNotes = ToMoney(data.FreeTaxDebit),
-                    GeneralBaseDebitNotes = ToMoney(data.GeneralRateDebit),
-                    GeneralTaxDebitNotes = ToMoney(data.GeneralRateTaxDebit),
-                    ReducedBaseDebitNotes = ToMoney(data.ReducedRateDebit),
-                    ReducedTaxDebitNotes = ToMoney(data.ReducedRateTaxDebit),
-                    AdditionalBaseDebitNotes = ToMoney(data.AdditionalRateDebit),
-                    AdditionalTaxDebitNotes = ToMoney(data.AdditionalRateTaxDebit),
-                    IgtfBaseSales = ToMoney(data.IgtfRateSales),
-                    IgtfTaxSales = ToMoney(data.IgtfRateTaxSales),
-                    IgtfBaseCreditNotes = ToMoney(data.IgtfRateDevolution),
-                    IgtfTaxCreditNotes = ToMoney(data.IgtfRateTaxDevolution),
-                    IgtfBaseDebitNotes = ToMoney(data.IgtfRateDebit),
-                    IgtfTaxDebitNotes = ToMoney(data.IgtfRateTaxDebit),
-                };
-            }
-
-            private static string FormatDate(DateTime value)
-            {
-                return value.Year <= 1 ? null : value.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);
             }
 
             private static decimal ToMoney(double value)

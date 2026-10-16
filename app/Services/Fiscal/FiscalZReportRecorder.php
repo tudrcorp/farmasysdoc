@@ -189,7 +189,7 @@ final class FiscalZReportRecorder
                 ['module' => 'fiscal', 'fiscal_document_id' => $document->id, 'source' => $source->value],
             );
 
-            if ($this->lock->isClosed((int) $printer->branch_id, SalesBookPeriod::containing($zReport->report_date))) {
+            if ($this->lock->isClosed((int) $printer->branch_id, SalesBookPeriod::containing($zReport->operationsDate($zReport->previousReport())))) {
                 AuditLogger::record(
                     'fiscal_z_report_after_close',
                     'Fiscal · Z Nº '.$zReport->z_number.' capturado en una quincena con Libro de Ventas cerrado; debe reabrirse',

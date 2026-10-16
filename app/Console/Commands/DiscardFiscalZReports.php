@@ -42,7 +42,7 @@ final class DiscardFiscalZReports extends Command
         }
 
         foreach ($reports as $report) {
-            if ($lock->isClosed((int) $report->branch_id, SalesBookPeriod::containing($report->report_date))) {
+            if ($lock->isClosed((int) $report->branch_id, SalesBookPeriod::containing($report->operationsDate($report->previousReport())))) {
                 $this->error('El Z '.$report->z_number.' pertenece a una quincena con Libro de Ventas cerrado; reábralo primero.');
 
                 return self::FAILURE;

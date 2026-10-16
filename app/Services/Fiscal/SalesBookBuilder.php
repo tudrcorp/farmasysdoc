@@ -47,6 +47,18 @@ final class SalesBookBuilder
     private const BUCKETS = ['general', 'reduced', 'additional'];
 
     /**
+     * Días después del cierre de la quincena en que todavía puede emitirse el Z de su último día (p. ej. a la mañana siguiente).
+     */
+    private const LATE_Z_MARGIN_DAYS = 7;
+
+    /**
+     * Fecha de operaciones (última factura) de cada Z, por id.
+     *
+     * @var array<int, string>
+     */
+    private array $operationsDates = [];
+
+    /**
      * @var list<array{level: string, message: string}>
      */
     private array $issues = [];
@@ -70,16 +82,27 @@ final class SalesBookBuilder
     {
         $this->issues = [];
 
-        $zReports = FiscalZReport::query()
+        $this->operationsDates = [];
+
+        $candidates = FiscalZReport::query()
             ->with('fiscalPrinter')
             ->where('branch_id', $branch->id)
-            ->whereBetween('report_date', [$period->start()->toDateString(), $period->end()->toDateString()])
-            ->orderBy('report_date')
+            ->whereBetween('report_date', [$period->start()->toDateString(), $period->end()->addDays(self::LATE_Z_MARGIN_DAYS)->toDateString()])
             ->orderBy('printer_serial')
             ->orderBy('z_number')
             ->get();
 
-        $previousBySerial = $this->previousZReports($zReports);
+        $previousBySerial = $this->previousZReports($candidates);
+
+        foreach ($candidates as $zReport) {
+            $previous = $previousBySerial[$zReport->printer_serial][$zReport->z_number - 1] ?? null;
+            $this->operationsDates[$zReport->id] = $zReport->operationsDate($previous)->toDateString();
+        }
+
+        $zReports = $candidates
+            ->filter(fn (FiscalZReport $zReport): bool => $period->contains($this->operationsDates[$zReport->id]))
+            ->sortBy(fn (FiscalZReport $zReport): string => $this->operationsDates[$zReport->id].'|'.$zReport->printer_serial.'|'.str_pad((string) $zReport->z_number, 9, '0', STR_PAD_LEFT))
+            ->values();
         $vatRate = (float) DefaultVatRate::percent();
 
         $rows = [];
@@ -236,7 +259,7 @@ final class SalesBookBuilder
             $this->issue(self::LEVEL_ERROR, $label.': la máquina ya emitió el Z '.$this->pad($printerLast, 4).' y faltan por leer los posteriores al '.$this->pad($last, 4).'. Use «Leer reportes Z».');
         }
 
-        $days = $serialReports->map(fn (FiscalZReport $z): string => $z->report_date->toDateString());
+        $days = $serialReports->map(fn (FiscalZReport $z): string => $this->operationsDates[$z->id]);
 
         foreach ($days->duplicates() as $day) {
             $this->issue(self::LEVEL_WARNING, $label.': hay más de un Z el '.Carbon::parse($day)->format('d/m/Y').' (revise si fue un cierre adicional).');
@@ -386,9 +409,15 @@ final class SalesBookBuilder
             $zReport,
         );
 
+        $operationsDate = $this->operationsDates[$zReport->id] ?? $zReport->report_date->toDateString();
+
+        if ($operationsDate !== $zReport->report_date->toDateString()) {
+            $zLabel .= ' (EMITIDO '.Carbon::parse($zReport->report_datetime ?? $zReport->report_date)->format('d/m H:i').')';
+        }
+
         $context = [
             'z' => $zReport,
-            'date' => $zReport->report_date->toDateString(),
+            'date' => $operationsDate,
             'serial' => $zReport->printer_serial,
         ];
 
@@ -457,7 +486,7 @@ final class SalesBookBuilder
      */
     private function documentsInRange(array $documents, ?int $first, int $last, FiscalZReport $zReport): array
     {
-        $day = $zReport->report_date->toDateString();
+        $day = $this->operationsDates[$zReport->id] ?? $zReport->report_date->toDateString();
 
         return array_values(array_filter($documents, function (array $doc) use ($first, $last, $day): bool {
             if ($doc['number'] <= 0 || $doc['number'] > $last) {

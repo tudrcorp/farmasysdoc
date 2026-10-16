@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\FiscalZReportSource;
+use Carbon\CarbonImmutable;
 use Database\Factories\FiscalZReportFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -131,6 +132,35 @@ class FiscalZReport extends Model
         $attributes['report_date'] = $this->report_date?->toDateString();
 
         return hash_equals((string) $this->content_hash, self::computeContentHash($attributes));
+    }
+
+    /**
+     * Fecha de las operaciones del Z (la que va al Libro de Ventas): la de su última factura.
+     * Un Z impreso a la mañana siguiente cubre las ventas del día anterior; el IVA se causa con la factura.
+     * Si el Z no tiene facturas propias (numeración igual al Z anterior) se usa la fecha de emisión del Z.
+     */
+    public function operationsDate(?self $previous = null): CarbonImmutable
+    {
+        $emitted = CarbonImmutable::parse($this->report_datetime ?? $this->report_date);
+        $hasInvoices = ! $previous instanceof self || $this->last_invoice_number > $previous->last_invoice_number;
+
+        if ($hasInvoices && $this->last_invoice_datetime !== null) {
+            $lastInvoice = CarbonImmutable::parse($this->last_invoice_datetime);
+
+            if ($lastInvoice->lessThanOrEqualTo($emitted->endOfDay())) {
+                return $lastInvoice->startOfDay();
+            }
+        }
+
+        return CarbonImmutable::parse($this->report_date)->startOfDay();
+    }
+
+    public function previousReport(): ?self
+    {
+        return self::query()
+            ->where('printer_serial', $this->printer_serial)
+            ->where('z_number', $this->z_number - 1)
+            ->first();
     }
 
     public function salesTotalVes(): float

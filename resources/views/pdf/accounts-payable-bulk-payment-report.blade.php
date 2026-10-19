@@ -108,6 +108,9 @@
         <div class="meta">
             {{ $count }} factura(s) cancelada(s)
             · Método: {{ $payment_method ?? '—' }}
+            @if (! empty($payment_bank))
+                · Banco: {{ $payment_bank }}
+            @endif
             · Forma: {{ $payment_form ?? '—' }}
             · Fecha: {{ $paid_at ?? '—' }}
             · Generado: {{ $generated_at }}
@@ -165,7 +168,12 @@
                             <div class="muted">{{ \Illuminate\Support\Str::limit((string) $ap->notes, 60) }}</div>
                         @endif
                     </td>
-                    <td>{{ $row['payment_method'] ?? '—' }}</td>
+                    <td>
+                        {{ $row['payment_method'] ?? '—' }}
+                        @if (! empty($row['payment_bank']))
+                            <div class="muted">{{ $row['payment_bank'] }}</div>
+                        @endif
+                    </td>
                     <td class="center">{{ $row['has_payment_proof'] ? 'Sí' : 'No' }}</td>
                 </tr>
             @endforeach
@@ -235,7 +243,12 @@
                         @foreach ($payments as $payment)
                             <tr>
                                 <td>{{ $payment['paid_at'] }}</td>
-                                <td>{{ $payment['payment_method'] }}</td>
+                                <td>
+                                    {{ $payment['payment_method'] }}
+                                    @if (! empty($payment['payment_bank']))
+                                        <div class="muted">{{ $payment['payment_bank'] }}</div>
+                                    @endif
+                                </td>
                                 <td>{{ $payment['payment_form'] }}</td>
                                 <td class="num">{{ number_format($payment['amount_paid_usd'], 2, ',', '.') }}</td>
                                 <td class="num">{{ number_format($payment['amount_paid_ves'], 2, ',', '.') }}</td>

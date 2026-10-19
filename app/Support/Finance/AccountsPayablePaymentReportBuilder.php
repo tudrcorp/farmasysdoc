@@ -30,6 +30,7 @@ final class AccountsPayablePaymentReportBuilder
      *         amount_paid_usd: float,
      *         amount_paid_ves: float,
      *         bcv_rate: float|null,
+     *         payment_bank: string|null,
      *         payment_reference: string|null,
      *         notes: string|null,
      *         created_by: string|null,
@@ -65,6 +66,7 @@ final class AccountsPayablePaymentReportBuilder
                 'bcv_rate' => $history->bcv_rate_at_payment !== null
                     ? BcvRate::truncate((float) $history->bcv_rate_at_payment)
                     : null,
+                'payment_bank' => $history->paymentBankLabel(),
                 'payment_reference' => filled($history->payment_reference)
                     ? (string) $history->payment_reference
                     : null,
@@ -115,6 +117,7 @@ final class AccountsPayablePaymentReportBuilder
      *         has_payment_proof: bool,
      *         tax_retained_ves: float|null,
      *         payment_method: string,
+     *         payment_bank: string|null,
      *         payment_form: string,
      *         bcv_rate: float|null,
      *         payments: Collection<int, array<string, mixed>>,
@@ -127,6 +130,7 @@ final class AccountsPayablePaymentReportBuilder
      *     generated_at: string,
      *     generated_by: string,
      *     payment_method: string,
+     *     payment_bank: string|null,
      *     payment_form: string,
      *     payment_reference: string|null,
      *     paid_at: string,
@@ -163,6 +167,7 @@ final class AccountsPayablePaymentReportBuilder
                     'has_payment_proof' => $detail['has_payment_proof'],
                     'tax_retained_ves' => $detail['tax_snapshot']->taxRetainedVes,
                     'payment_method' => (string) ($lastPayment['payment_method'] ?? '—'),
+                    'payment_bank' => $lastPayment['payment_bank'] ?? null,
                     'payment_form' => (string) ($lastPayment['payment_form'] ?? '—'),
                     'bcv_rate' => isset($lastPayment['bcv_rate']) ? (float) $lastPayment['bcv_rate'] : null,
                     'payments' => $detail['payments'],
@@ -185,6 +190,7 @@ final class AccountsPayablePaymentReportBuilder
                 ? (string) ($actor->email ?? $actor->name ?? 'usuario_'.$actor->getKey())
                 : 'sistema',
             'payment_method' => is_array($firstRow) ? (string) ($firstRow['payment_method'] ?? '—') : '—',
+            'payment_bank' => is_array($firstRow) ? ($firstRow['payment_bank'] ?? null) : null,
             'payment_form' => is_array($firstRow) ? (string) ($firstRow['payment_form'] ?? '—') : '—',
             'payment_reference' => is_array($firstRow) ? ($firstRow['payment_reference'] ?? null) : null,
             'paid_at' => is_array($firstRow) ? (string) ($firstRow['paid_at'] ?? '—') : '—',

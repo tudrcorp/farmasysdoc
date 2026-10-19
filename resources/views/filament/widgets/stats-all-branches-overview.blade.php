@@ -20,11 +20,18 @@
                 Ventas del mes · por sucursal
             </h2>
             <p class="fi-farmaadmin-branch-monthly-stats__description">
-                {{ $monthLabel }} · {{ $registered_branches_count }} sucursales · {{ $scope_description }}
+                @if (($selected_branch_id ?? null) !== null)
+                    {{ $monthLabel }} · 1 sucursal · {{ $scope_description }}
+                @else
+                    {{ $monthLabel }} · {{ $registered_branches_count }} sucursales · {{ $scope_description }}
+                @endif
             </p>
         </header>
 
-        <div class="fi-farmaadmin-branch-monthly-stats__grid">
+        <div @class([
+            'fi-farmaadmin-branch-monthly-stats__grid',
+            'fi-farmaadmin-branch-monthly-stats__grid--single' => count($branchCards) === 1,
+        ])>
             @forelse ($branchCards as $index => $branch)
                 @php
                     $variant = $index % 3;
@@ -38,9 +45,6 @@
                     $progressBarWidth = $hasGoal && $progressPercent !== null
                         ? min(100, max(0, $progressPercent))
                         : 0;
-                    $bcvFootnote = $branch['total_ves'] > 0
-                        ? 'BCV efectivo del mes'
-                        : 'BCV referencia';
                 @endphp
 
                 <article
@@ -61,10 +65,16 @@
                         </div>
                         <span class="fi-farmaadmin-branch-monthly-stat__totals">
                             <span class="fi-farmaadmin-branch-monthly-stat__total">
+                                <span class="fi-farmaadmin-branch-monthly-stat__total-label">Mes</span>
                                 {{ Number::currency($branch['total_usd'], 'USD', 'en', 2) }}
-                            </span>
-                            <span class="fi-farmaadmin-branch-monthly-stat__total fi-farmaadmin-branch-monthly-stat__total--ves">
+                                <span class="fi-farmaadmin-branch-monthly-stat__total-separator">·</span>
                                 Bs. {{ number_format($branch['total_ves'], 2, ',', '.') }}
+                            </span>
+                            <span class="fi-farmaadmin-branch-monthly-stat__total fi-farmaadmin-branch-monthly-stat__total--day">
+                                <span class="fi-farmaadmin-branch-monthly-stat__total-label">Hoy</span>
+                                {{ Number::currency($branch['today_usd'], 'USD', 'en', 2) }}
+                                <span class="fi-farmaadmin-branch-monthly-stat__total-separator">·</span>
+                                Bs. {{ number_format($branch['today_ves'], 2, ',', '.') }}
                             </span>
                         </span>
                     </header>
@@ -106,22 +116,29 @@
                         </div>
                     </div>
 
-                    <dl class="fi-farmaadmin-branch-monthly-stat__metrics">
+                    <dl class="fi-farmaadmin-branch-monthly-stat__metrics fi-farmaadmin-branch-monthly-stat__metrics--with-total">
                         <div class="fi-farmaadmin-branch-monthly-stat__metric">
                             <dt>USD</dt>
                             <dd>{{ Number::currency($branch['total_usd'], 'USD', 'en', 2) }}</dd>
                         </div>
                         <div class="fi-farmaadmin-branch-monthly-stat__metric">
                             <dt>Bs.</dt>
-                            <dd>{{ number_format($branch['total_ves'], 0, ',', '.') }}</dd>
+                            <dd>{{ number_format($branch['total_ves'], 2, ',', '.') }}</dd>
                         </div>
                         <div class="fi-farmaadmin-branch-monthly-stat__metric">
                             <dt>BCV</dt>
                             <dd>{{ $bcvLabel }}</dd>
                         </div>
-                        <div class="fi-farmaadmin-branch-monthly-stat__metric fi-farmaadmin-branch-monthly-stat__metric--note">
-                            <dt>{{ $bcvFootnote }}</dt>
-                            <dd>{{ $monthLabel }}</dd>
+                        <div class="fi-farmaadmin-branch-monthly-stat__metric fi-farmaadmin-branch-monthly-stat__metric--highlight">
+                            <dt>Total general USD</dt>
+                            <dd>
+                                <span class="fi-farmaadmin-branch-monthly-stat__highlight-label">Mes</span>
+                                {{ Number::currency($branch['general_total_usd'], 'USD', 'en', 2) }}
+                            </dd>
+                            <dd>
+                                <span class="fi-farmaadmin-branch-monthly-stat__highlight-label">Hoy</span>
+                                {{ Number::currency($branch['today_general_total_usd'], 'USD', 'en', 2) }}
+                            </dd>
                         </div>
                     </dl>
                 </article>

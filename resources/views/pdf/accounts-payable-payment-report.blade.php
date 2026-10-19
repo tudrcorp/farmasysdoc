@@ -183,6 +183,10 @@
             <td>{{ $accounts_payable->due_at?->format('d/m/Y') ?? '—' }}</td>
         </tr>
         <tr>
+            <th>Banco de origen</th>
+            <td colspan="3">{{ $payments->last()['payment_bank'] ?? '—' }}</td>
+        </tr>
+        <tr>
             <th>Referencia de pago</th>
             <td colspan="3">{{ $accounts_payable->payment_reference ?: '—' }}</td>
         </tr>
@@ -258,7 +262,12 @@
                 @foreach ($payments as $payment)
                     <tr>
                         <td>{{ $payment['paid_at'] }}</td>
-                        <td>{{ $payment['payment_method'] }}</td>
+                        <td>
+                            {{ $payment['payment_method'] }}
+                            @if ($payment['payment_bank'])
+                                <div class="muted">{{ $payment['payment_bank'] }}</div>
+                            @endif
+                        </td>
                         <td>{{ $payment['payment_form'] }}</td>
                         <td class="num">{{ number_format($payment['amount_paid_usd'], 2, ',', '.') }}</td>
                         <td class="num">{{ number_format($payment['amount_paid_ves'], 2, ',', '.') }}</td>

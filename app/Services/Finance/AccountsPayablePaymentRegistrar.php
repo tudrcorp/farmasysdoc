@@ -2,6 +2,8 @@
 
 namespace App\Services\Finance;
 
+use App\Enums\PaymentBankAccountType;
+use App\Enums\VenezuelanPagoMovilBank;
 use App\Jobs\SendAccountsPayableBulkPaymentReportMailJob;
 use App\Jobs\SendAccountsPayablePaymentReportMailJob;
 use App\Models\AccountsPayable;
@@ -10,6 +12,7 @@ use App\Models\PurchaseHistory;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Support\Finance\AccountsPayableInvoiceTaxSnapshot;
+use App\Support\Finance\AccountsPayablePaymentReferenceGuard;
 use App\Support\Finance\AccountsPayableStatus;
 use App\Support\Finance\BcvRate;
 use App\Support\Purchases\PurchaseHistoryEntryType;
@@ -39,6 +42,9 @@ final class AccountsPayablePaymentRegistrar
      *     paid_at: string|\DateTimeInterface,
      *     amount_paid_usd: float|string,
      *     amount_paid_ves: float|string,
+     *     payment_bank_account_type?: string|null,
+     *     payment_bank_code?: string|null,
+     *     payment_bank_name?: string|null,
      *     payment_reference?: string|null,
      *     notes?: string|null,
      *     payment_proof_path?: mixed,
@@ -52,6 +58,8 @@ final class AccountsPayablePaymentRegistrar
         $history = DB::transaction(function () use ($accountsPayable, $data, $actorLabel): PurchaseHistory {
             /** @var AccountsPayable $ap */
             $ap = AccountsPayable::query()->whereKey($accountsPayable->getKey())->lockForUpdate()->firstOrFail();
+
+            $this->assertPaymentReferenceUnused($data);
 
             return $this->applyAfterLock($ap, $data, $actorLabel);
         });
@@ -69,6 +77,9 @@ final class AccountsPayablePaymentRegistrar
      *     payment_method: string,
      *     payment_form: string,
      *     paid_at: string|\DateTimeInterface,
+     *     payment_bank_account_type?: string|null,
+     *     payment_bank_code?: string|null,
+     *     payment_bank_name?: string|null,
      *     payment_reference?: string|null,
      *     notes?: string|null,
      *     payment_proof_path?: mixed,
@@ -100,6 +111,8 @@ final class AccountsPayablePaymentRegistrar
             $histories = DB::transaction(function () use ($accountsPayables, $sharedData, $actorLabel, $rateFx): array {
                 $sorted = $accountsPayables->unique('id')->sortBy('id');
                 $histories = [];
+
+                $this->assertPaymentReferenceUnused($sharedData);
 
                 foreach ($sorted as $row) {
                     if (! $row instanceof AccountsPayable) {
@@ -183,6 +196,9 @@ final class AccountsPayablePaymentRegistrar
      *     paid_at: string|\DateTimeInterface,
      *     amount_paid_usd: float|string,
      *     amount_paid_ves: float|string,
+     *     payment_bank_account_type?: string|null,
+     *     payment_bank_code?: string|null,
+     *     payment_bank_name?: string|null,
      *     payment_reference?: string|null,
      *     notes?: string|null,
      *     payment_proof_path?: mixed,
@@ -234,6 +250,7 @@ final class AccountsPayablePaymentRegistrar
         $snapshot = $this->snapshotBuilder->build($purchase);
 
         $paymentRef = $this->normalizePaymentReference($data['payment_reference'] ?? null);
+        $paymentBank = $this->normalizePaymentBank($data);
 
         $retention = app(PurchaseHistoryRetentionVoucherSynchronizer::class)
             ->attributesForPurchaseId((int) $purchase->id);
@@ -267,6 +284,7 @@ final class AccountsPayablePaymentRegistrar
             'amount_paid_ves' => $amountPaidVes,
             'amount_paid_usd' => $paidUsd,
             'bcv_rate_at_payment' => $rateFx,
+            ...$paymentBank,
             'payment_reference' => $paymentRef,
             'notes' => filled($data['notes'] ?? null) ? trim((string) $data['notes']) : null,
             'created_by' => $actorLabel,
@@ -299,6 +317,7 @@ final class AccountsPayablePaymentRegistrar
                 'amount_paid_ves' => $amountPaidVes,
                 'amount_paid_usd' => $paidUsd,
                 'payment_reference' => $paymentRef,
+                ...$paymentBank,
                 'bcv_rate_at_payment' => $rateFx,
             ],
         );
@@ -314,6 +333,7 @@ final class AccountsPayablePaymentRegistrar
                 'amount_paid_ves' => $amountPaidVes,
                 'amount_paid_usd' => $paidUsd,
                 'payment_reference' => $paymentRef,
+                ...$paymentBank,
                 'payment_proof_path' => $ap->payment_proof_path,
                 'bcv_rate_at_payment' => $rateFx,
                 'remaining_principal_usd_after' => $newRemainingUsd,
@@ -356,6 +376,86 @@ final class AccountsPayablePaymentRegistrar
                 'amount_paid_ves' => 'El monto en Bs no coincide con el USD indicado usando la tasa BCV del día actual ('.BcvRate::format((float) $rateFx).' Bs/USD). Esperado aprox.: '.number_format($expectedVes, 2, ',', '.').' Bs.',
             ]);
         }
+    }
+
+    /**
+     * Se valida una vez por envío (antes de insertar), para que las facturas de un mismo
+     * pago masivo puedan compartir la referencia.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function assertPaymentReferenceUnused(array $data): void
+    {
+        $paymentBank = $this->normalizePaymentBank($data);
+
+        AccountsPayablePaymentReferenceGuard::assertUnused(
+            $this->normalizePaymentReference($data['payment_reference'] ?? null),
+            $paymentBank['payment_bank_account_type'],
+            $paymentBank['payment_bank_code'],
+            $paymentBank['payment_bank_name'],
+        );
+    }
+
+    /**
+     * Banco/tipo de cuenta de origen. Sin ningún dato (integraciones antiguas) se guarda vacío;
+     * si viene alguno, se exige el set completo coherente con el tipo de cuenta.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{payment_bank_account_type: string|null, payment_bank_code: string|null, payment_bank_name: string|null}
+     */
+    private function normalizePaymentBank(array $data): array
+    {
+        $rawType = $data['payment_bank_account_type'] ?? null;
+        $rawCode = $data['payment_bank_code'] ?? null;
+        $rawName = $data['payment_bank_name'] ?? null;
+
+        if (! filled($rawType) && ! filled($rawCode) && ! filled($rawName)) {
+            return [
+                'payment_bank_account_type' => null,
+                'payment_bank_code' => null,
+                'payment_bank_name' => null,
+            ];
+        }
+
+        $accountType = $rawType instanceof PaymentBankAccountType
+            ? $rawType
+            : PaymentBankAccountType::tryFrom((string) $rawType);
+
+        if ($accountType === null) {
+            throw ValidationException::withMessages([
+                'payment_bank_account_type' => 'Seleccione el tipo de cuenta desde la que se pagó.',
+            ]);
+        }
+
+        if ($accountType->requiresManualBankName()) {
+            $bankName = trim((string) $rawName);
+
+            if ($bankName === '') {
+                throw ValidationException::withMessages([
+                    'payment_bank_name' => 'Indique el nombre del banco de la cuenta '.mb_strtolower($accountType->label()).'.',
+                ]);
+            }
+
+            return [
+                'payment_bank_account_type' => $accountType->value,
+                'payment_bank_code' => null,
+                'payment_bank_name' => mb_substr($bankName, 0, 120),
+            ];
+        }
+
+        $bank = VenezuelanPagoMovilBank::tryFrom((string) $rawCode);
+
+        if ($bank === null) {
+            throw ValidationException::withMessages([
+                'payment_bank_code' => 'Seleccione el banco desde el que se pagó.',
+            ]);
+        }
+
+        return [
+            'payment_bank_account_type' => $accountType->value,
+            'payment_bank_code' => $bank->value,
+            'payment_bank_name' => null,
+        ];
     }
 
     private function normalizePaymentReference(mixed $value): ?string

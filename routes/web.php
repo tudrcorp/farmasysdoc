@@ -21,6 +21,7 @@ use App\Http\Controllers\Purchases\PurchaseBookRetentionVoucherPdfController;
 use App\Http\Controllers\Purchases\PurchaseBookSeniatRetentionTxtController;
 use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
 use App\Http\Controllers\Purchases\PurchaseLedgerBookReportController;
+use App\Http\Controllers\Purchases\SupplierDossierPdfController;
 use App\Http\Controllers\Reports\SystemReportsDownloadController;
 use App\Http\Controllers\Sales\CashRegisterClosePdfController;
 use App\Http\Controllers\Sales\PhysicalCashBoxClosePhotoController;
@@ -219,6 +220,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('accounts-payables/bulk-payment-report-pdf', AccountsPayableBulkPaymentReportPdfController::class)
         ->middleware('signed')
         ->name('accounts-payables.bulk-payment-report-pdf');
+
+    Route::get('suppliers/{supplier}/dossier-pdf', SupplierDossierPdfController::class)
+        ->middleware('signed')
+        ->name('suppliers.dossier-pdf');
 
     Route::get('purchases/{purchase}/annulment-approve', [PurchaseAnnulmentApprovalController::class, 'show'])
         ->middleware('signed')

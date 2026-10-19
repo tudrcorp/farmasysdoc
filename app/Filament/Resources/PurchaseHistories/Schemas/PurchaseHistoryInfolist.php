@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\PurchaseHistories\Schemas;
 
+use App\Enums\PaymentBankAccountType;
 use App\Filament\Resources\AccountsPayables\AccountsPayableResource;
 use App\Models\PurchaseHistory;
 use App\Support\Finance\BcvRate;
@@ -150,6 +151,14 @@ class PurchaseHistoryInfolist
                         TextEntry::make('bcv_rate_at_payment')
                             ->label('Tasa BCV (Bs/USD) aplicada al pago')
                             ->formatStateUsing(fn ($state): string => $state !== null ? BcvRate::format((float) $state).' Bs/USD' : '—'),
+                        TextEntry::make('payment_bank')
+                            ->label('Banco de origen (Farmadoc)')
+                            ->state(fn (PurchaseHistory $record): ?string => $record->paymentBankName())
+                            ->placeholder('—'),
+                        TextEntry::make('payment_bank_account_type')
+                            ->label('Tipo de cuenta')
+                            ->formatStateUsing(fn (mixed $state): string => PaymentBankAccountType::tryLabel($state))
+                            ->placeholder('—'),
                         TextEntry::make('payment_reference')
                             ->label('Referencia del pago')
                             ->placeholder('—'),

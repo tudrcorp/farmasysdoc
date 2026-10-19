@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentBankAccountType;
+use App\Enums\VenezuelanPagoMovilBank;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -33,6 +35,9 @@ class PurchaseHistory extends Model
         'amount_paid_ves',
         'amount_paid_usd',
         'bcv_rate_at_payment',
+        'payment_bank_account_type',
+        'payment_bank_code',
+        'payment_bank_name',
         'payment_reference',
         'notes',
         'created_by',
@@ -56,7 +61,40 @@ class PurchaseHistory extends Model
             'amount_paid_ves' => 'decimal:2',
             'amount_paid_usd' => 'decimal:2',
             'bcv_rate_at_payment' => 'decimal:8',
+            'payment_bank_account_type' => PaymentBankAccountType::class,
         ];
+    }
+
+    /**
+     * Banco de origen del pago: nombre escrito a mano (electrónica/extranjera) o del catálogo venezolano.
+     */
+    public function paymentBankName(): ?string
+    {
+        if ($this->payment_bank_account_type?->requiresManualBankName()) {
+            return filled($this->payment_bank_name) ? (string) $this->payment_bank_name : null;
+        }
+
+        if (! filled($this->payment_bank_code)) {
+            return null;
+        }
+
+        return VenezuelanPagoMovilBank::tryFrom((string) $this->payment_bank_code)?->bankName()
+            ?? (string) $this->payment_bank_code;
+    }
+
+    /**
+     * Ej.: «Banesco · Corriente». Null en pagos registrados antes de capturar el banco.
+     */
+    public function paymentBankLabel(): ?string
+    {
+        $bankName = $this->paymentBankName();
+        $accountType = $this->payment_bank_account_type?->label();
+
+        if ($bankName === null && $accountType === null) {
+            return null;
+        }
+
+        return implode(' · ', array_filter([$bankName, $accountType]));
     }
 
     /**

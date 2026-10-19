@@ -135,6 +135,11 @@ class PurchaseHistoriesTable
                     ->formatStateUsing(fn (?string $state): string => PurchaseHistoryPaymentMethod::label($state))
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: false),
+                TextColumn::make('payment_bank')
+                    ->label('Banco / cuenta')
+                    ->state(fn (PurchaseHistory $record): ?string => $record->paymentBankLabel())
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: false),
                 TextColumn::make('payment_form')
                     ->label('Forma pago')
                     ->formatStateUsing(fn (?string $state): string => PurchaseHistoryPaymentForm::label($state))

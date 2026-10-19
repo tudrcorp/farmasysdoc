@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Widgets\Concerns\InteractsWithDashboardBranchFilter;
 use App\Models\User;
 use App\Services\Dashboard\AllBranchesMonthlySalesStatsService;
 use App\Support\Filament\DashboardBranchFilter;
@@ -10,6 +11,8 @@ use Filament\Widgets\Widget;
 
 class AllBranchesMonthlySalesOverview extends Widget
 {
+    use InteractsWithDashboardBranchFilter;
+
     /**
      * @var view-string
      */
@@ -49,6 +52,7 @@ class AllBranchesMonthlySalesOverview extends Widget
      *     month_label: string,
      *     registered_branches_count: int,
      *     scope_description: string,
+     *     selected_branch_id: int|null,
      *     branches: list<array{
      *         branch_id: int,
      *         branch_name: string,
@@ -56,6 +60,9 @@ class AllBranchesMonthlySalesOverview extends Widget
      *         total_ves: float,
      *         ves_converted_usd: float,
      *         general_total_usd: float,
+     *         today_usd: float,
+     *         today_ves: float,
+     *         today_general_total_usd: float,
      *         goal_usd: float|null,
      *         goal_progress_percent: float|null,
      *         has_goal: bool,
@@ -64,6 +71,8 @@ class AllBranchesMonthlySalesOverview extends Widget
      */
     protected function getViewData(): array
     {
-        return app(AllBranchesMonthlySalesStatsService::class)->forCurrentMonthByBranch();
+        return app(AllBranchesMonthlySalesStatsService::class)->forCurrentMonthByBranch(
+            DashboardBranchFilter::selectedBranchId(),
+        );
     }
 }

@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Auth;
 
 /**
  * Totales mensuales de ventas completadas de todas las sucursales registradas.
- * No aplica el filtro de sucursal del dashboard.
+ * Opcionalmente se acota a la sucursal elegida en el filtro del dashboard.
  */
 final class AllBranchesMonthlySalesStatsService
 {
@@ -37,6 +37,9 @@ final class AllBranchesMonthlySalesStatsService
      *         total_ves: float,
      *         ves_converted_usd: float,
      *         general_total_usd: float,
+     *         today_usd: float,
+     *         today_ves: float,
+     *         today_general_total_usd: float,
      *         bcv_rate_used: float|null,
      *         goal_usd: float|null,
      *         goal_progress_percent: float|null,
@@ -44,15 +47,20 @@ final class AllBranchesMonthlySalesStatsService
      *     }>,
      * }
      */
-    public function forCurrentMonthByBranch(): array
+    public function forCurrentMonthByBranch(?int $selectedBranchId = null): array
     {
-        return $this->forPeriodByBranch(now()->startOfMonth(), now()->endOfDay());
+        return $this->forPeriodByBranch(now()->startOfMonth(), now()->endOfDay(), $selectedBranchId);
     }
 
     /**
+     * Con `$selectedBranchId` los totales son solo de esa sucursal y el progreso mide
+     * su aporte a la meta global; además se informa qué porción de la meta global le toca.
+     *
      * @return array{
      *     month_label: string,
      *     scope_description: string,
+     *     selected_branch_id: int|null,
+     *     selected_branch_name: string|null,
      *     total_usd: float,
      *     total_ves: float,
      *     ves_converted_usd: float,
@@ -61,16 +69,20 @@ final class AllBranchesMonthlySalesStatsService
      *     goal_usd: float|null,
      *     goal_progress_percent: float|null,
      *     has_goal: bool,
+     *     branch_goal_usd: float|null,
+     *     branch_goal_share_percent: float|null,
+     *     branch_goal_progress_percent: float|null,
      * }
      */
-    public function forCurrentMonthGlobalSummary(): array
+    public function forCurrentMonthGlobalSummary(?int $selectedBranchId = null): array
     {
         $from = now()->startOfMonth();
         $to = now()->endOfDay();
         $monthLabel = ucfirst($from->locale('es')->translatedFormat('F Y'));
         $viewer = Auth::user();
+        $selectedBranch = $this->resolveSelectedBranch($viewer, $selectedBranchId);
 
-        $sales = $this->salesForPeriod($from, $to);
+        $sales = $this->salesForPeriod($from, $to, $selectedBranch?->id);
         $collected = $this->collectedMoneyAggregator->collectedTotals($sales);
         $documentTotalUsd = round((float) $sales->sum('total'), 2);
 
@@ -84,9 +96,27 @@ final class AllBranchesMonthlySalesStatsService
             : null;
         $goalProgress = $this->resolveGoalProgressPercent($documentTotalUsd, $goalUsd);
 
+        $branchGoalUsd = null;
+
+        if ($selectedBranch instanceof Branch) {
+            $branchGoalUsd = BranchSalesGoal::query()
+                ->forPeriod((int) $from->year, (int) $from->month)
+                ->where('is_global', false)
+                ->where('branch_id', $selectedBranch->id)
+                ->value('goal_usd');
+
+            $branchGoalUsd = is_numeric($branchGoalUsd) && (float) $branchGoalUsd > 0
+                ? round((float) $branchGoalUsd, 2)
+                : null;
+        }
+
         return [
             'month_label' => $monthLabel,
-            'scope_description' => $this->scopeDescriptionForViewer($viewer),
+            'scope_description' => $selectedBranch instanceof Branch
+                ? (string) $selectedBranch->name
+                : $this->scopeDescriptionForViewer($viewer),
+            'selected_branch_id' => $selectedBranch?->id,
+            'selected_branch_name' => $selectedBranch?->name,
             'total_usd' => $collected['usd'],
             'total_ves' => $collected['ves'],
             'ves_converted_usd' => 0.0,
@@ -95,14 +125,24 @@ final class AllBranchesMonthlySalesStatsService
             'goal_usd' => $goalUsd,
             'goal_progress_percent' => $goalProgress,
             'has_goal' => $goalUsd !== null && $goalUsd > 0,
+            'branch_goal_usd' => $branchGoalUsd,
+            'branch_goal_share_percent' => $branchGoalUsd !== null
+                ? $this->resolveGoalProgressPercent($branchGoalUsd, $goalUsd)
+                : null,
+            'branch_goal_progress_percent' => $selectedBranch instanceof Branch
+                ? $this->resolveGoalProgressPercent($documentTotalUsd, $branchGoalUsd)
+                : null,
         ];
     }
 
     /**
+     * Con `$selectedBranchId` (permitida para el usuario) solo se devuelve esa sucursal.
+     *
      * @return array{
      *     month_label: string,
      *     registered_branches_count: int,
      *     scope_description: string,
+     *     selected_branch_id: int|null,
      *     branches: list<array{
      *         branch_id: int,
      *         branch_name: string,
@@ -110,6 +150,9 @@ final class AllBranchesMonthlySalesStatsService
      *         total_ves: float,
      *         ves_converted_usd: float,
      *         general_total_usd: float,
+     *         today_usd: float,
+     *         today_ves: float,
+     *         today_general_total_usd: float,
      *         bcv_rate_used: float|null,
      *         goal_usd: float|null,
      *         goal_progress_percent: float|null,
@@ -117,17 +160,26 @@ final class AllBranchesMonthlySalesStatsService
      *     }>,
      * }
      */
-    public function forPeriodByBranch(CarbonInterface $from, CarbonInterface $to): array
+    public function forPeriodByBranch(CarbonInterface $from, CarbonInterface $to, ?int $selectedBranchId = null): array
     {
         $monthLabel = ucfirst($from->locale('es')->translatedFormat('F Y'));
         $viewer = Auth::user();
         $branchIds = $this->resolveBranchIdsForViewer($viewer);
+        $selectedBranch = $this->resolveSelectedBranch($viewer, $selectedBranchId);
+        $scopeDescription = $selectedBranch instanceof Branch
+            ? (string) $selectedBranch->name
+            : $this->scopeDescriptionForViewer($viewer);
+
+        if ($selectedBranch instanceof Branch) {
+            $branchIds = [(int) $selectedBranch->id];
+        }
 
         if ($branchIds === []) {
             return [
                 'month_label' => $monthLabel,
                 'registered_branches_count' => 0,
-                'scope_description' => $this->scopeDescriptionForViewer($viewer),
+                'scope_description' => $scopeDescription,
+                'selected_branch_id' => null,
                 'branches' => [],
             ];
         }
@@ -149,12 +201,17 @@ final class AllBranchesMonthlySalesStatsService
             ->get()
             ->groupBy('branch_id');
 
+        $dayStart = $to->copy()->startOfDay();
         $branchStats = [];
 
         foreach ($branches as $branch) {
             /** @var Collection<int, Sale> $branchSales */
             $branchSales = $salesByBranch->get($branch->id, collect());
             $collected = $this->collectedMoneyAggregator->collectedTotals($branchSales);
+            $branchSalesToday = $branchSales->filter(
+                static fn (Sale $sale): bool => $sale->sold_at->greaterThanOrEqualTo($dayStart),
+            );
+            $collectedToday = $this->collectedMoneyAggregator->collectedTotals($branchSalesToday);
             $documentTotalUsd = round((float) $branchSales->sum('total'), 2);
             $goalUsd = $goalsByBranchId->has($branch->id)
                 ? round((float) $goalsByBranchId->get($branch->id), 2)
@@ -168,6 +225,9 @@ final class AllBranchesMonthlySalesStatsService
                 'total_ves' => $collected['ves'],
                 'ves_converted_usd' => 0.0,
                 'general_total_usd' => $documentTotalUsd,
+                'today_usd' => $collectedToday['usd'],
+                'today_ves' => $collectedToday['ves'],
+                'today_general_total_usd' => round((float) $branchSalesToday->sum('total'), 2),
                 'bcv_rate_used' => $this->resolveBcvRateUsed($branchSales, $to),
                 'goal_usd' => $goalUsd,
                 'goal_progress_percent' => $goalProgress,
@@ -178,7 +238,8 @@ final class AllBranchesMonthlySalesStatsService
         return [
             'month_label' => $monthLabel,
             'registered_branches_count' => $branches->count(),
-            'scope_description' => $this->scopeDescriptionForViewer($viewer),
+            'scope_description' => $scopeDescription,
+            'selected_branch_id' => $selectedBranch?->id,
             'branches' => $branchStats,
         ];
     }
@@ -198,6 +259,15 @@ final class AllBranchesMonthlySalesStatsService
         }
 
         return DashboardBranchFilter::allowedBranchIdsForCurrentUser();
+    }
+
+    private function resolveSelectedBranch(?User $viewer, ?int $selectedBranchId): ?Branch
+    {
+        if ($selectedBranchId === null || ! in_array($selectedBranchId, $this->resolveBranchIdsForViewer($viewer), true)) {
+            return null;
+        }
+
+        return Branch::query()->find($selectedBranchId, ['id', 'name']);
     }
 
     private function scopeDescriptionForViewer(?User $viewer): string
@@ -220,9 +290,10 @@ final class AllBranchesMonthlySalesStatsService
     /**
      * @return Collection<int, Sale>
      */
-    private function salesForPeriod(CarbonInterface $from, CarbonInterface $to): Collection
+    private function salesForPeriod(CarbonInterface $from, CarbonInterface $to, ?int $branchId = null): Collection
     {
         return $this->baseSalesQuery($from, $to)
+            ->when($branchId !== null, static fn (Builder $query): Builder => $query->where('branch_id', $branchId))
             ->with(['conciliationCachea', 'posTerminal'])
             ->get();
     }

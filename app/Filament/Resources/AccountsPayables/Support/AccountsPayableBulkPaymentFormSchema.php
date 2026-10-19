@@ -38,6 +38,7 @@ final class AccountsPayableBulkPaymentFormSchema
             'payment_method' => PurchaseHistoryPaymentMethod::TRANSFERENCIA,
             'payment_form' => PurchaseHistoryPaymentForm::LIQUIDACION_TOTAL,
             'paid_at' => now(),
+            ...AccountsPayablePaymentFormSchema::defaultPaymentBankState(),
             'payment_reference' => '',
             'notes' => null,
             'payment_proof_path' => null,

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Models\User;
 use App\Support\Filament\DashboardBranchFilter;
 use Filament\Facades\Filament;
 use Filament\Widgets\Widget;
@@ -12,6 +13,11 @@ use Illuminate\Contracts\Auth\Authenticatable;
  */
 class FarmaadminAccountWidget extends Widget
 {
+    /**
+     * Duración mínima de la transición "entrar a sucursal" (solo administradores).
+     */
+    public const int BRANCH_TRANSITION_DURATION_MS = 1000;
+
     protected static ?int $sort = -3;
 
     protected static bool $isLazy = false;
@@ -52,14 +58,21 @@ class FarmaadminAccountWidget extends Widget
      * @return array{
      *     user: ?Authenticatable,
      *     showBranchPicker: bool,
+     *     showBranchTransition: bool,
+     *     branchTransitionDurationMs: int,
      *     branchOptions: list<array{id: int, name: string, short_name: string}>
      * }
      */
     protected function getViewData(): array
     {
+        $user = Filament::auth()->user();
+        $showBranchPicker = DashboardBranchFilter::shouldShowBranchPicker();
+
         return [
-            'user' => Filament::auth()->user(),
-            'showBranchPicker' => DashboardBranchFilter::shouldShowBranchPicker(),
+            'user' => $user,
+            'showBranchPicker' => $showBranchPicker,
+            'showBranchTransition' => $showBranchPicker && $user instanceof User && $user->isAdministrator(),
+            'branchTransitionDurationMs' => self::BRANCH_TRANSITION_DURATION_MS,
             'branchOptions' => DashboardBranchFilter::branchOptionsForPicker(),
         ];
     }

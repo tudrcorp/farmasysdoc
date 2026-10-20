@@ -1903,27 +1903,11 @@ final class CashRegisterAction
                     ->success()
                     ->send();
 
-                $fiscalDocument = self::registerFiscalInvoiceSafely($sale, $actorUser, $data);
-
-                $nextUrl = $fiscalDocument !== null && ! $fiscalDocument->simulation
-                    ? route('sales.fiscal-print.show', $sale)
-                    : (config('fiscal.auto_print_on_sale_complete', true)
-                    ? ($sale->payment_method === 'credito_cliente'
-                        ? route('sales.delivery-note.print', $sale)
-                        : route('sales.fiscal-receipt.print', $sale))
-                    : SaleResource::getUrl('view', ['record' => $sale], isAbsolute: false));
-
                 $livewire = $action->getLivewire();
-                if ($sale->payment_method === 'efectivo_usd' && $livewire instanceof HasActions) {
-                    $livewire->mountAction(self::EFECTIVO_USD_POST_SALE_CHANGE_ACTION_NAME, [
-                        'sale_id' => $sale->id,
-                        'redirect_url' => $nextUrl,
-                    ]);
 
-                    return;
-                }
-
-                return redirect()->to($nextUrl);
+                DB::afterCommit(static function () use ($sale, $actorUser, $data, $livewire): void {
+                    self::continueAfterSaleCommitted($sale, $actorUser, $data, $livewire);
+                });
             });
     }
 
@@ -4228,6 +4212,39 @@ final class CashRegisterAction
             'amount_usd' => round((float) $box->amount_usd + $usdDelta, 2),
             'amount_ves' => round((float) $box->amount_ves + $vesDelta, 2),
         ])->save();
+    }
+
+    /**
+     * Encola la factura fiscal y lleva al cajero a la siguiente pantalla una vez confirmada la transacción
+     * de la acción (el panel envuelve las acciones en una). Encolar dentro de esa transacción choca con las
+     * escrituras concurrentes del agente fiscal sobre la máquina (MariaDB 1020 con innodb_snapshot_isolation).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function continueAfterSaleCommitted(Sale $sale, mixed $actorUser, array $data, mixed $livewire): void
+    {
+        $fiscalDocument = self::registerFiscalInvoiceSafely($sale, $actorUser, $data);
+
+        $nextUrl = $fiscalDocument !== null && ! $fiscalDocument->simulation
+            ? route('sales.fiscal-print.show', $sale)
+            : (config('fiscal.auto_print_on_sale_complete', true)
+            ? ($sale->payment_method === 'credito_cliente'
+                ? route('sales.delivery-note.print', $sale)
+                : route('sales.fiscal-receipt.print', $sale))
+            : SaleResource::getUrl('view', ['record' => $sale], isAbsolute: false));
+
+        if ($sale->payment_method === 'efectivo_usd' && $livewire instanceof HasActions) {
+            $livewire->mountAction(self::EFECTIVO_USD_POST_SALE_CHANGE_ACTION_NAME, [
+                'sale_id' => $sale->id,
+                'redirect_url' => $nextUrl,
+            ]);
+
+            return;
+        }
+
+        if ($livewire instanceof LivewireComponent) {
+            $livewire->redirect($nextUrl);
+        }
     }
 
     /**

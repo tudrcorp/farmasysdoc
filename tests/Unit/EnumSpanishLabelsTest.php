@@ -3,6 +3,8 @@
 use App\Enums\ConvenioType;
 use App\Enums\InventoryMovementType;
 use App\Enums\OrderStatus;
+use App\Enums\PettyCashCurrency;
+use App\Enums\PettyCashFundStatus;
 use App\Enums\ProductType;
 use App\Enums\PurchaseStatus;
 use App\Enums\SaleStatus;
@@ -25,6 +27,12 @@ test('los enums exponen etiquetas en español y opciones coherentes', function (
 
     expect(InventoryMovementType::Purchase->label())->toBe('Compra')
         ->and(count(InventoryMovementType::options()))->toBe(count(InventoryMovementType::cases()));
+
+    expect(PettyCashFundStatus::PendingApproval->label())->toBe('Por aprobar')
+        ->and(count(PettyCashFundStatus::options()))->toBe(count(PettyCashFundStatus::cases()));
+
+    expect(PettyCashCurrency::Usd->label())->toBe('Dólares (USD)')
+        ->and(count(PettyCashCurrency::options()))->toBe(count(PettyCashCurrency::cases()));
 });
 
 test('tryLabel resuelve instancias y cadenas', function () {

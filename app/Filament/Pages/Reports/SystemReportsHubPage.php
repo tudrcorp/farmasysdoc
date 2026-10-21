@@ -296,6 +296,12 @@ final class SystemReportsHubPage extends Page
                             ],
                         ],
                     ],
+                    [
+                        'slug' => 'egresos-caja-chica',
+                        'title' => 'Egresos de caja chica',
+                        'hint' => 'Gastos registrados (factura o ticket) con montos USD/Bs y total del rango.',
+                        'dates' => true,
+                    ],
                 ],
             ],
         ];

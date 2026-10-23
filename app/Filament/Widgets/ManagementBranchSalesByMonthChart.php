@@ -9,6 +9,8 @@ use App\Filament\Widgets\Support\IosSalesTrendChartStyle;
 use App\Models\Branch;
 use App\Models\Sale;
 use App\Models\User;
+use App\Support\Filament\DashboardDateRangeFilter;
+use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Contracts\Support\Htmlable;
@@ -28,8 +30,6 @@ class ManagementBranchSalesByMonthChart extends ChartWidget
 
     protected ?string $heading = 'Ventas por mes (sucursales asignadas)';
 
-    protected ?string $description = 'Comparativo mensual por cada sucursal asociada al usuario de gerencia.';
-
     protected ?string $maxHeight = '320px';
 
     protected string $color = 'info';
@@ -46,10 +46,9 @@ class ManagementBranchSalesByMonthChart extends ChartWidget
 
     public function getDescription(): string|Htmlable|null
     {
-        $year = (int) now()->year;
-        $total = $this->totalYearAmount($year);
+        $total = $this->totalPeriodAmount();
 
-        return 'Año '.$year.' · Total: '.$this->formatUsd($total).$this->dashboardBranchFilterSuffix();
+        return 'Período '.DashboardDateRangeFilter::label().' · Total: '.$this->formatUsd($total).$this->dashboardBranchFilterSuffix();
     }
 
     /**
@@ -65,7 +64,6 @@ class ManagementBranchSalesByMonthChart extends ChartWidget
             ];
         }
 
-        $year = (int) now()->year;
         $monthExpression = $this->monthGroupExpression();
         $totalCast = $this->totalCastExpression();
         $rows = Sale::query()
@@ -73,10 +71,7 @@ class ManagementBranchSalesByMonthChart extends ChartWidget
             ->where('status', SaleStatus::Completed)
             ->whereNotNull('sold_at')
             ->whereIn('branch_id', $branchIds)
-            ->whereBetween('sold_at', [
-                now()->setDate($year, 1, 1)->startOfDay(),
-                now()->setDate($year, 12, 31)->endOfDay(),
-            ])
+            ->whereBetween('sold_at', [$this->dashboardDateFrom(), $this->dashboardDateTo()])
             ->selectRaw("branch_id, {$monthExpression} as ym, SUM({$totalCast}) as amount")
             ->groupBy('branch_id', DB::raw($monthExpression))
             ->get();
@@ -92,7 +87,7 @@ class ManagementBranchSalesByMonthChart extends ChartWidget
             $indexed[$branchId][$monthKey] = round((float) $row->amount, 2);
         }
 
-        $monthKeys = $this->monthKeys($year);
+        $monthKeys = $this->monthKeys();
         $fills = BrandChartPalette::branchBarFills(count($branchIds));
         $hovers = BrandChartPalette::branchBarHovers(count($branchIds));
         $borders = BrandChartPalette::branchBarBorderColors(count($branchIds));
@@ -138,31 +133,37 @@ class ManagementBranchSalesByMonthChart extends ChartWidget
      */
     private function monthLabels(): array
     {
-        $labels = [];
-        $year = (int) now()->year;
+        $spansYears = $this->dashboardDateFrom()->year !== $this->dashboardDateTo()->year;
 
-        for ($month = 1; $month <= 12; $month++) {
-            $labels[] = ucfirst(now()->setDate($year, $month, 1)->locale('es')->translatedFormat('M'));
-        }
+        return array_map(
+            static function (string $monthKey) use ($spansYears): string {
+                $month = CarbonImmutable::createFromFormat('!Y-m', $monthKey)->locale('es');
+                $label = ucfirst(rtrim($month->translatedFormat('M'), '.'));
 
-        return $labels;
+                return $spansYears ? $label.' '.$month->format('y') : $label;
+            },
+            $this->monthKeys(),
+        );
     }
 
     /**
      * @return list<string>
      */
-    private function monthKeys(int $year): array
+    private function monthKeys(): array
     {
         $keys = [];
+        $cursor = $this->dashboardDateFrom()->startOfMonth();
+        $end = $this->dashboardDateTo()->startOfMonth();
 
-        for ($month = 1; $month <= 12; $month++) {
-            $keys[] = now()->setDate($year, $month, 1)->format('Y-m');
+        while ($cursor->lessThanOrEqualTo($end)) {
+            $keys[] = $cursor->format('Y-m');
+            $cursor = $cursor->addMonthNoOverflow();
         }
 
         return $keys;
     }
 
-    private function totalYearAmount(int $year): float
+    private function totalPeriodAmount(): float
     {
         $branchIds = $this->dashboardBranchIdsForCharts();
         if ($branchIds === []) {
@@ -174,10 +175,7 @@ class ManagementBranchSalesByMonthChart extends ChartWidget
             ->where('status', SaleStatus::Completed)
             ->whereNotNull('sold_at')
             ->whereIn('branch_id', $branchIds)
-            ->whereBetween('sold_at', [
-                now()->setDate($year, 1, 1)->startOfDay(),
-                now()->setDate($year, 12, 31)->endOfDay(),
-            ])
+            ->whereBetween('sold_at', [$this->dashboardDateFrom(), $this->dashboardDateTo()])
             ->sum('total'), 2);
     }
 

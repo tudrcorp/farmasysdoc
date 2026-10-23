@@ -46,6 +46,7 @@ class ProductForm
                             ->searchable()
                             ->preload()
                             ->native(false)
+                            ->nullable()
                             ->placeholder('Sin proveedor asignado')
                             ->helperText('Opcional. Facilita compras y trazabilidad con el laboratorio o distribuidor.')
                             ->prefixIcon(Heroicon::Truck),

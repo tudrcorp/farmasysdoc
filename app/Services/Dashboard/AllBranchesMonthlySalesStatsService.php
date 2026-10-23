@@ -9,6 +9,7 @@ use App\Models\Sale;
 use App\Models\User;
 use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use App\Support\Filament\DashboardBranchFilter;
+use App\Support\Filament\DashboardDateRangeFilter;
 use App\Support\Sales\SaleCollectedMoneyAggregator;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,8 +17,9 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * Totales mensuales de ventas completadas de todas las sucursales registradas.
+ * Totales de ventas completadas por período de todas las sucursales registradas.
  * Opcionalmente se acota a la sucursal elegida en el filtro del dashboard.
+ * Las metas mensuales se prorratean según los días del período dentro de cada mes.
  */
 final class AllBranchesMonthlySalesStatsService
 {
@@ -28,6 +30,9 @@ final class AllBranchesMonthlySalesStatsService
     /**
      * @return array{
      *     month_label: string,
+     *     is_month_to_date: bool,
+     *     includes_today: bool,
+     *     goal_is_prorated: bool,
      *     registered_branches_count: int,
      *     scope_description: string,
      *     branches: list<array{
@@ -53,11 +58,23 @@ final class AllBranchesMonthlySalesStatsService
     }
 
     /**
+     * @return array<string, mixed>
+     *
+     * @see self::forPeriodGlobalSummary()
+     */
+    public function forCurrentMonthGlobalSummary(?int $selectedBranchId = null): array
+    {
+        return $this->forPeriodGlobalSummary(now()->startOfMonth(), now()->endOfDay(), $selectedBranchId);
+    }
+
+    /**
      * Con `$selectedBranchId` los totales son solo de esa sucursal y el progreso mide
      * su aporte a la meta global; además se informa qué porción de la meta global le toca.
      *
      * @return array{
      *     month_label: string,
+     *     is_month_to_date: bool,
+     *     goal_is_prorated: bool,
      *     scope_description: string,
      *     selected_branch_id: int|null,
      *     selected_branch_name: string|null,
@@ -74,11 +91,10 @@ final class AllBranchesMonthlySalesStatsService
      *     branch_goal_progress_percent: float|null,
      * }
      */
-    public function forCurrentMonthGlobalSummary(?int $selectedBranchId = null): array
+    public function forPeriodGlobalSummary(CarbonInterface $from, CarbonInterface $to, ?int $selectedBranchId = null): array
     {
-        $from = now()->startOfMonth();
-        $to = now()->endOfDay();
-        $monthLabel = ucfirst($from->locale('es')->translatedFormat('F Y'));
+        $monthLabel = $this->periodLabel($from, $to);
+        $goalSegments = $this->goalMonthSegments($from, $to);
         $viewer = Auth::user();
         $selectedBranch = $this->resolveSelectedBranch($viewer, $selectedBranchId);
 
@@ -86,32 +102,19 @@ final class AllBranchesMonthlySalesStatsService
         $collected = $this->collectedMoneyAggregator->collectedTotals($sales);
         $documentTotalUsd = round((float) $sales->sum('total'), 2);
 
-        $goalUsd = BranchSalesGoal::query()
-            ->forPeriod((int) $from->year, (int) $from->month)
-            ->where('is_global', true)
-            ->value('goal_usd');
-
-        $goalUsd = is_numeric($goalUsd) && (float) $goalUsd > 0
-            ? round((float) $goalUsd, 2)
-            : null;
+        $goalUsd = $this->proratedGlobalGoal($goalSegments);
         $goalProgress = $this->resolveGoalProgressPercent($documentTotalUsd, $goalUsd);
 
         $branchGoalUsd = null;
 
         if ($selectedBranch instanceof Branch) {
-            $branchGoalUsd = BranchSalesGoal::query()
-                ->forPeriod((int) $from->year, (int) $from->month)
-                ->where('is_global', false)
-                ->where('branch_id', $selectedBranch->id)
-                ->value('goal_usd');
-
-            $branchGoalUsd = is_numeric($branchGoalUsd) && (float) $branchGoalUsd > 0
-                ? round((float) $branchGoalUsd, 2)
-                : null;
+            $branchGoalUsd = $this->proratedBranchGoals($goalSegments, [(int) $selectedBranch->id])[(int) $selectedBranch->id] ?? null;
         }
 
         return [
             'month_label' => $monthLabel,
+            'is_month_to_date' => $this->isMonthToDate($from, $to),
+            'goal_is_prorated' => $this->goalIsProrated($goalSegments),
             'scope_description' => $selectedBranch instanceof Branch
                 ? (string) $selectedBranch->name
                 : $this->scopeDescriptionForViewer($viewer),
@@ -140,6 +143,9 @@ final class AllBranchesMonthlySalesStatsService
      *
      * @return array{
      *     month_label: string,
+     *     is_month_to_date: bool,
+     *     includes_today: bool,
+     *     goal_is_prorated: bool,
      *     registered_branches_count: int,
      *     scope_description: string,
      *     selected_branch_id: int|null,
@@ -162,7 +168,11 @@ final class AllBranchesMonthlySalesStatsService
      */
     public function forPeriodByBranch(CarbonInterface $from, CarbonInterface $to, ?int $selectedBranchId = null): array
     {
-        $monthLabel = ucfirst($from->locale('es')->translatedFormat('F Y'));
+        $monthLabel = $this->periodLabel($from, $to);
+        $goalSegments = $this->goalMonthSegments($from, $to);
+        $isMonthToDate = $this->isMonthToDate($from, $to);
+        $includesToday = $to->isSameDay(now());
+        $goalIsProrated = $this->goalIsProrated($goalSegments);
         $viewer = Auth::user();
         $branchIds = $this->resolveBranchIdsForViewer($viewer);
         $selectedBranch = $this->resolveSelectedBranch($viewer, $selectedBranchId);
@@ -177,6 +187,9 @@ final class AllBranchesMonthlySalesStatsService
         if ($branchIds === []) {
             return [
                 'month_label' => $monthLabel,
+                'is_month_to_date' => $isMonthToDate,
+                'includes_today' => $includesToday,
+                'goal_is_prorated' => $goalIsProrated,
                 'registered_branches_count' => 0,
                 'scope_description' => $scopeDescription,
                 'selected_branch_id' => null,
@@ -189,11 +202,7 @@ final class AllBranchesMonthlySalesStatsService
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        $goalsByBranchId = BranchSalesGoal::query()
-            ->forPeriod((int) $from->year, (int) $from->month)
-            ->where('is_global', false)
-            ->whereIn('branch_id', $branchIds)
-            ->pluck('goal_usd', 'branch_id');
+        $goalsByBranchId = $this->proratedBranchGoals($goalSegments, $branchIds);
 
         $salesByBranch = $this->baseSalesQuery($from, $to)
             ->whereIn('branch_id', $branchIds)
@@ -201,21 +210,21 @@ final class AllBranchesMonthlySalesStatsService
             ->get()
             ->groupBy('branch_id');
 
-        $dayStart = $to->copy()->startOfDay();
+        $dayStart = now()->startOfDay();
         $branchStats = [];
 
         foreach ($branches as $branch) {
             /** @var Collection<int, Sale> $branchSales */
             $branchSales = $salesByBranch->get($branch->id, collect());
             $collected = $this->collectedMoneyAggregator->collectedTotals($branchSales);
-            $branchSalesToday = $branchSales->filter(
-                static fn (Sale $sale): bool => $sale->sold_at->greaterThanOrEqualTo($dayStart),
-            );
+            $branchSalesToday = $includesToday
+                ? $branchSales->filter(
+                    static fn (Sale $sale): bool => $sale->sold_at->greaterThanOrEqualTo($dayStart),
+                )
+                : collect();
             $collectedToday = $this->collectedMoneyAggregator->collectedTotals($branchSalesToday);
             $documentTotalUsd = round((float) $branchSales->sum('total'), 2);
-            $goalUsd = $goalsByBranchId->has($branch->id)
-                ? round((float) $goalsByBranchId->get($branch->id), 2)
-                : null;
+            $goalUsd = $goalsByBranchId[(int) $branch->id] ?? null;
             $goalProgress = $this->resolveGoalProgressPercent($documentTotalUsd, $goalUsd);
 
             $branchStats[] = [
@@ -237,11 +246,118 @@ final class AllBranchesMonthlySalesStatsService
 
         return [
             'month_label' => $monthLabel,
+            'is_month_to_date' => $isMonthToDate,
+            'includes_today' => $includesToday,
+            'goal_is_prorated' => $goalIsProrated,
             'registered_branches_count' => $branches->count(),
             'scope_description' => $scopeDescription,
             'selected_branch_id' => $selectedBranch?->id,
             'branches' => $branchStats,
         ];
+    }
+
+    private function periodLabel(CarbonInterface $from, CarbonInterface $to): string
+    {
+        if ($this->isMonthToDate($from, $to)) {
+            return ucfirst($from->locale('es')->translatedFormat('F Y'));
+        }
+
+        return DashboardDateRangeFilter::labelFor($from, $to);
+    }
+
+    private function isMonthToDate(CarbonInterface $from, CarbonInterface $to): bool
+    {
+        $today = now();
+
+        return $from->isSameDay($today->startOfMonth()) && $to->isSameDay($today);
+    }
+
+    /**
+     * Fracción de cada mes cubierta por el período. El mes en curso desde el día 1 hasta hoy
+     * cuenta completo: la meta sigue siendo la del mes aunque aún no termine.
+     *
+     * @return list<array{year: int, month: int, fraction: float}>
+     */
+    private function goalMonthSegments(CarbonInterface $from, CarbonInterface $to): array
+    {
+        $segments = [];
+        $cursor = $from->copy()->startOfDay();
+        $end = $to->copy()->startOfDay();
+        $today = now()->startOfDay();
+
+        while ($cursor->lessThanOrEqualTo($end)) {
+            $monthEnd = $cursor->copy()->endOfMonth()->startOfDay();
+            $segmentEnd = $monthEnd->lessThan($end) ? $monthEnd : $end;
+            $coveredDays = (int) $cursor->diffInDays($segmentEnd) + 1;
+            $isRunningMonthToDate = $cursor->day === 1 && $segmentEnd->isSameDay($today);
+
+            $segments[] = [
+                'year' => (int) $cursor->year,
+                'month' => (int) $cursor->month,
+                'fraction' => $isRunningMonthToDate ? 1.0 : min(1.0, $coveredDays / $cursor->daysInMonth),
+            ];
+
+            $cursor = $monthEnd->copy()->addDay();
+        }
+
+        return $segments;
+    }
+
+    /**
+     * @param  list<array{year: int, month: int, fraction: float}>  $segments
+     */
+    private function goalIsProrated(array $segments): bool
+    {
+        return count($segments) !== 1 || $segments[0]['fraction'] < 1.0;
+    }
+
+    /**
+     * @param  list<array{year: int, month: int, fraction: float}>  $segments
+     */
+    private function proratedGlobalGoal(array $segments): ?float
+    {
+        $total = 0.0;
+
+        foreach ($segments as $segment) {
+            $goal = BranchSalesGoal::query()
+                ->forPeriod($segment['year'], $segment['month'])
+                ->where('is_global', true)
+                ->value('goal_usd');
+
+            if (is_numeric($goal) && (float) $goal > 0) {
+                $total += (float) $goal * $segment['fraction'];
+            }
+        }
+
+        return $total > 0 ? round($total, 2) : null;
+    }
+
+    /**
+     * @param  list<array{year: int, month: int, fraction: float}>  $segments
+     * @param  list<int>  $branchIds
+     * @return array<int, float>
+     */
+    private function proratedBranchGoals(array $segments, array $branchIds): array
+    {
+        $totals = [];
+
+        foreach ($segments as $segment) {
+            $goals = BranchSalesGoal::query()
+                ->forPeriod($segment['year'], $segment['month'])
+                ->where('is_global', false)
+                ->whereIn('branch_id', $branchIds)
+                ->pluck('goal_usd', 'branch_id');
+
+            foreach ($goals as $branchId => $goal) {
+                if (! is_numeric($goal) || (float) $goal <= 0) {
+                    continue;
+                }
+
+                $totals[(int) $branchId] = ($totals[(int) $branchId] ?? 0.0) + (float) $goal * $segment['fraction'];
+            }
+        }
+
+        return array_map(static fn (float $goal): float => round($goal, 2), $totals);
     }
 
     /**

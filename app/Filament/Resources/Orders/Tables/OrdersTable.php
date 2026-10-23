@@ -675,7 +675,7 @@ class OrdersTable
             'hasLinkedUser' => $hasLinkedUser,
             'name' => $hasLinkedUser ? (filled(trim((string) $user->name)) ? trim((string) $user->name) : null) : null,
             'email' => $hasLinkedUser && filled($user->email) ? (string) $user->email : null,
-            'photoUrl' => $hasLinkedUser ? $user->deliveryPhotoPublicUrl() : null,
+            'photoUrl' => $hasLinkedUser ? $user->avatarUrl() : null,
             'assigneeLabel' => filled($order->delivery_assignee) ? (string) $order->delivery_assignee : null,
             'identityDocument' => $hasLinkedUser && filled($user->delivery_identity_document)
                 ? (string) $user->delivery_identity_document

@@ -17600,3 +17600,1128 @@ body[data-farmaadmin-branch-transition-mode='all'][data-farmaadmin-branch-transi
     border-radius: 1rem;
     border: 1px dashed rgb(148 163 184 / 0.5);
 }
+
+/*
+ * Dashboard — encabezado con saludo según la hora + filtros (sucursal y período).
+ */
+.fi-farmaadmin-account-widget__content {
+    padding: 0.95rem 1.1rem;
+}
+
+.fi-farmaadmin-account-widget__identity {
+    --fi-farmaadmin-greeting-from: 14 148 154;
+    --fi-farmaadmin-greeting-to: 24 172 178;
+    gap: 0.9rem;
+}
+
+.fi-farmaadmin-account-widget__identity[data-period='morning'] {
+    --fi-farmaadmin-greeting-from: 217 119 6;
+    --fi-farmaadmin-greeting-to: 14 148 154;
+}
+
+.fi-farmaadmin-account-widget__identity[data-period='afternoon'] {
+    --fi-farmaadmin-greeting-from: 234 88 12;
+    --fi-farmaadmin-greeting-to: 219 39 119;
+}
+
+.fi-farmaadmin-account-widget__identity[data-period='night'] {
+    --fi-farmaadmin-greeting-from: 79 70 229;
+    --fi-farmaadmin-greeting-to: 14 148 154;
+}
+
+.dark .fi-farmaadmin-account-widget__identity[data-period='morning'] {
+    --fi-farmaadmin-greeting-from: 252 211 77;
+    --fi-farmaadmin-greeting-to: 94 234 212;
+}
+
+.dark .fi-farmaadmin-account-widget__identity[data-period='afternoon'] {
+    --fi-farmaadmin-greeting-from: 253 186 116;
+    --fi-farmaadmin-greeting-to: 249 168 212;
+}
+
+.dark .fi-farmaadmin-account-widget__identity[data-period='night'] {
+    --fi-farmaadmin-greeting-from: 165 180 252;
+    --fi-farmaadmin-greeting-to: 103 232 249;
+}
+
+.fi-farmaadmin-account-widget__avatar-ring {
+    display: inline-flex;
+    flex-shrink: 0;
+    padding: 2px;
+    border-radius: 9999px;
+    background: linear-gradient(
+        135deg,
+        rgb(var(--fi-farmaadmin-greeting-from)),
+        rgb(var(--fi-farmaadmin-greeting-to))
+    );
+}
+
+.fi-farmaadmin-account-widget__avatar-ring .fi-farmaadmin-account-widget__avatar {
+    border: 2px solid rgb(255 255 255);
+}
+
+.dark .fi-farmaadmin-account-widget__avatar-ring .fi-farmaadmin-account-widget__avatar {
+    border-color: rgb(24 24 27);
+}
+
+.fi-farmaadmin-account-widget__eyebrow {
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.fi-farmaadmin-account-widget__period-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.125rem 0.5rem 0.125rem 0.3rem;
+    border-radius: 9999px;
+    background: rgb(var(--fi-farmaadmin-greeting-from) / 0.1);
+    color: rgb(var(--fi-farmaadmin-greeting-from));
+    font-size: 0.6875rem;
+    font-weight: 600;
+}
+
+.fi-farmaadmin-account-widget__period-icon {
+    display: inline-flex;
+}
+
+.fi-farmaadmin-account-widget__title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.15;
+}
+
+.fi-farmaadmin-account-widget__greeting {
+    background: linear-gradient(
+        100deg,
+        rgb(var(--fi-farmaadmin-greeting-from)),
+        rgb(var(--fi-farmaadmin-greeting-to))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.fi-farmaadmin-account-widget__subtitle-separator {
+    margin-inline: 0.25rem;
+    opacity: 0.6;
+}
+
+.fi-farmaadmin-account-widget__branches {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.fi-farmaadmin-account-widget__branches > .fi-farmaadmin-account-widget__branch-select {
+    width: auto;
+    flex: 1 1 13.5rem;
+}
+
+.fi-farmaadmin-date-range {
+    flex: 1 1 15rem;
+    min-width: min(100%, 15rem);
+}
+
+.fi-farmaadmin-date-range__trigger {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.25rem;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid rgb(14 148 154 / 0.22);
+    border-radius: 0.75rem;
+    background: rgb(255 255 255 / 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: rgb(24 24 27);
+    text-align: start;
+    transition:
+        border-color 0.22s ease,
+        box-shadow 0.22s ease,
+        background-color 0.22s ease;
+}
+
+.fi-farmaadmin-date-range__trigger:hover,
+.fi-farmaadmin-date-range__trigger--open {
+    border-color: rgb(14 148 154 / 0.45);
+}
+
+.fi-farmaadmin-date-range__trigger:focus-visible,
+.fi-farmaadmin-date-range__trigger--open {
+    outline: none;
+    box-shadow: 0 0 0 3px rgb(14 148 154 / 0.12);
+}
+
+.fi-farmaadmin-date-range__trigger:disabled {
+    cursor: progress;
+    opacity: 0.75;
+}
+
+.fi-farmaadmin-date-range__trigger-label {
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgb(113 113 122);
+    white-space: nowrap;
+}
+
+.fi-farmaadmin-date-range__trigger-icon {
+    display: inline-flex;
+    color: rgb(14 148 154);
+}
+
+.fi-farmaadmin-date-range__trigger-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.fi-farmaadmin-date-range__trigger--custom .fi-farmaadmin-date-range__trigger-value {
+    color: rgb(14 116 144);
+}
+
+.fi-farmaadmin-date-range__trigger-chevron {
+    flex-shrink: 0;
+    color: rgb(161 161 170);
+    transition: transform 0.22s ease;
+}
+
+.fi-farmaadmin-date-range__trigger--open .fi-farmaadmin-date-range__trigger-chevron {
+    transform: rotate(180deg);
+}
+
+.dark .fi-farmaadmin-date-range__trigger {
+    border-color: rgb(56 189 248 / 0.2);
+    background: rgb(39 39 42 / 0.55);
+    color: rgb(244 244 245);
+}
+
+.dark .fi-farmaadmin-date-range__trigger:hover,
+.dark .fi-farmaadmin-date-range__trigger--open {
+    border-color: rgb(56 189 248 / 0.38);
+    box-shadow: 0 0 0 3px rgb(56 189 248 / 0.1);
+}
+
+.dark .fi-farmaadmin-date-range__trigger-label {
+    color: rgb(161 161 170);
+}
+
+.dark .fi-farmaadmin-date-range__trigger-icon,
+.dark .fi-farmaadmin-date-range__trigger--custom .fi-farmaadmin-date-range__trigger-value {
+    color: rgb(125 211 252);
+}
+
+.fi-farmaadmin-date-range__popover {
+    --fi-farmaadmin-range-accent: 14 148 154;
+    --fi-farmaadmin-range-soft: 14 148 154 / 0.12;
+    position: fixed;
+    z-index: 50;
+    display: flex;
+    max-width: calc(100vw - 2rem);
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    border: 1px solid rgb(228 228 231 / 0.9);
+    border-radius: 1.1rem;
+    background: rgb(255 255 255 / 0.97);
+    backdrop-filter: blur(20px) saturate(1.3);
+    -webkit-backdrop-filter: blur(20px) saturate(1.3);
+    box-shadow:
+        0 24px 60px -18px rgb(15 23 42 / 0.28),
+        0 8px 20px -10px rgb(15 23 42 / 0.12);
+    color: rgb(24 24 27);
+    font-family:
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        'SF Pro Text',
+        'Segoe UI',
+        sans-serif;
+    transform-origin: top right;
+}
+
+.dark .fi-farmaadmin-date-range__popover {
+    --fi-farmaadmin-range-accent: 56 189 248;
+    --fi-farmaadmin-range-soft: 56 189 248 / 0.16;
+    border-color: rgb(63 63 70 / 0.9);
+    background: rgb(24 24 27 / 0.97);
+    box-shadow: 0 24px 60px -18px rgb(0 0 0 / 0.7);
+    color: rgb(244 244 245);
+}
+
+.fi-farmaadmin-date-range__popover--animating {
+    transition:
+        opacity 180ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fi-farmaadmin-date-range__popover--hidden {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+}
+
+.fi-farmaadmin-date-range__popover--visible {
+    opacity: 1;
+    transform: none;
+}
+
+.fi-farmaadmin-date-range__presets {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 9.5rem;
+    padding: 0.75rem 0.5rem;
+    border-inline-end: 1px solid rgb(228 228 231 / 0.9);
+}
+
+.dark .fi-farmaadmin-date-range__presets {
+    border-color: rgb(63 63 70 / 0.9);
+}
+
+.fi-farmaadmin-date-range__preset {
+    padding: 0.45rem 0.65rem;
+    border-radius: 0.6rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    text-align: start;
+    white-space: nowrap;
+    color: rgb(63 63 70);
+    transition:
+        background-color 0.15s ease,
+        color 0.15s ease;
+}
+
+.fi-farmaadmin-date-range__preset:hover {
+    background: rgb(244 244 245);
+}
+
+.fi-farmaadmin-date-range__preset--active,
+.fi-farmaadmin-date-range__preset--active:hover {
+    background: rgb(var(--fi-farmaadmin-range-soft));
+    color: rgb(var(--fi-farmaadmin-range-accent));
+    font-weight: 600;
+}
+
+.dark .fi-farmaadmin-date-range__preset {
+    color: rgb(212 212 216);
+}
+
+.dark .fi-farmaadmin-date-range__preset:hover {
+    background: rgb(39 39 42);
+}
+
+.dark .fi-farmaadmin-date-range__preset--active,
+.dark .fi-farmaadmin-date-range__preset--active:hover {
+    background: rgb(var(--fi-farmaadmin-range-soft));
+    color: rgb(var(--fi-farmaadmin-range-accent));
+}
+
+.fi-farmaadmin-date-range__body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.fi-farmaadmin-date-range__calendars {
+    position: relative;
+    display: flex;
+    gap: 1.75rem;
+    padding: 1rem 1.1rem 0.75rem;
+}
+
+.fi-farmaadmin-date-range__nav {
+    position: absolute;
+    top: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 9999px;
+    color: rgb(82 82 91);
+    transition: background-color 0.15s ease;
+}
+
+.fi-farmaadmin-date-range__nav:hover:not(:disabled) {
+    background: rgb(244 244 245);
+}
+
+.fi-farmaadmin-date-range__nav:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.dark .fi-farmaadmin-date-range__nav {
+    color: rgb(212 212 216);
+}
+
+.dark .fi-farmaadmin-date-range__nav:hover:not(:disabled) {
+    background: rgb(39 39 42);
+}
+
+.fi-farmaadmin-date-range__nav--prev {
+    left: 0.75rem;
+}
+
+.fi-farmaadmin-date-range__nav--next {
+    right: 0.75rem;
+}
+
+.fi-farmaadmin-date-range__month {
+    width: 15.75rem;
+}
+
+.fi-farmaadmin-date-range__month-title {
+    margin: 0.2rem 0 0.75rem;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-align: center;
+}
+
+.fi-farmaadmin-date-range__weekdays,
+.fi-farmaadmin-date-range__days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.fi-farmaadmin-date-range__weekdays {
+    margin-bottom: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-align: center;
+    text-transform: capitalize;
+    color: rgb(113 113 122);
+}
+
+.fi-farmaadmin-date-range__days {
+    row-gap: 0.2rem;
+}
+
+.fi-farmaadmin-date-range__day {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.25rem;
+    padding: 0;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: inherit;
+}
+
+.fi-farmaadmin-date-range__day-number {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 9999px;
+    transition:
+        background-color 0.12s ease,
+        color 0.12s ease;
+}
+
+.fi-farmaadmin-date-range__day:not(:disabled):hover .fi-farmaadmin-date-range__day-number {
+    background: rgb(var(--fi-farmaadmin-range-soft));
+}
+
+.fi-farmaadmin-date-range__day:disabled {
+    cursor: default;
+    color: rgb(161 161 170 / 0.6);
+}
+
+.fi-farmaadmin-date-range__day--empty {
+    visibility: hidden;
+}
+
+.fi-farmaadmin-date-range__day--today .fi-farmaadmin-date-range__day-number {
+    box-shadow: inset 0 0 0 1px rgb(var(--fi-farmaadmin-range-accent) / 0.55);
+    font-weight: 700;
+}
+
+.fi-farmaadmin-date-range__day--in-range {
+    background: rgb(var(--fi-farmaadmin-range-soft));
+}
+
+.fi-farmaadmin-date-range__day--start:not(.fi-farmaadmin-date-range__day--single) {
+    background: linear-gradient(to right, transparent 50%, rgb(var(--fi-farmaadmin-range-soft)) 50%);
+}
+
+.fi-farmaadmin-date-range__day--end:not(.fi-farmaadmin-date-range__day--single) {
+    background: linear-gradient(to left, transparent 50%, rgb(var(--fi-farmaadmin-range-soft)) 50%);
+}
+
+.fi-farmaadmin-date-range__day--start .fi-farmaadmin-date-range__day-number,
+.fi-farmaadmin-date-range__day--end .fi-farmaadmin-date-range__day-number,
+.fi-farmaadmin-date-range__day--start:not(:disabled):hover .fi-farmaadmin-date-range__day-number,
+.fi-farmaadmin-date-range__day--end:not(:disabled):hover .fi-farmaadmin-date-range__day-number {
+    background: rgb(var(--fi-farmaadmin-range-accent));
+    box-shadow: 0 6px 14px -6px rgb(var(--fi-farmaadmin-range-accent) / 0.8);
+    color: rgb(255 255 255);
+    font-weight: 700;
+}
+
+.dark .fi-farmaadmin-date-range__day--start .fi-farmaadmin-date-range__day-number,
+.dark .fi-farmaadmin-date-range__day--end .fi-farmaadmin-date-range__day-number {
+    color: rgb(9 9 11);
+}
+
+/* El primer hijo de la cuadrícula es el <template> del x-for: los lunes caen en 7n + 2 y los domingos en 7n + 1. */
+.fi-farmaadmin-date-range__days > .fi-farmaadmin-date-range__day:nth-child(7n + 2).fi-farmaadmin-date-range__day--in-range {
+    border-start-start-radius: 9999px;
+    border-end-start-radius: 9999px;
+}
+
+.fi-farmaadmin-date-range__days > .fi-farmaadmin-date-range__day:nth-child(7n + 1).fi-farmaadmin-date-range__day--in-range {
+    border-start-end-radius: 9999px;
+    border-end-end-radius: 9999px;
+}
+
+.fi-farmaadmin-date-range__footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    margin-top: auto;
+    padding: 0.7rem 1.1rem 0.85rem;
+    border-top: 1px solid rgb(228 228 231 / 0.9);
+}
+
+.dark .fi-farmaadmin-date-range__footer {
+    border-color: rgb(63 63 70 / 0.9);
+}
+
+.fi-farmaadmin-date-range__hint {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    margin: 0;
+}
+
+.fi-farmaadmin-date-range__hint-step {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: rgb(113 113 122);
+}
+
+.fi-farmaadmin-date-range__hint-value {
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.fi-farmaadmin-date-range__reset {
+    padding: 0.4rem 0.7rem;
+    border-radius: 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgb(var(--fi-farmaadmin-range-accent));
+    transition: background-color 0.15s ease;
+}
+
+.fi-farmaadmin-date-range__reset:hover {
+    background: rgb(var(--fi-farmaadmin-range-soft));
+}
+
+@media (max-width: 39.99rem) {
+    .fi-farmaadmin-date-range__popover {
+        flex-direction: column;
+    }
+
+    .fi-farmaadmin-date-range__presets {
+        flex-direction: row;
+        min-width: 0;
+        overflow-x: auto;
+        border-inline-end: 0;
+        border-bottom: 1px solid rgb(228 228 231 / 0.9);
+    }
+
+    .dark .fi-farmaadmin-date-range__presets {
+        border-color: rgb(63 63 70 / 0.9);
+    }
+
+    .fi-farmaadmin-date-range__month {
+        width: min(17rem, calc(100vw - 4.5rem));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fi-farmaadmin-date-range__popover--animating {
+        transition: none;
+    }
+}
+
+/*
+ * Dashboard — botón "Resumen de hoy!" en la cabecera.
+ */
+.fi-farmaadmin-account-widget__summary-btn {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 2.25rem;
+    padding: 0.35rem 0.85rem 0.35rem 0.7rem;
+    border: 1px solid rgb(14 148 154 / 0.35);
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg, rgb(14 148 154), rgb(24 172 178));
+    box-shadow: 0 8px 18px -10px rgb(14 148 154 / 0.9);
+    color: rgb(255 255 255);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        filter 0.2s ease;
+}
+
+.fi-farmaadmin-account-widget__summary-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+    box-shadow: 0 12px 24px -10px rgb(14 148 154 / 0.95);
+}
+
+.fi-farmaadmin-account-widget__summary-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgb(14 148 154 / 0.3);
+}
+
+.fi-farmaadmin-account-widget__summary-btn:disabled {
+    cursor: progress;
+    opacity: 0.8;
+}
+
+.fi-farmaadmin-account-widget__summary-btn--active {
+    border-color: rgb(14 148 154 / 0.3);
+    background: rgb(255 255 255 / 0.6);
+    box-shadow: none;
+    color: rgb(14 116 144);
+}
+
+.fi-farmaadmin-account-widget__summary-btn-icon {
+    display: inline-flex;
+}
+
+.dark .fi-farmaadmin-account-widget__summary-btn {
+    border-color: rgb(94 234 212 / 0.35);
+    background: linear-gradient(135deg, rgb(13 148 136), rgb(8 145 178));
+}
+
+.dark .fi-farmaadmin-account-widget__summary-btn--active {
+    border-color: rgb(56 189 248 / 0.3);
+    background: rgb(39 39 42 / 0.6);
+    color: rgb(125 211 252);
+}
+
+/*
+ * Dashboard — "Resumen de hoy" (ventas, CxP, CxC) y meta del cajero.
+ */
+.fi-farmaadmin-today-summary {
+    height: 100%;
+}
+
+.fi-farmaadmin-today-summary .fi-farmaadmin-branch-monthly-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    height: 100%;
+}
+
+.fi-farmaadmin-today-summary__kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.75rem;
+}
+
+.fi-farmaadmin-today-summary__kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+    padding: 0.85rem 1rem;
+    border: 1px solid rgb(228 228 231 / 0.8);
+    border-radius: 1rem;
+    background: rgb(255 255 255 / 0.65);
+    animation: fi-farmaadmin-today-summary-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.dark .fi-farmaadmin-today-summary__kpi {
+    border-color: rgb(63 63 70 / 0.8);
+    background: rgb(39 39 42 / 0.5);
+}
+
+.fi-farmaadmin-today-summary__kpi--primary {
+    border-color: rgb(14 148 154 / 0.25);
+    background: linear-gradient(140deg, rgb(14 148 154 / 0.1), rgb(252 228 34 / 0.08));
+}
+
+.fi-farmaadmin-today-summary__kpi--payable {
+    border-color: rgb(234 88 12 / 0.25);
+    background: linear-gradient(140deg, rgb(234 88 12 / 0.09), rgb(252 228 34 / 0.06));
+}
+
+.fi-farmaadmin-today-summary__kpi--receivable {
+    border-color: rgb(79 70 229 / 0.22);
+    background: linear-gradient(140deg, rgb(79 70 229 / 0.08), rgb(14 148 154 / 0.06));
+}
+
+.dark .fi-farmaadmin-today-summary__kpi--primary {
+    border-color: rgb(45 212 191 / 0.25);
+    background: linear-gradient(140deg, rgb(45 212 191 / 0.1), rgb(252 228 34 / 0.05));
+}
+
+.dark .fi-farmaadmin-today-summary__kpi--payable {
+    border-color: rgb(251 146 60 / 0.25);
+    background: linear-gradient(140deg, rgb(251 146 60 / 0.1), rgb(39 39 42 / 0.4));
+}
+
+.dark .fi-farmaadmin-today-summary__kpi--receivable {
+    border-color: rgb(129 140 248 / 0.25);
+    background: linear-gradient(140deg, rgb(129 140 248 / 0.1), rgb(39 39 42 / 0.4));
+}
+
+.fi-farmaadmin-today-summary__kpi-label {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: rgb(113 113 122);
+}
+
+.fi-farmaadmin-today-summary__kpi-value {
+    display: block;
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    color: rgb(24 24 27);
+    overflow-wrap: anywhere;
+}
+
+.fi-farmaadmin-today-summary__kpi--primary .fi-farmaadmin-today-summary__kpi-value {
+    font-size: 1.75rem;
+}
+
+.fi-farmaadmin-today-summary__kpi-hint {
+    font-size: 0.75rem;
+    color: rgb(82 82 91);
+}
+
+.dark .fi-farmaadmin-today-summary__kpi-label {
+    color: rgb(161 161 170);
+}
+
+.dark .fi-farmaadmin-today-summary__kpi-value {
+    color: rgb(250 250 250);
+}
+
+.dark .fi-farmaadmin-today-summary__kpi-hint {
+    color: rgb(161 161 170);
+}
+
+.fi-farmaadmin-today-summary__branches {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 0.75rem;
+}
+
+.fi-farmaadmin-today-summary__branch {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid rgb(228 228 231 / 0.8);
+    border-radius: 0.9rem;
+    background: rgb(255 255 255 / 0.5);
+    animation: fi-farmaadmin-today-summary-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.dark .fi-farmaadmin-today-summary__branch {
+    border-color: rgb(63 63 70 / 0.8);
+    background: rgb(39 39 42 / 0.4);
+}
+
+.fi-farmaadmin-today-summary__branch-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.fi-farmaadmin-today-summary__branch-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.fi-farmaadmin-today-summary__branch-total {
+    flex-shrink: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.fi-farmaadmin-today-summary__bar {
+    height: 0.4rem;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: rgb(228 228 231 / 0.8);
+}
+
+.dark .fi-farmaadmin-today-summary__bar {
+    background: rgb(63 63 70 / 0.8);
+}
+
+.fi-farmaadmin-today-summary__bar > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, rgb(14 148 154), rgb(24 172 178));
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fi-farmaadmin-today-summary__branch-meta {
+    margin: 0;
+    font-size: 0.6875rem;
+    color: rgb(113 113 122);
+}
+
+.fi-farmaadmin-today-summary__metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+    margin: 0;
+}
+
+.fi-farmaadmin-today-summary__metric {
+    padding: 0.65rem 0.8rem;
+    border-radius: 0.8rem;
+    background: rgb(244 244 245 / 0.8);
+}
+
+.dark .fi-farmaadmin-today-summary__metric {
+    background: rgb(39 39 42 / 0.6);
+}
+
+.fi-farmaadmin-today-summary__metric dt {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: rgb(113 113 122);
+}
+
+.fi-farmaadmin-today-summary__metric dd {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.fi-farmaadmin-today-summary__metric .fi-farmaadmin-today-summary__metric-hint {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: rgb(113 113 122);
+}
+
+.fi-farmaadmin-today-summary__metric--danger {
+    background: rgb(254 226 226 / 0.7);
+}
+
+.fi-farmaadmin-today-summary__metric--danger dd:not(.fi-farmaadmin-today-summary__metric-hint) {
+    color: rgb(185 28 28);
+}
+
+.fi-farmaadmin-today-summary__metric--warning {
+    background: rgb(254 243 199 / 0.7);
+}
+
+.fi-farmaadmin-today-summary__metric--warning dd:not(.fi-farmaadmin-today-summary__metric-hint) {
+    color: rgb(180 83 9);
+}
+
+.fi-farmaadmin-today-summary__metric--success dd:not(.fi-farmaadmin-today-summary__metric-hint) {
+    color: rgb(4 120 87);
+}
+
+.dark .fi-farmaadmin-today-summary__metric--danger {
+    background: rgb(127 29 29 / 0.3);
+}
+
+.dark .fi-farmaadmin-today-summary__metric--danger dd:not(.fi-farmaadmin-today-summary__metric-hint) {
+    color: rgb(252 165 165);
+}
+
+.dark .fi-farmaadmin-today-summary__metric--warning {
+    background: rgb(120 53 15 / 0.3);
+}
+
+.dark .fi-farmaadmin-today-summary__metric--warning dd:not(.fi-farmaadmin-today-summary__metric-hint) {
+    color: rgb(253 186 116);
+}
+
+.dark .fi-farmaadmin-today-summary__metric--success dd:not(.fi-farmaadmin-today-summary__metric-hint) {
+    color: rgb(110 231 183);
+}
+
+.fi-farmaadmin-today-summary__overdue {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.fi-farmaadmin-today-summary__overdue-title {
+    margin: 0 0 0.1rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: rgb(113 113 122);
+}
+
+.fi-farmaadmin-today-summary__overdue-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid rgb(228 228 231 / 0.8);
+    border-radius: 0.75rem;
+    transition:
+        border-color 0.15s ease,
+        background-color 0.15s ease;
+}
+
+a.fi-farmaadmin-today-summary__overdue-item:hover {
+    border-color: rgb(14 148 154 / 0.4);
+    background: rgb(14 148 154 / 0.05);
+}
+
+.dark .fi-farmaadmin-today-summary__overdue-item {
+    border-color: rgb(63 63 70 / 0.8);
+}
+
+.dark a.fi-farmaadmin-today-summary__overdue-item:hover {
+    border-color: rgb(56 189 248 / 0.35);
+    background: rgb(56 189 248 / 0.06);
+}
+
+.fi-farmaadmin-today-summary__overdue-main,
+.fi-farmaadmin-today-summary__overdue-side {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.fi-farmaadmin-today-summary__overdue-side {
+    flex-shrink: 0;
+    align-items: flex-end;
+}
+
+.fi-farmaadmin-today-summary__overdue-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.fi-farmaadmin-today-summary__overdue-meta {
+    font-size: 0.6875rem;
+    color: rgb(113 113 122);
+}
+
+.fi-farmaadmin-today-summary__overdue-amount {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.fi-farmaadmin-today-summary__overdue-days {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: rgb(220 38 38);
+}
+
+.dark .fi-farmaadmin-today-summary__overdue-days {
+    color: rgb(252 165 165);
+}
+
+.fi-farmaadmin-today-summary__overdue-empty {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    font-size: 0.8125rem;
+    color: rgb(4 120 87);
+}
+
+.dark .fi-farmaadmin-today-summary__overdue-empty {
+    color: rgb(110 231 183);
+}
+
+.fi-farmaadmin-cashier-goal__live {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-inline-start: 0.4rem;
+    padding: 0.05rem 0.45rem;
+    border-radius: 9999px;
+    background: rgb(16 185 129 / 0.12);
+    color: rgb(4 120 87);
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.dark .fi-farmaadmin-cashier-goal__live {
+    color: rgb(110 231 183);
+}
+
+.fi-farmaadmin-cashier-goal__live-dot {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 9999px;
+    background: currentColor;
+    animation: fi-farmaadmin-cashier-goal-pulse 1.6s ease-in-out infinite;
+}
+
+.fi-farmaadmin-cashier-goal__goal-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+}
+
+.fi-farmaadmin-cashier-goal__goal-target {
+    text-align: end;
+}
+
+.fi-farmaadmin-cashier-goal__goal-amount {
+    display: block;
+    font-size: 1.1rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.fi-farmaadmin-cashier-goal__track {
+    position: relative;
+    height: 0.75rem;
+    margin-top: 0.6rem;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: rgb(228 228 231 / 0.9);
+}
+
+.dark .fi-farmaadmin-cashier-goal__track {
+    background: rgb(63 63 70 / 0.9);
+}
+
+.fi-farmaadmin-cashier-goal__fill {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    border-radius: inherit;
+    transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fi-farmaadmin-cashier-goal__fill--branch,
+.fi-farmaadmin-cashier-goal__swatch--branch {
+    background: rgb(14 148 154 / 0.35);
+}
+
+.fi-farmaadmin-cashier-goal__fill--cashier,
+.fi-farmaadmin-cashier-goal__swatch--cashier {
+    background: linear-gradient(90deg, rgb(14 148 154), rgb(24 172 178));
+}
+
+.fi-farmaadmin-cashier-goal__legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 1rem;
+    margin-top: 0.5rem;
+    font-size: 0.6875rem;
+    color: rgb(82 82 91);
+}
+
+.fi-farmaadmin-cashier-goal__legend strong {
+    margin-inline-start: auto;
+    color: rgb(14 116 144);
+}
+
+.dark .fi-farmaadmin-cashier-goal__legend {
+    color: rgb(161 161 170);
+}
+
+.dark .fi-farmaadmin-cashier-goal__legend strong {
+    color: rgb(125 211 252);
+}
+
+.fi-farmaadmin-cashier-goal__swatch {
+    display: inline-block;
+    width: 0.6rem;
+    height: 0.6rem;
+    margin-inline-end: 0.2rem;
+    border-radius: 9999px;
+    vertical-align: middle;
+}
+
+@keyframes fi-farmaadmin-today-summary-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes fi-farmaadmin-cashier-goal-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.35;
+    }
+}
+
+@media (max-width: 39.99rem) {
+    .fi-farmaadmin-today-summary__metrics {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fi-farmaadmin-today-summary__kpi,
+    .fi-farmaadmin-today-summary__branch,
+    .fi-farmaadmin-cashier-goal__live-dot {
+        animation: none;
+    }
+}

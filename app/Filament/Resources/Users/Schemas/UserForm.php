@@ -28,6 +28,19 @@ class UserForm
                     ->description('Identificación en el panel. La sucursal aplica salvo rol Entregas. Con Gerencia puede asignar varias sucursales al usuario; además, las sucursales configuradas en el/los roles se suman al alcance operativo.')
                     ->icon(Heroicon::UserCircle)
                     ->schema([
+                        FileUpload::make('avatar_path')
+                            ->label('Foto de perfil')
+                            ->helperText('Se muestra en el menú del panel, en el saludo del dashboard y, para repartidores, en la ficha del pedido que ve la compañía aliada. Si no se carga, se usa la foto del empleado con el mismo correo.')
+                            ->image()
+                            ->avatar()
+                            ->circleCropper()
+                            ->imageEditor()
+                            ->disk('public')
+                            ->directory('user-avatars')
+                            ->visibility('public')
+                            ->maxSize(2048)
+                            ->alignCenter()
+                            ->columnSpanFull(),
                         Grid::make([
                             'default' => 1,
                             'lg' => 2,
@@ -126,18 +139,6 @@ class UserForm
                             ->prefixIcon(Heroicon::ChatBubbleLeftRight)
                             ->columnSpanFull()
                             ->visible(),
-                        FileUpload::make('delivery_photo_path')
-                            ->label('Foto del repartidor')
-                            ->helperText('Visible para la compañía aliada en el pedido cuando este usuario toma la entrega. Solo aplica con rol Entregas.')
-                            ->image()
-                            ->disk('public')
-                            ->directory('delivery-photos')
-                            ->visibility('public')
-                            ->maxSize(2048)
-                            ->imageEditor()
-                            ->panelLayout('integrated')
-                            ->columnSpanFull()
-                            ->visible(fn (Get $get): bool => self::formRolesIncludeDelivery($get('roles'))),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

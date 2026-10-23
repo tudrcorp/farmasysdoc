@@ -3,6 +3,10 @@
 
     $monthLabel = $month_label;
     $branchCards = $branches;
+    $isMonthToDate = (bool) ($is_month_to_date ?? true);
+    $includesToday = (bool) ($includes_today ?? true);
+    $goalIsProrated = (bool) ($goal_is_prorated ?? false);
+    $periodShortLabel = $isMonthToDate ? 'Mes' : 'Período';
 @endphp
 
 <x-filament-widgets::widget
@@ -17,7 +21,7 @@
     <section class="fi-farmaadmin-branch-monthly-stats">
         <header class="fi-farmaadmin-branch-monthly-stats__header">
             <h2 class="fi-farmaadmin-branch-monthly-stats__title">
-                Ventas del mes · por sucursal
+                Ventas del {{ $isMonthToDate ? 'mes' : 'período' }} · por sucursal
             </h2>
             <p class="fi-farmaadmin-branch-monthly-stats__description">
                 @if (($selected_branch_id ?? null) !== null)
@@ -65,17 +69,19 @@
                         </div>
                         <span class="fi-farmaadmin-branch-monthly-stat__totals">
                             <span class="fi-farmaadmin-branch-monthly-stat__total">
-                                <span class="fi-farmaadmin-branch-monthly-stat__total-label">Mes</span>
+                                <span class="fi-farmaadmin-branch-monthly-stat__total-label">{{ $periodShortLabel }}</span>
                                 {{ Number::currency($branch['total_usd'], 'USD', 'en', 2) }}
                                 <span class="fi-farmaadmin-branch-monthly-stat__total-separator">·</span>
                                 Bs. {{ number_format($branch['total_ves'], 2, ',', '.') }}
                             </span>
-                            <span class="fi-farmaadmin-branch-monthly-stat__total fi-farmaadmin-branch-monthly-stat__total--day">
-                                <span class="fi-farmaadmin-branch-monthly-stat__total-label">Hoy</span>
-                                {{ Number::currency($branch['today_usd'], 'USD', 'en', 2) }}
-                                <span class="fi-farmaadmin-branch-monthly-stat__total-separator">·</span>
-                                Bs. {{ number_format($branch['today_ves'], 2, ',', '.') }}
-                            </span>
+                            @if ($includesToday)
+                                <span class="fi-farmaadmin-branch-monthly-stat__total fi-farmaadmin-branch-monthly-stat__total--day">
+                                    <span class="fi-farmaadmin-branch-monthly-stat__total-label">Hoy</span>
+                                    {{ Number::currency($branch['today_usd'], 'USD', 'en', 2) }}
+                                    <span class="fi-farmaadmin-branch-monthly-stat__total-separator">·</span>
+                                    Bs. {{ number_format($branch['today_ves'], 2, ',', '.') }}
+                                </span>
+                            @endif
                         </span>
                     </header>
 
@@ -83,14 +89,14 @@
                         <div class="fi-farmaadmin-branch-monthly-stat__goal-meta">
                             @if ($hasGoal && $goalUsd !== null && $progressPercent !== null)
                                 <span class="fi-farmaadmin-branch-monthly-stat__goal-label">
-                                    Meta {{ Number::currency($goalUsd, 'USD', 'en', 0) }}
+                                    {{ $goalIsProrated ? 'Meta prorrateada' : 'Meta' }} {{ Number::currency($goalUsd, 'USD', 'en', 0) }}
                                 </span>
                                 <span class="fi-farmaadmin-branch-monthly-stat__goal-percent">
                                     {{ number_format($progressPercent, 1, ',', '.') }}%
                                 </span>
                             @else
                                 <span class="fi-farmaadmin-branch-monthly-stat__goal-label fi-farmaadmin-branch-monthly-stat__goal-label--empty">
-                                    Sin meta del mes
+                                    {{ $isMonthToDate ? 'Sin meta del mes' : 'Sin meta en el período' }}
                                 </span>
                                 <span class="fi-farmaadmin-branch-monthly-stat__goal-percent">—</span>
                             @endif
@@ -132,13 +138,15 @@
                         <div class="fi-farmaadmin-branch-monthly-stat__metric fi-farmaadmin-branch-monthly-stat__metric--highlight">
                             <dt>Total general USD</dt>
                             <dd>
-                                <span class="fi-farmaadmin-branch-monthly-stat__highlight-label">Mes</span>
+                                <span class="fi-farmaadmin-branch-monthly-stat__highlight-label">{{ $periodShortLabel }}</span>
                                 {{ Number::currency($branch['general_total_usd'], 'USD', 'en', 2) }}
                             </dd>
-                            <dd>
-                                <span class="fi-farmaadmin-branch-monthly-stat__highlight-label">Hoy</span>
-                                {{ Number::currency($branch['today_general_total_usd'], 'USD', 'en', 2) }}
-                            </dd>
+                            @if ($includesToday)
+                                <dd>
+                                    <span class="fi-farmaadmin-branch-monthly-stat__highlight-label">Hoy</span>
+                                    {{ Number::currency($branch['today_general_total_usd'], 'USD', 'en', 2) }}
+                                </dd>
+                            @endif
                         </div>
                     </dl>
                 </article>

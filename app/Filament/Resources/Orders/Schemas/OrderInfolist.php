@@ -341,7 +341,7 @@ class OrderInfolist
                                 'class' => 'fi-order-infolist-delivery-assignee-fieldset',
                             ])
                             ->visible(fn (Order $record): bool => filled($record->delivery_assignee)
-                                || filled($record->deliveryAssigneeUser()?->delivery_photo_path))
+                                || $record->deliveryAssigneeUser()?->hasAvatar() === true)
                             ->schema([
                                 TextEntry::make('delivery_assignee')
                                     ->label('Nombre en ruta')
@@ -351,13 +351,12 @@ class OrderInfolist
                                     ->columnSpanFull(),
                                 ImageEntry::make('delivery_assignee_photo')
                                     ->label('Foto del repartidor')
-                                    ->disk('public')
                                     ->height(200)
                                     ->imageHeight(200)
                                     ->circular()
                                     ->alignment(Alignment::Center)
-                                    ->visible(fn (Order $record): bool => filled($record->deliveryAssigneeUser()?->delivery_photo_path))
-                                    ->state(fn (Order $record): ?string => $record->deliveryAssigneeUser()?->delivery_photo_path)
+                                    ->visible(fn (Order $record): bool => $record->deliveryAssigneeUser()?->hasAvatar() === true)
+                                    ->state(fn (Order $record): ?string => $record->deliveryAssigneeUser()?->avatarUrl())
                                     ->extraEntryWrapperAttributes([
                                         'class' => 'fi-order-infolist-delivery-assignee-photo-entry',
                                     ])

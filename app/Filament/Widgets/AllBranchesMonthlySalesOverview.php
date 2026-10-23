@@ -50,6 +50,9 @@ class AllBranchesMonthlySalesOverview extends Widget
     /**
      * @return array{
      *     month_label: string,
+     *     is_month_to_date: bool,
+     *     includes_today: bool,
+     *     goal_is_prorated: bool,
      *     registered_branches_count: int,
      *     scope_description: string,
      *     selected_branch_id: int|null,
@@ -71,7 +74,9 @@ class AllBranchesMonthlySalesOverview extends Widget
      */
     protected function getViewData(): array
     {
-        return app(AllBranchesMonthlySalesStatsService::class)->forCurrentMonthByBranch(
+        return app(AllBranchesMonthlySalesStatsService::class)->forPeriodByBranch(
+            $this->dashboardDateFrom(),
+            $this->dashboardDateTo(),
             DashboardBranchFilter::selectedBranchId(),
         );
     }

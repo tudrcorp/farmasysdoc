@@ -34,6 +34,8 @@ class CurrentMonthGlobalSalesOverview extends Widget
     /**
      * @return array{
      *     month_label: string,
+     *     is_month_to_date: bool,
+     *     goal_is_prorated: bool,
      *     scope_description: string,
      *     selected_branch_id: int|null,
      *     selected_branch_name: string|null,
@@ -52,7 +54,9 @@ class CurrentMonthGlobalSalesOverview extends Widget
      */
     protected function getViewData(): array
     {
-        return app(AllBranchesMonthlySalesStatsService::class)->forCurrentMonthGlobalSummary(
+        return app(AllBranchesMonthlySalesStatsService::class)->forPeriodGlobalSummary(
+            $this->dashboardDateFrom(),
+            $this->dashboardDateTo(),
             DashboardBranchFilter::selectedBranchId(),
         );
     }

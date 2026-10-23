@@ -11,8 +11,11 @@
     $progressBarWidth = $hasGoal && $progressPercent !== null
         ? min(100, max(0, $progressPercent))
         : 0;
+    $isMonthToDate = (bool) ($is_month_to_date ?? true);
+    $goalIsProrated = (bool) ($goal_is_prorated ?? false);
+    $periodNoun = $isMonthToDate ? 'mes' : 'período';
     $bcvFootnote = $total_ves > 0
-        ? 'BCV efectivo del mes'
+        ? 'BCV efectivo del '.$periodNoun
         : 'BCV referencia';
     $isBranchScoped = ($selected_branch_id ?? null) !== null;
     $branchGoalUsd = $branch_goal_usd ?? null;
@@ -35,7 +38,7 @@
     <section class="fi-farmaadmin-branch-monthly-stats">
         <header class="fi-farmaadmin-branch-monthly-stats__header">
             <h2 class="fi-farmaadmin-branch-monthly-stats__title">
-                Ventas del mes · meta global
+                Ventas del {{ $periodNoun }} · meta global
             </h2>
             <p class="fi-farmaadmin-branch-monthly-stats__description">
                 {{ $month_label }} · {{ $scope_description }}
@@ -56,7 +59,7 @@
                             @if ($isBranchScoped)
                                 Aporte de {{ $selected_branch_name }}
                             @else
-                                Total del mes
+                                Total del {{ $periodNoun }}
                             @endif
                         </h3>
                     </div>
@@ -74,7 +77,7 @@
                     <div class="fi-farmaadmin-branch-monthly-stat__goal-meta">
                         @if ($hasGoal && $goalUsd !== null && $progressPercent !== null)
                             <span class="fi-farmaadmin-branch-monthly-stat__goal-label">
-                                Meta global {{ Number::currency($goalUsd, 'USD', 'en', 0) }}
+                                {{ $goalIsProrated ? 'Meta global prorrateada' : 'Meta global' }} {{ Number::currency($goalUsd, 'USD', 'en', 0) }}
                             </span>
                             <span class="fi-farmaadmin-branch-monthly-stat__goal-percent">
                                 {{ number_format($progressPercent, 1, ',', '.') }}%
@@ -84,7 +87,7 @@
                             </span>
                         @else
                             <span class="fi-farmaadmin-branch-monthly-stat__goal-label fi-farmaadmin-branch-monthly-stat__goal-label--empty">
-                                Sin meta global del mes
+                                Sin meta global en el {{ $periodNoun }}
                             </span>
                             <span class="fi-farmaadmin-branch-monthly-stat__goal-percent">—</span>
                         @endif
@@ -97,10 +100,10 @@
                         aria-valuemax="100"
                         @if ($hasGoal && $progressPercent !== null)
                             aria-valuenow="{{ number_format($progressBarWidth, 1, '.', '') }}"
-                            aria-label="{{ $isBranchScoped ? 'Aporte de la sucursal a la meta global del mes' : 'Progreso de ventas respecto a la meta global del mes' }}"
+                            aria-label="{{ $isBranchScoped ? 'Aporte de la sucursal a la meta global del '.$periodNoun : 'Progreso de ventas respecto a la meta global del '.$periodNoun }}"
                         @else
                             aria-valuenow="0"
-                            aria-label="Sin meta global configurada para el mes"
+                            aria-label="Sin meta global configurada para el {{ $periodNoun }}"
                         @endif
                     >
                         <div
@@ -128,7 +131,7 @@
                                     · lleva {{ number_format($branchGoalProgressPercent, 1, ',', '.') }}% de su meta
                                 @endif
                             @else
-                                Sucursal sin meta asignada este mes
+                                Sucursal sin meta asignada en el {{ $periodNoun }}
                             @endif
                         </p>
                     @endif

@@ -4,6 +4,9 @@ namespace App\Filament\Pages\Auth;
 
 use Filament\Auth\Pages\EditProfile as BaseEditProfile;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\FileUpload;
+use Filament\Schemas\Components\Component;
+use Filament\Schemas\Schema;
 use Filament\Support\Exceptions\Halt;
 use Filament\Support\Facades\FilamentView;
 use Throwable;
@@ -11,6 +14,34 @@ use Throwable;
 class EditProfile extends BaseEditProfile
 {
     protected function rateLimit($maxAttempts, $decaySeconds = 60, $method = null, $component = null): void {}
+
+    public function form(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                $this->getAvatarFormComponent(),
+                $this->getNameFormComponent(),
+                $this->getEmailFormComponent(),
+                $this->getPasswordFormComponent(),
+                $this->getPasswordConfirmationFormComponent(),
+                $this->getCurrentPasswordFormComponent(),
+            ]);
+    }
+
+    protected function getAvatarFormComponent(): Component
+    {
+        return FileUpload::make('avatar_path')
+            ->label('Foto de perfil')
+            ->helperText('Se muestra en el menú del panel y en el saludo del dashboard. Máximo 2 MB.')
+            ->image()
+            ->avatar()
+            ->circleCropper()
+            ->imageEditor()
+            ->disk('public')
+            ->directory('user-avatars')
+            ->visibility('public')
+            ->maxSize(2048);
+    }
 
     public function save(): void
     {

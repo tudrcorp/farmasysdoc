@@ -106,13 +106,13 @@ class UserInfolist
                                     ->copyable()
                                     ->copyMessage('WhatsApp copiado')
                                     ->visible(fn (User $record): bool => filled($record->whatsapp_phone)),
-                                ImageEntry::make('delivery_photo_path')
-                                    ->label('Foto para entregas (aliados)')
-                                    ->disk('public')
+                                ImageEntry::make('avatar_path')
+                                    ->label('Foto de perfil')
                                     ->height(160)
                                     ->imageHeight(160)
                                     ->circular()
-                                    ->visible(fn (User $record): bool => $record->isDeliveryUser() && filled($record->delivery_photo_path)),
+                                    ->state(fn (User $record): ?string => $record->avatarUrl())
+                                    ->visible(fn (User $record): bool => $record->hasAvatar()),
                             ]),
                     ])
                     ->columns(1)

@@ -5,12 +5,18 @@
     $firstName = $user
         ? Str::of($user->name ?? '')->trim()->explode(' ')->filter()->first()
         : '';
+    $greetings = [
+        'morning' => ['label' => 'Buenos días', 'icon' => 'heroicon-o-sun'],
+        'afternoon' => ['label' => 'Buenas tardes', 'icon' => 'heroicon-o-sun'],
+        'night' => ['label' => 'Buenas noches', 'icon' => 'heroicon-o-moon'],
+    ];
+    $greetingName = filled($firstName) ? $firstName : $displayName;
 @endphp
 
 <x-filament-widgets::widget
     class="fi-wi-widget fi-farmaadmin-account-widget"
     wire:loading.class="fi-farmaadmin-account-widget--switching"
-    wire:target="selectedDashboardBranchKey"
+    wire:target="selectedDashboardBranchKey, applyDashboardDateRange, toggleTodaySummary"
 >
     <div class="fi-farmaadmin-account-widget__shell">
         <div class="fi-farmaadmin-account-widget__glow" aria-hidden="true"></div>
@@ -18,68 +24,138 @@
         <div class="fi-farmaadmin-account-widget__rim" aria-hidden="true"></div>
 
         <div class="fi-farmaadmin-account-widget__content">
-            <div class="fi-farmaadmin-account-widget__identity">
+            <div
+                class="fi-farmaadmin-account-widget__identity"
+                x-data="{
+                    period: @js($greetingPeriod),
+                    greetings: @js(collect($greetings)->map(fn (array $greeting): string => $greeting['label'])),
+                    init() {
+                        const hour = new Date().getHours();
+
+                        this.period = hour >= 5 && hour < 12 ? 'morning' : (hour >= 12 && hour < 19 ? 'afternoon' : 'night');
+                    },
+                }"
+                x-bind:data-period="period"
+                data-period="{{ $greetingPeriod }}"
+            >
                 @if ($user)
-                    <x-filament-panels::avatar.user
-                        class="fi-farmaadmin-account-widget__avatar shrink-0"
-                        size="sm"
-                        :user="$user"
-                        loading="lazy"
-                    />
+                    <span class="fi-farmaadmin-account-widget__avatar-ring">
+                        <x-filament-panels::avatar.user
+                            class="fi-farmaadmin-account-widget__avatar shrink-0"
+                            size="md"
+                            :user="$user"
+                            loading="lazy"
+                        />
+                    </span>
                 @endif
 
                 <div class="fi-farmaadmin-account-widget__text">
                     <p class="fi-farmaadmin-account-widget__eyebrow">
-                        {{ __('Bienvenido a :app', ['app' => config('app.name')]) }}
+                        <span class="fi-farmaadmin-account-widget__period-chip">
+                            @foreach ($greetings as $periodKey => $greetingConfig)
+                                <span
+                                    class="fi-farmaadmin-account-widget__period-icon fi-farmaadmin-account-widget__period-icon--{{ $periodKey }}"
+                                    x-show="period === @js($periodKey)"
+                                    @if ($periodKey !== $greetingPeriod) style="display: none" @endif
+                                    aria-hidden="true"
+                                >
+                                    <x-filament::icon :icon="$greetingConfig['icon']" class="size-3.5" />
+                                </span>
+                            @endforeach
+                            <span>{{ $todayLabel }}</span>
+                        </span>
                     </p>
                     <h2 class="fi-farmaadmin-account-widget__title">
-                        @if (filled($firstName))
-                            {{ __('Hola, :name', ['name' => $firstName]) }}
-                        @else
-                            {{ $displayName }}
+                        <span
+                            class="fi-farmaadmin-account-widget__greeting"
+                            x-text="greetings[period]"
+                        >{{ $greetings[$greetingPeriod]['label'] }}</span>@if (filled($greetingName)),
+                            <span class="fi-farmaadmin-account-widget__name">{{ $greetingName }}</span>
                         @endif
                     </h2>
-                    @if ($user && filled($firstName) && $displayName !== $firstName)
-                        <p class="fi-farmaadmin-account-widget__subtitle">
+                    <p class="fi-farmaadmin-account-widget__subtitle">
+                        {{ __('Bienvenido a :app', ['app' => config('app.name')]) }}
+                        @if ($user && filled($firstName) && $displayName !== $firstName)
+                            <span class="fi-farmaadmin-account-widget__subtitle-separator" aria-hidden="true">·</span>
                             {{ $displayName }}
-                        </p>
-                    @endif
+                        @endif
+                    </p>
                 </div>
             </div>
 
-            @if ($showBranchPicker)
+            @if ($showBranchPicker || $showDateRangePicker || $showTodaySummaryButton)
                 <div
                     class="fi-farmaadmin-account-widget__branches"
                     @if ($showBranchTransition)
                         x-data="farmaadminBranchTransition({ durationMs: {{ $branchTransitionDurationMs }} })"
                         x-on:change.capture="start($event)"
+                        x-on:farmaadmin-dashboard-range-selected="startRange($event.detail)"
+                        x-on:farmaadmin-dashboard-view-selected="startView($event.detail)"
                     @endif
                 >
-                    <x-filament::input.wrapper
-                        inline-prefix
-                        wire:target="selectedDashboardBranchKey"
-                        class="fi-farmaadmin-account-widget__branch-select"
-                    >
-                        <x-slot name="prefix">
-                            <span class="fi-farmaadmin-account-widget__branch-select-label">
-                                Sucursal
-                            </span>
-                        </x-slot>
-
-                        <x-filament::input.select
-                            wire:model.live="selectedDashboardBranchKey"
+                    @if ($showTodaySummaryButton)
+                        <button
+                            type="button"
+                            @class([
+                                'fi-farmaadmin-account-widget__summary-btn',
+                                'fi-farmaadmin-account-widget__summary-btn--active' => $isTodaySummary,
+                            ])
+                            x-on:click="
+                                $dispatch('farmaadmin-dashboard-view-selected', {
+                                    eyebrow: @js($isTodaySummary ? 'Volviendo a' : 'Abriendo'),
+                                    label: @js($isTodaySummary ? 'Vista general' : 'Resumen de hoy'),
+                                });
+                                $wire.toggleTodaySummary();
+                            "
+                            wire:loading.attr="disabled"
+                            wire:target="toggleTodaySummary"
                         >
-                            <option value="all">
-                                Todas las sucursales
-                            </option>
+                            <span class="fi-farmaadmin-account-widget__summary-btn-icon" aria-hidden="true">
+                                <span wire:loading.remove wire:target="toggleTodaySummary">
+                                    <x-filament::icon
+                                        :icon="$isTodaySummary ? 'heroicon-m-arrow-uturn-left' : 'heroicon-m-sparkles'"
+                                        class="size-4"
+                                    />
+                                </span>
+                                <span wire:loading wire:target="toggleTodaySummary">
+                                    <x-filament::loading-indicator class="size-4" />
+                                </span>
+                            </span>
+                            <span>{{ $isTodaySummary ? 'Volver al dashboard' : 'Resumen de hoy!' }}</span>
+                        </button>
+                    @endif
 
-                            @foreach ($branchOptions as $branch)
-                                <option value="{{ $branch['id'] }}">
-                                    {{ $branch['name'] }}
+                    @if ($showBranchPicker)
+                        <x-filament::input.wrapper
+                            inline-prefix
+                            wire:target="selectedDashboardBranchKey"
+                            class="fi-farmaadmin-account-widget__branch-select"
+                        >
+                            <x-slot name="prefix">
+                                <span class="fi-farmaadmin-account-widget__branch-select-label">
+                                    Sucursal
+                                </span>
+                            </x-slot>
+    
+                            <x-filament::input.select
+                                wire:model.live="selectedDashboardBranchKey"
+                            >
+                                <option value="all">
+                                    Todas las sucursales
                                 </option>
-                            @endforeach
-                        </x-filament::input.select>
-                    </x-filament::input.wrapper>
+    
+                                @foreach ($branchOptions as $branch)
+                                    <option value="{{ $branch['id'] }}">
+                                        {{ $branch['name'] }}
+                                    </option>
+                                @endforeach
+                            </x-filament::input.select>
+                        </x-filament::input.wrapper>
+                    @endif
+
+                    @if ($showDateRangePicker)
+                        @include('filament.farmaadmin.widgets.partials.dashboard-date-range-picker')
+                    @endif
 
                     @if ($showBranchTransition)
                         <template x-teleport="body">
@@ -124,7 +200,7 @@
 
                                     <p
                                         class="fi-farmaadmin-branch-portal__eyebrow"
-                                        x-text="mode === 'all' ? 'Volviendo a la vista general' : 'Entrando a'"
+                                        x-text="mode === 'all' ? 'Volviendo a la vista general' : (mode === 'range' ? 'Cargando período' : (mode === 'view' ? eyebrow : 'Entrando a'))"
                                     ></p>
 
                                     <p class="fi-farmaadmin-branch-portal__title" x-text="branchName"></p>
@@ -142,13 +218,16 @@
     </div>
 </x-filament-widgets::widget>
 
-@if ($showBranchTransition)
+@if ($showBranchTransition || $showDateRangePicker)
     @script
     <script>
+        @include('filament.farmaadmin.widgets.partials.dashboard-date-range-picker-script')
+
         Alpine.data('farmaadminBranchTransition', (config = {}) => ({
             phase: 'idle',
             mode: 'branch',
             branchName: '',
+            eyebrow: '',
             durationMs: Number(config.durationMs) || 1000,
             settleQuietMs: 250,
             maxWaitMs: 8000,
@@ -184,13 +263,31 @@
                     return;
                 }
 
+                let mode = select.value === 'all' ? 'all' : 'branch';
+
+                this.begin(
+                    mode,
+                    mode === 'all'
+                        ? 'Todas las sucursales'
+                        : (select.selectedOptions[0]?.textContent ?? '').trim(),
+                );
+            },
+
+            startRange(detail = {}) {
+                this.begin('range', detail.label ?? '');
+            },
+
+            startView(detail = {}) {
+                this.eyebrow = detail.eyebrow ?? 'Abriendo';
+                this.begin('view', detail.label ?? '');
+            },
+
+            begin(mode, title) {
                 this.clearTimers();
                 this.resetPage();
 
-                this.mode = select.value === 'all' ? 'all' : 'branch';
-                this.branchName = this.mode === 'all'
-                    ? 'Todas las sucursales'
-                    : (select.selectedOptions[0]?.textContent ?? '').trim();
+                this.mode = mode;
+                this.branchName = title;
                 this.pendingRequests = 0;
                 this.hasSeenRequest = false;
                 this.startedAt = performance.now();

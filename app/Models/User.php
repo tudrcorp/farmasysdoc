@@ -9,6 +9,7 @@ use App\Support\Sales\PosManualDiscount;
 use App\Support\Sales\SalesBillingAccess;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
+use Filament\Models\Contracts\HasAvatar;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -25,9 +26,9 @@ use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'branch_id', 'partner_company_id', 'partner_company_code', 'partner_user_is_active', 'roles', 'delivery_photo_path', 'delivery_identity_document', 'delivery_mobile_phone', 'whatsapp_phone'])]
+#[Fillable(['name', 'email', 'password', 'branch_id', 'partner_company_id', 'partner_company_code', 'partner_user_is_active', 'roles', 'avatar_path', 'delivery_identity_document', 'delivery_mobile_phone', 'whatsapp_phone'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
-class User extends Authenticatable implements FilamentUser
+class User extends Authenticatable implements FilamentUser, HasAvatar
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, TwoFactorAuthenticatable;
@@ -138,15 +139,40 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
-     * URL pública de la foto de repartidor (aliados / ficha de pedido), o null si no hay archivo.
+     * Foto de perfil: la cargada en el usuario o, si no hay, la del empleado de RR. HH. con el mismo correo.
      */
-    public function deliveryPhotoPublicUrl(): ?string
+    public function avatarUrl(): ?string
     {
-        if (blank($this->delivery_photo_path)) {
-            return null;
+        if (filled($this->avatar_path)) {
+            return Storage::disk('public')->url((string) $this->avatar_path);
         }
 
-        return Storage::disk('public')->url($this->delivery_photo_path);
+        $employee = $this->employeeProfile;
+
+        return $employee instanceof Employee && $employee->hasPhoto()
+            ? $employee->photoUrl()
+            : null;
+    }
+
+    public function hasAvatar(): bool
+    {
+        return $this->avatarUrl() !== null;
+    }
+
+    public function getFilamentAvatarUrl(): ?string
+    {
+        return $this->avatarUrl();
+    }
+
+    /**
+     * Ficha de empleado vinculada por correo (no hay FK entre usuarios y empleados).
+     * Cargar de forma diferida: el eager loading compara correos distinguiendo mayúsculas en PHP.
+     *
+     * @return HasOne<Employee, $this>
+     */
+    public function employeeProfile(): HasOne
+    {
+        return $this->hasOne(Employee::class, 'email', 'email');
     }
 
     /**

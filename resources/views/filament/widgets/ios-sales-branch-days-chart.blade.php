@@ -11,7 +11,7 @@
     $type = $this->getType();
     $isDayOverview = $this->isDayOverviewMode();
     $maxHeight = $this->getMaxHeight();
-    $chartStageKey = ($this->filter ?? 'month').'-'.($this->drillDownDate ?? 'overview');
+    $chartStageKey = $this->getChartStageKey();
     $pollingInterval = $this->getPollingInterval();
     $drillDownBranches = $isDayOverview ? [] : $this->getDrillDownBranches();
     $drillDownBcvRate = $isDayOverview ? null : $this->getDrillDownBcvRateFormatted();
@@ -40,14 +40,14 @@
                             icon="heroicon-m-chevron-left"
                             class="fi-ios-sales-branch-days-chart__back-icon"
                         />
-                        <span>Volver al mes</span>
+                        <span>Volver al período</span>
                     </button>
                 @endif
 
                 @if ($filters)
                     <x-filament::input.wrapper
                         inline-prefix
-                        wire:target="filter, drillIntoDay, backToDayOverview"
+                        wire:target="drillIntoDay, backToDayOverview"
                         @class([
                             'fi-wi-chart-filter',
                             'fi-ios-sales-branch-days-chart__filter',
@@ -73,7 +73,7 @@
         <div
             class="fi-ios-sales-branch-days-chart__stage"
             wire:loading.class="fi-ios-sales-branch-days-chart__stage--loading"
-            wire:target="filter, drillIntoDay, backToDayOverview"
+            wire:target="drillIntoDay, backToDayOverview"
             @if (filled($pollingInterval))
                 wire:poll.{{ $pollingInterval }}="updateChartData"
             @endif
@@ -252,7 +252,7 @@
 
                 <div
                     wire:loading.flex
-                    wire:target="filter, drillIntoDay, backToDayOverview"
+                    wire:target="drillIntoDay, backToDayOverview"
                     class="fi-ios-sales-branch-days-chart__loader"
                 >
                     <x-filament::loading-indicator class="fi-ios-sales-branch-days-chart__loader-icon" />

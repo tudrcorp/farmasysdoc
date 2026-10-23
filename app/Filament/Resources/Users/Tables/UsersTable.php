@@ -32,6 +32,12 @@ class UsersTable
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('branch'))
             ->columns([
+                ImageColumn::make('avatar')
+                    ->label('')
+                    ->state(fn (User $record): ?string => filament()->getUserAvatarUrl($record))
+                    ->circular()
+                    ->imageSize(36)
+                    ->grow(false),
                 TextColumn::make('name')
                     ->label('Nombre')
                     ->description(fn (User $record): string => $record->email)
@@ -40,9 +46,7 @@ class UsersTable
                     ->weight('medium')
                     ->wrap()
                     ->lineClamp(2)
-                    ->tooltip(fn (User $record): string => $record->name)
-                    ->icon(Heroicon::User)
-                    ->iconColor('gray'),
+                    ->tooltip(fn (User $record): string => $record->name),
                 TextColumn::make('email')
                     ->label('Correo')
                     ->searchable()
@@ -128,14 +132,6 @@ class UsersTable
                         ? (string) $record->whatsapp_phone
                         : null)
                     ->toggleable(isToggledHiddenByDefault: false),
-                ImageColumn::make('delivery_photo_path')
-                    ->label('Foto entrega')
-                    ->disk('public')
-                    ->circular()
-                    ->height(40)
-                    ->width(40)
-                    ->toggleable(isToggledHiddenByDefault: true)
-                    ->placeholder('—'),
                 IconColumn::make('is_email_verified')
                     ->label('Correo verif.')
                     ->boolean()

@@ -11,9 +11,9 @@ use App\Models\Sale;
 use App\Models\User;
 use App\Services\Dashboard\BranchSalesDayPaymentMethodChartDataService;
 use App\Support\Filament\DashboardBranchFilter;
+use App\Support\Filament\DashboardDateRangeFilter;
 use App\Support\Finance\BcvRate;
 use Carbon\Carbon;
-use Carbon\CarbonInterface;
 use Filament\Facades\Filament;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Contracts\Support\Htmlable;
@@ -44,29 +44,13 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
      */
     private ?array $cachedDrillDownPayload = null;
 
-    public function mount(): void
-    {
-        if ($this->filter === null || $this->filter === '') {
-            $this->filter = now()->format('Y-m');
-        }
-
-        parent::mount();
-    }
-
-    public function updatedFilter(?string $value): void
-    {
-        $this->drillDownDate = null;
-        $this->cachedData = null;
-        $this->cachedDrillDownPayload = null;
-    }
-
     public function drillIntoDay(int $dayIndex): void
     {
         if (! $this->isDayOverviewMode()) {
             return;
         }
 
-        $dayKeys = $this->dayKeysForSelectedMonth();
+        $dayKeys = $this->dayKeysForRange();
         if (! isset($dayKeys[$dayIndex])) {
             return;
         }
@@ -148,10 +132,7 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
             return implode(' · ', $parts).$this->dashboardBranchFilterSuffix();
         }
 
-        $month = $this->selectedMonth();
-        $monthLabel = ucfirst($month->locale('es')->translatedFormat('F Y'));
-
-        return $monthLabel.' · Total: '.$this->formatUsd($this->totalAmountForMonth($month))
+        return $this->periodLabel().' · Total: '.$this->formatUsd($this->totalAmountForRange())
             .' · Pulsa un día con ventas para ver el detalle por método de pago'
             .$this->dashboardBranchFilterSuffix();
     }
@@ -167,20 +148,9 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
         return 1;
     }
 
-    /**
-     * @return array<string, string>|null
-     */
-    protected function getFilters(): ?array
+    public function getChartStageKey(): string
     {
-        $filters = [];
-
-        for ($offset = 0; $offset < 24; $offset++) {
-            $month = now()->startOfMonth()->subMonths($offset);
-            $key = $month->format('Y-m');
-            $filters[$key] = ucfirst($month->locale('es')->translatedFormat('F Y'));
-        }
-
-        return $filters;
+        return DashboardDateRangeFilter::rangeKey().'-'.($this->drillDownDate ?? 'overview');
     }
 
     protected function getType(): string
@@ -259,13 +229,12 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
     private function dayOverviewChartData(): array
     {
         $branchIds = $this->dashboardBranchIdsForCharts();
-        $monthStart = $this->selectedMonth();
-        $monthEnd = $monthStart->copy()->endOfMonth();
+        $dayKeys = $this->dayKeysForRange();
 
         if ($branchIds === []) {
             return [
                 'datasets' => [],
-                'labels' => $this->dayLabels($monthStart->daysInMonth),
+                'labels' => $this->dayLabels($dayKeys),
             ];
         }
 
@@ -275,7 +244,7 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
             ->where('status', SaleStatus::Completed)
             ->whereNotNull('sold_at')
             ->whereIn('branch_id', $branchIds)
-            ->whereBetween('sold_at', [$monthStart->copy()->startOfDay(), $monthEnd->copy()->endOfDay()])
+            ->whereBetween('sold_at', [$this->dashboardDateFrom(), $this->dashboardDateTo()])
             ->selectRaw("branch_id, {$dateExpression} as sold_day, SUM(CAST(total AS DECIMAL(14,2))) as amount")
             ->groupBy('branch_id', DB::raw($dateExpression))
             ->get();
@@ -291,7 +260,6 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
             $indexed[$branchId][$dayKey] = round((float) $row->amount, 2);
         }
 
-        $dayKeys = $this->dayKeys($monthStart);
         $fills = BrandChartPalette::branchBarFills(count($branchIds));
         $hovers = BrandChartPalette::branchBarHovers(count($branchIds));
         $borders = BrandChartPalette::branchBarBorderColors(count($branchIds));
@@ -320,7 +288,7 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
 
         return [
             'datasets' => $datasets,
-            'labels' => $this->dayLabels($monthStart->daysInMonth),
+            'labels' => $this->dayLabels($dayKeys),
         ];
     }
 
@@ -374,54 +342,44 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
         return $this->dashboardBranchIdsForCharts();
     }
 
-    private function selectedMonth(): CarbonInterface
+    private function periodLabel(): string
     {
-        $filter = $this->filter ?? now()->format('Y-m');
-
-        if (is_string($filter) && preg_match('/^(\d{4})-(\d{2})$/', $filter, $matches) === 1) {
-            $year = (int) $matches[1];
-            $month = (int) $matches[2];
-
-            if ($month >= 1 && $month <= 12) {
-                return now()->setDate($year, $month, 1)->startOfMonth();
-            }
+        if (DashboardDateRangeFilter::isMonthToDate()) {
+            return ucfirst($this->dashboardDateFrom()->locale('es')->translatedFormat('F Y'));
         }
 
-        return now()->startOfMonth();
+        return DashboardDateRangeFilter::label();
     }
 
     /**
      * @return list<string>
      */
-    private function dayKeysForSelectedMonth(): array
-    {
-        return $this->dayKeys($this->selectedMonth());
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function dayLabels(int $daysInMonth): array
-    {
-        $labels = [];
-        for ($day = 1; $day <= $daysInMonth; $day++) {
-            $labels[] = str_pad((string) $day, 2, '0', STR_PAD_LEFT);
-        }
-
-        return $labels;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function dayKeys(CarbonInterface $monthStart): array
+    private function dayKeysForRange(): array
     {
         $keys = [];
-        for ($day = 1; $day <= $monthStart->daysInMonth; $day++) {
-            $keys[] = $monthStart->copy()->day($day)->format('Y-m-d');
+        $cursor = $this->dashboardDateFrom()->startOfDay();
+        $end = $this->dashboardDateTo()->startOfDay();
+
+        while ($cursor->lessThanOrEqualTo($end)) {
+            $keys[] = $cursor->format('Y-m-d');
+            $cursor = $cursor->addDay();
         }
 
         return $keys;
+    }
+
+    /**
+     * @param  list<string>  $dayKeys
+     * @return list<string>
+     */
+    private function dayLabels(array $dayKeys): array
+    {
+        $format = DashboardDateRangeFilter::isSingleMonth() ? 'd' : 'd/m';
+
+        return array_map(
+            static fn (string $dayKey): string => Carbon::parse($dayKey)->format($format),
+            $dayKeys,
+        );
     }
 
     private function dateGroupExpression(): string
@@ -433,7 +391,7 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
         };
     }
 
-    private function totalAmountForMonth(CarbonInterface $monthStart): float
+    private function totalAmountForRange(): float
     {
         $branchIds = $this->dashboardBranchIdsForCharts();
         if ($branchIds === []) {
@@ -445,7 +403,7 @@ class ManagementBranchSalesCurrentMonthDaysChart extends ChartWidget
             ->where('status', SaleStatus::Completed)
             ->whereNotNull('sold_at')
             ->whereIn('branch_id', $branchIds)
-            ->whereBetween('sold_at', [$monthStart->copy()->startOfDay(), $monthStart->copy()->endOfMonth()->endOfDay()])
+            ->whereBetween('sold_at', [$this->dashboardDateFrom(), $this->dashboardDateTo()])
             ->sum('total'), 2);
     }
 

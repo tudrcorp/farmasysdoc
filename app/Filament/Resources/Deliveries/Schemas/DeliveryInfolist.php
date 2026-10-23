@@ -103,13 +103,12 @@ class DeliveryInfolist
                                     ->columnSpan(['default' => 1, 'sm' => 2]),
                                 ImageEntry::make('delivery_assignee_photo')
                                     ->label('Foto del repartidor')
-                                    ->disk('public')
                                     ->height(140)
                                     ->imageHeight(140)
                                     ->circular()
                                     ->visible(fn (Delivery $record): bool => filled($record->user_id)
-                                        && filled($record->user?->delivery_photo_path))
-                                    ->state(fn (Delivery $record): ?string => $record->user?->delivery_photo_path)
+                                        && $record->user?->hasAvatar() === true)
+                                    ->state(fn (Delivery $record): ?string => $record->user?->avatarUrl())
                                     ->columnSpan(['default' => 1, 'sm' => 2]),
                                 ImageEntry::make('delivery_evidence_path')
                                     ->label('Evidencia de entrega')

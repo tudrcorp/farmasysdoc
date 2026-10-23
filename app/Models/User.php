@@ -442,6 +442,14 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     }
 
     /**
+     * Solicitar, aprobar o gastar caja chica: administrador o gerencia.
+     */
+    public function canManagePettyCash(): bool
+    {
+        return $this->isAdministrator() || $this->isManager();
+    }
+
+    /**
      * Acceso por ítem de menú del panel Farmaadmin según los roles activos del usuario.
      */
     public function canAccessFarmaadminMenuKey(string $menuKey): bool

@@ -267,6 +267,41 @@ class PurchaseBooksTable
 
                         return $indicators;
                     }),
+                Filter::make('issue_date_between')
+                    ->label('Fecha comprobante retención')
+                    ->columns(2)
+                    ->form([
+                        DatePicker::make('issue_from')
+                            ->label('Desde')
+                            ->native(false)
+                            ->displayFormat('d/m/Y'),
+                        DatePicker::make('issue_until')
+                            ->label('Hasta')
+                            ->native(false)
+                            ->displayFormat('d/m/Y'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                filled($data['issue_from'] ?? null),
+                                fn (Builder $q): Builder => $q->whereDate('issue_date', '>=', (string) $data['issue_from']),
+                            )
+                            ->when(
+                                filled($data['issue_until'] ?? null),
+                                fn (Builder $q): Builder => $q->whereDate('issue_date', '<=', (string) $data['issue_until']),
+                            );
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+                        if (filled($data['issue_from'] ?? null)) {
+                            $indicators[] = 'Comprobante desde: '.$data['issue_from'];
+                        }
+                        if (filled($data['issue_until'] ?? null)) {
+                            $indicators[] = 'Comprobante hasta: '.$data['issue_until'];
+                        }
+
+                        return $indicators;
+                    }),
             ])
             ->recordActions([
                 ViewAction::make()

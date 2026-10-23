@@ -17,6 +17,7 @@ use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\User;
+use App\Services\Finance\PettyCashExpenseCsvExporter;
 use App\Services\Finance\VenezuelaOfficialUsdVesRateClient;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Finance\AccountsPayableStatus;
@@ -37,6 +38,7 @@ final class SystemReportsCsvExporter
     public function __construct(
         private readonly SaleCollectedMoneyAggregator $collectedMoneyAggregator,
         private readonly SaleCollectedMoneyAttributor $collectedMoneyAttributor,
+        private readonly PettyCashExpenseCsvExporter $pettyCashExpenseCsvExporter,
     ) {}
 
     public function stream(User $user, string $slug, Request $request): StreamedResponse
@@ -67,6 +69,7 @@ final class SystemReportsCsvExporter
             'tasas-bcv' => $this->streamTasasBcv($from, $to),
             'ingresos-aliados' => $this->streamIngresosAliados($user, $from, $to),
             'compras' => $this->streamCompras($user, (string) $request->query('filtro', 'todas')),
+            'egresos-caja-chica' => $this->streamEgresosCajaChica($user, $from, $to),
             default => abort(404),
         };
     }
@@ -1031,6 +1034,14 @@ final class SystemReportsCsvExporter
         }
 
         return $this->csvResponse('reporte-compras-'.$filtro.'-'.now()->format('YmdHis').'.csv', $headers, $data);
+    }
+
+    private function streamEgresosCajaChica(User $user, Carbon $from, Carbon $to): StreamedResponse
+    {
+        return $this->pettyCashExpenseCsvExporter->stream(
+            $this->pettyCashExpenseCsvExporter->queryForUser($user, $from, $to),
+            'reporte-egresos-caja-chica-'.now()->format('YmdHis').'.csv',
+        );
     }
 
     private function salesCustomerCountExpression(): string

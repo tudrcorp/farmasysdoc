@@ -31,6 +31,7 @@ final class SystemReportsDownloadController extends Controller
         'tasas-bcv',
         'ingresos-aliados',
         'compras',
+        'egresos-caja-chica',
     ];
 
     public function download(Request $request, string $slug): StreamedResponse

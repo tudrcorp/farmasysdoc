@@ -5,6 +5,7 @@ use App\Models\Branch;
 use App\Models\BranchCategoryProfitMargin;
 use App\Models\Client;
 use App\Models\Delivery;
+use App\Models\FinancialFixedExpense;
 use App\Models\FinancialSetting;
 use App\Models\FiscalCompanySetting;
 use App\Models\FiscalDocument;
@@ -22,6 +23,8 @@ use App\Models\Order;
 use App\Models\OrderService;
 use App\Models\PartnerCompany;
 use App\Models\PartnerCompanyUser;
+use App\Models\PettyCashExpense;
+use App\Models\PettyCashFund;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductTransfer;
@@ -89,6 +92,9 @@ return [
         MarketingSegment::class,
         MarketingUtmLink::class,
         PartnerCompanyUser::class,
+        PettyCashFund::class,
+        PettyCashExpense::class,
+        FinancialFixedExpense::class,
     ],
 
 ];

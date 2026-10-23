@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Clusters\Reporting\Pages\FinancialReportPage;
 use App\Filament\GlobalSearch\FarmaadminGlobalSearchProvider;
 use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Auth\EmailVerificationPrompt;
@@ -90,6 +91,7 @@ class FarmaadminPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
                 MarketingHubPage::class,
+                FinancialReportPage::class,
                 CashierPhysicalCashBoxPage::class,
                 ManageCashierShiftAccessPage::class,
             ])

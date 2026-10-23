@@ -12,6 +12,7 @@ use App\Http\Controllers\Hr\EmployeePortalLogoutController;
 use App\Http\Controllers\Hr\EmployeePortalPayrollReceiptController;
 use App\Http\Controllers\Inventory\InventoryAuditDetailedReportPdfController;
 use App\Http\Controllers\NominatimProxyController;
+use App\Http\Controllers\PettyCash\PettyCashApprovalController;
 use App\Http\Controllers\ProductTransfers\ProductTransferReportPdfController;
 use App\Http\Controllers\ProductTransfers\ProductTransferSaleReportPdfController;
 use App\Http\Controllers\PublicProductSearchController;
@@ -22,6 +23,7 @@ use App\Http\Controllers\Purchases\PurchaseBookSeniatRetentionTxtController;
 use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
 use App\Http\Controllers\Purchases\PurchaseLedgerBookReportController;
 use App\Http\Controllers\Purchases\SupplierDossierPdfController;
+use App\Http\Controllers\Reports\FinancialReportDownloadController;
 use App\Http\Controllers\Reports\SystemReportsDownloadController;
 use App\Http\Controllers\Sales\CashRegisterClosePdfController;
 use App\Http\Controllers\Sales\PhysicalCashBoxClosePhotoController;
@@ -236,12 +238,31 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('purchases/{purchase}/annulment-complete', [PurchaseAnnulmentApprovalController::class, 'complete'])
         ->name('purchases.annulment.complete');
 
+    Route::get('caja-chica/{fund}/aprobar', [PettyCashApprovalController::class, 'show'])
+        ->middleware('signed')
+        ->name('petty-cash.approval.show');
+
+    Route::post('caja-chica/{fund}/aprobar', [PettyCashApprovalController::class, 'approve'])
+        ->middleware('signed')
+        ->name('petty-cash.approval.approve');
+
+    Route::post('caja-chica/{fund}/rechazar', [PettyCashApprovalController::class, 'reject'])
+        ->middleware('signed')
+        ->name('petty-cash.approval.reject');
+
+    Route::get('caja-chica/{fund}/listo', [PettyCashApprovalController::class, 'complete'])
+        ->name('petty-cash.approval.complete');
+
     Route::middleware([EnsureSystemReportsAccess::class])
         ->prefix('system-reports')
         ->name('system-reports.')
         ->group(function (): void {
             Route::get('download/{slug}', [SystemReportsDownloadController::class, 'download'])->name('download');
         });
+
+    Route::get('reporte-financiero/descargar', FinancialReportDownloadController::class)
+        ->middleware('signed')
+        ->name('reports.financial.download');
 });
 
 Route::get('/pp', function () {

@@ -150,7 +150,7 @@ class PettyCashFundForm
         $enum = $currency instanceof PettyCashCurrency
             ? $currency
             : PettyCashCurrency::tryFrom((string) $currency);
-        if (! $enum PettyCashFundForm PettyCashCurrency) {
+        if (! $enum instanceof PettyCashCurrency) {
             return 'El equivalente se calcula con la tasa BCV del día.';
         }
 

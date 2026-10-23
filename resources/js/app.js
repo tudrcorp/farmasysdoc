@@ -14,9 +14,363 @@ document.addEventListener('alpine:init', () => {
         },
     });
 
+    /**
+     * Avisos del portal: número en la campana y en el ícono de la PWA (Badging API).
+     * Una consulta liviana cada 60 s, solo con la pantalla visible.
+     */
+    alpine.store('epNotifications', {
+        count: 0,
+        endpoint: null,
+        timer: null,
+        lastFetchAt: 0,
+        init() {
+            this.readFromPage();
+
+            document.addEventListener('livewire:navigated', () => this.readFromPage());
+            window.addEventListener('ep-notifications-read', () => this.set(0));
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && Date.now() - this.lastFetchAt > 15000) {
+                    this.refresh();
+                }
+            });
+
+            this.timer = window.setInterval(() => {
+                if (document.visibilityState === 'visible') {
+                    this.refresh();
+                }
+            }, 60000);
+        },
+        readFromPage() {
+            const source = document.querySelector('[data-ep-unread-count]');
+            this.endpoint = source?.dataset.endpoint ?? null;
+            this.set(source ? Number(source.dataset.epUnreadCount) || 0 : 0);
+        },
+        async refresh() {
+            if (! this.endpoint) {
+                return;
+            }
+
+            this.lastFetchAt = Date.now();
+
+            try {
+                const response = await fetch(this.endpoint, {
+                    headers: { Accept: 'application/json' },
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.set(Number(data.count) || 0);
+                }
+            } catch {
+                // Sin red: se conserva el último valor.
+            }
+        },
+        set(count) {
+            this.count = count;
+
+            if (! ('setAppBadge' in navigator)) {
+                return;
+            }
+
+            const result = count > 0 ? navigator.setAppBadge(count) : navigator.clearAppBadge();
+            result?.catch?.(() => undefined);
+        },
+        canAskPermission() {
+            return 'setAppBadge' in navigator
+                && 'Notification' in window
+                && Notification.permission === 'default'
+                && window.matchMedia('(display-mode: standalone)').matches;
+        },
+        askPermission() {
+            if (! ('Notification' in window)) {
+                return Promise.resolve();
+            }
+
+            return Notification.requestPermission()
+                .then(() => this.set(this.count))
+                .catch(() => undefined);
+        },
+    });
+
+    /**
+     * Selector de rango del portal, con la misma interacción que el del dashboard:
+     * primer toque = "desde", segundo = "hasta". Respeta fechas mínima/máxima y el máximo de días.
+     */
+    alpine.data('employeeDateRangePicker', (config = {}) => ({
+        open: false,
+        today: config.today,
+        min: config.min,
+        max: config.max,
+        maxDays: Number(config.maxDays) || 90,
+        businessDays: Boolean(config.businessDays),
+        rightStartsOn: config.rightStartsOn ?? null,
+        entitledDays: config.entitledDays ?? null,
+        from: config.from || null,
+        to: config.to || null,
+        draftStart: null,
+        draftEnd: null,
+        hoverDate: null,
+        viewYear: 0,
+        viewMonth: 0,
+        monthsToShow: 2,
+        weekdays: ['lu', 'ma', 'mi', 'ju', 'vi', 'sá', 'do'],
+
+        get selecting() {
+            return this.draftStart !== null && this.draftEnd === null;
+        },
+
+        get canGoPrev() {
+            const min = this.parse(this.min);
+
+            return this.viewYear * 12 + this.viewMonth > min.getFullYear() * 12 + min.getMonth();
+        },
+
+        get canGoNext() {
+            const max = this.parse(this.max);
+
+            return this.viewYear * 12 + this.viewMonth + this.monthsToShow - 1 < max.getFullYear() * 12 + max.getMonth();
+        },
+
+        get months() {
+            const months = [];
+
+            for (let offset = 0; offset < this.monthsToShow; offset++) {
+                months.push(this.buildMonth(new Date(this.viewYear, this.viewMonth + offset, 1)));
+            }
+
+            return months;
+        },
+
+        get draftLabel() {
+            if (this.selecting) {
+                return `${this.formatDay(this.draftStart)} – …`;
+            }
+
+            return this.draftStart && this.draftEnd ? this.formatRange(this.draftStart, this.draftEnd) : '';
+        },
+
+        toggle() {
+            this.open ? this.close() : this.show();
+        },
+
+        show() {
+            this.monthsToShow = window.matchMedia('(min-width: 40rem)').matches ? 2 : 1;
+            this.draftStart = this.from;
+            this.draftEnd = this.to;
+            this.hoverDate = null;
+
+            const anchor = this.parse(this.from || (this.today < this.min ? this.min : this.today));
+
+            this.viewYear = anchor.getFullYear();
+            this.viewMonth = anchor.getMonth();
+            this.open = true;
+        },
+
+        close() {
+            this.open = false;
+            this.hoverDate = null;
+        },
+
+        shiftMonths(step) {
+            if ((step > 0 && ! this.canGoNext) || (step < 0 && ! this.canGoPrev)) {
+                return;
+            }
+
+            const first = new Date(this.viewYear, this.viewMonth + step, 1);
+            this.viewYear = first.getFullYear();
+            this.viewMonth = first.getMonth();
+        },
+
+        buildMonth(firstDay) {
+            const monthName = new Intl.DateTimeFormat('es', { month: 'long' }).format(firstDay);
+            const leadingBlanks = (firstDay.getDay() + 6) % 7;
+            const daysInMonth = new Date(firstDay.getFullYear(), firstDay.getMonth() + 1, 0).getDate();
+            const monthKey = this.key(firstDay).slice(0, 7);
+            const cells = [];
+
+            for (let blank = 0; blank < leadingBlanks; blank++) {
+                cells.push({ key: `${monthKey}-blank-${blank}`, date: null, day: '', ariaLabel: null });
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(firstDay.getFullYear(), firstDay.getMonth(), day);
+
+                cells.push({
+                    key: this.key(date),
+                    date: this.key(date),
+                    day,
+                    weekend: date.getDay() === 0 || date.getDay() === 6,
+                    ariaLabel: new Intl.DateTimeFormat('es', { dateStyle: 'full' }).format(date),
+                });
+            }
+
+            return {
+                key: monthKey,
+                label: `${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} ${firstDay.getFullYear()}`,
+                cells,
+            };
+        },
+
+        isDisabled(date) {
+            if (date < this.min || date > this.max) {
+                return true;
+            }
+
+            return this.selecting && Math.abs(this.diffDays(this.draftStart, date)) >= this.maxDays;
+        },
+
+        visibleRange() {
+            if (this.selecting) {
+                const edge = this.hoverDate && ! this.isDisabled(this.hoverDate) ? this.hoverDate : this.draftStart;
+
+                return edge < this.draftStart ? [edge, this.draftStart] : [this.draftStart, edge];
+            }
+
+            return [this.draftStart, this.draftEnd];
+        },
+
+        dayClasses(cell) {
+            if (cell.date === null) {
+                return 'is-empty';
+            }
+
+            const [start, end] = this.visibleRange();
+            const isStart = start !== null && cell.date === start;
+            const isEnd = end !== null && cell.date === end;
+
+            return {
+                'is-start': isStart,
+                'is-end': isEnd,
+                'is-single': isStart && isEnd,
+                'is-in-range': start !== null && end !== null && cell.date > start && cell.date < end,
+                'is-today': cell.date === this.today,
+                'is-weekend': this.businessDays && cell.weekend,
+            };
+        },
+
+        selectDay(date) {
+            if (date === null || this.isDisabled(date)) {
+                return;
+            }
+
+            if (! this.selecting) {
+                this.draftStart = date;
+                this.draftEnd = null;
+
+                return;
+            }
+
+            const [from, to] = date < this.draftStart ? [date, this.draftStart] : [this.draftStart, date];
+            this.applyRange(from, to);
+        },
+
+        applyRange(from, to) {
+            this.from = from;
+            this.to = to;
+            this.draftStart = from;
+            this.draftEnd = to;
+            this.close();
+
+            this.$wire.$set('startsOn', from, false);
+            this.$wire.$set('endsOn', to, false);
+        },
+
+        count(from, to) {
+            if (! from || ! to) {
+                return 0;
+            }
+
+            if (! this.businessDays) {
+                return this.diffDays(from, to) + 1;
+            }
+
+            let total = 0;
+            const cursor = this.parse(from);
+            const end = this.parse(to);
+
+            while (cursor <= end) {
+                const weekday = cursor.getDay();
+
+                if (weekday !== 0 && weekday !== 6) {
+                    total++;
+                }
+
+                cursor.setDate(cursor.getDate() + 1);
+            }
+
+            return total;
+        },
+
+        countLabel(from, to) {
+            const total = this.count(from, to);
+            const unit = this.businessDays ? (total === 1 ? 'día hábil' : 'días hábiles') : (total === 1 ? 'día' : 'días');
+
+            return `${total} ${unit}`;
+        },
+
+        isEarly() {
+            return Boolean(this.rightStartsOn && this.from && this.from < this.rightStartsOn);
+        },
+
+        exceedsEntitlement() {
+            return Boolean(this.entitledDays && this.from && this.count(this.from, this.to) > this.entitledDays);
+        },
+
+        parse(dateKey) {
+            const [year, month, day] = String(dateKey).split('-').map(Number);
+
+            return new Date(year, month - 1, day);
+        },
+
+        key(date) {
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+
+            return `${date.getFullYear()}-${month}-${day}`;
+        },
+
+        diffDays(from, to) {
+            return Math.round((this.parse(to) - this.parse(from)) / 86400000);
+        },
+
+        shortMonth(date) {
+            return new Intl.DateTimeFormat('es', { month: 'short' }).format(date).replace('.', '');
+        },
+
+        formatDay(dateKey) {
+            if (! dateKey) {
+                return '';
+            }
+
+            const date = this.parse(dateKey);
+
+            return `${date.getDate()} ${this.shortMonth(date)} ${date.getFullYear()}`;
+        },
+
+        formatRange(from, to) {
+            if (! to || from === to) {
+                return this.formatDay(from);
+            }
+
+            const start = this.parse(from);
+            const end = this.parse(to);
+
+            if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
+                return `${start.getDate()} – ${end.getDate()} ${this.shortMonth(end)} ${end.getFullYear()}`;
+            }
+
+            if (start.getFullYear() === end.getFullYear()) {
+                return `${start.getDate()} ${this.shortMonth(start)} – ${end.getDate()} ${this.shortMonth(end)} ${end.getFullYear()}`;
+            }
+
+            return `${this.formatDay(from)} – ${this.formatDay(to)}`;
+        },
+    }));
+
     alpine.data('employeePortalMenu', () => ({
         menuOpen: false,
-        soonHint: false,
         dragging: false,
         dragY: 0,
         startY: 0,
@@ -41,7 +395,6 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
             this.menuOpen = false;
-            this.soonHint = false;
             this.dragging = false;
             this.dragY = 0;
             this.unlockScroll();
@@ -51,9 +404,6 @@ document.addEventListener('alpine:init', () => {
         },
         toggle() {
             this.menuOpen ? this.close() : this.open();
-        },
-        showSoon() {
-            this.soonHint = true;
         },
         lockScroll() {
             const gap = window.innerWidth - document.documentElement.clientWidth;
@@ -294,3 +644,9 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 });
+
+if ('serviceWorker' in navigator && window.location.pathname.startsWith('/portal')) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/portal-sw.js', { scope: '/portal' }).catch(() => undefined);
+    });
+}

@@ -7,6 +7,7 @@ use App\Enums\VenezuelanPagoMovilBank;
 use App\Services\Hr\HrBcvRateResolver;
 use App\Services\Hr\HrUsdVesConverter;
 use App\Support\Finance\BcvRate;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -61,6 +62,16 @@ class EmployeeForm
                                 ->searchable()
                                 ->preload()
                                 ->required(),
+                            DatePicker::make('hired_at')
+                                ->label('Fecha de ingreso')
+                                ->native(false)
+                                ->displayFormat('d/m/Y')
+                                ->maxDate(now())
+                                ->helperText('Se usa en la constancia de trabajo y para calcular las vacaciones.'),
+                            TextInput::make('job_title')
+                                ->label('Cargo')
+                                ->maxLength(160)
+                                ->placeholder('Ej.: Cajero, Farmacéutico'),
                         ]),
                         Textarea::make('address')
                             ->label('Dirección')

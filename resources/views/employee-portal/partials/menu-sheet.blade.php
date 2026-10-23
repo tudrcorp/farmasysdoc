@@ -37,10 +37,12 @@
             'tone' => 'cyan',
         ],
     ];
-    $soon = [
-        ['title' => 'Constancia de trabajo', 'subtitle' => 'Solicítala y descárgala'],
-        ['title' => 'Vacaciones', 'subtitle' => 'Pide tus días'],
-        ['title' => 'Permiso de ausencia', 'subtitle' => 'Justifica una falta'],
+    $requestLinks = [
+        ['key' => 'requests', 'href' => route('employee-portal.requests'), 'title' => 'Mis solicitudes', 'subtitle' => 'Estado y descargas', 'tone' => 'cyan', 'icon' => 'requests'],
+        ['key' => 'request-certificate', 'href' => route('employee-portal.requests.certificate'), 'title' => 'Constancia de trabajo', 'subtitle' => 'Con sueldo integral o de ley', 'tone' => 'teal', 'icon' => 'employment_certificate'],
+        ['key' => 'request-vacaciones', 'href' => route('employee-portal.requests.absence', 'vacaciones'), 'title' => 'Vacaciones', 'subtitle' => 'Pide tus días', 'tone' => 'amber', 'icon' => 'vacation'],
+        ['key' => 'request-permiso', 'href' => route('employee-portal.requests.absence', 'permiso'), 'title' => 'Permiso', 'subtitle' => 'Ausencia justificada', 'tone' => 'cyan', 'icon' => 'leave'],
+        ['key' => 'request-reposo', 'href' => route('employee-portal.requests.absence', 'reposo'), 'title' => 'Reposo', 'subtitle' => 'Carga tu reposo médico', 'tone' => 'teal', 'icon' => 'medical_rest'],
     ];
 @endphp
 
@@ -161,25 +163,37 @@
         @endforeach
     </div>
 
-    <p class="ep-menu-label">Próximamente</p>
+    <p class="ep-menu-label">Solicitudes</p>
     <div class="ep-menu-group">
-        @foreach ($soon as $item)
-            <button type="button" class="ep-menu-item is-soon" @click="showSoon()">
-                <span class="ep-menu-icon ep-menu-icon--muted" aria-hidden="true">
-                    @include('employee-portal.partials.menu-icon', ['icon' => 'soon'])
+        @foreach ($requestLinks as $link)
+            <a
+                href="{{ $link['href'] }}"
+                class="ep-menu-item{{ $active === $link['key'] ? ' is-active' : '' }}"
+                wire:navigate
+                @click="close()"
+            >
+                <span class="ep-menu-icon ep-menu-icon--{{ $link['tone'] }}" aria-hidden="true">
+                    @include('employee-portal.partials.menu-icon', ['icon' => $link['icon']])
                 </span>
                 <span class="ep-menu-copy">
-                    <strong>{{ $item['title'] }}</strong>
-                    <span>{{ $item['subtitle'] }}</span>
+                    <strong>{{ $link['title'] }}</strong>
+                    <span>{{ $link['subtitle'] }}</span>
                 </span>
-                <span class="ep-pill ep-pill--soon">Pronto</span>
-            </button>
+                @if ($link['key'] === 'requests')
+                    <span class="ep-pill ep-pill--warn" x-show="$store.epNotifications.count > 0" x-cloak x-text="$store.epNotifications.count === 1 ? '1 nuevo' : `${$store.epNotifications.count} nuevos`"></span>
+                @endif
+                @if ($active === $link['key'])
+                    <span class="ep-menu-check" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.4" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                    </span>
+                @else
+                    <span class="ep-menu-chevron" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                    </span>
+                @endif
+            </a>
         @endforeach
     </div>
-
-    <p class="ep-menu-soon-note" x-show="soonHint" x-cloak x-transition.opacity>
-        Muy pronto vas a pedir constancias, vacaciones y permisos desde aquí.
-    </p>
 
     <div class="ep-menu-actions">
         <a href="{{ route('employee-portal.logout') }}" class="ep-menu-action ep-menu-action--danger">Salir</a>

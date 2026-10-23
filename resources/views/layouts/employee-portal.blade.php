@@ -12,6 +12,8 @@
         <title>{{ filled($title ?? null) ? $title.' · Portal' : 'Portal del empleado' }} · Farmadoc</title>
         <link rel="icon" type="image/png" href="{{ asset('images/logos/favicon.png') }}">
         <link rel="apple-touch-icon" href="{{ asset('images/logos/favicon.png') }}">
+        <link rel="manifest" href="{{ route('employee-portal.manifest') }}">
+        <meta name="theme-color" content="#eef8fb">
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles
     </head>
@@ -24,6 +26,10 @@
         <div class="ep-device">
             {{ $slot }}
         </div>
+        @php($epUnreadCount = \App\Support\Hr\EmployeePortalNotifications::unreadCountForSession())
+        @if ($epUnreadCount !== null)
+            <div hidden data-ep-unread-count="{{ $epUnreadCount }}" data-endpoint="{{ route('employee-portal.notifications.count', absolute: false) }}"></div>
+        @endif
         @livewireScripts
     </body>
 </html>

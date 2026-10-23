@@ -72,6 +72,18 @@ class EmployeeInfolist
                                 ->icon(Heroicon::BuildingStorefront)
                                 ->badge()
                                 ->color('info'),
+                            TextEntry::make('job_title')
+                                ->label('Cargo')
+                                ->icon(Heroicon::Briefcase)
+                                ->placeholder('Sin cargo'),
+                            TextEntry::make('hired_at')
+                                ->label('Fecha de ingreso')
+                                ->icon(Heroicon::CalendarDays)
+                                ->date('d/m/Y')
+                                ->placeholder('Sin fecha')
+                                ->helperText(fn (Employee $record): ?string => $record->serviceDurationLabel() !== null
+                                    ? 'Antigüedad: '.$record->serviceDurationLabel()
+                                    : null),
                             IconEntry::make('is_active')
                                 ->label('Estado laboral')
                                 ->boolean()

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\EmployeePortal;
 
+use App\Enums\EmployeeRequestStatus;
 use App\Models\Employee;
 use App\Services\Hr\EmployeePortalAccess;
 use Illuminate\Contracts\View\View;
@@ -13,8 +14,6 @@ use Livewire\Component;
 #[Title('Inicio')]
 class Home extends Component
 {
-    public bool $showComingSoon = false;
-
     public function employee(): Employee
     {
         $employee = app(EmployeePortalAccess::class)->employee();
@@ -38,16 +37,6 @@ class Home extends Component
         return 'Buenas noches';
     }
 
-    public function openComingSoon(): void
-    {
-        $this->showComingSoon = true;
-    }
-
-    public function closeComingSoon(): void
-    {
-        $this->showComingSoon = false;
-    }
-
     public function leave(): void
     {
         app(EmployeePortalAccess::class)->forget();
@@ -65,6 +54,13 @@ class Home extends Component
             'greeting' => $this->greeting(),
             'fileComplete' => $employee->hasCompleteEmployeeFile(),
             'hasPortalPassword' => $employee->hasPortalPassword(),
+            'pendingRequestsCount' => $employee->employeeRequests()->where('status', EmployeeRequestStatus::Pending)->count(),
+            'requestCards' => [
+                ['href' => route('employee-portal.requests.certificate'), 'title' => 'Constancia de trabajo', 'subtitle' => 'Con sueldo integral o sueldo de ley. La descargas al aprobarse.', 'icon' => 'employment_certificate', 'tone' => 'cyan'],
+                ['href' => route('employee-portal.requests.absence', 'vacaciones'), 'title' => 'Vacaciones', 'subtitle' => 'Mira tu período calculado y elige tus fechas.', 'icon' => 'vacation', 'tone' => 'amber'],
+                ['href' => route('employee-portal.requests.absence', 'permiso'), 'title' => 'Permiso', 'subtitle' => 'Pide un permiso de ausencia con su motivo.', 'icon' => 'leave', 'tone' => 'violet'],
+                ['href' => route('employee-portal.requests.absence', 'reposo'), 'title' => 'Reposo', 'subtitle' => 'Carga tu reposo médico con sus soportes.', 'icon' => 'medical_rest', 'tone' => 'rose'],
+            ],
         ]);
     }
 }

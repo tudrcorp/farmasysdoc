@@ -35,6 +35,8 @@ class EmployeeFactory extends Factory
             'first_half_ves_cash' => 0,
             'second_half_ves_cash' => 0,
             'branch_id' => Branch::factory(),
+            'hired_at' => fake()->dateTimeBetween('-6 years', '-2 months'),
+            'job_title' => fake()->randomElement(['Cajero', 'Farmacéutico', 'Auxiliar de farmacia', 'Gerente de tienda']),
             'is_active' => true,
         ];
     }

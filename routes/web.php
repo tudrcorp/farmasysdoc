@@ -7,9 +7,13 @@ use App\Http\Controllers\Fiscal\SalesBookReportController;
 use App\Http\Controllers\FiscalAgentDownloadController;
 use App\Http\Controllers\FiscalPrintStatusController;
 use App\Http\Controllers\FiscalReceiptController;
+use App\Http\Controllers\Hr\EmployeePortalCertificateController;
 use App\Http\Controllers\Hr\EmployeePortalEntryController;
 use App\Http\Controllers\Hr\EmployeePortalLogoutController;
+use App\Http\Controllers\Hr\EmployeePortalManifestController;
+use App\Http\Controllers\Hr\EmployeePortalNotificationCountController;
 use App\Http\Controllers\Hr\EmployeePortalPayrollReceiptController;
+use App\Http\Controllers\Hr\EmployeePortalRequestAttachmentController;
 use App\Http\Controllers\Inventory\InventoryAuditDetailedReportPdfController;
 use App\Http\Controllers\NominatimProxyController;
 use App\Http\Controllers\PettyCash\PettyCashApprovalController;
@@ -34,12 +38,15 @@ use App\Http\Controllers\Shop\ShopManifestController;
 use App\Http\Controllers\StorefrontCheckoutController;
 use App\Http\Controllers\StorefrontHomeController;
 use App\Http\Middleware\EnsureSystemReportsAccess;
+use App\Livewire\EmployeePortal\AbsenceRequestForm;
 use App\Livewire\EmployeePortal\Account;
+use App\Livewire\EmployeePortal\CertificateRequestForm;
 use App\Livewire\EmployeePortal\FileEnrollment;
 use App\Livewire\EmployeePortal\Home;
 use App\Livewire\EmployeePortal\Login;
 use App\Livewire\EmployeePortal\Profile;
 use App\Livewire\EmployeePortal\Receipts;
+use App\Livewire\EmployeePortal\Requests;
 use App\Livewire\Shop\Account as ShopAccount;
 use App\Livewire\Shop\Auth\Login as ShopLogin;
 use App\Livewire\Shop\Auth\Register as ShopRegister;
@@ -62,6 +69,7 @@ Route::get('/', StorefrontHomeController::class)->name('home');
 
 Route::prefix('portal')->name('employee-portal.')->group(function (): void {
     Route::get('ingresar/{employee}', EmployeePortalEntryController::class)->name('enter');
+    Route::get('manifest.webmanifest', EmployeePortalManifestController::class)->name('manifest');
 
     Route::middleware('employee.portal.guest')->group(function (): void {
         Route::livewire('entrar', Login::class)->name('login');
@@ -75,6 +83,14 @@ Route::prefix('portal')->name('employee-portal.')->group(function (): void {
         Route::livewire('cuenta', Account::class)->name('account');
         Route::livewire('recibos', Receipts::class)->name('receipts');
         Route::get('recibos/{receipt}/descargar', EmployeePortalPayrollReceiptController::class)->name('receipts.download');
+        Route::livewire('solicitudes', Requests::class)->name('requests');
+        Route::livewire('solicitudes/nueva/constancia', CertificateRequestForm::class)->name('requests.certificate');
+        Route::livewire('solicitudes/nueva/{tipo}', AbsenceRequestForm::class)
+            ->whereIn('tipo', ['vacaciones', 'permiso', 'reposo'])
+            ->name('requests.absence');
+        Route::get('solicitudes/{employeeRequest}/constancia', EmployeePortalCertificateController::class)->name('requests.certificate.download');
+        Route::get('solicitudes/adjuntos/{attachment}', EmployeePortalRequestAttachmentController::class)->name('requests.attachment');
+        Route::get('notificaciones/contador', EmployeePortalNotificationCountController::class)->name('notifications.count');
     });
 });
 Route::prefix('app')->name('shop.')->group(function (): void {

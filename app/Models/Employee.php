@@ -6,6 +6,7 @@ use App\Enums\EmployeeBankAccountType;
 use App\Enums\HrPayCurrencyBucket;
 use App\Enums\VenezuelanPagoMovilBank;
 use App\Support\Notifications\WhatsAppLink;
+use Carbon\CarbonInterface;
 use Database\Factories\EmployeeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -44,6 +45,8 @@ class Employee extends Model
         'first_half_ves_cash',
         'second_half_ves_cash',
         'branch_id',
+        'hired_at',
+        'job_title',
         'is_active',
     ];
 
@@ -70,6 +73,7 @@ class Employee extends Model
             'first_half_ves_cash' => 'decimal:2',
             'second_half_ves_cash' => 'decimal:2',
             'is_active' => 'boolean',
+            'hired_at' => 'date',
             'file_terms_accepted_at' => 'datetime',
             'portal_password' => 'hashed',
         ];
@@ -367,5 +371,62 @@ class Employee extends Model
     public function payrollReceipts(): HasMany
     {
         return $this->hasMany(HrPayrollReceipt::class);
+    }
+
+    /**
+     * @return HasMany<EmployeeRequest, $this>
+     */
+    public function employeeRequests(): HasMany
+    {
+        return $this->hasMany(EmployeeRequest::class);
+    }
+
+    /**
+     * Fecha de ingreso y cargo: sin ellos no se emite constancia ni se calculan vacaciones.
+     */
+    public function hasEmploymentData(): bool
+    {
+        return $this->hired_at !== null && filled($this->job_title);
+    }
+
+    public function completedYearsOfService(?CarbonInterface $asOf = null): int
+    {
+        if ($this->hired_at === null) {
+            return 0;
+        }
+
+        $asOf ??= now();
+
+        return $asOf->lessThan($this->hired_at) ? 0 : (int) $this->hired_at->diffInYears($asOf);
+    }
+
+    /**
+     * Antigüedad en texto, por ejemplo "3 años y 2 meses".
+     */
+    public function serviceDurationLabel(?CarbonInterface $asOf = null): ?string
+    {
+        if ($this->hired_at === null) {
+            return null;
+        }
+
+        $asOf ??= now();
+
+        if ($asOf->lessThan($this->hired_at)) {
+            return 'menos de un mes';
+        }
+
+        $years = (int) $this->hired_at->diffInYears($asOf);
+        $months = (int) $this->hired_at->copy()->addYears($years)->diffInMonths($asOf);
+        $parts = [];
+
+        if ($years > 0) {
+            $parts[] = $years.' '.($years === 1 ? 'año' : 'años');
+        }
+
+        if ($months > 0) {
+            $parts[] = $months.' '.($months === 1 ? 'mes' : 'meses');
+        }
+
+        return $parts === [] ? 'menos de un mes' : implode(' y ', $parts);
     }
 }

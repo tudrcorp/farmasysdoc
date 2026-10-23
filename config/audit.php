@@ -5,6 +5,8 @@ use App\Models\Branch;
 use App\Models\BranchCategoryProfitMargin;
 use App\Models\Client;
 use App\Models\Delivery;
+use App\Models\EmployeeRequest;
+use App\Models\EmploymentCertificateSetting;
 use App\Models\FinancialFixedExpense;
 use App\Models\FinancialSetting;
 use App\Models\FiscalCompanySetting;
@@ -21,6 +23,8 @@ use App\Models\MarketingSegment;
 use App\Models\MarketingUtmLink;
 use App\Models\Order;
 use App\Models\OrderService;
+use App\Models\OrgChart;
+use App\Models\OrgChartNode;
 use App\Models\PartnerCompany;
 use App\Models\PartnerCompanyUser;
 use App\Models\PettyCashExpense;
@@ -95,6 +99,10 @@ return [
         PettyCashFund::class,
         PettyCashExpense::class,
         FinancialFixedExpense::class,
+        EmployeeRequest::class,
+        EmploymentCertificateSetting::class,
+        OrgChart::class,
+        OrgChartNode::class,
     ],
 
 ];

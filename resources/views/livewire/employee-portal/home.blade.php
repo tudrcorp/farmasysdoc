@@ -23,7 +23,7 @@
             <div>
                 <p class="ep-hello">{{ $greeting }}</p>
                 <h1 class="ep-name">{{ $employee->first_name }}</h1>
-                <p class="ep-text ep-desktop-only">Desde aquí completas tu expediente y, más adelante, vas a pedir constancias, vacaciones y permisos.</p>
+                <p class="ep-text ep-desktop-only">Desde aquí completas tu expediente y pides constancias, vacaciones, permisos y reposos.</p>
             </div>
         </div>
 
@@ -73,59 +73,31 @@
         @endunless
         </div>
 
-        <p class="ep-section-label">Próximamente</p>
+        <div class="ep-section-head">
+            <p class="ep-section-label">Solicitudes</p>
+            <a href="{{ route('employee-portal.requests') }}" class="ep-section-link" wire:navigate>
+                Ver mis solicitudes
+                @if ($pendingRequestsCount > 0)
+                    <span class="ep-pill ep-pill--warn">{{ $pendingRequestsCount }} por aprobar</span>
+                @endif
+            </a>
+        </div>
         <div class="ep-stack ep-services">
-            <button type="button" class="ep-card-btn ep-glass" wire:click="openComingSoon">
-                <span class="ep-card-icon ep-card-icon--muted" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                    </svg>
-                </span>
-                <span class="ep-card-copy">
-                    <strong>Constancia de trabajo</strong>
-                    <span>Solicítala y descárgala cuando la necesites.</span>
-                </span>
-                <span class="ep-pill ep-pill--soon">Pronto</span>
-            </button>
-            <button type="button" class="ep-card-btn ep-glass" wire:click="openComingSoon">
-                <span class="ep-card-icon ep-card-icon--muted" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-                    </svg>
-                </span>
-                <span class="ep-card-copy">
-                    <strong>Vacaciones</strong>
-                    <span>Pide tus días y sigue el estado de la solicitud.</span>
-                </span>
-                <span class="ep-pill ep-pill--soon">Pronto</span>
-            </button>
-            <button type="button" class="ep-card-btn ep-glass" wire:click="openComingSoon">
-                <span class="ep-card-icon ep-card-icon--muted" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                    </svg>
-                </span>
-                <span class="ep-card-copy">
-                    <strong>Permiso de ausencia</strong>
-                    <span>Justifica una ausencia y adjunta el soporte.</span>
-                </span>
-                <span class="ep-pill ep-pill--soon">Pronto</span>
-            </button>
+            @foreach ($requestCards as $card)
+                <a href="{{ $card['href'] }}" class="ep-card-btn ep-glass" wire:navigate>
+                    <span class="ep-card-icon ep-card-icon--{{ $card['tone'] }}" aria-hidden="true">
+                        @include('employee-portal.partials.menu-icon', ['icon' => $card['icon']])
+                    </span>
+                    <span class="ep-card-copy">
+                        <strong>{{ $card['title'] }}</strong>
+                        <span>{{ $card['subtitle'] }}</span>
+                    </span>
+                    <span class="ep-pill">Pedir</span>
+                </a>
+            @endforeach
         </div>
     </div>
 
     @include('employee-portal.partials.menu-sheet', ['active' => 'home'])
 
-    @if ($showComingSoon)
-        <div class="ep-sheet-backdrop" wire:click="closeComingSoon" wire:key="soon-backdrop"></div>
-        <div class="ep-sheet ep-glass" wire:key="soon-sheet" role="dialog" aria-modal="true" aria-labelledby="ep-soon-title">
-            <div class="ep-sheet-handle"></div>
-            <h2 id="ep-soon-title" class="ep-lead" style="font-size: 1.45rem;">Muy pronto aquí</h2>
-            <p class="ep-text">Desde este mismo portal vas a poder pedir constancia de trabajo, vacaciones y permisos de ausencia. Hoy solo necesitamos tu firma y tu huella.</p>
-            <div class="ep-actions">
-                <button type="button" class="ep-btn ep-btn--primary" wire:click="closeComingSoon">Entendido</button>
-                <button type="button" class="ep-btn ep-btn--secondary" wire:click="leave">Cerrar sesión</button>
-            </div>
-        </div>
-    @endif
 </div>

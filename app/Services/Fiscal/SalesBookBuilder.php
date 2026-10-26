@@ -288,10 +288,47 @@ final class SalesBookBuilder
             ->whereNotIn('id', $withReports)
             ->whereDate('created_at', '<=', $period->end()->toDateString())
             ->get()
-            ->each(fn (FiscalPrinter $printer) => $this->issue(
-                self::LEVEL_WARNING,
-                $printer->name.' ('.$printer->fiscal_registry.') no tiene reportes Z capturados en la quincena.',
-            ));
+            ->each(fn (FiscalPrinter $printer) => $this->checkPrinterWithoutReports($printer, $period));
+    }
+
+    /**
+     * Una máquina sin Z en la quincena es un error si ya hay Z posteriores capturados y no son consecutivos
+     * al último anterior: la máquina sí cerró días en la quincena, pero esos Z nunca se leyeron.
+     */
+    private function checkPrinterWithoutReports(FiscalPrinter $printer, SalesBookPeriod $period): void
+    {
+        $label = $printer->name.' ('.$printer->fiscal_registry.')';
+
+        $nextZ = FiscalZReport::query()
+            ->where('fiscal_printer_id', $printer->id)
+            ->whereDate('report_date', '>', $period->end()->toDateString())
+            ->min('z_number');
+
+        if ($nextZ === null) {
+            $this->issue(self::LEVEL_WARNING, $label.' no tiene reportes Z capturados en la quincena.');
+
+            return;
+        }
+
+        $nextZ = (int) $nextZ;
+
+        $previousZ = FiscalZReport::query()
+            ->where('fiscal_printer_id', $printer->id)
+            ->whereDate('report_date', '<', $period->start()->toDateString())
+            ->max('z_number');
+
+        if ($previousZ !== null && (int) $previousZ + 1 === $nextZ) {
+            $this->issue(self::LEVEL_WARNING, $label.' no emitió reportes Z en la quincena.');
+
+            return;
+        }
+
+        $this->issue(
+            self::LEVEL_ERROR,
+            $previousZ !== null
+                ? $label.': faltan por leer los reportes Z '.$this->pad((int) $previousZ + 1, 4).' al '.$this->pad($nextZ - 1, 4).' de la quincena. Use «Leer reportes Z».'
+                : $label.': no hay reportes Z capturados en la quincena, pero sí desde el Z '.$this->pad($nextZ, 4).'. Lea con «Leer reportes Z» los Z anteriores al '.$this->pad($nextZ, 4).' que correspondan a la quincena.',
+        );
     }
 
     private function checkPendingFiscalWork(Branch $branch, SalesBookPeriod $period): void

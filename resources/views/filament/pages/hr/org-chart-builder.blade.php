@@ -24,6 +24,11 @@
             grid-template-columns: 252px minmax(0, 1fr) 320px;
             background: #eef2f4;
             color: #14181d;
+            transition: grid-template-columns 200ms ease;
+        }
+
+        .org-app.is-inspector-collapsed {
+            grid-template-columns: 252px minmax(0, 1fr) 52px;
         }
 
         html.dark .org-app {
@@ -80,8 +85,51 @@
         }
 
         .org-inspector {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            min-width: 0;
+            padding: 18px;
             border-left: 1px solid rgb(15 23 42 / 0.08);
             background: rgb(255 255 255 / 0.9);
+        }
+
+        .org-inspector-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .org-inspector-body {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            min-width: 0;
+        }
+
+        .org-fold {
+            width: 32px;
+            height: 32px;
+            display: grid;
+            place-items: center;
+            flex: none;
+            padding: 0;
+        }
+
+        .org-fold svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .org-app.is-inspector-collapsed .org-inspector {
+            align-items: center;
+            padding: 12px 8px;
+            overflow: hidden;
+        }
+
+        .org-app.is-inspector-collapsed .org-inspector-bar {
+            justify-content: center;
         }
 
         html.dark .org-inspector {
@@ -500,6 +548,16 @@
                 border-radius: 20px;
                 box-shadow: 0 18px 50px rgb(15 23 42 / 0.18);
             }
+
+            .org-app.is-inspector-collapsed .org-inspector {
+                top: 14px;
+                right: 14px;
+                bottom: auto;
+                width: 48px;
+                height: 48px;
+                padding: 8px;
+                border-radius: 999px;
+            }
         }
     </style>
 
@@ -516,7 +574,12 @@
             </div>
         </div>
     @else
-        <div class="org-app">
+        <div
+            class="org-app"
+            x-data="{ inspectorOpen: localStorage.getItem('org-inspector-open') !== '0' }"
+            x-effect="localStorage.setItem('org-inspector-open', inspectorOpen ? '1' : '0')"
+            x-bind:class="{ 'is-inspector-collapsed': ! inspectorOpen }"
+        >
             <aside class="org-side" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
                 <div>
                     <p class="org-kicker">Recursos humanos</p>
@@ -690,9 +753,21 @@
                 </div>
             </div>
 
-            <aside class="org-inspector" style="padding: 18px; display: flex; flex-direction: column; gap: 14px;">
+            <aside class="org-inspector">
+                <div class="org-inspector-bar">
+                    <p class="org-kicker" x-show="inspectorOpen">{{ $this->nodeId === null ? 'Ficha' : 'Ficha del cargo' }}</p>
+                    <span x-show="inspectorOpen" style="flex: 1;"></span>
+                    @if ($this->nodeId !== null)
+                        <button class="org-btn" type="button" x-show="inspectorOpen" wire:click="deleteNode({{ $this->nodeId }})" wire:confirm="¿Quitar este cargo? Quienes le reportan pasan al nivel de arriba.">Quitar</button>
+                    @endif
+                    <button class="org-btn org-fold" type="button" x-on:click="inspectorOpen = ! inspectorOpen" x-bind:title="inspectorOpen ? 'Ocultar ficha' : 'Mostrar ficha'" x-bind:aria-expanded="inspectorOpen">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" x-bind:style="inspectorOpen ? '' : 'transform: rotate(180deg)'">
+                            <path d="M8 5l5 5-5 5"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="org-inspector-body" x-show="inspectorOpen">
                 @if ($this->nodeId === null)
-                    <p class="org-kicker">Ficha</p>
                     <strong style="font-size: 18px;">Así se construye</strong>
                     <ol style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.45; opacity: 0.78;">
                         <li>Arrastra un cuadro, una persona o una unidad al lienzo.</li>
@@ -701,10 +776,6 @@
                         <li>Ordenar acomoda el dibujo. Los enlaces se mantienen.</li>
                     </ol>
                 @else
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <p class="org-kicker">Ficha del cargo</p>
-                        <button class="org-btn" type="button" wire:click="deleteNode({{ $this->nodeId }})" wire:confirm="¿Quitar este cargo? Quienes le reportan pasan al nivel de arriba.">Quitar</button>
-                    </div>
                     <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
                         Cargo
                         <input type="text" wire:model.blur="nodeTitle" />
@@ -751,6 +822,7 @@
                     </label>
                     <p style="margin: 0; font-size: 12px; opacity: 0.6; line-height: 1.4;">La misma persona puede ocupar más de un cargo. Un cargo sin persona se muestra como vacante.</p>
                 @endif
+                </div>
             </aside>
         </div>
     @endif

@@ -2,6 +2,8 @@
 
 namespace App\Support\Sales;
 
+use App\Support\Fiscal\FiscalVesAmounts;
+
 /**
  * Pago múltiple en caja: parte en USD + resto en un método VES, o división entre dos métodos VES.
  */
@@ -53,6 +55,9 @@ final class MixedPosPaymentSupport
     }
 
     /**
+     * `$documentTotalVes` es el total en Bs de la factura fiscal ({@see FiscalVesAmounts});
+     * si no se indica, se usa total USD × tasa.
+     *
      * @param  array<string, mixed>  $data
      * @return array{
      *     mode: string,
@@ -67,10 +72,12 @@ final class MixedPosPaymentSupport
      *     },
      * }
      */
-    public static function breakdown(float $documentTotalUsd, float $vesUsdRate, array $data): array
+    public static function breakdown(float $documentTotalUsd, float $vesUsdRate, array $data, ?float $documentTotalVes = null): array
     {
         $rate = max(0.0, $vesUsdRate);
-        $totalVes = round(max(0.0, $documentTotalUsd) * $rate, 2);
+        $totalVes = $documentTotalVes !== null
+            ? round(max(0.0, $documentTotalVes), 2)
+            : round(max(0.0, $documentTotalUsd) * $rate, 2);
 
         if (self::isVesMode($data)) {
             $amount1 = round(max(0.0, (float) ($data['mixed_ves_split_amount_1'] ?? 0)), 2);
@@ -90,7 +97,9 @@ final class MixedPosPaymentSupport
         }
 
         $mixedUsdPaid = round(max(0.0, min($documentTotalUsd, (float) ($data['mixed_usd_paid'] ?? 0))), 2);
-        $paymentVes = round(max(0.0, $documentTotalUsd - $mixedUsdPaid) * $rate, 2);
+        $paymentVes = $documentTotalVes !== null
+            ? round(max(0.0, $totalVes - round($mixedUsdPaid * $rate, 2)), 2)
+            : round(max(0.0, $documentTotalUsd - $mixedUsdPaid) * $rate, 2);
 
         return [
             'mode' => self::MODE_USD,
@@ -132,9 +141,9 @@ final class MixedPosPaymentSupport
     /**
      * @param  array<string, mixed>  $data
      */
-    public static function pagoMovilVesAmount(array $data, float $documentTotalUsd, float $vesUsdRate): float
+    public static function pagoMovilVesAmount(array $data, float $documentTotalUsd, float $vesUsdRate, ?float $documentTotalVes = null): float
     {
-        $breakdown = self::breakdown($documentTotalUsd, $vesUsdRate, $data);
+        $breakdown = self::breakdown($documentTotalUsd, $vesUsdRate, $data, $documentTotalVes);
 
         if ($breakdown['mode'] === self::MODE_USD) {
             return ($breakdown['usd_mode_ves_method'] ?? '') === 'pago_movil'
@@ -200,9 +209,9 @@ final class MixedPosPaymentSupport
      * @param  array<string, mixed>  $data
      * @return list<array{slot: string, method: string, amount_due: float, cash_received: float}>
      */
-    public static function efectivoVesCashLines(array $data, float $documentTotalUsd, float $vesUsdRate): array
+    public static function efectivoVesCashLines(array $data, float $documentTotalUsd, float $vesUsdRate, ?float $documentTotalVes = null): array
     {
-        $breakdown = self::breakdown($documentTotalUsd, $vesUsdRate, $data);
+        $breakdown = self::breakdown($documentTotalUsd, $vesUsdRate, $data, $documentTotalVes);
         $lines = [];
 
         if ($breakdown['mode'] === self::MODE_USD) {
@@ -264,9 +273,9 @@ final class MixedPosPaymentSupport
      * @param  array<string, mixed>  $data
      * @return array{valid: bool, message: ?string}
      */
-    public static function validateBeforeRegister(array $data, float $documentTotalUsd, float $vesUsdRate): array
+    public static function validateBeforeRegister(array $data, float $documentTotalUsd, float $vesUsdRate, ?float $documentTotalVes = null): array
     {
-        $breakdown = self::breakdown($documentTotalUsd, $vesUsdRate, $data);
+        $breakdown = self::breakdown($documentTotalUsd, $vesUsdRate, $data, $documentTotalVes);
 
         if ($breakdown['mode'] === self::MODE_USD) {
             $usdPaid = (float) ($breakdown['payment_usd'] ?? 0.0);
@@ -306,7 +315,7 @@ final class MixedPosPaymentSupport
             }
         }
 
-        foreach (self::efectivoVesCashLines($data, $documentTotalUsd, $vesUsdRate) as $line) {
+        foreach (self::efectivoVesCashLines($data, $documentTotalUsd, $vesUsdRate, $documentTotalVes) as $line) {
             if ($line['amount_due'] > $line['cash_received'] + 0.02) {
                 return [
                     'valid' => false,
@@ -322,9 +331,9 @@ final class MixedPosPaymentSupport
     /**
      * @param  array<string, mixed>  $data
      */
-    public static function buildSaleNotesSuffix(array $data, float $documentTotalUsd, float $vesUsdRate): ?string
+    public static function buildSaleNotesSuffix(array $data, float $documentTotalUsd, float $vesUsdRate, ?float $documentTotalVes = null): ?string
     {
-        $breakdown = self::breakdown($documentTotalUsd, $vesUsdRate, $data);
+        $breakdown = self::breakdown($documentTotalUsd, $vesUsdRate, $data, $documentTotalVes);
         if ($breakdown['mode'] !== self::MODE_VES || ! is_array($breakdown['ves_split'] ?? null)) {
             return null;
         }

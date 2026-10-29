@@ -39,6 +39,7 @@ use App\Support\Cash\PhysicalCashBoxBillingGate;
 use App\Support\Finance\BcvRate;
 use App\Support\Finance\DefaultIgtfRate;
 use App\Support\Finance\DefaultVatRate;
+use App\Support\Fiscal\FiscalVesAmounts;
 use App\Support\Inventory\InventoryQuantityFormat;
 use App\Support\Inventory\NearExpiryLotAlert;
 use App\Support\Sales\CacheaPosPaymentSupport;
@@ -641,6 +642,7 @@ final class CashRegisterAction
                                                                 self::mixedFormDataFromGet($get),
                                                                 self::computeSaleTotal($get),
                                                                 self::effectiveVesUsdRate($get),
+                                                                self::computeSaleTotalVes($get),
                                                             )
                                                             : self::computePaymentBreakdownForForm($get)['payment_ves'];
                                                         if ($paymentVes <= 0.00001) {
@@ -1295,6 +1297,7 @@ final class CashRegisterAction
                 }
 
                 $vesUsdRate = self::effectiveVesUsdRateFromData($data);
+                $documentTotalVes = self::posFiscalVesTotal($validLines, $pricing, $vesUsdRate);
                 $cacheaBreakdown = null;
 
                 if ($paymentMethod === PosPaymentMethodOptions::CACHEA
@@ -1355,6 +1358,7 @@ final class CashRegisterAction
                         $data,
                         $mixedTarget,
                         $vesUsdRate,
+                        $cacheaBreakdown === null ? $documentTotalVes : null,
                     );
                     if (! $mixedValidation['valid']) {
                         Notification::make()
@@ -1398,7 +1402,7 @@ final class CashRegisterAction
                         : $cacheaBreakdown['payment_ves_equivalent'];
                 } else {
                     if ($paymentMethod === 'mixed') {
-                        $mixedBreakdown = MixedPosPaymentSupport::breakdown($documentTotal, $vesUsdRate, $data);
+                        $mixedBreakdown = MixedPosPaymentSupport::breakdown($documentTotal, $vesUsdRate, $data, $documentTotalVes);
                         $paymentUsd = (float) ($mixedBreakdown['payment_usd'] ?? 0.0);
                         $paymentVes = (float) ($mixedBreakdown['payment_ves'] ?? 0.0);
                     } else {
@@ -1406,7 +1410,8 @@ final class CashRegisterAction
                             $documentTotal,
                             $paymentMethod,
                             mixedUsdPaid: (float) ($data['mixed_usd_paid'] ?? 0),
-                            vesUsdRate: $vesUsdRate
+                            vesUsdRate: $vesUsdRate,
+                            documentTotalVes: $documentTotalVes,
                         );
                     }
                 }
@@ -1426,7 +1431,7 @@ final class CashRegisterAction
                 }
 
                 $pagoMovilVesAmount = $paymentMethod === 'mixed'
-                    ? MixedPosPaymentSupport::pagoMovilVesAmount($data, $documentTotal, $vesUsdRate)
+                    ? MixedPosPaymentSupport::pagoMovilVesAmount($data, $documentTotal, $vesUsdRate, $documentTotalVes)
                     : ($cacheaBreakdown !== null && ($cacheaBreakdown['complement_payment_method'] ?? '') === 'mixed'
                         ? MixedPosPaymentSupport::pagoMovilVesAmount($data, (float) $cacheaBreakdown['cachea_paid_amount'], $vesUsdRate)
                         : ($cacheaBreakdown !== null
@@ -1658,7 +1663,7 @@ final class CashRegisterAction
                     ?? 'sistema';
 
                 $saleNotes = self::appendPosManualDiscountNote(
-                    self::resolvePosSaleNotes($paymentMethod, $generateAccountsReceivable, $data, $documentTotal, $vesUsdRate),
+                    self::resolvePosSaleNotes($paymentMethod, $generateAccountsReceivable, $data, $documentTotal, $vesUsdRate, $documentTotalVes),
                     $discountPlan,
                 );
 
@@ -3852,31 +3857,24 @@ final class CashRegisterAction
         return new HtmlString(
             '<div class="farmadoc-pos-line-total-stack">'
             .$usdHtml
-            .'<span class="farmadoc-pos-line-total-ves">'.e(self::posUsdToVesLabel($usdAmount, $get)).'</span>'
+            .'<span class="farmadoc-pos-line-total-ves">'.e(self::posCartLineVesLabel($rowState, $discountPercent, $get)).'</span>'
             .'</div>'
         );
     }
 
-    private static function posUsdToVesLabel(float $usdAmount, Get $get): string
+    /**
+     * @param  array<string, mixed>  $rowState
+     */
+    private static function posCartLineVesLabel(array $rowState, float $discountPercent, Get $get): string
     {
         $rate = self::effectiveVesUsdRateForPosProductLabels($get);
         if ($rate <= 0.0) {
             return 'Bs. —';
         }
 
-        return self::formatBolivaresReferenceFromVes(self::posListPriceVesFromUsd($usdAmount, $rate));
-    }
-
-    private static function formatBolivaresReference(float $usdAmount, Get $get): string
-    {
-        $rate = self::effectiveVesUsdRate($get);
-        if ($rate <= 0) {
-            return 'Bs. —';
-        }
-
-        $ves = round($usdAmount * $rate, 2);
-
-        return 'Bs. '.number_format($ves, 2, ',', '.');
+        return self::formatBolivaresReferenceFromVes(
+            self::computeLineTotalFromRowState($rowState, $discountPercent, $rate),
+        );
     }
 
     private static function formatBolivaresReferenceFromVes(float $vesAmount): string
@@ -3885,25 +3883,32 @@ final class CashRegisterAction
     }
 
     /**
-     * Referencia en bolívares para el precio de lista final en USD, respetando la precisión completa de la tasa BCV.
+     * Precio unitario con IVA en bolívares tal como sale en la factura fiscal ({@see FiscalVesAmounts}).
+     *
+     * @param  array{unit_net: float, unit_final: float, applies_vat: bool}  $unitPricing
      */
-    private static function posListPriceVesFromUsd(float $usdUnitFinal, float $vesPerUsd): float
+    private static function posUnitPriceVes(array $unitPricing, float $vesPerUsd): float
     {
         if ($vesPerUsd <= 0.0) {
             return 0.0;
         }
 
-        return $usdUnitFinal * $vesPerUsd;
+        return FiscalVesAmounts::unitPriceWithVatVes(
+            $unitPricing['unit_net'],
+            $unitPricing['applies_vat'],
+            DefaultVatRate::percent(),
+            $vesPerUsd,
+        );
     }
 
     /**
-     * Etiqueta de opción en el buscador POS sin cargar modelos (solo datos ya resueltos en SQL + tasa precalculada).
+     * Etiqueta de opción en el buscador POS sin cargar modelos (solo datos ya resueltos en SQL + precio en Bs precalculado).
      */
-    private static function formatPosSearchOptionLabelFast(string $base, float $saleUsdFinal, float $branchQty, float $rate): string
+    private static function formatPosSearchOptionLabelFast(string $base, float $saleUsdFinal, float $branchQty, ?float $saleVes): string
     {
         $label = $base.' · '.self::formatMoney($saleUsdFinal);
-        if ($rate > 0.0) {
-            $label .= ' · '.self::formatBolivaresReferenceFromVes(self::posListPriceVesFromUsd($saleUsdFinal, $rate));
+        if ($saleVes !== null) {
+            $label .= ' · '.self::formatBolivaresReferenceFromVes($saleVes);
         } else {
             $label .= ' · Bs. —';
         }
@@ -3953,7 +3958,7 @@ final class CashRegisterAction
             $base,
             $unitPricing['unit_final'],
             max(0.0, $qty),
-            $rate,
+            $rate > 0.0 ? self::posUnitPriceVes($unitPricing, $rate) : null,
         );
     }
 
@@ -4009,12 +4014,11 @@ final class CashRegisterAction
         self::warmPosDataForBranch($branchId, [(int) $product->id]);
 
         $unitPricing = self::posUnitPricingForBranch($product, $branchId);
-        $usd = $unitPricing['unit_final'];
         $segments = [];
         $rate = self::effectiveVesUsdRateForPosProductLabels($get);
         if ($rate > 0.0) {
             $segments[] = self::formatBolivaresReferenceFromVes(
-                self::posListPriceVesFromUsd($usd, $rate),
+                self::posUnitPriceVes($unitPricing, $rate),
             );
         }
 
@@ -4309,7 +4313,10 @@ final class CashRegisterAction
             ? CacheaPosPaymentSupport::paidAmountFromData($data)
             : (float) $sale->total;
         $vesUsdRate = $sale->bcv_ves_per_usd !== null ? (float) $sale->bcv_ves_per_usd : 0.0;
-        $cashLines = MixedPosPaymentSupport::efectivoVesCashLines($data, $documentTotalUsd, $vesUsdRate);
+        $documentTotalVes = $paymentMethod === PosPaymentMethodOptions::CACHEA
+            ? null
+            : round((float) $sale->payment_ves + round((float) $sale->payment_usd * $vesUsdRate, 2), 2);
+        $cashLines = MixedPosPaymentSupport::efectivoVesCashLines($data, $documentTotalUsd, $vesUsdRate, $documentTotalVes);
 
         if ($cashLines === []) {
             return;
@@ -4524,17 +4531,23 @@ final class CashRegisterAction
     /**
      * @return array{0: float, 1: float}
      */
-    private static function resolvePaymentAmounts(float $documentTotalUsd, string $paymentMethod, float $mixedUsdPaid = 0, float $vesUsdRate = 0): array
+    private static function resolvePaymentAmounts(float $documentTotalUsd, string $paymentMethod, float $mixedUsdPaid = 0, float $vesUsdRate = 0, ?float $documentTotalVes = null): array
     {
         $rate = max(0.0, $vesUsdRate);
+        $mixedUsd = round(max(0.0, min($documentTotalUsd, $mixedUsdPaid)), 2);
 
         return match ($paymentMethod) {
             'credito_cliente' => [0.0, 0.0],
             'efectivo_usd', 'transfer_usd', 'zelle' => [$documentTotalUsd, 0.0],
-            'transfer_ves', 'pago_movil', 'efectivo_ves', 'punto_venta_ves' => [0.0, round($documentTotalUsd * $rate, 2)],
+            'transfer_ves', 'pago_movil', 'efectivo_ves', 'punto_venta_ves' => [
+                0.0,
+                $documentTotalVes !== null ? round(max(0.0, $documentTotalVes), 2) : round($documentTotalUsd * $rate, 2),
+            ],
             'mixed' => [
-                round(max(0.0, min($documentTotalUsd, $mixedUsdPaid)), 2),
-                round(max(0.0, $documentTotalUsd - max(0.0, min($documentTotalUsd, $mixedUsdPaid))) * $rate, 2),
+                $mixedUsd,
+                $documentTotalVes !== null
+                    ? round(max(0.0, $documentTotalVes - round($mixedUsd * $rate, 2)), 2)
+                    : round(max(0.0, $documentTotalUsd - max(0.0, min($documentTotalUsd, $mixedUsdPaid))) * $rate, 2),
             ],
             default => [$documentTotalUsd, 0.0],
         };
@@ -5361,7 +5374,9 @@ final class CashRegisterAction
     private static function computePaymentBreakdownForForm(Get $get): array
     {
         $paymentMethod = (string) ($get('payment_method') ?? 'punto_venta_ves');
-        $total = self::computeSaleTotal($get);
+        $pricing = self::posPricingFromGet($get);
+        $total = $pricing !== null ? $pricing['document_total'] : 0.0;
+        $totalVes = $pricing !== null ? $pricing['document_total_ves'] : null;
         $rate = self::effectiveVesUsdRate($get);
 
         if ($paymentMethod === PosPaymentMethodOptions::CACHEA) {
@@ -5381,7 +5396,7 @@ final class CashRegisterAction
         }
 
         if ($paymentMethod === 'mixed') {
-            $breakdown = MixedPosPaymentSupport::breakdown($total, $rate, self::mixedFormDataFromGet($get));
+            $breakdown = MixedPosPaymentSupport::breakdown($total, $rate, self::mixedFormDataFromGet($get), $totalVes);
 
             return [
                 'payment_usd' => (float) ($breakdown['payment_usd'] ?? 0.0),
@@ -5390,7 +5405,7 @@ final class CashRegisterAction
         }
 
         $mixedUsdPaid = (float) ($get('mixed_usd_paid') ?? 0);
-        [$paymentUsd, $paymentVes] = self::resolvePaymentAmounts($total, $paymentMethod, $mixedUsdPaid, $rate);
+        [$paymentUsd, $paymentVes] = self::resolvePaymentAmounts($total, $paymentMethod, $mixedUsdPaid, $rate, $totalVes);
 
         return [
             'payment_usd' => $paymentUsd,
@@ -5435,6 +5450,18 @@ final class CashRegisterAction
         }
 
         return self::computeSaleTotal($get);
+    }
+
+    /**
+     * Total en Bs de la factura para el pago múltiple; null en la inicial Cashea (se convierte desde USD).
+     */
+    private static function mixedDocumentVesFromGet(Get $get): ?float
+    {
+        if (self::isCacheaMixedInitialFromGet($get)) {
+            return null;
+        }
+
+        return self::computeSaleTotalVes($get);
     }
 
     private static function isMixedUsdModeFromGet(Get $get): bool
@@ -5524,6 +5551,7 @@ final class CashRegisterAction
             self::mixedFormDataFromGet($get),
             self::mixedDocumentUsdFromGet($get),
             self::effectiveVesUsdRate($get),
+            self::mixedDocumentVesFromGet($get),
         );
         if ($paymentVes <= 0.00001) {
             return;
@@ -5549,13 +5577,14 @@ final class CashRegisterAction
         array $data,
         float $documentTotal,
         float $vesUsdRate,
+        ?float $documentTotalVes = null,
     ): ?string {
         if ($generateAccountsReceivable && $paymentMethod === 'credito_cliente') {
             return 'Venta a crédito · cuenta por cobrar registrada desde caja.';
         }
 
         if ($paymentMethod === 'mixed') {
-            return MixedPosPaymentSupport::buildSaleNotesSuffix($data, $documentTotal, $vesUsdRate);
+            return MixedPosPaymentSupport::buildSaleNotesSuffix($data, $documentTotal, $vesUsdRate, $documentTotalVes);
         }
 
         if ($paymentMethod === PosPaymentMethodOptions::CACHEA
@@ -5653,6 +5682,7 @@ final class CashRegisterAction
      *         discount_percent: float,
      *         discount_mixed: bool,
      *         document_total: float,
+     *         document_total_ves: float|null,
      *         ves_tax_fraction: float,
      *         per_line: list<array{line_subtotal: float, tax_amount: float, line_total: float}>,
      *     }
@@ -5690,6 +5720,7 @@ final class CashRegisterAction
             $paymentMethod,
         );
         $pricing['manual_discount_caption'] = $plan['caption'];
+        $pricing['document_total_ves'] = self::posFiscalVesTotal($plan['lines'], $pricing, self::effectiveVesUsdRate($get));
 
         return $pricing;
     }
@@ -5702,12 +5733,66 @@ final class CashRegisterAction
     }
 
     /**
+     * Total en Bs a cobrar, el mismo que imprime la máquina fiscal; null sin tasa.
+     */
+    private static function computeSaleTotalVes(Get $get): ?float
+    {
+        $pricing = self::posPricingFromGet($get);
+
+        return $pricing !== null ? $pricing['document_total_ves'] : null;
+    }
+
+    /**
+     * Total en Bs de la venta calculado como la máquina fiscal ({@see FiscalVesAmounts}) con el mismo precio,
+     * descuento e IVA por línea que se guardan en `sale_items`, más el IGTF convertido; null si no hay tasa.
+     *
+     * @param  list<array{product: Product, quantity: float, inventory: Inventory}>  $lines
+     * @param  array{igtf_total: float, per_line: list<array{line_subtotal: float, tax_amount: float, line_total: float}>}  $pricing
+     */
+    private static function posFiscalVesTotal(array $lines, array $pricing, float $vesPerUsd): ?float
+    {
+        if ($vesPerUsd <= 0.0) {
+            return null;
+        }
+
+        $vatRate = DefaultVatRate::percent();
+        $items = [];
+
+        foreach ($lines as $index => $line) {
+            $perLine = $pricing['per_line'][$index] ?? null;
+            if (! is_array($perLine)) {
+                continue;
+            }
+
+            $inventory = $line['inventory'];
+            $branchId = $inventory instanceof Inventory ? (int) $inventory->branch_id : 0;
+            $unit = self::posUnitPricingForBranch($line['product'], $branchId)['unit_net'];
+            $quantity = (float) $line['quantity'];
+            $discount = round(max(0.0, round($quantity * $unit, 2) - (float) $perLine['line_subtotal']), 2);
+
+            $items[] = FiscalVesAmounts::item(
+                $quantity,
+                $unit,
+                $discount,
+                (float) $perLine['tax_amount'] > 0.00001,
+                $vatRate,
+                $vesPerUsd,
+            );
+        }
+
+        $igtfVes = round((float) ($pricing['igtf_total'] ?? 0) * $vesPerUsd, 2);
+
+        return round(FiscalVesAmounts::totals($items)['total_ves'] + $igtfVes, 2);
+    }
+
+    /**
      * Total de una línea desde el estado del ítem del repeater, calculado igual que el cobro:
      * precio sin IVA × cantidad, descuento %, y luego el IVA sobre ese neto.
+     * Con `$vesPerUsd` devuelve el total de la línea en Bs tal como lo imprime la máquina fiscal.
      *
      * @param  array<string, mixed>  $rowState
      */
-    private static function computeLineTotalFromRowState(array $rowState, float $discountPercent = 0.0): float
+    private static function computeLineTotalFromRowState(array $rowState, float $discountPercent = 0.0, ?float $vesPerUsd = null): float
     {
         $branchId = Auth::user()?->branch_id;
         if (blank($branchId)) {
@@ -5743,6 +5828,19 @@ final class CashRegisterAction
         $tax = $unitPricing['applies_vat'] && $vatRate > 0
             ? round($lineNet * $vatRate / 100, 2)
             : 0.0;
+
+        if ($vesPerUsd !== null) {
+            $discount = round(max(0.0, round($qty * $unitPricing['unit_net'], 2) - $lineNet), 2);
+
+            return FiscalVesAmounts::lineTotalVes(FiscalVesAmounts::item(
+                $qty,
+                $unitPricing['unit_net'],
+                $discount,
+                $tax > 0.00001,
+                $vatRate,
+                $vesPerUsd,
+            ));
+        }
 
         return round($lineNet + $tax, 2);
     }
@@ -6127,7 +6225,7 @@ final class CashRegisterAction
                 $row['base_label'],
                 $row['price_usd_raw'],
                 $row['quantity_raw'],
-                $rate,
+                $row['price_ves_raw'],
             ),
         ])->all();
     }
@@ -6144,6 +6242,7 @@ final class CashRegisterAction
      *     out_of_stock: bool,
      *     base_label: string,
      *     price_usd_raw: float,
+     *     price_ves_raw: float|null,
      *     quantity_raw: float
      * }>
      */
@@ -6316,6 +6415,7 @@ final class CashRegisterAction
      *     out_of_stock: bool,
      *     base_label: string,
      *     price_usd_raw: float,
+     *     price_ves_raw: float|null,
      *     quantity_raw: float
      * }>
      */
@@ -6403,6 +6503,7 @@ final class CashRegisterAction
      *     out_of_stock: bool,
      *     base_label: string,
      *     price_usd_raw: float,
+     *     price_ves_raw: float|null,
      *     quantity_raw: float
      * }>
      */
@@ -6436,6 +6537,7 @@ final class CashRegisterAction
 
             $unitPricing = self::posUnitPricingForBranch($product, $branchId);
             $unitFinal = $unitPricing['unit_final'];
+            $unitVes = $vesUsdRate > 0.0 ? self::posUnitPriceVes($unitPricing, $vesUsdRate) : null;
             $available = self::posAvailableQuantity($branchId, $id);
             $qty = $available !== null ? max(0.0, $available) : 0.0;
 
@@ -6455,13 +6557,14 @@ final class CashRegisterAction
                 'name' => $name,
                 'active_ingredient' => self::formatPosActiveIngredient($product->active_ingredient),
                 'price_usd' => self::formatMoney($unitFinal),
-                'price_ves' => $vesUsdRate > 0.0
-                    ? self::formatBolivaresReferenceFromVes(self::posListPriceVesFromUsd($unitFinal, $vesUsdRate))
+                'price_ves' => $unitVes !== null
+                    ? self::formatBolivaresReferenceFromVes($unitVes)
                     : 'Bs. —',
                 'quantity' => InventoryQuantityFormat::display($qty),
                 'out_of_stock' => $qty <= 0.0001,
                 'base_label' => $base,
                 'price_usd_raw' => $unitFinal,
+                'price_ves_raw' => $unitVes,
                 'quantity_raw' => $qty,
             ];
         }
@@ -7386,7 +7489,8 @@ final class CashRegisterAction
             $rateLabel = 'Sin tasa · ingrese manualmente';
         }
 
-        $vesLine = self::formatBolivaresReference(self::computeSaleTotal($get), $get);
+        $totalVes = self::computeSaleTotalVes($get);
+        $vesLine = $totalVes !== null ? self::formatBolivaresReferenceFromVes($totalVes) : 'Bs. —';
         $hint = $hasApi
             ? 'Fuente: ve.dolarapi.com (oficial)'
             : 'API no disponible — use tasa manual abajo';

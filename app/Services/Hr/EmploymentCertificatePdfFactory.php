@@ -114,7 +114,7 @@ final class EmploymentCertificatePdfFactory
             ->setOption('enable_font_subsetting', true);
     }
 
-    private function publicImageDataUri(string $relativePath): ?string
+    public function publicImageDataUri(string $relativePath): ?string
     {
         $path = public_path($relativePath);
 
@@ -125,7 +125,7 @@ final class EmploymentCertificatePdfFactory
         return 'data:image/png;base64,'.base64_encode((string) file_get_contents($path));
     }
 
-    private function storedImageDataUri(?string $path): ?string
+    public function storedImageDataUri(?string $path): ?string
     {
         $disk = Storage::disk(self::ASSETS_DISK);
 

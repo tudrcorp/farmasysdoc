@@ -35,7 +35,7 @@ class HrLoanResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'hr';
 
-    protected static ?int $navigationSort = 40;
+    protected static ?int $navigationSort = 8;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::Banknotes;
 

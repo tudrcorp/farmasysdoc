@@ -2283,6 +2283,20 @@ a.farmadoc-ios-action.farmadoc-ios-action--liquid-glass:focus-visible {
 }
 
 /*
+ * Cada .fi-input-wrp crea su propio contexto de apilamiento por el backdrop-filter, así que
+ * el campo siguiente tapa el menú abierto. Se eleva el campo y sus contenedores mientras esté abierto.
+ */
+.fi-sc > *:has(.fi-select-input-btn[aria-expanded='true']),
+.fi-sc > *:has(.fi-fo-date-time-picker-trigger[aria-expanded='true']),
+.fi-section:has(.fi-select-input-btn[aria-expanded='true']),
+.fi-section:has(.fi-fo-date-time-picker-trigger[aria-expanded='true']),
+.fi-fo-field:has(.fi-select-input-btn[aria-expanded='true']),
+.fi-fo-field:has(.fi-fo-date-time-picker-trigger[aria-expanded='true']) {
+    position: relative;
+    z-index: 50;
+}
+
+/*
  * Caja chica — create/edit: Select y DatePicker no deben quedar detrás de los campos siguientes.
  * Con .fi-fixed-positioning-context en la página, Filament posiciona los Select en fixed;
  * aquí evitamos recortes y subimos el z-index mientras el menú o calendario está abierto.

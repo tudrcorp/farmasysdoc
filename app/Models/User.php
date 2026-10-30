@@ -434,6 +434,80 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     }
 
     /**
+     * Crear y consultar solicitudes de personal: administrador o rol con el permiso del menú.
+     */
+    public function canAccessRecruitmentRequests(): bool
+    {
+        return $this->isAdministrator() || $this->canAccessFarmaadminMenuKey('hr_recruitment_requests');
+    }
+
+    /**
+     * Banco de candidatos y sus CV, que contienen datos personales.
+     */
+    public function canAccessRecruitmentCandidates(): bool
+    {
+        return $this->isAdministrator()
+            || $this->canAccessFarmaadminMenuKey('hr_recruitment_candidates')
+            || $this->canAccessFarmaadminMenuKey('hr_recruitment_selection');
+    }
+
+    /**
+     * Tablero del proceso de selección.
+     */
+    public function canAccessRecruitmentSelection(): bool
+    {
+        return $this->isAdministrator() || $this->canAccessFarmaadminMenuKey('hr_recruitment_selection');
+    }
+
+    /**
+     * Crear cursos y programar capacitaciones es exclusivo del administrador.
+     */
+    public function canManageTraining(): bool
+    {
+        return $this->isAdministrator();
+    }
+
+    /**
+     * Ver capacitaciones de sus sucursales.
+     */
+    public function canAccessTrainingSessions(): bool
+    {
+        return $this->isAdministrator() || $this->canAccessFarmaadminMenuKey('hr_training_sessions');
+    }
+
+    /**
+     * Marcar asistencia y registrar resultados.
+     */
+    public function canAccessTrainingRecords(): bool
+    {
+        return $this->isAdministrator() || $this->canAccessFarmaadminMenuKey('hr_training_records');
+    }
+
+    /**
+     * Iniciar egresos. El registro no muestra montos.
+     */
+    public function canAccessEmployeeExits(): bool
+    {
+        return $this->isAdministrator() || $this->canAccessFarmaadminMenuKey('hr_exits');
+    }
+
+    /**
+     * Preparar liquidaciones. Aprobar y pagar es solo del administrador.
+     */
+    public function canAccessEmployeeSettlements(): bool
+    {
+        return $this->isAdministrator() || $this->canAccessFarmaadminMenuKey('hr_settlements');
+    }
+
+    /**
+     * @return HasMany<AiAgentConversation, $this>
+     */
+    public function aiAgentConversations(): HasMany
+    {
+        return $this->hasMany(AiAgentConversation::class);
+    }
+
+    /**
      * Crear/ver préstamos RRHH: administrador o gerencia.
      */
     public function canManageHrLoans(): bool

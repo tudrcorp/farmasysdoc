@@ -27,7 +27,7 @@ class PayrollPeriodResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'hr';
 
-    protected static ?int $navigationSort = 50;
+    protected static ?int $navigationSort = 6;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::Calculator;
 

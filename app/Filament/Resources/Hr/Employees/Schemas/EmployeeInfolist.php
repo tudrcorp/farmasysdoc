@@ -11,8 +11,10 @@ use App\Models\Employee;
 use App\Models\HrAssignment;
 use App\Models\HrDeduction;
 use App\Models\HrLoan;
+use App\Models\TrainingEnrollment;
 use App\Services\Hr\HrBcvRateResolver;
 use App\Services\Hr\HrUsdVesConverter;
+use App\Services\Training\TrainingComplianceService;
 use App\Support\Finance\BcvRate;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\ImageEntry;
@@ -27,6 +29,7 @@ use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\FontWeight;
 use Filament\Support\Enums\TextSize;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Collection;
 
 class EmployeeInfolist
 {
@@ -76,6 +79,13 @@ class EmployeeInfolist
                                 ->label('Cargo')
                                 ->icon(Heroicon::Briefcase)
                                 ->placeholder('Sin cargo'),
+                            TextEntry::make('cv')
+                                ->label('Curriculum vitae')
+                                ->state('Abrir CV')
+                                ->icon(Heroicon::DocumentText)
+                                ->color('primary')
+                                ->url(fn (Employee $record): string => route('recruitment.employee-cv', $record), shouldOpenInNewTab: true)
+                                ->visible(fn (Employee $record): bool => filled($record->cv_path)),
                             TextEntry::make('hired_at')
                                 ->label('Fecha de ingreso')
                                 ->icon(Heroicon::CalendarDays)
@@ -384,6 +394,46 @@ class EmployeeInfolist
                     ])
                     ->columnSpanFull(),
 
+                Section::make('Formación')
+                    ->description('Capacitaciones, certificados y cursos obligatorios pendientes.')
+                    ->icon(Heroicon::AcademicCap)
+                    ->schema([
+                        TextEntry::make('mandatory_training_pending')
+                            ->label('Obligatorios pendientes')
+                            ->state(fn (Employee $record): array => app(TrainingComplianceService::class)
+                                ->pendingFor($record)
+                                ->map(fn (array $item): string => "{$item['course']->name} ({$item['status']})")
+                                ->all())
+                            ->badge()
+                            ->color('warning')
+                            ->placeholder('Sin pendientes'),
+                        TextEntry::make('training_hours')
+                            ->label('Horas completadas')
+                            ->state(fn (Employee $record): string => self::completedTrainings($record)
+                                ->sum(fn (TrainingEnrollment $enrollment): float => (float) $enrollment->session->course->duration_hours).' h'),
+                        RepeatableEntry::make('completed_trainings')
+                            ->label('')
+                            ->state(fn (Employee $record) => self::completedTrainings($record))
+                            ->placeholder('Sin capacitaciones completadas.')
+                            ->table([
+                                TableColumn::make('Curso'),
+                                TableColumn::make('Fecha'),
+                                TableColumn::make('Vence'),
+                                TableColumn::make('Certificado'),
+                            ])
+                            ->schema([
+                                TextEntry::make('session.course.name')->weight(FontWeight::Medium)->wrap(),
+                                TextEntry::make('session.ends_at')->date('d/m/Y'),
+                                TextEntry::make('expires_on')->date('d/m/Y')->placeholder('—'),
+                                TextEntry::make('certificate')
+                                    ->state('Descargar')
+                                    ->color('primary')
+                                    ->url(fn (TrainingEnrollment $record): string => route('training.certificate', $record), shouldOpenInNewTab: true),
+                            ])
+                            ->columnSpanFull(),
+                    ])
+                    ->columnSpanFull(),
+
                 Section::make('Auditoría')
                     ->description('Fechas del registro.')
                     ->icon(Heroicon::Clock)
@@ -532,5 +582,18 @@ class EmployeeInfolist
         $to = $record->ends_on?->format('d/m/Y') ?? 'sin fin';
 
         return "{$from} → {$to}";
+    }
+
+    /**
+     * @return Collection<int, TrainingEnrollment>
+     */
+    private static function completedTrainings(Employee $employee): Collection
+    {
+        return $employee->trainingEnrollments()
+            ->with('session.course')
+            ->get()
+            ->filter(fn (TrainingEnrollment $enrollment): bool => $enrollment->canDownloadCertificate())
+            ->sortByDesc(fn (TrainingEnrollment $enrollment) => $enrollment->session->ends_at)
+            ->values();
     }
 }

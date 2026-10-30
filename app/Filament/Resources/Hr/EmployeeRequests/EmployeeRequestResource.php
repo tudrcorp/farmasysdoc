@@ -32,7 +32,7 @@ class EmployeeRequestResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'hr';
 
-    protected static ?int $navigationSort = 15;
+    protected static ?int $navigationSort = 3;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::Inbox;
 

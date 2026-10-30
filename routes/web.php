@@ -27,6 +27,11 @@ use App\Http\Controllers\Purchases\PurchaseBookSeniatRetentionTxtController;
 use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
 use App\Http\Controllers\Purchases\PurchaseLedgerBookReportController;
 use App\Http\Controllers\Purchases\SupplierDossierPdfController;
+use App\Http\Controllers\AiAgentReportController;
+use App\Http\Controllers\Hr\EmployeePortalTrainingCertificateController;
+use App\Http\Controllers\Hr\SeveranceDocumentController;
+use App\Http\Controllers\Hr\TrainingCertificateController;
+use App\Http\Controllers\Recruitment\RecruitmentCvController;
 use App\Http\Controllers\Reports\FinancialReportDownloadController;
 use App\Http\Controllers\Reports\SystemReportsDownloadController;
 use App\Http\Controllers\Sales\CashRegisterClosePdfController;
@@ -47,6 +52,7 @@ use App\Livewire\EmployeePortal\Login;
 use App\Livewire\EmployeePortal\Profile;
 use App\Livewire\EmployeePortal\Receipts;
 use App\Livewire\EmployeePortal\Requests;
+use App\Livewire\EmployeePortal\Trainings;
 use App\Livewire\Shop\Account as ShopAccount;
 use App\Livewire\Shop\Auth\Login as ShopLogin;
 use App\Livewire\Shop\Auth\Register as ShopRegister;
@@ -90,6 +96,8 @@ Route::prefix('portal')->name('employee-portal.')->group(function (): void {
             ->name('requests.absence');
         Route::get('solicitudes/{employeeRequest}/constancia', EmployeePortalCertificateController::class)->name('requests.certificate.download');
         Route::get('solicitudes/adjuntos/{attachment}', EmployeePortalRequestAttachmentController::class)->name('requests.attachment');
+        Route::livewire('capacitaciones', Trainings::class)->name('trainings');
+        Route::get('capacitaciones/{enrollment}/certificado', EmployeePortalTrainingCertificateController::class)->name('trainings.certificate');
         Route::get('notificaciones/contador', EmployeePortalNotificationCountController::class)->name('notifications.count');
     });
 });
@@ -149,6 +157,19 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('caja-fisica/{box}/fotos-cierre/{kind}', PhysicalCashBoxClosePhotoController::class)
         ->whereIn('kind', ['usd', 'pos'])
         ->name('physical-cash-box.close-photo');
+    Route::get('reclutamiento/candidatos/{candidate}/cv', [RecruitmentCvController::class, 'candidate'])
+        ->name('recruitment.candidate-cv');
+    Route::get('rrhh/empleados/{employee}/cv', [RecruitmentCvController::class, 'employee'])
+        ->name('recruitment.employee-cv');
+    Route::get('capacitaciones/inscripciones/{enrollment}/certificado', TrainingCertificateController::class)
+        ->name('training.certificate');
+    Route::get('egresos/liquidaciones/{settlement}/pdf', [SeveranceDocumentController::class, 'settlement'])
+        ->name('severance.settlement-pdf');
+    Route::get('egresos/{exit}/soporte', [SeveranceDocumentController::class, 'exitDocument'])
+        ->name('severance.exit-document');
+    Route::get('agente-ia/reportes/{report}/{format}', AiAgentReportController::class)
+        ->whereIn('format', ['xlsx', 'pdf'])
+        ->name('ai-agent.report');
 });
 
 Route::middleware(['auth'])->prefix('geo')->name('geo.')->group(function (): void {

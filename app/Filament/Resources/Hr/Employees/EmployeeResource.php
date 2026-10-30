@@ -36,7 +36,7 @@ class EmployeeResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'hr';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 5;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::UserGroup;
 

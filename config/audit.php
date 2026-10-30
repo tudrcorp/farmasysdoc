@@ -5,7 +5,11 @@ use App\Models\Branch;
 use App\Models\BranchCategoryProfitMargin;
 use App\Models\Client;
 use App\Models\Delivery;
+use App\Models\EmployeeExit;
 use App\Models\EmployeeRequest;
+use App\Models\EmployeeSalaryChange;
+use App\Models\EmployeeSettlement;
+use App\Models\EmployeeSettlementLine;
 use App\Models\EmploymentCertificateSetting;
 use App\Models\FinancialFixedExpense;
 use App\Models\FinancialSetting;
@@ -33,11 +37,18 @@ use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductTransfer;
 use App\Models\Purchase;
+use App\Models\RecruitmentApplication;
+use App\Models\RecruitmentCandidate;
+use App\Models\RecruitmentRequest;
 use App\Models\Rol;
 use App\Models\Sale;
 use App\Models\SalesBook;
 use App\Models\SalesVatRetention;
+use App\Models\SeveranceSetting;
 use App\Models\Supplier;
+use App\Models\TrainingCourse;
+use App\Models\TrainingEnrollment;
+use App\Models\TrainingSession;
 use App\Models\User;
 
 return [
@@ -103,6 +114,17 @@ return [
         EmploymentCertificateSetting::class,
         OrgChart::class,
         OrgChartNode::class,
+        RecruitmentRequest::class,
+        RecruitmentCandidate::class,
+        RecruitmentApplication::class,
+        TrainingCourse::class,
+        TrainingSession::class,
+        TrainingEnrollment::class,
+        SeveranceSetting::class,
+        EmployeeExit::class,
+        EmployeeSettlement::class,
+        EmployeeSettlementLine::class,
+        EmployeeSalaryChange::class,
     ],
 
 ];

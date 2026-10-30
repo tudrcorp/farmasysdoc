@@ -2,6 +2,7 @@
 
 namespace App\Services\Hr;
 
+use App\Enums\EmployeeExitStatus;
 use App\Enums\HrLoanFrequency;
 use App\Enums\HrLoanInstallmentMode;
 use App\Enums\HrLoanStatus;
@@ -60,8 +61,13 @@ final class PayrollCalculator
 
             $concepts = HrPayrollConcept::applicableBusinessFor($period);
 
+            $periodStartsOn = $period->period_date->copy()->day($period->isMonthEnd() ? 16 : 1)->toDateString();
+
             $employees = Employee::query()
                 ->where('is_active', true)
+                ->whereDoesntHave('exits', fn ($query) => $query
+                    ->where('status', EmployeeExitStatus::Open)
+                    ->whereDate('last_work_day', '<', $periodStartsOn))
                 ->with(['assignments', 'deductions', 'loans'])
                 ->orderBy('last_name')
                 ->orderBy('first_name')

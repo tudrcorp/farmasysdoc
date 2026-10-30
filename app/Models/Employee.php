@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 class Employee extends Model
@@ -35,6 +36,7 @@ class Employee extends Model
         'photo_path',
         'signature_path',
         'fingerprint_path',
+        'cv_path',
         'file_terms_accepted_at',
         'monthly_salary_usd',
         'legal_salary_ves',
@@ -97,6 +99,17 @@ class Employee extends Model
     {
         static::saving(function (Employee $employee): void {
             $employee->syncUsdCashPortions();
+        });
+
+        static::saved(function (Employee $employee): void {
+            if ($employee->wasRecentlyCreated || $employee->wasChanged(['monthly_salary_usd', 'legal_salary_ves'])) {
+                $employee->salaryChanges()->create([
+                    'monthly_salary_usd' => $employee->monthly_salary_usd,
+                    'legal_salary_ves' => $employee->legal_salary_ves,
+                    'effective_on' => now()->toDateString(),
+                    'changed_by' => Auth::id(),
+                ]);
+            }
         });
     }
 
@@ -384,6 +397,30 @@ class Employee extends Model
     /**
      * Fecha de ingreso y cargo: sin ellos no se emite constancia ni se calculan vacaciones.
      */
+    /**
+     * @return HasMany<TrainingEnrollment, $this>
+     */
+    public function trainingEnrollments(): HasMany
+    {
+        return $this->hasMany(TrainingEnrollment::class);
+    }
+
+    /**
+     * @return HasMany<EmployeeSalaryChange, $this>
+     */
+    public function salaryChanges(): HasMany
+    {
+        return $this->hasMany(EmployeeSalaryChange::class);
+    }
+
+    /**
+     * @return HasMany<EmployeeExit, $this>
+     */
+    public function exits(): HasMany
+    {
+        return $this->hasMany(EmployeeExit::class);
+    }
+
     public function hasEmploymentData(): bool
     {
         return $this->hired_at !== null && filled($this->job_title);

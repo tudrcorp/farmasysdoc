@@ -36,6 +36,13 @@
             'subtitle' => 'Recibo mensual de ley',
             'tone' => 'cyan',
         ],
+        [
+            'key' => 'trainings',
+            'href' => route('employee-portal.trainings'),
+            'title' => 'Capacitaciones',
+            'subtitle' => 'Fechas y certificados',
+            'tone' => 'teal',
+        ],
     ];
     $requestLinks = [
         ['key' => 'requests', 'href' => route('employee-portal.requests'), 'title' => 'Mis solicitudes', 'subtitle' => 'Estado y descargas', 'tone' => 'cyan', 'icon' => 'requests'],

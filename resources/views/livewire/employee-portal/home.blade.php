@@ -57,6 +57,18 @@
             <span class="ep-pill">PDF</span>
         </a>
 
+        <a href="{{ route('employee-portal.trainings') }}" class="ep-card-btn ep-glass" wire:navigate>
+            <span class="ep-card-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="size-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342" />
+                </svg>
+            </span>
+            <span class="ep-card-copy">
+                <strong>Capacitaciones</strong>
+                <span>Tus próximas fechas, historial y certificados.</span>
+            </span>
+        </a>
+
         @unless ($hasPortalPassword)
         <a href="{{ route('employee-portal.account') }}" class="ep-card-btn ep-glass" wire:navigate>
             <span class="ep-card-icon" aria-hidden="true">

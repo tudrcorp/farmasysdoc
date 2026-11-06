@@ -2,11 +2,18 @@
 
 namespace App\Filament\Resources\PartnerCompanies\Schemas;
 
+use App\Enums\PartnerCompanyClientType;
+use App\Enums\PartnerCompanyDocumentType;
+use App\Enums\PartnerCompanyPaymentModality;
+use App\Models\Branch;
 use App\Models\City;
 use App\Models\Country;
+use App\Models\PartnerCompany;
+use App\Models\PartnerCompanyDocument;
 use App\Models\State;
 use App\Models\User;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -56,19 +63,36 @@ class PartnerCompanyForm
                                     ->maxLength(255)
                                     ->prefixIcon(Heroicon::BuildingStorefront),
                                 TextInput::make('tax_id')
-                                    ->label('NIT / identificación fiscal')
-                                    ->placeholder('Sin guiones ni espacios')
+                                    ->label('RIF')
+                                    ->placeholder('Ej. J123456789')
                                     ->helperText('Solo letras mayúsculas y números, sin espacios ni caracteres especiales.')
                                     ->required()
                                     ->rule('regex:/^[A-Z0-9]+$/')
                                     ->validationMessages([
-                                        'regex' => 'El NIT / identificación fiscal solo puede contener letras mayúsculas (A-Z) y números, sin espacios ni símbolos.',
+                                        'regex' => 'El RIF solo puede contener letras mayúsculas (A-Z) y números, sin guiones, espacios ni símbolos.',
                                     ])
                                     ->dehydrateStateUsing(fn (?string $state): ?string => filled($state)
                                         ? strtoupper(str_replace(' ', '', $state))
                                         : null)
                                     ->maxLength(255)
                                     ->prefixIcon(Heroicon::Identification),
+                                Select::make('client_type')
+                                    ->label('Tipo de cliente')
+                                    ->options(PartnerCompanyClientType::options())
+                                    ->required()
+                                    ->native(false)
+                                    ->prefixIcon(Heroicon::Tag),
+                                Select::make('branches')
+                                    ->label('Sucursales')
+                                    ->helperText('Sucursales donde aplica el convenio con el aliado.')
+                                    ->relationship('branches', 'name', fn ($query) => $query->orderBy('name'))
+                                    ->getOptionLabelFromRecordUsing(fn (Branch $record): string => (string) $record->name)
+                                    ->multiple()
+                                    ->required()
+                                    ->searchable()
+                                    ->preload()
+                                    ->native(false)
+                                    ->columnSpan(['default' => 1, 'lg' => 2]),
                                 Toggle::make('is_active')
                                     ->label('Compañía activa')
                                     ->default(true)
@@ -185,7 +209,7 @@ class PartnerCompanyForm
                                 Select::make('country')
                                     ->label('País')
                                     ->required()
-                                    ->default('Colombia')
+                                    ->default('VENEZUELA')
                                     ->searchable()
                                     ->preload()
                                     ->native(false)
@@ -200,7 +224,7 @@ class PartnerCompanyForm
                                     })
                                     ->prefixIcon(Heroicon::GlobeAlt),
                                 Select::make('state')
-                                    ->label('Departamento / estado')
+                                    ->label('Estado')
                                     ->searchable()
                                     ->native(false)
                                     ->disabled(fn (Get $get): bool => blank($get('country')))
@@ -248,8 +272,10 @@ class PartnerCompanyForm
                     ->columns(1)
                     ->columnSpanFull(),
 
-                Section::make('Gestión comercial')
-                    ->description('Información de contacto directo y condiciones pactadas.')
+                Section::make('Acuerdo de negociación')
+                    ->description(fn (?PartnerCompany $record): string => self::isGovernedByAgreements($record)
+                        ? 'Este aliado opera con convenios: modalidad, límite, descuento y términos se cambian desde «Convenios y renovaciones». El saldo disponible sí se ajusta aquí (abonos).'
+                        : 'Modalidad de pago, límite de crédito y condiciones pactadas con el aliado.')
                     ->icon(Heroicon::UserGroup)
                     ->schema([
                         Grid::make([
@@ -257,50 +283,51 @@ class PartnerCompanyForm
                             'sm' => 2,
                         ])
                             ->schema([
-                                TextInput::make('contact_name')
-                                    ->label('Nombre del contacto')
-                                    ->placeholder('Nombre y cargo')
-                                    ->maxLength(255)
-                                    ->prefixIcon(Heroicon::UserCircle),
-                                TextInput::make('contact_email')
-                                    ->label('Correo del contacto')
-                                    ->email()
-                                    ->placeholder('contacto@empresa.com')
-                                    ->maxLength(255)
-                                    ->prefixIcon(Heroicon::Envelope),
-                                TextInput::make('contact_phone')
-                                    ->label('Teléfono del contacto')
-                                    ->tel()
-                                    ->placeholder('Solo números')
-                                    ->helperText('Solo números, sin espacios ni caracteres especiales.')
-                                    ->rule('regex:/^[0-9]+$/')
-                                    ->validationMessages([
-                                        'regex' => 'El teléfono del contacto solo puede contener números, sin espacios ni caracteres especiales.',
-                                    ])
-                                    ->dehydrateStateUsing(fn (?string $state): ?string => filled($state)
-                                        ? preg_replace('/[^0-9]/', '', $state)
-                                        : null)
-                                    ->maxLength(40)
-                                    ->prefixIcon(Heroicon::DevicePhoneMobile),
+                                Select::make('payment_modality')
+                                    ->disabled(fn (?PartnerCompany $record): bool => self::isGovernedByAgreements($record))
+                                    ->label('Modalidad de pago')
+                                    ->helperText('Crédito e integral requieren límite de crédito aprobado.')
+                                    ->options(PartnerCompanyPaymentModality::options())
+                                    ->required(fn (?PartnerCompany $record): bool => ! self::isGovernedByAgreements($record))
+                                    ->native(false)
+                                    ->live()
+                                    ->prefixIcon(Heroicon::CreditCard),
                                 TextInput::make('agreement_reference')
+                                    ->disabled(fn (?PartnerCompany $record): bool => self::isGovernedByAgreements($record))
                                     ->label('Referencia del convenio')
                                     ->placeholder('Código o número del acuerdo')
                                     ->maxLength(255)
                                     ->prefixIcon(Heroicon::DocumentDuplicate),
+                                TextInput::make('credit_limit_usd')
+                                    ->disabled(fn (?PartnerCompany $record): bool => self::isGovernedByAgreements($record))
+                                    ->label('Límite de crédito aprobado (USD)')
+                                    ->helperText('Tope de la línea de crédito pactada en el convenio.')
+                                    ->numeric()
+                                    ->prefix('$')
+                                    ->suffix('USD')
+                                    ->minValue(0.01)
+                                    ->step(0.01)
+                                    ->visible(fn (Get $get): bool => self::usesCreditLimit($get('payment_modality')))
+                                    ->required(fn (Get $get): bool => self::usesCreditLimit($get('payment_modality')))
+                                    ->live(onBlur: true)
+                                    ->prefixIcon(Heroicon::Banknotes),
                                 TextInput::make('assigned_credit_limit')
                                     ->label('Saldo de crédito disponible (USD)')
-                                    ->helperText('Saldo actual en USD. Cada consumo (pedido a crédito en «En proceso») lo descuenta automáticamente. Para ampliar cupo, aumente este valor. Opcional.')
+                                    ->helperText('Se descuenta con cada pedido a crédito finalizado. Al crear, si lo deja vacío inicia igual al límite. Auméntelo cuando el aliado abone.')
                                     ->numeric()
                                     ->prefix('$')
                                     ->suffix('USD')
                                     ->minValue(0)
                                     ->step(0.01)
                                     ->nullable()
-                                    ->dehydrateStateUsing(fn (mixed $state): ?float => $state === '' || $state === null
-                                        ? null
-                                        : (float) $state)
-                                    ->prefixIcon(Heroicon::Banknotes),
+                                    ->lte('credit_limit_usd')
+                                    ->validationMessages([
+                                        'lte' => 'El saldo disponible no puede superar el límite de crédito aprobado.',
+                                    ])
+                                    ->visible(fn (Get $get): bool => self::usesCreditLimit($get('payment_modality')))
+                                    ->prefixIcon(Heroicon::Wallet),
                                 TextInput::make('profit_percentage_a')
+                                    ->disabled(fn (?PartnerCompany $record): bool => self::isGovernedByAgreements($record))
                                     ->label('Ganancia % A')
                                     ->helperText('Campo libre para porcentaje de ganancia del aliado.')
                                     ->numeric()
@@ -312,6 +339,7 @@ class PartnerCompanyForm
                                         : (float) $state)
                                     ->prefixIcon(Heroicon::Calculator),
                                 TextInput::make('discount_percentage')
+                                    ->disabled(fn (?PartnerCompany $record): bool => self::isGovernedByAgreements($record))
                                     ->label('Descuento %')
                                     ->helperText('Campo libre para porcentaje de descuento del aliado.')
                                     ->numeric()
@@ -323,14 +351,16 @@ class PartnerCompanyForm
                                         : (float) $state)
                                     ->prefixIcon(Heroicon::Calculator),
                                 DatePicker::make('date_created')
+                                    ->disabled(fn (?PartnerCompany $record): bool => self::isGovernedByAgreements($record))
                                     ->label('Fecha de creación del convenio')
                                     ->helperText('Fecha en que se formaliza o registra el convenio con el aliado.')
-                                    ->required()
+                                    ->required(fn (?PartnerCompany $record): bool => ! self::isGovernedByAgreements($record))
                                     ->default(now())
                                     ->native(false)
                                     ->displayFormat('d/m/Y')
                                     ->prefixIcon(Heroicon::CalendarDays),
                                 DatePicker::make('date_updated')
+                                    ->disabled(fn (?PartnerCompany $record): bool => self::isGovernedByAgreements($record))
                                     ->label('Fecha de actualización del convenio')
                                     ->helperText('Opcional. Use cuando el convenio se modifique o renueve.')
                                     ->native(false)
@@ -338,6 +368,7 @@ class PartnerCompanyForm
                                     ->prefixIcon(Heroicon::ArrowPath)
                                     ->nullable(),
                                 Textarea::make('agreement_terms')
+                                    ->disabled(fn (?PartnerCompany $record): bool => self::isGovernedByAgreements($record))
                                     ->label('Términos del convenio')
                                     ->placeholder('Condiciones comerciales, plazos y alcance del convenio')
                                     ->rows(3)
@@ -348,6 +379,122 @@ class PartnerCompanyForm
                                     ->rows(3)
                                     ->columnSpanFull(),
                             ]),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
+                Section::make('Contactos y responsables')
+                    ->description('Personas de contacto del aliado. Marque como responsable a quien firma o administra el convenio.')
+                    ->icon(Heroicon::UserGroup)
+                    ->schema([
+                        Repeater::make('contacts')
+                            ->label('')
+                            ->relationship()
+                            ->orderColumn('sort')
+                            ->schema([
+                                Grid::make([
+                                    'default' => 1,
+                                    'sm' => 2,
+                                    'lg' => 4,
+                                ])
+                                    ->schema([
+                                        TextInput::make('name')
+                                            ->label('Nombre completo')
+                                            ->required()
+                                            ->maxLength(255)
+                                            ->prefixIcon(Heroicon::UserCircle),
+                                        TextInput::make('position')
+                                            ->label('Cargo')
+                                            ->placeholder('Ej. Gerente de compras')
+                                            ->maxLength(255)
+                                            ->prefixIcon(Heroicon::Briefcase),
+                                        TextInput::make('email')
+                                            ->label('Correo')
+                                            ->email()
+                                            ->maxLength(255)
+                                            ->prefixIcon(Heroicon::Envelope),
+                                        TextInput::make('phone')
+                                            ->label('Teléfono')
+                                            ->tel()
+                                            ->placeholder('Solo números')
+                                            ->rule('regex:/^[0-9]+$/')
+                                            ->validationMessages([
+                                                'regex' => 'El teléfono solo puede contener números, sin espacios ni caracteres especiales.',
+                                            ])
+                                            ->dehydrateStateUsing(fn (?string $state): ?string => filled($state)
+                                                ? preg_replace('/[^0-9]/', '', $state)
+                                                : null)
+                                            ->maxLength(40)
+                                            ->prefixIcon(Heroicon::DevicePhoneMobile),
+                                        Toggle::make('is_responsible')
+                                            ->label('Responsable del convenio')
+                                            ->default(false)
+                                            ->inline(false),
+                                        Textarea::make('notes')
+                                            ->label('Notas')
+                                            ->rows(1)
+                                            ->columnSpan(['default' => 1, 'sm' => 1, 'lg' => 3]),
+                                    ]),
+                            ])
+                            ->defaultItems(0)
+                            ->addActionLabel('Añadir contacto')
+                            ->collapsible()
+                            ->itemLabel(fn (?array $state): ?string => filled($state['name'] ?? null)
+                                ? (string) $state['name'].(! empty($state['is_responsible']) ? ' · Responsable' : '')
+                                : 'Nuevo contacto')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
+                Section::make('Documentos del aliado')
+                    ->description('Carta de convenio, RIF, cédula del representante legal, Registro Mercantil y otros soportes. PDF o imagen, máximo 10 MB.')
+                    ->icon(Heroicon::PaperClip)
+                    ->schema([
+                        Repeater::make('documents')
+                            ->label('')
+                            ->relationship()
+                            ->orderColumn('sort')
+                            ->schema([
+                                Grid::make([
+                                    'default' => 1,
+                                    'sm' => 2,
+                                ])
+                                    ->schema([
+                                        Select::make('type')
+                                            ->label('Tipo de documento')
+                                            ->options(PartnerCompanyDocumentType::options())
+                                            ->required()
+                                            ->native(false)
+                                            ->live(),
+                                        DatePicker::make('expires_at')
+                                            ->label('Vence el')
+                                            ->helperText('Opcional.')
+                                            ->native(false)
+                                            ->displayFormat('d/m/Y'),
+                                        FileUpload::make('file_path')
+                                            ->label('Archivo')
+                                            ->disk(PartnerCompanyDocument::DISK)
+                                            ->directory(PartnerCompanyDocument::DIRECTORY)
+                                            ->visibility('private')
+                                            ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png', 'image/webp'])
+                                            ->maxSize(10240)
+                                            ->storeFileNamesIn('original_name')
+                                            ->openable()
+                                            ->downloadable()
+                                            ->required()
+                                            ->columnSpanFull(),
+                                        Textarea::make('notes')
+                                            ->label('Notas')
+                                            ->rows(2)
+                                            ->columnSpanFull(),
+                                    ]),
+                            ])
+                            ->defaultItems(0)
+                            ->addActionLabel('Añadir documento')
+                            ->collapsible()
+                            ->itemLabel(fn (?array $state): ?string => PartnerCompanyDocumentType::tryFrom((string) ($state['type'] ?? ''))?->label() ?? 'Nuevo documento')
+                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
@@ -440,5 +587,19 @@ class PartnerCompanyForm
                     ->columns(1)
                     ->columnSpanFull(),
             ]);
+    }
+
+    private static function usesCreditLimit(mixed $modality): bool
+    {
+        $modality = $modality instanceof PartnerCompanyPaymentModality
+            ? $modality
+            : PartnerCompanyPaymentModality::tryFrom((string) $modality);
+
+        return $modality?->usesCreditLimit() ?? false;
+    }
+
+    private static function isGovernedByAgreements(?PartnerCompany $record): bool
+    {
+        return $record instanceof PartnerCompany && $record->isGovernedByAgreements();
     }
 }

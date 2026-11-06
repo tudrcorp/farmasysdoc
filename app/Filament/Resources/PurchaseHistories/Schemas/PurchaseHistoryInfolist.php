@@ -87,7 +87,7 @@ class PurchaseHistoryInfolist
                     ->columnSpanFull(),
 
                 Section::make('Comprobante de retención IVA')
-                    ->description('Datos del módulo Retenciones. La fecha de emisión se actualiza al imprimir el PDF desde Retenciones.')
+                    ->description('Datos del módulo Retenciones a proveedores. La fecha de emisión se actualiza al imprimir el PDF desde Retenciones a proveedores.')
                     ->icon(Heroicon::ReceiptPercent)
                     ->schema([
                         TextEntry::make('retention_voucher_number')

@@ -34,6 +34,18 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('accounts-payable:recalculate-current-balances')
             ->dailyAt('07:00')
             ->timezone('America/Caracas');
+
+        $schedule->command('accounts-payable:due-notices')
+            ->dailyAt((string) config('accounts_payable.due_notice_time', '07:00'))
+            ->timezone('America/Caracas')
+            ->withoutOverlapping()
+            ->onOneServer();
+
+        $schedule->command('partner-agreements:process')
+            ->dailyAt((string) config('partner_agreements.daily_run_at', '00:30'))
+            ->timezone('America/Caracas')
+            ->withoutOverlapping()
+            ->onOneServer();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $skipLivewireNormalization = static fn (Request $request): bool => LivewireRequestPayload::shouldSkipNormalization($request);

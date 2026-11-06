@@ -8,7 +8,6 @@ use App\Filament\Resources\PurchaseLedgers\Pages\ViewPurchaseLedger;
 use App\Filament\Resources\PurchaseLedgers\Schemas\PurchaseLedgerInfolist;
 use App\Filament\Resources\PurchaseLedgers\Tables\PurchaseLedgersTable;
 use App\Models\PurchaseLedger;
-use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -16,6 +15,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Model;
+use UnitEnum;
 
 class PurchaseLedgerResource extends Resource
 {
@@ -29,16 +29,11 @@ class PurchaseLedgerResource extends Resource
 
     protected static ?string $pluralModelLabel = 'libro de compras';
 
-    protected static ?int $navigationSort = 12;
+    protected static ?int $navigationSort = 7;
+
+    protected static string|UnitEnum|null $navigationGroup = 'purchases_payables';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::BookOpen;
-
-    public static function getNavigationGroup(): ?string
-    {
-        $user = auth()->user();
-
-        return $user instanceof User ? $user->navigationOperationsGroupLabel() : 'Farmadoc®';
-    }
 
     public static function form(Schema $schema): Schema
     {

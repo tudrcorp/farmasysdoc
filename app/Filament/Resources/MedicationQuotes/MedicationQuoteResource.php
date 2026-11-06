@@ -11,12 +11,12 @@ use App\Filament\Resources\MedicationQuotes\Schemas\MedicationQuoteForm;
 use App\Filament\Resources\MedicationQuotes\Schemas\MedicationQuoteInfolist;
 use App\Filament\Resources\MedicationQuotes\Tables\MedicationQuotesTable;
 use App\Models\MedicationQuote;
-use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 class MedicationQuoteResource extends Resource
 {
@@ -30,18 +30,13 @@ class MedicationQuoteResource extends Resource
 
     protected static ?string $pluralModelLabel = 'cotizaciones';
 
-    protected static ?int $navigationSort = 16;
+    protected static ?int $navigationSort = 4;
+
+    protected static string|UnitEnum|null $navigationGroup = 'commercial_allies';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::DocumentText;
 
     protected static ?string $recordTitleAttribute = 'number';
-
-    public static function getNavigationGroup(): ?string
-    {
-        $user = auth()->user();
-
-        return $user instanceof User ? $user->navigationOperationsGroupLabel() : 'Farmadoc®';
-    }
 
     public static function form(Schema $schema): Schema
     {

@@ -8,6 +8,7 @@ use App\Services\Products\CatalogImageOptimizer;
 use App\Support\Products\ProductDeletion;
 use App\Support\Shop\ShopCatalog;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -397,5 +398,25 @@ class Product extends Model
         }
 
         return mb_strtoupper(mb_substr($word, 0, 2, 'UTF-8'), 'UTF-8');
+    }
+
+    /**
+     * Productos cuyo código de barras coincide ignorando espacios (el catálogo tiene algunos con espacios y duplicados).
+     *
+     * @return Collection<int, Product>
+     */
+    public static function matchingBarcode(string $barcode): Collection
+    {
+        $barcode = trim($barcode);
+
+        if ($barcode === '') {
+            return new Collection;
+        }
+
+        return static::query()
+            ->whereRaw('TRIM(barcode) = ?', [$barcode])
+            ->orderByDesc('is_active')
+            ->orderBy('name')
+            ->get(['id', 'name', 'barcode', 'is_active']);
     }
 }

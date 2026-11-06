@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Auth;
 
 class Supplier extends Model
 {
@@ -31,6 +32,8 @@ class Supplier extends Model
         'contact_email',
         'contact_phone',
         'payment_terms',
+        'negotiation_terms',
+        'payment_days',
         'notes',
         'is_active',
         'created_by',
@@ -43,6 +46,7 @@ class Supplier extends Model
     protected function casts(): array
     {
         return [
+            'payment_days' => 'integer',
             'seniat_retention_percent' => 'decimal:2',
             'is_active' => 'boolean',
         ];
@@ -97,5 +101,46 @@ class Supplier extends Model
     public function bankAccounts(): HasMany
     {
         return $this->hasMany(SupplierBankAccount::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    /**
+     * Negociación y días de pago son atribución del Administrador: si otro usuario autenticado
+     * intenta cambiarlos (por cualquier vía), se conservan los valores anteriores.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (Supplier $supplier): void {
+            $user = Auth::user();
+
+            if (! $user instanceof User || $user->isAdministrator()) {
+                return;
+            }
+
+            foreach (['negotiation_terms', 'payment_days'] as $attribute) {
+                if ($supplier->isDirty($attribute)) {
+                    $supplier->setAttribute($attribute, $supplier->exists ? $supplier->getOriginal($attribute) : null);
+                }
+            }
+        });
+    }
+
+    public const int DEFAULT_PAYMENT_DAYS = 30;
+
+    /**
+     * Días para pagar sus facturas: los negociados por el Administrador o 30 si no se cargaron.
+     */
+    public function effectivePaymentDays(): int
+    {
+        return $this->payment_days ?? self::DEFAULT_PAYMENT_DAYS;
+    }
+
+    public function paymentDaysLabel(): string
+    {
+        return match (true) {
+            $this->payment_days === null => 'Sin definir (30 días por defecto)',
+            $this->payment_days === 0 => 'Contado',
+            $this->payment_days === 1 => '1 día',
+            default => $this->payment_days.' días',
+        };
     }
 }

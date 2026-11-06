@@ -3,8 +3,12 @@
 namespace App\Filament\Resources\PartnerCompanies\Tables;
 
 use App\Enums\OrderStatus;
+use App\Enums\PartnerCompanyClientType;
+use App\Enums\PartnerCompanyPaymentModality;
 use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Models\PartnerCompany;
+use App\Models\PartnerCompanyContact;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -13,6 +17,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -24,6 +29,8 @@ class PartnerCompaniesTable
         return $table
             ->modifyQueryUsing(function (Builder $query): Builder {
                 return $query
+                    ->with(['branches:id,name', 'contacts'])
+                    ->withCount('documents')
                     ->withCount('orderServices')
                     ->withCount([
                         'orders as finalized_orders_count' => function (Builder $q): void {
@@ -61,7 +68,7 @@ class PartnerCompaniesTable
                     ->tooltip(fn (PartnerCompany $record): ?string => $record->trade_name)
                     ->toggleable(),
                 TextColumn::make('tax_id')
-                    ->label('NIT / ID fiscal')
+                    ->label('RIF')
                     ->searchable()
                     ->sortable()
                     ->copyable()
@@ -69,16 +76,61 @@ class PartnerCompaniesTable
                     ->placeholder('—')
                     ->icon(Heroicon::Identification)
                     ->iconColor('gray'),
+                TextColumn::make('client_type')
+                    ->label('Tipo de cliente')
+                    ->formatStateUsing(fn (mixed $state): string => PartnerCompanyClientType::tryLabel($state))
+                    ->badge()
+                    ->color('gray')
+                    ->placeholder('—')
+                    ->sortable()
+                    ->toggleable(),
+                TextColumn::make('branches.name')
+                    ->label('Sucursales')
+                    ->badge()
+                    ->color('primary')
+                    ->limitList(2)
+                    ->expandableLimitedList()
+                    ->placeholder('Sin sucursal')
+                    ->toggleable(),
+                TextColumn::make('payment_modality')
+                    ->label('Modalidad de pago')
+                    ->formatStateUsing(fn (mixed $state): string => PartnerCompanyPaymentModality::tryLabel($state))
+                    ->badge()
+                    ->color(fn (mixed $state): string => $state instanceof PartnerCompanyPaymentModality ? $state->color() : 'gray')
+                    ->placeholder('—')
+                    ->sortable(),
+                TextColumn::make('discount_percentage')
+                    ->label('Descuento')
+                    ->formatStateUsing(fn (mixed $state): string => filled($state) && (float) $state > 0
+                        ? rtrim(rtrim(number_format((float) $state, 2, ',', '.'), '0'), ',').'%'
+                        : '—')
+                    ->alignCenter()
+                    ->sortable(),
+                TextColumn::make('credit_limit_usd')
+                    ->label('Límite crédito')
+                    ->money('USD')
+                    ->sortable()
+                    ->alignEnd()
+                    ->placeholder('No aplica')
+                    ->tooltip('Límite de crédito aprobado en el convenio'),
                 TextColumn::make('assigned_credit_limit')
-                    ->label('Saldo crédito')
+                    ->label('Saldo disponible')
                     ->money('USD')
                     ->sortable()
                     ->alignEnd()
                     ->placeholder('—')
-                    ->icon(Heroicon::Banknotes)
-                    ->iconColor('gray')
+                    ->color(fn (PartnerCompany $record): ?string => $record->credit_limit_usd !== null
+                        && (float) $record->assigned_credit_limit <= 0 ? 'danger' : null)
                     ->tooltip('Saldo disponible en USD (se reduce con consumos registrados en histórico)')
                     ->toggleable(),
+                TextColumn::make('documents_count')
+                    ->label('Documentos')
+                    ->numeric()
+                    ->alignCenter()
+                    ->badge()
+                    ->icon(Heroicon::PaperClip)
+                    ->color(fn (PartnerCompany $record): string => ((int) $record->documents_count) > 0 ? 'info' : 'gray')
+                    ->sortable(),
                 TextColumn::make('email')
                     ->label('Correo')
                     ->searchable()
@@ -128,7 +180,7 @@ class PartnerCompaniesTable
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('state')
-                    ->label('Departamento')
+                    ->label('Estado')
                     ->searchable()
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -137,23 +189,14 @@ class PartnerCompaniesTable
                     ->searchable()
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('contact_name')
-                    ->label('Contacto')
-                    ->searchable()
+                TextColumn::make('responsible_contact')
+                    ->label('Responsable')
+                    ->state(fn (PartnerCompany $record): ?string => self::responsibleContact($record)?->name)
+                    ->description(fn (PartnerCompany $record): ?string => self::responsibleContact($record)?->phone)
                     ->placeholder('—')
                     ->icon(Heroicon::UserCircle)
                     ->iconColor('gray')
                     ->toggleable(),
-                TextColumn::make('contact_email')
-                    ->label('Correo contacto')
-                    ->searchable()
-                    ->placeholder('—')
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('contact_phone')
-                    ->label('Tel. contacto')
-                    ->searchable()
-                    ->placeholder('—')
-                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('agreement_reference')
                     ->label('Ref. convenio')
                     ->searchable()
@@ -231,7 +274,7 @@ class PartnerCompaniesTable
             ->defaultPaginationPageOption(25)
             ->persistFiltersInSession()
             ->deferFilters(false)
-            ->filtersFormColumns(2)
+            ->filtersFormColumns(3)
             ->filtersLayout(FiltersLayout::AboveContentCollapsible)
             ->emptyStateHeading('Sin compañías aliadas')
             ->emptyStateDescription('Registra empresas aliadas para centralizar convenios, referencias y datos de contacto operativos.')
@@ -239,6 +282,20 @@ class PartnerCompaniesTable
             ->recordUrl(fn (PartnerCompany $record): string => PartnerCompanyResource::getUrl('view', ['record' => $record], isAbsolute: false))
             ->recordAction('view')
             ->filters([
+                SelectFilter::make('branches')
+                    ->label('Sucursal')
+                    ->relationship('branches', 'name')
+                    ->multiple()
+                    ->searchable()
+                    ->preload(),
+                SelectFilter::make('client_type')
+                    ->label('Tipo de cliente')
+                    ->options(PartnerCompanyClientType::options())
+                    ->multiple(),
+                SelectFilter::make('payment_modality')
+                    ->label('Acuerdo de negociación')
+                    ->options(PartnerCompanyPaymentModality::options())
+                    ->multiple(),
                 TernaryFilter::make('is_active')
                     ->label('Estado')
                     ->placeholder('Todas')
@@ -256,6 +313,20 @@ class PartnerCompaniesTable
                     ),
             ])
             ->recordActions([
+                Action::make('documents')
+                    ->label('Documentos')
+                    ->icon(Heroicon::PaperClip)
+                    ->color('gray')
+                    ->modalHeading(fn (PartnerCompany $record): string => 'Documentos de '.$record->legal_name)
+                    ->modalDescription('Carta de convenio y documentación legal del aliado.')
+                    ->modalIcon(Heroicon::PaperClip)
+                    ->modalContent(fn (PartnerCompany $record) => view('filament.partner-companies.documents-modal', [
+                        'documents' => $record->documents()->get(),
+                        'editUrl' => PartnerCompanyResource::getUrl('edit', ['record' => $record]),
+                    ]))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->slideOver(),
                 ViewAction::make()
                     ->label('Ver ficha')
                     ->icon(Heroicon::Eye),
@@ -270,6 +341,13 @@ class PartnerCompaniesTable
                         ->label('Eliminar seleccionadas'),
                 ]),
             ]);
+    }
+
+    private static function responsibleContact(PartnerCompany $record): ?PartnerCompanyContact
+    {
+        $contacts = $record->relationLoaded('contacts') ? $record->contacts : $record->contacts()->get();
+
+        return $contacts->firstWhere('is_responsible', true) ?? $contacts->first();
     }
 
     private static function formatDescription(PartnerCompany $record): ?string

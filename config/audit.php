@@ -30,6 +30,7 @@ use App\Models\OrderService;
 use App\Models\OrgChart;
 use App\Models\OrgChartNode;
 use App\Models\PartnerCompany;
+use App\Models\PartnerCompanyAgreement;
 use App\Models\PartnerCompanyUser;
 use App\Models\PettyCashExpense;
 use App\Models\PettyCashFund;
@@ -46,6 +47,7 @@ use App\Models\SalesBook;
 use App\Models\SalesVatRetention;
 use App\Models\SeveranceSetting;
 use App\Models\Supplier;
+use App\Models\SupplierReturn;
 use App\Models\TrainingCourse;
 use App\Models\TrainingEnrollment;
 use App\Models\TrainingSession;
@@ -107,6 +109,8 @@ return [
         MarketingSegment::class,
         MarketingUtmLink::class,
         PartnerCompanyUser::class,
+        PartnerCompanyAgreement::class,
+        SupplierReturn::class,
         PettyCashFund::class,
         PettyCashExpense::class,
         FinancialFixedExpense::class,

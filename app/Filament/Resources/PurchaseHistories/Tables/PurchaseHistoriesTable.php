@@ -100,7 +100,7 @@ class PurchaseHistoriesTable
                     ->date('d/m/Y')
                     ->sortable()
                     ->placeholder('—')
-                    ->tooltip('Se actualiza automáticamente al imprimir el comprobante desde Retenciones'),
+                    ->tooltip('Se actualiza automáticamente al imprimir el comprobante desde Retenciones a proveedores'),
                 TextColumn::make('retention_amount_ves')
                     ->label('Monto retención')
                     ->alignEnd()

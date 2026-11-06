@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Suppliers\Schemas;
 
+use App\Models\Supplier;
 use App\Models\SupplierBankAccount;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -155,9 +156,20 @@ class SupplierInfolist
                     ->description('Plazos y acuerdos acordados.')
                     ->icon(Heroicon::Banknotes)
                     ->schema([
+                        TextEntry::make('payment_days')
+                            ->label('Días para pagar facturas')
+                            ->state(fn (Supplier $record): string => $record->paymentDaysLabel())
+                            ->badge()
+                            ->color(fn (Supplier $record): string => $record->payment_days === null ? 'gray' : 'info')
+                            ->icon(Heroicon::CalendarDays),
                         TextEntry::make('payment_terms')
                             ->label('Términos de pago')
                             ->placeholder('—')
+                            ->columnSpanFull()
+                            ->prose(),
+                        TextEntry::make('negotiation_terms')
+                            ->label('Negociación')
+                            ->placeholder('Sin negociación registrada.')
                             ->columnSpanFull()
                             ->prose(),
                     ])

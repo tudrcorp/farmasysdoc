@@ -2,8 +2,15 @@
 
 namespace App\Filament\Resources\PartnerCompanies\Schemas;
 
+use App\Enums\PartnerAgreementType;
+use App\Enums\PartnerCompanyClientType;
+use App\Enums\PartnerCompanyPaymentModality;
+use App\Filament\Resources\PartnerAgreements\PartnerCompanyAgreementResource;
+use App\Filament\Resources\PartnerAgreements\Schemas\PartnerCompanyAgreementInfolist;
 use App\Models\PartnerCompany;
+use App\Models\PartnerCompanyDocument;
 use App\Models\User;
+use Filament\Actions\Action;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\RepeatableEntry\TableColumn;
@@ -49,9 +56,21 @@ class PartnerCompanyInfolist
                                     ->label('Nombre comercial')
                                     ->placeholder('—'),
                                 TextEntry::make('tax_id')
-                                    ->label('NIT / ID fiscal')
+                                    ->label('RIF')
                                     ->placeholder('—')
                                     ->copyable(),
+                                TextEntry::make('client_type')
+                                    ->label('Tipo de cliente')
+                                    ->formatStateUsing(fn (mixed $state): string => PartnerCompanyClientType::tryLabel($state))
+                                    ->badge()
+                                    ->color('gray')
+                                    ->placeholder('—'),
+                                TextEntry::make('branches.name')
+                                    ->label('Sucursales')
+                                    ->badge()
+                                    ->color('primary')
+                                    ->placeholder('Sin sucursal asignada')
+                                    ->columnSpan(['default' => 1, 'lg' => 2]),
                                 IconEntry::make('is_active')
                                     ->label('Estado')
                                     ->boolean()
@@ -60,6 +79,73 @@ class PartnerCompanyInfolist
                                     ->trueColor('success')
                                     ->falseColor('danger'),
                             ]),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+                Section::make('Contactos y responsables')
+                    ->description('Personas de contacto del aliado. Se gestionan desde Editar compañía aliada.')
+                    ->icon(Heroicon::UserGroup)
+                    ->schema([
+                        RepeatableEntry::make('contacts')
+                            ->hiddenLabel()
+                            ->placeholder('Sin contactos registrados.')
+                            ->table([
+                                TableColumn::make('Nombre'),
+                                TableColumn::make('Cargo'),
+                                TableColumn::make('Correo'),
+                                TableColumn::make('Teléfono'),
+                                TableColumn::make('Rol')
+                                    ->alignment(Alignment::Center),
+                            ])
+                            ->schema([
+                                TextEntry::make('name')
+                                    ->weight(FontWeight::SemiBold),
+                                TextEntry::make('position')
+                                    ->placeholder('—'),
+                                TextEntry::make('email')
+                                    ->placeholder('—')
+                                    ->copyable(),
+                                TextEntry::make('phone')
+                                    ->placeholder('—')
+                                    ->copyable(),
+                                TextEntry::make('is_responsible')
+                                    ->alignment(Alignment::Center)
+                                    ->formatStateUsing(fn (?bool $state): string => $state ? 'Responsable' : 'Contacto')
+                                    ->badge()
+                                    ->color(fn (?bool $state): string => $state ? 'success' : 'gray'),
+                            ])
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+                Section::make('Documentos del aliado')
+                    ->description('Carta de convenio, RIF, cédula del representante legal, Registro Mercantil y otros soportes.')
+                    ->icon(Heroicon::PaperClip)
+                    ->schema([
+                        RepeatableEntry::make('documents')
+                            ->hiddenLabel()
+                            ->placeholder('Sin documentos cargados.')
+                            ->table([
+                                TableColumn::make('Documento'),
+                                TableColumn::make('Archivo'),
+                                TableColumn::make('Vence'),
+                            ])
+                            ->schema([
+                                TextEntry::make('type')
+                                    ->formatStateUsing(fn (mixed $state): string => $state?->label() ?? '—')
+                                    ->weight(FontWeight::SemiBold),
+                                TextEntry::make('original_name')
+                                    ->state(fn (PartnerCompanyDocument $record): string => $record->displayName())
+                                    ->url(fn (PartnerCompanyDocument $record): string => $record->downloadUrl())
+                                    ->openUrlInNewTab()
+                                    ->icon(Heroicon::ArrowTopRightOnSquare)
+                                    ->color('primary'),
+                                TextEntry::make('expires_at')
+                                    ->date('d/m/Y')
+                                    ->placeholder('—')
+                                    ->color(fn (PartnerCompanyDocument $record): ?string => $record->isExpired() ? 'danger' : null),
+                            ])
+                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
@@ -164,14 +250,31 @@ class PartnerCompanyInfolist
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
-                Section::make('Crédito del aliado')
-                    ->description('Saldo disponible en USD. Los pedidos a crédito en «En proceso» descuentan este valor y dejan constancia en el histórico de movimientos del panel aliado.')
+                Section::make('Acuerdo de negociación')
+                    ->description('Modalidad de pago, límite aprobado y saldo disponible en USD. Los pedidos a crédito finalizados descuentan el saldo y dejan constancia en el histórico de movimientos del panel aliado.')
                     ->icon(Heroicon::Banknotes)
                     ->iconColor('success')
                     ->extraAttributes([
                         'class' => 'fi-partner-company-credit-section',
                     ])
                     ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 2,
+                        ])
+                            ->schema([
+                                TextEntry::make('payment_modality')
+                                    ->label('Modalidad de pago')
+                                    ->formatStateUsing(fn (mixed $state): string => PartnerCompanyPaymentModality::tryLabel($state))
+                                    ->badge()
+                                    ->color(fn (mixed $state): string => $state instanceof PartnerCompanyPaymentModality ? $state->color() : 'gray')
+                                    ->placeholder('—'),
+                                TextEntry::make('credit_limit_usd')
+                                    ->label('Límite de crédito aprobado')
+                                    ->money('USD')
+                                    ->placeholder('No aplica')
+                                    ->weight(FontWeight::SemiBold),
+                            ]),
                         TextEntry::make('assigned_credit_limit')
                             ->label('Saldo disponible')
                             ->money('USD')
@@ -202,6 +305,47 @@ class PartnerCompanyInfolist
                                     ->label('Descuento %')
                                     ->placeholder('—')
                                     ->formatStateUsing(fn ($state): string => filled($state) ? ((string) $state).'%' : '—'),
+                            ]),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+                Section::make('Convenio vigente')
+                    ->description('Renovaciones, modificaciones y vencimientos se gestionan en «Convenios y renovaciones».')
+                    ->icon(Heroicon::DocumentCheck)
+                    ->headerActions([
+                        Action::make('manageAgreements')
+                            ->label('Ver convenios')
+                            ->icon(Heroicon::ArrowTopRightOnSquare)
+                            ->url(fn (PartnerCompany $record): string => PartnerCompanyAgreementResource::getUrl('index', [
+                                'filters' => ['partner_company_id' => ['value' => $record->getKey()]],
+                            ])),
+                    ])
+                    ->schema([
+                        Grid::make(['default' => 1, 'sm' => 2, 'lg' => 4])
+                            ->schema([
+                                TextEntry::make('currentAgreement.number')
+                                    ->label('Número')
+                                    ->placeholder('Sin convenio vigente')
+                                    ->badge()
+                                    ->color('success')
+                                    ->url(fn (PartnerCompany $record): ?string => $record->currentAgreement
+                                        ? PartnerCompanyAgreementResource::getUrl('view', ['record' => $record->currentAgreement])
+                                        : null),
+                                TextEntry::make('currentAgreement.type')
+                                    ->label('Tipo')
+                                    ->formatStateUsing(fn (mixed $state): string => PartnerAgreementType::tryLabel($state))
+                                    ->placeholder('—'),
+                                TextEntry::make('currentAgreement.ends_on')
+                                    ->label('Vence')
+                                    ->date('d/m/Y')
+                                    ->placeholder('—')
+                                    ->hint(fn (PartnerCompany $record): ?string => $record->currentAgreement
+                                        ? PartnerCompanyAgreementInfolist::daysLeftLabel($record->currentAgreement)
+                                        : null),
+                                IconEntry::make('currentAgreement.auto_renews')
+                                    ->label('Renovación automática')
+                                    ->boolean()
+                                    ->placeholder('—'),
                             ]),
                     ])
                     ->columns(1)
@@ -368,7 +512,7 @@ class PartnerCompanyInfolist
                                     ->label('País')
                                     ->placeholder('—'),
                                 TextEntry::make('state')
-                                    ->label('Departamento / estado')
+                                    ->label('Estado')
                                     ->placeholder('—'),
                                 TextEntry::make('city')
                                     ->label('Ciudad')
@@ -377,8 +521,8 @@ class PartnerCompanyInfolist
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
-                Section::make('Contacto comercial y trazabilidad')
-                    ->description('Responsables de gestión y auditoría de cambios.')
+                Section::make('Trazabilidad')
+                    ->description('Auditoría de creación y cambios del registro.')
                     ->icon(Heroicon::UserGroup)
                     ->schema([
                         Grid::make([
@@ -386,17 +530,6 @@ class PartnerCompanyInfolist
                             'sm' => 2,
                         ])
                             ->schema([
-                                TextEntry::make('contact_name')
-                                    ->label('Nombre contacto')
-                                    ->placeholder('—'),
-                                TextEntry::make('contact_email')
-                                    ->label('Correo contacto')
-                                    ->placeholder('—')
-                                    ->copyable(),
-                                TextEntry::make('contact_phone')
-                                    ->label('Teléfono contacto')
-                                    ->placeholder('—')
-                                    ->copyable(),
                                 TextEntry::make('created_by')
                                     ->label('Creado por')
                                     ->placeholder('—'),

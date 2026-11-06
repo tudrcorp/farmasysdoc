@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AiAgentReportController;
 use App\Http\Controllers\Dev\BdvConciliationTestController;
 use App\Http\Controllers\Finance\AccountsPayableBulkPaymentReportPdfController;
 use App\Http\Controllers\Finance\AccountsPayablePaymentReportPdfController;
@@ -14,8 +15,13 @@ use App\Http\Controllers\Hr\EmployeePortalManifestController;
 use App\Http\Controllers\Hr\EmployeePortalNotificationCountController;
 use App\Http\Controllers\Hr\EmployeePortalPayrollReceiptController;
 use App\Http\Controllers\Hr\EmployeePortalRequestAttachmentController;
+use App\Http\Controllers\Hr\EmployeePortalTrainingCertificateController;
+use App\Http\Controllers\Hr\SeveranceDocumentController;
+use App\Http\Controllers\Hr\TrainingCertificateController;
 use App\Http\Controllers\Inventory\InventoryAuditDetailedReportPdfController;
 use App\Http\Controllers\NominatimProxyController;
+use App\Http\Controllers\Partners\PartnerAgreementDocumentController;
+use App\Http\Controllers\Partners\PartnerCompanyDocumentController;
 use App\Http\Controllers\PettyCash\PettyCashApprovalController;
 use App\Http\Controllers\ProductTransfers\ProductTransferReportPdfController;
 use App\Http\Controllers\ProductTransfers\ProductTransferSaleReportPdfController;
@@ -27,10 +33,7 @@ use App\Http\Controllers\Purchases\PurchaseBookSeniatRetentionTxtController;
 use App\Http\Controllers\Purchases\PurchaseDocumentPdfController;
 use App\Http\Controllers\Purchases\PurchaseLedgerBookReportController;
 use App\Http\Controllers\Purchases\SupplierDossierPdfController;
-use App\Http\Controllers\AiAgentReportController;
-use App\Http\Controllers\Hr\EmployeePortalTrainingCertificateController;
-use App\Http\Controllers\Hr\SeveranceDocumentController;
-use App\Http\Controllers\Hr\TrainingCertificateController;
+use App\Http\Controllers\Purchases\SupplierReturnAttachmentController;
 use App\Http\Controllers\Recruitment\RecruitmentCvController;
 use App\Http\Controllers\Reports\FinancialReportDownloadController;
 use App\Http\Controllers\Reports\SystemReportsDownloadController;
@@ -161,6 +164,12 @@ Route::middleware(['auth'])->group(function (): void {
         ->name('recruitment.candidate-cv');
     Route::get('rrhh/empleados/{employee}/cv', [RecruitmentCvController::class, 'employee'])
         ->name('recruitment.employee-cv');
+    Route::get('aliados/documentos/{document}', PartnerCompanyDocumentController::class)
+        ->name('partner-companies.document');
+    Route::get('aliados/convenios/{agreement}/contrato', PartnerAgreementDocumentController::class)
+        ->name('partner-agreements.document');
+    Route::get('compras/devoluciones/adjuntos/{attachment}', SupplierReturnAttachmentController::class)
+        ->name('supplier-returns.attachment');
     Route::get('capacitaciones/inscripciones/{enrollment}/certificado', TrainingCertificateController::class)
         ->name('training.certificate');
     Route::get('egresos/liquidaciones/{settlement}/pdf', [SeveranceDocumentController::class, 'settlement'])

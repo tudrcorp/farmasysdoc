@@ -7,6 +7,7 @@ use App\Models\PartnerCompany;
 use App\Models\PartnerCompanyUser;
 use App\Models\User;
 use App\Support\PartnerCompanyAlliedUsersFormSync;
+use App\Support\Partners\PartnerCompanyCreditTerms;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
@@ -93,7 +94,13 @@ class EditPartnerCompany extends EditRecord
             $data['is_active'] = (bool) $record->is_active;
         }
 
-        return $data;
+        if ($record instanceof PartnerCompany && $record->isGovernedByAgreements()) {
+            foreach (['payment_modality', 'credit_limit_usd', 'discount_percentage', 'profit_percentage_a', 'agreement_reference', 'agreement_terms', 'date_created', 'date_updated'] as $governedField) {
+                $data[$governedField] = $record->getAttribute($governedField);
+            }
+        }
+
+        return PartnerCompanyCreditTerms::normalize($data, isCreating: false);
     }
 
     protected function getHeaderActions(): array

@@ -43,7 +43,9 @@ final class SalesBookPage extends Page
 
     protected static ?string $navigationLabel = 'Libro de Ventas';
 
-    protected static ?int $navigationSort = 13;
+    protected static ?int $navigationSort = 2;
+
+    protected static string|UnitEnum|null $navigationGroup = 'sales_billing';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::BookOpen;
 
@@ -52,13 +54,6 @@ final class SalesBookPage extends Page
     public ?int $branchId = null;
 
     public string $periodKey = '';
-
-    public static function getNavigationGroup(): string|UnitEnum|null
-    {
-        $user = auth()->user();
-
-        return $user instanceof User ? $user->navigationOperationsGroupLabel() : 'Farmadoc®';
-    }
 
     public static function canAccess(): bool
     {

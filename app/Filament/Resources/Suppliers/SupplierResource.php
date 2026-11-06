@@ -11,12 +11,12 @@ use App\Filament\Resources\Suppliers\Schemas\SupplierForm;
 use App\Filament\Resources\Suppliers\Schemas\SupplierInfolist;
 use App\Filament\Resources\Suppliers\Tables\SuppliersTable;
 use App\Models\Supplier;
-use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 class SupplierResource extends Resource
 {
@@ -26,18 +26,15 @@ class SupplierResource extends Resource
 
     protected static ?string $navigationLabel = 'Proveedores';
 
+    protected static ?int $navigationSort = 1;
+
+    protected static string|UnitEnum|null $navigationGroup = 'purchases_payables';
+
     protected static ?string $modelLabel = 'proveedor';
 
     protected static ?string $pluralModelLabel = 'proveedores';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::BuildingOffice2;
-
-    public static function getNavigationGroup(): ?string
-    {
-        $user = auth()->user();
-
-        return $user instanceof User ? $user->navigationOperationsGroupLabel() : 'Farmadoc®';
-    }
 
     public static function form(Schema $schema): Schema
     {

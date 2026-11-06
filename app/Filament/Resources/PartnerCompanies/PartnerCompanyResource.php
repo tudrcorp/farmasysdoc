@@ -11,11 +11,13 @@ use App\Filament\Resources\PartnerCompanies\Schemas\PartnerCompanyForm;
 use App\Filament\Resources\PartnerCompanies\Schemas\PartnerCompanyInfolist;
 use App\Filament\Resources\PartnerCompanies\Tables\PartnerCompaniesTable;
 use App\Models\PartnerCompany;
+use App\Support\Filament\BranchAuthScope;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use UnitEnum;
 
 class PartnerCompanyResource extends Resource
@@ -37,6 +39,14 @@ class PartnerCompanyResource extends Resource
     protected static string|UnitEnum|null $navigationGroup = 'commercial_allies';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::BuildingOffice2;
+
+    /**
+     * @return Builder<PartnerCompany>
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return BranchAuthScope::applyToPartnerCompaniesQuery(parent::getEloquentQuery());
+    }
 
     public static function form(Schema $schema): Schema
     {

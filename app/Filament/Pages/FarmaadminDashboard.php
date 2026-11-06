@@ -8,6 +8,7 @@ use App\Filament\Widgets\CurrentMonthGlobalSalesOverview;
 use App\Filament\Widgets\FarmaadminAccountWidget;
 use App\Filament\Widgets\ManagementBranchSalesByMonthChart;
 use App\Filament\Widgets\ManagementBranchSalesCurrentMonthDaysChart;
+use App\Filament\Widgets\SupplierReturnsPendingWidget;
 use App\Filament\Widgets\TodaySummary\AccountsPayableSummaryWidget;
 use App\Filament\Widgets\TodaySummary\AccountsReceivableSummaryWidget;
 use App\Filament\Widgets\TodaySummary\TodaySalesSummaryWidget;
@@ -78,6 +79,7 @@ class FarmaadminDashboard extends Dashboard
         if (DashboardViewMode::isTodaySummary()) {
             return [
                 FarmaadminAccountWidget::class,
+                SupplierReturnsPendingWidget::class,
                 TodaySalesSummaryWidget::class,
                 AccountsPayableSummaryWidget::class,
                 AccountsReceivableSummaryWidget::class,
@@ -118,6 +120,7 @@ class FarmaadminDashboard extends Dashboard
 
         return [
             FarmaadminAccountWidget::class,
+            SupplierReturnsPendingWidget::class,
             CurrentMonthGlobalSalesOverview::class,
             AllBranchesMonthlySalesOverview::class,
             ManagementBranchSalesCurrentMonthDaysChart::class,

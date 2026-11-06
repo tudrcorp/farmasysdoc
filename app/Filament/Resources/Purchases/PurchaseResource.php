@@ -8,7 +8,6 @@ use App\Filament\Resources\Purchases\Pages\ListPurchases;
 use App\Filament\Resources\Purchases\Schemas\PurchaseForm;
 use App\Filament\Resources\Purchases\Tables\PurchasesTable;
 use App\Models\Purchase;
-use App\Models\User;
 use App\Support\Filament\BranchAuthScope;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -17,6 +16,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use UnitEnum;
 
 class PurchaseResource extends Resource
 {
@@ -26,14 +26,11 @@ class PurchaseResource extends Resource
 
     protected static ?string $navigationLabel = 'Compras';
 
+    protected static ?int $navigationSort = 2;
+
+    protected static string|UnitEnum|null $navigationGroup = 'purchases_payables';
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::ShoppingCart;
-
-    public static function getNavigationGroup(): ?string
-    {
-        $user = auth()->user();
-
-        return $user instanceof User ? $user->navigationOperationsGroupLabel() : 'Farmadoc®';
-    }
 
     public static function form(Schema $schema): Schema
     {

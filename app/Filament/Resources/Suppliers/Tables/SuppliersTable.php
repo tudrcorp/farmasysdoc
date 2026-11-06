@@ -175,6 +175,19 @@ class SuppliersTable
                     ->copyable()
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('payment_days')
+                    ->label('Días para pagar')
+                    ->state(fn (Supplier $record): string => $record->paymentDaysLabel())
+                    ->badge()
+                    ->color(fn (Supplier $record): string => $record->payment_days === null ? 'gray' : 'info')
+                    ->sortable(query: fn ($query, string $direction) => $query->orderBy('payment_days', $direction))
+                    ->toggleable(),
+                TextColumn::make('negotiation_terms')
+                    ->label('Negociación')
+                    ->limit(40)
+                    ->tooltip(fn (Supplier $record): ?string => filled($record->negotiation_terms) ? $record->negotiation_terms : null)
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('payment_terms')
                     ->label('Condiciones de pago')
                     ->limit(40)

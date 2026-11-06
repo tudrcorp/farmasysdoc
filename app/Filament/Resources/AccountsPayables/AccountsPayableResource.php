@@ -8,7 +8,6 @@ use App\Filament\Resources\AccountsPayables\Schemas\AccountsPayableInfolist;
 use App\Filament\Resources\AccountsPayables\Tables\AccountsPayablesTable;
 use App\Filament\Resources\Concerns\RestrictsAccessForDeliveryUsers;
 use App\Models\AccountsPayable;
-use App\Models\User;
 use App\Support\Filament\BranchAuthScope;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -18,6 +17,7 @@ use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use UnitEnum;
 
 class AccountsPayableResource extends Resource
 {
@@ -31,16 +31,11 @@ class AccountsPayableResource extends Resource
 
     protected static ?string $pluralModelLabel = 'cuentas por pagar';
 
-    protected static ?int $navigationSort = 12;
+    protected static ?int $navigationSort = 4;
+
+    protected static string|UnitEnum|null $navigationGroup = 'purchases_payables';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::Banknotes;
-
-    public static function getNavigationGroup(): ?string
-    {
-        $user = auth()->user();
-
-        return $user instanceof User ? $user->navigationOperationsGroupLabel() : 'Farmadoc®';
-    }
 
     public static function form(Schema $schema): Schema
     {

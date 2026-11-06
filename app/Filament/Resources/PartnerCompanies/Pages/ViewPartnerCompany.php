@@ -18,7 +18,7 @@ class ViewPartnerCompany extends ViewRecord
 
         $model = $this->getRecord();
         if ($model instanceof PartnerCompany) {
-            $model->loadMissing(['alliedPanelUsers']);
+            $model->loadMissing(['alliedPanelUsers', 'branches', 'contacts', 'documents', 'currentAgreement']);
         }
     }
 

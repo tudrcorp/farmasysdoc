@@ -2,12 +2,17 @@
 
 namespace App\Models;
 
+use Database\Factories\AccountsPayableFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AccountsPayable extends Model
 {
+    /** @use HasFactory<AccountsPayableFactory> */
+    use HasFactory;
+
     /**
      * @var array<string, string>
      */

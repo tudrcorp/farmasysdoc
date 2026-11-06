@@ -509,7 +509,7 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
 
             $details = [
                 'Código' => filled($company->code) ? (string) $company->code : '—',
-                'NIT / ID fiscal' => filled($company->tax_id) ? (string) $company->tax_id : '—',
+                'RIF' => filled($company->tax_id) ? (string) $company->tax_id : '—',
                 'Nombre comercial' => filled($company->trade_name) ? (string) $company->trade_name : '—',
                 'Correo' => filled($company->email) ? (string) $company->email : '—',
                 'Teléfono' => filled($company->phone) ? (string) $company->phone : '—',

@@ -2,18 +2,27 @@
 
 namespace App\Models;
 
+use App\Enums\PartnerAgreementStatus;
+use App\Enums\PartnerCompanyClientType;
+use App\Enums\PartnerCompanyPaymentModality;
+use Database\Factories\PartnerCompanyFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class PartnerCompany extends Model
 {
+    /** @use HasFactory<PartnerCompanyFactory> */
     use HasFactory;
+
+    private ?bool $governedByAgreementsCache = null;
 
     /**
      * `assigned_credit_limit` almacena el saldo de crédito disponible (USD): se descuenta en
      * `partner_companies` al registrar cada consumo en `historical_of_movements`.
+     * `credit_limit_usd` es el límite de crédito aprobado (tope), independiente del saldo.
      *
      * @var list<string>
      */
@@ -22,6 +31,9 @@ class PartnerCompany extends Model
         'legal_name',
         'trade_name',
         'tax_id',
+        'client_type',
+        'payment_modality',
+        'credit_limit_usd',
         'email',
         'phone',
         'mobile_phone',
@@ -54,6 +66,9 @@ class PartnerCompany extends Model
     {
         return [
             'is_active' => 'boolean',
+            'client_type' => PartnerCompanyClientType::class,
+            'payment_modality' => PartnerCompanyPaymentModality::class,
+            'credit_limit_usd' => 'decimal:2',
             'date_created' => 'date',
             'date_updated' => 'date',
             'assigned_credit_limit' => 'decimal:2',
@@ -129,6 +144,81 @@ class PartnerCompany extends Model
     public function totalCreditCeilingAmount(): float
     {
         return round($this->remainingCreditAmount() + $this->totalCreditConsumedAmount(), 2);
+    }
+
+    /**
+     * Sucursales donde opera el convenio con el aliado.
+     *
+     * @return BelongsToMany<Branch, $this>
+     */
+    public function branches(): BelongsToMany
+    {
+        return $this->belongsToMany(Branch::class, 'branch_partner_company')->withTimestamps();
+    }
+
+    /**
+     * Contactos y responsables del aliado.
+     *
+     * @return HasMany<PartnerCompanyContact, $this>
+     */
+    public function contacts(): HasMany
+    {
+        return $this->hasMany(PartnerCompanyContact::class)->orderBy('sort')->orderBy('id');
+    }
+
+    /**
+     * Expediente documental del aliado (carta de convenio, RIF, cédula del representante, Registro Mercantil…).
+     *
+     * @return HasMany<PartnerCompanyDocument, $this>
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(PartnerCompanyDocument::class)->orderBy('sort')->orderBy('id');
+    }
+
+    /**
+     * Historial de convenios (todas las versiones).
+     *
+     * @return HasMany<PartnerCompanyAgreement, $this>
+     */
+    public function agreements(): HasMany
+    {
+        return $this->hasMany(PartnerCompanyAgreement::class);
+    }
+
+    /**
+     * Convenio vigente (como máximo uno).
+     *
+     * @return HasOne<PartnerCompanyAgreement, $this>
+     */
+    public function currentAgreement(): HasOne
+    {
+        return $this->hasOne(PartnerCompanyAgreement::class)
+            ->where('status', PartnerAgreementStatus::Active->value)
+            ->latestOfMany('starts_on');
+    }
+
+    /**
+     * Cuando el aliado ya opera con convenios, sus condiciones solo cambian desde «Convenios y renovaciones».
+     */
+    public function isGovernedByAgreements(): bool
+    {
+        return $this->governedByAgreementsCache ??= $this->agreements()
+            ->whereIn('status', [
+                PartnerAgreementStatus::Approved->value,
+                PartnerAgreementStatus::Active->value,
+                PartnerAgreementStatus::Expired->value,
+                PartnerAgreementStatus::Superseded->value,
+            ])
+            ->exists();
+    }
+
+    /**
+     * Indica si la modalidad pactada opera con límite de crédito (crédito o integral).
+     */
+    public function usesCreditLimit(): bool
+    {
+        return $this->payment_modality?->usesCreditLimit() ?? false;
     }
 
     /**

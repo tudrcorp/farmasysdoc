@@ -6,6 +6,7 @@ use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Models\PartnerCompany;
 use App\Models\User;
 use App\Support\PartnerCompanyAlliedUsersFormSync;
+use App\Support\Partners\PartnerCompanyCreditTerms;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
 
@@ -45,7 +46,7 @@ class CreatePartnerCompany extends CreateRecord
 
         unset($data['code']);
 
-        return $data;
+        return PartnerCompanyCreditTerms::normalize($data, isCreating: true);
     }
 
     protected function afterCreate(): void

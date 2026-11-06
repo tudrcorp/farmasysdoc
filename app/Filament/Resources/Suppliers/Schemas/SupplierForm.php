@@ -6,6 +6,7 @@ use App\Enums\VenezuelanPagoMovilBank;
 use App\Models\City;
 use App\Models\Country;
 use App\Models\State;
+use App\Models\User;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -17,6 +18,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\Auth;
 
 class SupplierForm
 {
@@ -272,6 +274,25 @@ class SupplierForm
                             ->placeholder('Ej. contado, 30 días fecha factura, descuento pronto pago…')
                             ->rows(3)
                             ->columnSpanFull(),
+                        TextInput::make('payment_days')
+                            ->label('Días para pagar facturas')
+                            ->helperText(fn (): string => self::isAdministrator()
+                                ? 'Plazo de crédito: el vencimiento de cada compra se propone como fecha de factura + estos días. 0 = contado. Vacío = 30 días.'
+                                : 'Solo un Administrador puede modificar este plazo.')
+                            ->numeric()
+                            ->integer()
+                            ->minValue(0)
+                            ->maxValue(365)
+                            ->suffix('días')
+                            ->prefixIcon(Heroicon::CalendarDays)
+                            ->disabled(fn (): bool => ! self::isAdministrator()),
+                        Textarea::make('negotiation_terms')
+                            ->label('Negociación')
+                            ->placeholder('Acuerdos con el proveedor: descuentos por volumen, bonificaciones, devoluciones, vencimientos, exclusividades…')
+                            ->helperText(fn (): ?string => self::isAdministrator() ? null : 'Solo un Administrador puede modificar la negociación.')
+                            ->rows(4)
+                            ->disabled(fn (): bool => ! self::isAdministrator())
+                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
@@ -389,5 +410,12 @@ class SupplierForm
                     ->columns(1)
                     ->columnSpanFull(),
             ]);
+    }
+
+    private static function isAdministrator(): bool
+    {
+        $user = Auth::user();
+
+        return $user instanceof User && $user->isAdministrator();
     }
 }

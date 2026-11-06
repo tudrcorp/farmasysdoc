@@ -62,6 +62,8 @@ class FarmaadminPanelProvider extends PanelProvider
             ])
             ->emailVerification(EmailVerificationPrompt::class)
             ->emailChangeVerification()
+            ->databaseNotifications()
+            ->databaseNotificationsPolling('60s')
             ->favicon(asset('images/logos/favicon.png'))
             ->brandLogo(asset('images/logos/farmadoc-ligth.png'))
             ->darkModeBrandLogo(asset('images/logos/farmadoc-dark.png'))
@@ -84,6 +86,8 @@ class FarmaadminPanelProvider extends PanelProvider
                 'marketing' => NavigationGroup::make('Marketing'),
                 'inventory' => NavigationGroup::make('Inventario'),
                 'commercial_allies' => NavigationGroup::make('Aliados Comerciales'),
+                'purchases_payables' => NavigationGroup::make('Compras y Cuentas por pagar'),
+                'sales_billing' => NavigationGroup::make('Ventas y Facturación'),
                 'reports' => NavigationGroup::make('Reportes'),
             ])
             ->discoverClusters(in: app_path('Filament/Clusters'), for: 'App\\Filament\\Clusters')

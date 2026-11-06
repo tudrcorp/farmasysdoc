@@ -5,6 +5,7 @@ namespace App\Support\Filament;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Models\Branch;
 use App\Models\Order;
+use App\Models\PartnerCompany;
 use App\Models\Sale;
 use App\Models\User;
 use App\Support\Sales\InternalBranchTransferSale;
@@ -48,6 +49,37 @@ final class BranchAuthScope
         return count($branchIds) === 1
             ? $query->where($column, $branchIds[0])
             : $query->whereIn($column, $branchIds);
+    }
+
+    /**
+     * Compañías aliadas (N:M con sucursales vía `branch_partner_company`):
+     * - ADMINISTRADOR y DELIVERY: todas.
+     * - Resto: aliados vinculados a alguna de sus sucursales, más los que aún no tienen sucursal asignada
+     *   (registros previos a la asignación por sucursal).
+     *
+     * @param  Builder<PartnerCompany>  $query
+     * @return Builder<PartnerCompany>
+     */
+    public static function applyToPartnerCompaniesQuery(Builder $query): Builder
+    {
+        $user = Auth::user();
+        if (! $user instanceof User) {
+            return $query;
+        }
+
+        if ($user->isAdministrator() || $user->isDeliveryUser()) {
+            return $query;
+        }
+
+        $branchIds = $user->restrictedBranchIdsForQueries();
+
+        return $query->where(function (Builder $scoped) use ($branchIds): void {
+            $scoped->doesntHave('branches');
+
+            if ($branchIds !== []) {
+                $scoped->orWhereHas('branches', fn (Builder $branches): Builder => $branches->whereIn('branches.id', $branchIds));
+            }
+        });
     }
 
     /**
@@ -175,5 +207,22 @@ final class BranchAuthScope
         }
 
         return null;
+    }
+
+    /**
+     * Opciones de sucursal (id => nombre) visibles para el usuario actual.
+     *
+     * @return array<int, string>
+     */
+    public static function branchOptions(): array
+    {
+        $user = Auth::user();
+        $query = Branch::query()->orderBy('name');
+
+        if ($user instanceof User && ! $user->isAdministrator() && ! $user->isDeliveryUser()) {
+            $query->whereIn('id', $user->restrictedBranchIdsForQueries() ?: [0]);
+        }
+
+        return $query->pluck('name', 'id')->all();
     }
 }

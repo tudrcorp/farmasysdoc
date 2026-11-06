@@ -8,7 +8,6 @@ use App\Filament\Resources\PurchaseHistories\Pages\ViewPurchaseHistory;
 use App\Filament\Resources\PurchaseHistories\Schemas\PurchaseHistoryInfolist;
 use App\Filament\Resources\PurchaseHistories\Tables\PurchaseHistoriesTable;
 use App\Models\PurchaseHistory;
-use App\Models\User;
 use App\Support\Filament\BranchAuthScope;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -18,6 +17,7 @@ use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use UnitEnum;
 
 class PurchaseHistoryResource extends Resource
 {
@@ -31,16 +31,11 @@ class PurchaseHistoryResource extends Resource
 
     protected static ?string $pluralModelLabel = 'histórico de compras';
 
-    protected static ?int $navigationSort = 13;
+    protected static ?int $navigationSort = 8;
+
+    protected static string|UnitEnum|null $navigationGroup = 'purchases_payables';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::Clock;
-
-    public static function getNavigationGroup(): ?string
-    {
-        $user = auth()->user();
-
-        return $user instanceof User ? $user->navigationOperationsGroupLabel() : 'Farmadoc®';
-    }
 
     public static function form(Schema $schema): Schema
     {

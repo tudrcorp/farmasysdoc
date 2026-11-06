@@ -66,8 +66,9 @@ class PurchaseForm
                                     ->native(false)
                                     ->required()
                                     ->live()
-                                    ->afterStateUpdated(function (?string $state, Set $set): void {
+                                    ->afterStateUpdated(function (?string $state, Get $get, Set $set): void {
                                         $set('supplier_display_name', self::supplierDisplayNameForSupplierId($state));
+                                        $set('payment_due_date', self::suggestedPaymentDueDate($get));
                                     })
                                     ->helperText('Paso 1: busque por RIF, razón social o código. Si no hay resultados, pulse Intro para registrar el proveedor con el texto que escribió.')
                                     ->prefixIcon(Heroicon::FingerPrint)
@@ -158,13 +159,14 @@ class PurchaseForm
                                     ->required()
                                     ->default(now())
                                     ->live()
+                                    ->afterStateUpdated(fn (Get $get, Set $set) => $set('payment_due_date', self::suggestedPaymentDueDate($get)))
                                     // ->native(false)
                                     ->prefixIcon(Heroicon::CalendarDays),
                                 DatePicker::make('payment_due_date')
                                     ->label('Vencimiento (pago al proveedor)')
-                                    ->helperText('Para compras a crédito define el vencimiento que se cargará en cuentas por pagar. Debe ser igual o posterior a la fecha de factura.')
+                                    ->helperText(fn (Get $get): string => 'Se propone con el plazo del proveedor ('.self::supplierPaymentDaysLabel($get).'); puede ajustarlo para esta compra. Debe ser igual o posterior a la fecha de factura.')
                                     ->required()
-                                    ->default(fn (Get $get): string => Carbon::parse($get('supplier_invoice_date') ?: now())->addDays(30)->toDateString())
+                                    ->default(fn (Get $get): string => self::suggestedPaymentDueDate($get))
                                     // ->native(false)
                                     ->prefixIcon(Heroicon::CreditCard)
                                     ->rules(['after_or_equal:supplier_invoice_date']),
@@ -890,6 +892,30 @@ class PurchaseForm
             : Supplier::formatCode($supplier->getKey());
 
         return 'Sin RIF · '.$code.' — '.$name;
+    }
+
+    /**
+     * Vencimiento sugerido: fecha de factura + días de pago negociados con el proveedor (30 si no tiene).
+     */
+    public static function suggestedPaymentDueDate(Get $get): string
+    {
+        return Carbon::parse($get('supplier_invoice_date') ?: now())
+            ->addDays(self::supplierForPaymentTerms($get)?->effectivePaymentDays() ?? Supplier::DEFAULT_PAYMENT_DAYS)
+            ->toDateString();
+    }
+
+    private static function supplierPaymentDaysLabel(Get $get): string
+    {
+        $supplier = self::supplierForPaymentTerms($get);
+
+        return $supplier instanceof Supplier ? $supplier->paymentDaysLabel() : Supplier::DEFAULT_PAYMENT_DAYS.' días por defecto';
+    }
+
+    private static function supplierForPaymentTerms(Get $get): ?Supplier
+    {
+        $supplierId = $get('supplier_id');
+
+        return filled($supplierId) ? Supplier::query()->find((int) $supplierId, ['id', 'payment_days']) : null;
     }
 
     public static function supplierDisplayNameForSupplierId(mixed $supplierId): string

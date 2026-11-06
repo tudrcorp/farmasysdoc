@@ -8,7 +8,6 @@ use App\Filament\Resources\PurchaseBooks\Pages\ViewPurchaseBook;
 use App\Filament\Resources\PurchaseBooks\Schemas\PurchaseBookInfolist;
 use App\Filament\Resources\PurchaseBooks\Tables\PurchaseBooksTable;
 use App\Models\PurchaseBook;
-use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -16,6 +15,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Model;
+use UnitEnum;
 
 class PurchaseBookResource extends Resource
 {
@@ -23,22 +23,17 @@ class PurchaseBookResource extends Resource
 
     protected static ?string $model = PurchaseBook::class;
 
-    protected static ?string $navigationLabel = 'Retenciones';
+    protected static ?string $navigationLabel = 'Retenciones a proveedores';
 
     protected static ?string $modelLabel = 'retención';
 
     protected static ?string $pluralModelLabel = 'retenciones';
 
-    protected static ?int $navigationSort = 14;
+    protected static ?int $navigationSort = 5;
+
+    protected static string|UnitEnum|null $navigationGroup = 'purchases_payables';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::ReceiptPercent;
-
-    public static function getNavigationGroup(): ?string
-    {
-        $user = auth()->user();
-
-        return $user instanceof User ? $user->navigationOperationsGroupLabel() : 'Farmadoc®';
-    }
 
     public static function form(Schema $schema): Schema
     {

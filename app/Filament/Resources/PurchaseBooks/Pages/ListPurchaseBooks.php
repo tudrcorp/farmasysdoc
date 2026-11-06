@@ -17,7 +17,7 @@ class ListPurchaseBooks extends ListRecords
 
     protected static string $resource = PurchaseBookResource::class;
 
-    protected static ?string $title = 'Retenciones';
+    protected static ?string $title = 'Retenciones a proveedores';
 
     public function getHeading(): string|Htmlable
     {

@@ -4,6 +4,7 @@ namespace App\Services\Finance;
 
 use App\Models\AccountsPayable;
 use App\Models\Purchase;
+use App\Models\Supplier;
 use App\Services\Audit\AuditLogger;
 use App\Support\Finance\AccountsPayableStatus;
 use App\Support\Purchases\PurchasePaymentStatus;
@@ -90,7 +91,7 @@ final class AccountsPayableFromPurchaseSynchronizer
 
         $dueAt = filled($purchase->payment_due_date)
             ? Carbon::parse($purchase->payment_due_date)->startOfDay()
-            : $issuedAt->copy()->addDays(30);
+            : $issuedAt->copy()->addDays($purchase->supplier?->effectivePaymentDays() ?? Supplier::DEFAULT_PAYMENT_DAYS);
 
         $accountsPayable = AccountsPayable::query()->create([
             'purchase_id' => $purchase->id,

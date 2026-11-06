@@ -8,7 +8,6 @@ use App\Filament\Resources\SalesVatRetentions\Pages\ListSalesVatRetentions;
 use App\Filament\Resources\SalesVatRetentions\Schemas\SalesVatRetentionForm;
 use App\Filament\Resources\SalesVatRetentions\Tables\SalesVatRetentionsTable;
 use App\Models\SalesVatRetention;
-use App\Models\User;
 use App\Services\Fiscal\SalesBookPeriodLock;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Fiscal\SalesBookPeriod;
@@ -19,6 +18,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use UnitEnum;
 
 class SalesVatRetentionResource extends Resource
 {
@@ -32,16 +32,11 @@ class SalesVatRetentionResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'voucher_number';
 
-    protected static ?int $navigationSort = 14;
+    protected static ?int $navigationSort = 6;
+
+    protected static string|UnitEnum|null $navigationGroup = 'purchases_payables';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::ReceiptRefund;
-
-    public static function getNavigationGroup(): ?string
-    {
-        $user = auth()->user();
-
-        return $user instanceof User ? $user->navigationOperationsGroupLabel() : 'Farmadoc®';
-    }
 
     public static function form(Schema $schema): Schema
     {

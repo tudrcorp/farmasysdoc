@@ -12,13 +12,13 @@ use App\Filament\Resources\Clients\Schemas\ClientInfolist;
 use App\Filament\Resources\Clients\Tables\ClientsTable;
 use App\Filament\Resources\Concerns\RestrictsAccessForDeliveryUsers;
 use App\Models\Client;
-use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Support\Collection;
+use UnitEnum;
 
 class ClientResource extends Resource
 {
@@ -30,14 +30,11 @@ class ClientResource extends Resource
 
     protected static ?string $navigationLabel = 'Clientes';
 
+    protected static ?int $navigationSort = 1;
+
+    protected static string|UnitEnum|null $navigationGroup = 'sales_billing';
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::UserGroup;
-
-    public static function getNavigationGroup(): ?string
-    {
-        $user = auth()->user();
-
-        return $user instanceof User ? $user->navigationOperationsGroupLabel() : 'Farmadoc®';
-    }
 
     public static function form(Schema $schema): Schema
     {

@@ -208,7 +208,13 @@
         </tr>
         <tr>
             <th>Condiciones de pago</th>
-            <td>{{ $supplier->payment_terms ?: '—' }}</td>
+            <td>
+                {{ $supplier->payment_terms ?: '—' }}
+                <div>Días para pagar: {{ $supplier->paymentDaysLabel() }}</div>
+                @if (filled($supplier->negotiation_terms))
+                    <div>Negociación: {{ $supplier->negotiation_terms }}</div>
+                @endif
+            </td>
             <th>Cuentas bancarias</th>
             <td colspan="3">
                 @forelse ($supplier->bankAccounts as $bankAccount)

@@ -61,6 +61,6 @@ final class PurchaseBookRetentionVoucherPdfController extends Controller
             return;
         }
 
-        abort(403, 'No tienes permiso para Retenciones.');
+        abort(403, 'No tienes permiso para Retenciones a proveedores.');
     }
 }

@@ -37,7 +37,7 @@ final class ManualBdvConciliationAction
             ->icon(Heroicon::Key)
             ->color('warning')
             ->modalHeading('Conciliación Manual')
-            ->modalDescription('Registra un Pago Móvil conciliado a mano, sin consultar la API del Banco de Venezuela. Requiere una clave OTP de 6 dígitos enviada por email y WhatsApp (válida 10 minutos).')
+            ->modalDescription('Registra un Pago Móvil conciliado a mano, sin consultar la API del Banco de Venezuela. Requiere una clave OTP de 6 dígitos que autoriza otro administrador o el gerente de la sucursal desde Claves OTP (válida 10 minutos).')
             ->modalSubmitActionLabel('Registrar conciliación')
             ->modalWidth(Width::Large)
             ->visible(fn (): bool => self::actorCanRegister())
@@ -147,7 +147,7 @@ final class ManualBdvConciliationAction
                 ->content(new HtmlString(
                     '<div class="rounded-xl border border-warning-500/40 bg-warning-500/10 p-3 text-sm text-warning-700 dark:text-warning-200">'
                     .'<p class="font-medium">Autorización OTP</p>'
-                    .'<p class="mt-1">Complete los datos y solicite la clave. Se enviará por email y WhatsApp. Si un gerente ejecuta la acción, la reciben ese gerente y los administradores. Si un administrador la dispara, solo llega a administradores. Caduca en 10 minutos.</p>'
+                    .'<p class="mt-1">Complete los datos y solicite la clave. La verán los administradores y los gerentes de la sucursal en Configuración › Claves OTP (nunca quien la solicita). Caduca en 10 minutos.</p>'
                     .'</div>'
                 ))
                 ->columnSpanFull(),
@@ -186,15 +186,15 @@ final class ManualBdvConciliationAction
                                 'origin_bank' => $get('origin_bank'),
                             ]);
 
-                            app(ManualBdvConciliationOtpService::class)->issue($user, $context);
-
-                            $body = $user->isAdministrator()
-                                ? 'Se envió un código de 6 dígitos por email y WhatsApp a los administradores, con el detalle de la conciliación. Caduca en 10 minutos.'
-                                : 'Se envió un código de 6 dígitos por email y WhatsApp a usted y a los administradores, con el detalle de la conciliación. Caduca en 10 minutos.';
+                            app(ManualBdvConciliationOtpService::class)->issue(
+                                $user,
+                                filled($get('branch_id')) ? (int) $get('branch_id') : null,
+                                $context,
+                            );
 
                             Notification::make()
-                                ->title('Código OTP enviado')
-                                ->body($body)
+                                ->title('Código OTP generado')
+                                ->body('Pida la clave de 6 dígitos a otro administrador o al gerente de la sucursal: la verán en Configuración › Claves OTP con el detalle de la conciliación. Caduca en 10 minutos.')
                                 ->success()
                                 ->send();
                         } catch (ValidationException $e) {

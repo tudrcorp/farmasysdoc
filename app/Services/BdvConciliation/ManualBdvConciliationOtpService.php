@@ -2,23 +2,23 @@
 
 namespace App\Services\BdvConciliation;
 
+use App\Enums\OtpCodePurpose;
+use App\Models\OtpCode;
 use App\Models\User;
-use App\Support\BdvConciliation\NotifyManualBdvConciliationOtp;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Hash;
+use App\Services\Otp\OtpCodeService;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * OTP de conciliación manual de Pago Móvil BDV (panel y caja).
+ * La clave la ven gerentes de la sucursal y administradores en «Claves OTP», nunca quien la solicitó.
+ */
 final class ManualBdvConciliationOtpService
 {
-    public const TTL_SECONDS = 600;
-
     public function __construct(
-        private readonly NotifyManualBdvConciliationOtp $notifier,
+        private readonly OtpCodeService $otpCodes,
     ) {}
 
     /**
-     * Genera un OTP de 6 dígitos, lo guarda hasheado (TTL 10 min) y lo envía por email y WhatsApp.
-     *
      * @param  array{
      *     branch_name?: string|null,
      *     reference?: string|null,
@@ -30,7 +30,7 @@ final class ManualBdvConciliationOtpService
      *     origin_bank?: string|null
      * }  $context
      */
-    public function issue(User $actor, array $context = []): string
+    public function issue(User $actor, ?int $branchId, array $context = []): OtpCode
     {
         if (! $this->actorCanRegister($actor)) {
             throw ValidationException::withMessages([
@@ -38,27 +38,17 @@ final class ManualBdvConciliationOtpService
             ]);
         }
 
-        $userId = (int) $actor->getKey();
-        $code = $this->generateUnusedCode($userId);
-
-        Cache::put(
-            $this->cacheKey($userId),
-            Hash::make($code),
-            self::TTL_SECONDS,
+        return $this->otpCodes->issue(
+            purpose: OtpCodePurpose::ManualBdvConciliation,
+            requester: $actor,
+            branchId: $branchId,
+            summary: $this->summary($context),
+            details: $this->details($context),
         );
-
-        $this->notifier->notify(
-            actor: $actor,
-            otpCode: $code,
-            context: $context,
-            ttlSeconds: self::TTL_SECONDS,
-        );
-
-        return $code;
     }
 
     /**
-     * OTP solicitado por el cajero en caja: la clave se envía al gerente de la sucursal y a administradores.
+     * OTP solicitado por el cajero en caja: la autoriza el gerente de la sucursal o un administrador.
      *
      * @param  array{
      *     branch_name?: string|null,
@@ -71,79 +61,26 @@ final class ManualBdvConciliationOtpService
      *     origin_bank?: string|null
      * }  $context
      */
-    public function issueForPosCashier(User $cashier, int $branchId, array $context = []): string
+    public function issueForPosCashier(User $cashier, int $branchId, array $context = []): OtpCode
     {
         if ($branchId <= 0) {
             throw ValidationException::withMessages([
-                'otp_code' => 'No se pudo determinar la sucursal del cajero para enviar el OTP.',
+                'otp_code' => 'No se pudo determinar la sucursal del cajero para generar el OTP.',
             ]);
         }
 
-        if ($this->notifier->contactablePosRecipients($branchId) === []) {
-            throw ValidationException::withMessages([
-                'otp_code' => 'No hay gerente de la sucursal ni administradores con correo o WhatsApp para enviar la clave OTP.',
-            ]);
-        }
-
-        $userId = (int) $cashier->getKey();
-        $code = $this->generateUnusedCode($userId);
-
-        Cache::put(
-            $this->cacheKey($userId),
-            Hash::make($code),
-            self::TTL_SECONDS,
-        );
-
-        $this->notifier->notifyForPos(
-            cashier: $cashier,
+        return $this->otpCodes->issue(
+            purpose: OtpCodePurpose::PosBdvConciliation,
+            requester: $cashier,
             branchId: $branchId,
-            otpCode: $code,
-            context: $context,
-            ttlSeconds: self::TTL_SECONDS,
+            summary: $this->summary($context),
+            details: $this->details($context),
         );
-
-        return $code;
     }
 
-    public function verifyAndConsume(User $actor, ?string $code): void
+    public function verifyAndConsume(User $actor, ?string $code, OtpCodePurpose $purpose, string $usedIn): void
     {
-        $normalized = preg_replace('/\D/', '', (string) $code) ?? '';
-
-        if (strlen($normalized) !== 6) {
-            throw ValidationException::withMessages([
-                'otp_code' => 'Ingrese el código OTP de 6 dígitos enviado por email y WhatsApp.',
-            ]);
-        }
-
-        $userId = (int) $actor->getKey();
-
-        if ($this->wasRecentlyConsumed($userId, $normalized)) {
-            throw ValidationException::withMessages([
-                'otp_code' => 'Esta clave OTP ya fue utilizada. Solicite una nueva para registrar otra conciliación.',
-            ]);
-        }
-
-        $hash = Cache::get($this->cacheKey($userId));
-
-        if (! is_string($hash) || $hash === '') {
-            throw ValidationException::withMessages([
-                'otp_code' => 'El código OTP expiró o no fue solicitado. Solicite uno nuevo (válido 10 minutos).',
-            ]);
-        }
-
-        if (! Hash::check($normalized, $hash)) {
-            throw ValidationException::withMessages([
-                'otp_code' => 'El código OTP es incorrecto.',
-            ]);
-        }
-
-        $this->invalidate($actor);
-        $this->markConsumed($userId, $normalized);
-    }
-
-    public function invalidate(User $actor): void
-    {
-        Cache::forget($this->cacheKey((int) $actor->getKey()));
+        $this->otpCodes->consume($purpose, $actor, $code, $usedIn);
     }
 
     public function actorCanRegister(?User $actor): bool
@@ -152,36 +89,44 @@ final class ManualBdvConciliationOtpService
             && ($actor->isAdministrator() || $actor->isManager());
     }
 
-    private function generateUnusedCode(int $userId): string
+    /**
+     * @param  array<string, string|null>  $context
+     */
+    private function summary(array $context): ?string
     {
-        for ($attempt = 0; $attempt < 10; $attempt++) {
-            $code = str_pad((string) random_int(0, 999_999), 6, '0', STR_PAD_LEFT);
+        $summary = implode(' · ', array_filter([
+            filled($context['reference'] ?? null) ? 'Ref. '.$context['reference'] : null,
+            $context['amount'] ?? null,
+            $context['branch_name'] ?? null,
+        ]));
 
-            if (! $this->wasRecentlyConsumed($userId, $code)) {
-                return $code;
+        return $summary !== '' ? $summary : null;
+    }
+
+    /**
+     * @param  array<string, string|null>  $context
+     * @return list<string>
+     */
+    private function details(array $context): array
+    {
+        $labels = [
+            'branch_name' => 'Sucursal',
+            'reference' => 'Referencia',
+            'amount' => 'Monto',
+            'payer_document' => 'Cédula del pagador',
+            'payer_phone' => 'Teléfono del pagador',
+            'destination_phone' => 'Teléfono destino',
+            'payment_date' => 'Fecha del pago',
+            'origin_bank' => 'Banco de origen',
+        ];
+
+        $details = [];
+        foreach ($labels as $key => $label) {
+            if (filled($context[$key] ?? null)) {
+                $details[] = $label.': '.$context[$key];
             }
         }
 
-        return str_pad((string) random_int(0, 999_999), 6, '0', STR_PAD_LEFT);
-    }
-
-    private function markConsumed(int $userId, string $code): void
-    {
-        Cache::put($this->usedCacheKey($userId, $code), true, self::TTL_SECONDS);
-    }
-
-    private function wasRecentlyConsumed(int $userId, string $code): bool
-    {
-        return Cache::has($this->usedCacheKey($userId, $code));
-    }
-
-    private function cacheKey(int $userId): string
-    {
-        return 'bdv_manual_conciliation.otp.'.$userId;
-    }
-
-    private function usedCacheKey(int $userId, string $code): string
-    {
-        return 'bdv_manual_conciliation.otp.used.'.$userId.'.'.$code;
+        return $details;
     }
 }

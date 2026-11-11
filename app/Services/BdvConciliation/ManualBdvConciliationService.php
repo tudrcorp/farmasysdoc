@@ -2,6 +2,7 @@
 
 namespace App\Services\BdvConciliation;
 
+use App\Enums\OtpCodePurpose;
 use App\Enums\VenezuelanPagoMovilBank;
 use App\Models\Branch;
 use App\Models\ConciliationBdv;
@@ -35,7 +36,12 @@ final class ManualBdvConciliationService
             ]);
         }
 
-        $this->otpService->verifyAndConsume($actor, isset($data['otp_code']) ? (string) $data['otp_code'] : null);
+        $this->otpService->verifyAndConsume(
+            $actor,
+            isset($data['otp_code']) ? (string) $data['otp_code'] : null,
+            OtpCodePurpose::ManualBdvConciliation,
+            self::usedInLabel('Conciliaciones BDV · Conciliación manual', $data['reference'] ?? null),
+        );
 
         $branchId = (int) ($data['branch_id'] ?? 0);
         $this->assertBranchAllowed($actor, $branchId);
@@ -132,7 +138,12 @@ final class ManualBdvConciliationService
      */
     public function registerFromPos(User $cashier, array $candidate, ?string $otpCode): ConciliationBdv
     {
-        $this->otpService->verifyAndConsume($cashier, $otpCode);
+        $this->otpService->verifyAndConsume(
+            $cashier,
+            $otpCode,
+            OtpCodePurpose::PosBdvConciliation,
+            self::usedInLabel('Caja · Conciliación manual de Pago Móvil BDV', $candidate['referencia'] ?? null),
+        );
 
         $branchId = (int) ($cashier->branch_id ?? 0);
         if ($branchId <= 0) {
@@ -282,6 +293,13 @@ final class ManualBdvConciliationService
             'payment_date' => $paymentDateLabel,
             'origin_bank' => $originBankLabel,
         ];
+    }
+
+    private static function usedInLabel(string $place, mixed $reference): string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $reference) ?? '';
+
+        return $digits !== '' ? $place.' (Ref. '.$digits.')' : $place;
     }
 
     private function assertBranchAllowed(User $actor, int $branchId): void

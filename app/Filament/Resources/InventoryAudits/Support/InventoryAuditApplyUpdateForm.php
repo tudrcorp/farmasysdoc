@@ -109,7 +109,7 @@ final class InventoryAuditApplyUpdateForm
                 ->content(new HtmlString(
                     '<div class="rounded-xl border border-warning-500/40 bg-warning-500/10 p-3 text-sm text-warning-700 dark:text-warning-200">'
                     .'<p class="font-medium">Autorización requerida</p>'
-                    .'<p class="mt-1">Para guardar cambios de existencia, costo o categoría solicite un código OTP. Se enviará por email y WhatsApp a los administradores y al gerente de la sucursal. Válido 3 minutos y de un solo uso.</p>'
+                    .'<p class="mt-1">Para guardar cambios de existencia, costo o categoría solicite un código OTP. La clave la ven los administradores y los otros gerentes de la sucursal en Configuración › Claves OTP. Válida 10 minutos y de un solo uso.</p>'
                     .'</div>'
                 ))
                 ->visible(fn (): bool => self::actorRequiresOtp()),
@@ -140,8 +140,8 @@ final class InventoryAuditApplyUpdateForm
                             app(InventoryAuditOtpService::class)->issue($user, $context);
 
                             Notification::make()
-                                ->title('Código OTP enviado')
-                                ->body('Se envió un código de 6 dígitos por email y WhatsApp a los administradores y al gerente de la sucursal, con el detalle del cambio. Caduca en 3 minutos.')
+                                ->title('Código OTP generado')
+                                ->body('Pida la clave de 6 dígitos a un administrador o a otro gerente de la sucursal: la verán en Configuración › Claves OTP con el detalle del cambio. Caduca en 10 minutos.')
                                 ->success()
                                 ->send();
                         } catch (ValidationException $e) {

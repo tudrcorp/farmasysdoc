@@ -35,6 +35,7 @@ use App\Services\Inventory\PosFefoAlertLogRegistrar;
 use App\Services\Inventory\PosInventoryStockFailureRegistrar;
 use App\Services\Sales\CacheaConciliationRegistrar;
 use App\Services\Sales\ClientCommercialDiscountResolver;
+use App\Services\Sales\PosDiscountOtpService;
 use App\Support\Cash\PhysicalCashBoxBillingGate;
 use App\Support\Finance\BcvRate;
 use App\Support\Finance\DefaultIgtfRate;
@@ -44,6 +45,7 @@ use App\Support\Inventory\InventoryQuantityFormat;
 use App\Support\Inventory\NearExpiryLotAlert;
 use App\Support\Sales\CacheaPosPaymentSupport;
 use App\Support\Sales\MixedPosPaymentSupport;
+use App\Support\Sales\PosDiscountOtpRequirement;
 use App\Support\Sales\PosManualDiscount;
 use App\Support\Sales\PosPaymentMethodOptions;
 use App\Support\Sales\PosTerminalCheckout;
@@ -380,6 +382,7 @@ final class CashRegisterAction
                                             ])
                                             ->schema([
                                                 ...self::posSaleDiscountInputs(),
+                                                ...self::posDiscountOtpFields(),
                                                 TextEntry::make('pos_total_banner')
                                                     ->hiddenLabel()
                                                     ->alignment(Alignment::Center)
@@ -1214,6 +1217,19 @@ final class CashRegisterAction
                     );
                 }
 
+                $discountOtpFingerprint = PosDiscountOtpRequirement::fingerprint(
+                    is_array($data['line_items'] ?? null) ? $data['line_items'] : [],
+                    $data['sale_discount_percent'] ?? null,
+                    $clientIdForDiscount,
+                    $actorUser instanceof User ? $actorUser : null,
+                );
+
+                if ($discountOtpFingerprint !== null && ! self::passesPosDiscountOtp($actorUser, $data, $discountOtpFingerprint, (int) $branchId, consume: false)) {
+                    $action->halt();
+
+                    return;
+                }
+
                 $validLines = $discountPlan['lines'];
 
                 $pricing = self::finalizePosPricingFromValidLines(
@@ -1666,6 +1682,12 @@ final class CashRegisterAction
                     self::resolvePosSaleNotes($paymentMethod, $generateAccountsReceivable, $data, $documentTotal, $vesUsdRate, $documentTotalVes),
                     $discountPlan,
                 );
+
+                if ($discountOtpFingerprint !== null && ! self::passesPosDiscountOtp($actorUser, $data, $discountOtpFingerprint, (int) $branchId, consume: true)) {
+                    $action->halt();
+
+                    return;
+                }
 
                 self::posSaleRegisterTrace('register_transaction_start', [
                     'payment_method' => $paymentMethod,
@@ -2742,7 +2764,7 @@ final class CashRegisterAction
                             ->content(fn (Get $get): HtmlString => self::bdvPmManualOtpHelpHtml($get)),
                         Action::make('bdvPmRequestManualConciliation')
                             ->label(fn (Get $get): string => self::bdvPmManualOtpRequested($get)
-                                ? 'Reenviar código OTP'
+                                ? 'Generar otro código OTP'
                                 : 'Conciliar Manual')
                             ->icon(Heroicon::Key)
                             ->color('warning')
@@ -2759,7 +2781,7 @@ final class CashRegisterAction
                             ->length(6)
                             ->columnSpanFull()
                             ->visible(fn (Get $get): bool => self::bdvPmManualOtpUiVisible($get))
-                            ->helperText('Ingrese el código de 6 dígitos enviado al gerente. Es de un solo uso.'),
+                            ->helperText('Ingrese el código de 6 dígitos que le indique el gerente o un administrador. Es de un solo uso.'),
                         Action::make('bdvPmConfirmManualConciliation')
                             ->label('Confirmar conciliación manual')
                             ->icon(Heroicon::Check)
@@ -3137,8 +3159,8 @@ final class CashRegisterAction
         ]);
 
         Notification::make()
-            ->title('Código OTP enviado')
-            ->body('Se envió un código de 6 dígitos por email y WhatsApp al gerente de la sucursal y a los administradores. Caduca en 10 minutos. Ingrese la clave en esta misma ventana.')
+            ->title('Código OTP generado')
+            ->body('Pida la clave de 6 dígitos al gerente de la sucursal o a un administrador: la verán en Configuración › Claves OTP. Caduca en 10 minutos. Ingrese la clave en esta misma ventana.')
             ->success()
             ->send();
 
@@ -3346,8 +3368,8 @@ final class CashRegisterAction
         if (self::bdvPmManualOtpRequested($get)) {
             return new HtmlString(
                 '<div class="rounded-xl border border-warning-500/40 bg-warning-500/10 p-3 text-sm text-warning-700 dark:text-warning-200">'
-                .'<p class="font-medium">Clave OTP enviada</p>'
-                .'<p class="mt-1">Se envió un código de 6 dígitos por email y WhatsApp al gerente de la sucursal y a los administradores. Ingrese la clave abajo y pulse «Confirmar conciliación manual». Caduca en 10 minutos.</p>'
+                .'<p class="font-medium">Clave OTP generada</p>'
+                .'<p class="mt-1">El gerente de la sucursal o un administrador la ve en Configuración › Claves OTP. Ingrese la clave abajo y pulse «Confirmar conciliación manual». Caduca en 10 minutos.</p>'
                 .'</div>'
             );
         }
@@ -3355,7 +3377,7 @@ final class CashRegisterAction
         return new HtmlString(
             '<div class="rounded-xl border border-warning-500/40 bg-warning-500/10 p-3 text-sm text-warning-700 dark:text-warning-200">'
             .'<p class="font-medium">Conciliación manual</p>'
-            .'<p class="mt-1">Pulse «Conciliar Manual» para enviar el código al gerente. Luego ingrese la clave de 6 dígitos y confirme para registrar la venta.</p>'
+            .'<p class="mt-1">Pulse «Conciliar Manual» para generar el código. Pida la clave de 6 dígitos al gerente o a un administrador, ingrésela y confirme para registrar la venta.</p>'
             .'</div>'
         );
     }
@@ -5294,6 +5316,214 @@ final class CashRegisterAction
         ];
     }
 
+    /**
+     * OTP de descuento: visible cuando la venta tiene un descuento manual (sobre el total o por producto).
+     *
+     * @return list<Component|Action>
+     */
+    private static function posDiscountOtpFields(): array
+    {
+        return [
+            Hidden::make('pos_discount_otp_requested')
+                ->default(false),
+            Placeholder::make('pos_discount_otp_help')
+                ->hiddenLabel()
+                ->columnSpanFull()
+                ->visible(fn (Get $get): bool => self::posDiscountOtpFingerprintFromGet($get) !== null)
+                ->content(fn (Get $get): HtmlString => new HtmlString(
+                    '<p class="text-sm text-warning-600 dark:text-warning-400">'
+                    .(filter_var($get('pos_discount_otp_requested'), FILTER_VALIDATE_BOOLEAN)
+                        ? 'Clave generada: pídala al gerente de la sucursal o a un administrador (la ven en Configuración › Claves OTP). Válida 10 minutos y solo para este descuento: si cambia el descuento o el carrito, genere otra.'
+                        : 'Esta venta tiene descuento: genere la clave OTP y pídala al gerente antes de registrarla.')
+                    .'</p>'
+                )),
+            Action::make('posRequestDiscountOtp')
+                ->label(fn (Get $get): string => filter_var($get('pos_discount_otp_requested'), FILTER_VALIDATE_BOOLEAN)
+                    ? 'Generar otro código OTP'
+                    : 'Solicitar código OTP')
+                ->icon(Heroicon::Key)
+                ->color('warning')
+                ->visible(fn (Get $get): bool => self::posDiscountOtpFingerprintFromGet($get) !== null)
+                ->action(function (Get $get, Set $set): void {
+                    self::requestPosDiscountOtp($get, $set);
+                }),
+            OneTimeCodeInput::make('pos_discount_otp_code')
+                ->label('Código OTP de descuento')
+                ->length(6)
+                ->columnSpanFull()
+                ->visible(fn (Get $get): bool => self::posDiscountOtpFingerprintFromGet($get) !== null)
+                ->helperText('Clave de 6 dígitos que le indique el gerente o un administrador. Es de un solo uso.'),
+        ];
+    }
+
+    private static function posDiscountOtpFingerprintFromGet(Get $get): ?string
+    {
+        $user = Auth::user();
+        $rows = $get('line_items');
+
+        return PosDiscountOtpRequirement::fingerprint(
+            is_array($rows) ? $rows : [],
+            $get('sale_discount_percent'),
+            $get('client_id'),
+            $user instanceof User ? $user : null,
+        );
+    }
+
+    private static function requestPosDiscountOtp(Get $get, Set $set): void
+    {
+        $user = Auth::user();
+        if (! $user instanceof User) {
+            Notification::make()
+                ->title('Debe iniciar sesión.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $rows = $get('line_items');
+        $rows = is_array($rows) ? $rows : [];
+        $discounts = PosDiscountOtpRequirement::manualDiscounts($rows, $get('sale_discount_percent'), $get('client_id'), $user);
+        $fingerprint = PosDiscountOtpRequirement::fingerprint($rows, $get('sale_discount_percent'), $get('client_id'), $user);
+
+        if ($discounts === null || $fingerprint === null) {
+            Notification::make()
+                ->title('La venta no tiene descuento manual')
+                ->body('Solo se pide OTP cuando hay un descuento sobre el total o en algún producto.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        $branchId = (int) ($user->branch_id ?? 0);
+
+        try {
+            app(PosDiscountOtpService::class)->issue($user, $branchId, $fingerprint, self::posDiscountOtpContext($get, $discounts, $branchId));
+        } catch (ValidationException $e) {
+            Notification::make()
+                ->title('No se pudo solicitar el OTP')
+                ->body(collect($e->errors())->flatten()->first() ?: 'Error de validación.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        AuditLogger::record(
+            'pos_discount_otp_requested',
+            'Caja · OTP de descuento solicitada',
+            properties: [
+                'module' => 'pos_caja',
+                'branch_id' => $branchId,
+                'client_id' => $discounts['client_id'],
+                'cashier_user_id' => $user->id,
+                'cashier_email' => $user->email,
+                'sale_percent' => $discounts['sale_percent'],
+                'lines' => $discounts['lines'],
+            ],
+        );
+
+        $set('pos_discount_otp_requested', true);
+        $set('pos_discount_otp_code', null);
+
+        Notification::make()
+            ->title('Código OTP generado')
+            ->body('Pida la clave de 6 dígitos al gerente de la sucursal o a un administrador: la verán en Configuración › Claves OTP. Caduca en 10 minutos.')
+            ->success()
+            ->send();
+    }
+
+    /**
+     * @param  array{client_id: int|null, sale_percent: float|null, lines: list<array{product_id: int, quantity: float, percent: float|null}>}  $discounts
+     * @return array{branch_name: string|null, client_name: string|null, sale_percent: string|null, lines: list<string>, discount_amount: string|null, total: string|null}
+     */
+    private static function posDiscountOtpContext(Get $get, array $discounts, int $branchId): array
+    {
+        $discountedLines = array_values(array_filter($discounts['lines'], fn (array $line): bool => $line['percent'] !== null));
+        $productNames = Product::query()
+            ->whereIn('id', array_column($discountedLines, 'product_id'))
+            ->pluck('name', 'id');
+
+        $pricing = self::posPricingFromGet($get);
+
+        return [
+            'branch_name' => $branchId > 0 ? Branch::query()->whereKey($branchId)->value('name') : null,
+            'client_name' => $discounts['client_id'] !== null ? Client::query()->whereKey($discounts['client_id'])->value('name') : null,
+            'sale_percent' => $discounts['sale_percent'] !== null ? self::formatDiscountPercent($discounts['sale_percent']).'%' : null,
+            'lines' => array_map(
+                fn (array $line): string => ($productNames[$line['product_id']] ?? 'Producto #'.$line['product_id'])
+                    .' × '.InventoryQuantityFormat::display($line['quantity'])
+                    .' · '.self::formatDiscountPercent((float) $line['percent']).'%',
+                $discountedLines,
+            ),
+            'discount_amount' => $pricing !== null ? self::formatMoney((float) $pricing['discount_total']) : null,
+            'total' => $pricing !== null ? self::formatMoney((float) $pricing['document_total']) : null,
+        ];
+    }
+
+    /**
+     * Verifica la OTP de descuento; con $consume la anula (justo antes de crear la venta).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function passesPosDiscountOtp(mixed $actorUser, array $data, string $fingerprint, int $branchId, bool $consume): bool
+    {
+        if (! $actorUser instanceof User) {
+            return false;
+        }
+
+        $rawCode = $data['pos_discount_otp_code'] ?? null;
+        $code = is_array($rawCode)
+            ? implode('', array_map(static fn (mixed $digit): string => (string) $digit, $rawCode))
+            : ($rawCode !== null ? (string) $rawCode : null);
+
+        $service = app(PosDiscountOtpService::class);
+
+        try {
+            $consume
+                ? $service->verifyAndConsume($actorUser, $code, $fingerprint)
+                : $service->assertValid($actorUser, $code, $fingerprint);
+        } catch (ValidationException $e) {
+            $message = collect($e->errors())->flatten()->first() ?: 'Código OTP inválido.';
+
+            AuditLogger::record(
+                'pos_discount_otp_rejected',
+                'Caja · Venta con descuento bloqueada: '.$message,
+                properties: [
+                    'module' => 'pos_caja',
+                    'branch_id' => $branchId,
+                    'cashier_user_id' => $actorUser->id,
+                    'cashier_email' => $actorUser->email,
+                    'reason' => $message,
+                ],
+            );
+
+            Notification::make()
+                ->title('Venta con descuento sin autorizar')
+                ->body($message)
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
+        if ($consume) {
+            AuditLogger::record(
+                'pos_discount_otp_used',
+                'Caja · OTP de descuento usada para registrar la venta',
+                properties: [
+                    'module' => 'pos_caja',
+                    'branch_id' => $branchId,
+                    'cashier_user_id' => $actorUser->id,
+                    'cashier_email' => $actorUser->email,
+                ],
+            );
+        }
+
+        return true;
+    }
+
     private static function authenticatedUserCanApplyPosLineDiscount(): bool
     {
         $user = Auth::user();
@@ -7183,6 +7413,8 @@ final class CashRegisterAction
             'cachea_order_number' => null,
             'cachea_complement_payment_method' => 'efectivo_usd',
             'bdv_pm_conciliated' => false,
+            'pos_discount_otp_code' => null,
+            'pos_discount_otp_requested' => false,
             'pos_terminal_id' => null,
             'card_last4' => null,
             'mixed_usd_paid' => null,

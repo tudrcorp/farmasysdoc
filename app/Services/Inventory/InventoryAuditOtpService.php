@@ -2,23 +2,23 @@
 
 namespace App\Services\Inventory;
 
+use App\Enums\OtpCodePurpose;
+use App\Models\OtpCode;
 use App\Models\User;
-use App\Support\Inventory\NotifyAdministratorsInventoryAuditOtp;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Hash;
+use App\Services\Otp\OtpCodeService;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * OTP que autoriza a un gerente a aplicar cambios de existencia, costo o categoría en una auditoría.
+ * La clave la ven administradores y otros gerentes de la sucursal en «Claves OTP».
+ */
 final class InventoryAuditOtpService
 {
-    public const TTL_SECONDS = 180;
-
     public function __construct(
-        private readonly NotifyAdministratorsInventoryAuditOtp $notifier,
+        private readonly OtpCodeService $otpCodes,
     ) {}
 
     /**
-     * Genera un OTP de 6 dígitos, lo guarda hasheado en caché (TTL 3 min) y lo envía a administradores y gerentes.
-     *
      * @param  array{
      *     product_name?: string|null,
      *     branch_name?: string|null,
@@ -26,7 +26,7 @@ final class InventoryAuditOtpService
      *     changes?: list<string>
      * }  $context
      */
-    public function issue(User $manager, array $context = []): string
+    public function issue(User $manager, array $context = []): OtpCode
     {
         if (! $this->actorRequiresOtp($manager)) {
             throw ValidationException::withMessages([
@@ -34,81 +34,35 @@ final class InventoryAuditOtpService
             ]);
         }
 
-        $userId = (int) $manager->getKey();
-        $code = $this->generateUnusedCode($userId);
-
-        Cache::put(
-            $this->cacheKey($userId),
-            Hash::make($code),
-            self::TTL_SECONDS,
-        );
-
-        /** @var list<string> $changes */
-        $changes = array_values(array_filter(
-            $context['changes'] ?? [],
-            fn (mixed $line): bool => is_string($line) && filled($line),
-        ));
-
         $branchId = isset($context['branch_id']) && is_numeric($context['branch_id'])
             ? (int) $context['branch_id']
             : null;
 
-        $this->notifier->notify(
-            manager: $manager,
-            otpCode: $code,
-            productName: filled($context['product_name'] ?? null) ? (string) $context['product_name'] : null,
-            branchName: filled($context['branch_name'] ?? null) ? (string) $context['branch_name'] : null,
-            changes: $changes,
-            ttlSeconds: self::TTL_SECONDS,
-            branchId: ($branchId !== null && $branchId > 0) ? $branchId : null,
-        );
+        $summary = implode(' · ', array_filter([
+            filled($context['product_name'] ?? null) ? (string) $context['product_name'] : null,
+            filled($context['branch_name'] ?? null) ? (string) $context['branch_name'] : null,
+        ]));
 
-        return $code;
+        return $this->otpCodes->issue(
+            purpose: OtpCodePurpose::InventoryAudit,
+            requester: $manager,
+            branchId: $branchId,
+            summary: $summary !== '' ? $summary : null,
+            details: array_values($context['changes'] ?? []),
+        );
     }
 
-    public function verifyAndConsume(User $manager, ?string $code): void
+    public function verifyAndConsume(User $manager, ?string $code, string $usedIn = 'Auditoría de inventario'): void
     {
-        $normalized = preg_replace('/\D/', '', (string) $code) ?? '';
-
-        if (strlen($normalized) !== 6) {
-            throw ValidationException::withMessages([
-                'otp_code' => 'Ingrese el código OTP de 6 dígitos enviado a administradores y gerentes.',
-            ]);
-        }
-
-        $userId = (int) $manager->getKey();
-
-        if ($this->wasRecentlyConsumed($userId, $normalized)) {
-            throw ValidationException::withMessages([
-                'otp_code' => 'Esta clave OTP ya fue utilizada. Solicite una nueva para realizar otro cambio.',
-            ]);
-        }
-
-        $key = $this->cacheKey($userId);
-        $hash = Cache::get($key);
-
-        if (! is_string($hash) || $hash === '') {
-            throw ValidationException::withMessages([
-                'otp_code' => 'El código OTP expiró o no fue solicitado. Solicite uno nuevo (válido 3 minutos).',
-            ]);
-        }
-
-        if (! Hash::check($normalized, $hash)) {
-            throw ValidationException::withMessages([
-                'otp_code' => 'El código OTP es incorrecto.',
-            ]);
-        }
-
-        $this->invalidate($manager);
-        $this->markConsumed($userId, $normalized);
+        $this->otpCodes->consume(OtpCodePurpose::InventoryAudit, $manager, $code, $usedIn);
     }
 
     /**
-     * Inhabilita cualquier OTP activo del gerente (p. ej. tras aplicar un cambio con éxito).
+     * Anula cualquier OTP vigente del gerente.
      */
     public function invalidate(User $manager): void
     {
-        Cache::forget($this->cacheKey((int) $manager->getKey()));
+        $this->otpCodes->cancelActive(OtpCodePurpose::InventoryAudit, $manager, 'Anulada por el sistema.');
     }
 
     public function actorRequiresOtp(?User $actor): bool
@@ -116,38 +70,5 @@ final class InventoryAuditOtpService
         return $actor instanceof User
             && $actor->isManager()
             && ! $actor->isAdministrator();
-    }
-
-    private function generateUnusedCode(int $userId): string
-    {
-        for ($attempt = 0; $attempt < 10; $attempt++) {
-            $code = str_pad((string) random_int(0, 999_999), 6, '0', STR_PAD_LEFT);
-
-            if (! $this->wasRecentlyConsumed($userId, $code)) {
-                return $code;
-            }
-        }
-
-        return str_pad((string) random_int(0, 999_999), 6, '0', STR_PAD_LEFT);
-    }
-
-    private function markConsumed(int $userId, string $code): void
-    {
-        Cache::put($this->usedCacheKey($userId, $code), true, self::TTL_SECONDS);
-    }
-
-    private function wasRecentlyConsumed(int $userId, string $code): bool
-    {
-        return Cache::has($this->usedCacheKey($userId, $code));
-    }
-
-    private function cacheKey(int $userId): string
-    {
-        return 'inventory_audit.otp.'.$userId;
-    }
-
-    private function usedCacheKey(int $userId, string $code): string
-    {
-        return 'inventory_audit.otp.used.'.$userId.'.'.$code;
     }
 }

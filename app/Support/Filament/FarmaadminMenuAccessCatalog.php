@@ -67,6 +67,7 @@ class FarmaadminMenuAccessCatalog
             'branch_sales_goals' => ['label' => 'Metas de ventas', 'route_name_fragment' => 'resources.branch-sales-goals.', 'group' => 'Configuración'],
             'users' => ['label' => 'Usuarios', 'route_name_fragment' => 'resources.users.', 'group' => 'Configuración'],
             'audit_logs' => ['label' => 'Auditoría y trazas', 'route_name_fragment' => 'resources.audit-logs.', 'group' => 'Configuración'],
+            'otp_codes' => ['label' => 'Claves OTP', 'route_name_fragment' => 'resources.otp-codes.', 'group' => 'Configuración'],
             'bdv_conciliations' => ['label' => 'Conciliaciones BDV', 'route_name_fragment' => 'resources.conciliation-bdvs.', 'group' => 'Configuración'],
             'api_clients' => ['label' => 'Clientes API', 'route_name_fragment' => 'resources.api-clients.', 'group' => 'Configuración'],
             'fiscal_company_settings' => ['label' => 'Datos fiscales de la empresa', 'route_name_fragment' => 'pages.manage-fiscal-company-settings', 'group' => 'Configuración'],

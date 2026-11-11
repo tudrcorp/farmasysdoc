@@ -476,6 +476,7 @@ final class InventoryAuditApplyService
                 newCostPrice: $parsed['new_cost_price'],
                 categoryProvided: $parsed['category_provided'],
                 requestedCategoryId: $parsed['requested_category_id'],
+                usedIn: 'Auditoría de inventario · Auditoría individual (Express) · '.$product->name,
             );
 
             $actorId = $actor instanceof User ? (int) $actor->getKey() : null;
@@ -644,6 +645,7 @@ final class InventoryAuditApplyService
                     newCostPrice: $parsed['new_cost_price'],
                     categoryProvided: $parsed['category_provided'],
                     requestedCategoryId: $parsed['requested_category_id'],
+                    usedIn: 'Auditoría de inventario #'.$line->inventory_audit_id.' · '.$product->name,
                 );
 
                 $actorId = $actor instanceof User ? (int) $actor->getKey() : null;
@@ -797,6 +799,7 @@ final class InventoryAuditApplyService
         ?float $newCostPrice,
         bool $categoryProvided,
         ?int $requestedCategoryId,
+        string $usedIn,
     ): void {
         if (! $actor instanceof User || ! $this->otpService->actorRequiresOtp($actor)) {
             return;
@@ -814,7 +817,7 @@ final class InventoryAuditApplyService
             return;
         }
 
-        $this->otpService->verifyAndConsume($actor, $otpCode);
+        $this->otpService->verifyAndConsume($actor, $otpCode, $usedIn);
     }
 
     private function payloadHasSensitiveChanges(

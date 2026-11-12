@@ -15,9 +15,19 @@ use Illuminate\Validation\ValidationException;
  * No se envían por correo ni WhatsApp: gerentes y administradores las consultan en «Claves OTP»
  * ({@see OtpCode::scopeVisibleTo()}). Cada usuario solo tiene una clave vigente por módulo:
  * pedir otra anula la anterior. Al usarse queda registrado quién la usó y en qué parte del sistema.
+ *
+ * Con el permiso «Usar OTP automática» el solicitante puede marcar «Usar OTP» en el modal: el
+ * formulario envía {@see self::SELF_APPLY_TOKEN} en lugar de los 6 dígitos y aquí se usa su propia
+ * clave vigente (sin revelarla), se marca `self_applied` y se avisa a los administradores.
  */
 final class OtpCodeService
 {
+    /**
+     * Valor que envía el formulario cuando el usuario marca «Usar OTP». No es tecleable en el
+     * campo de 6 dígitos y solo se acepta si el usuario tiene el permiso.
+     */
+    public const SELF_APPLY_TOKEN = '__usar_otp__';
+
     private const OUTCOME_MISSING = 'missing';
 
     private const OUTCOME_ALREADY_USED = 'already_used';
@@ -29,6 +39,8 @@ final class OtpCodeService
     private const OUTCOME_LOCKED = 'locked';
 
     private const OUTCOME_FINGERPRINT = 'fingerprint';
+
+    public function __construct(private readonly OtpSelfApplyNotifier $selfApplyNotifier) {}
 
     /**
      * @param  list<string>  $details
@@ -108,15 +120,23 @@ final class OtpCodeService
         string $errorKey,
         ?string $usedIn,
     ): OtpCode {
-        $normalized = preg_replace('/\D/', '', (string) $code) ?? '';
+        $selfApply = $code === self::SELF_APPLY_TOKEN;
 
-        if (strlen($normalized) !== 6) {
+        if ($selfApply && ! $user->canSelfApplyOtp()) {
+            throw ValidationException::withMessages([
+                $errorKey => 'No tiene permiso para usar la clave OTP sin la autorización de un gerente o administrador.',
+            ]);
+        }
+
+        $normalized = $selfApply ? '' : (preg_replace('/\D/', '', (string) $code) ?? '');
+
+        if (! $selfApply && strlen($normalized) !== 6) {
             throw ValidationException::withMessages([
                 $errorKey => 'Ingrese el código OTP de 6 dígitos. Pídalo al gerente de la sucursal o a un administrador.',
             ]);
         }
 
-        $outcome = DB::transaction(function () use ($purpose, $user, $normalized, $fingerprint, $usedIn): OtpCode|string {
+        $outcome = DB::transaction(function () use ($purpose, $user, $normalized, $fingerprint, $usedIn, $selfApply): OtpCode|string {
             $otp = OtpCode::query()
                 ->where('purpose', $purpose->value)
                 ->where('requested_by_user_id', $user->getKey())
@@ -126,7 +146,7 @@ final class OtpCodeService
                 ->first();
 
             if (! $otp instanceof OtpCode) {
-                return $this->wasRecentlyUsed($purpose, $user, $normalized)
+                return ! $selfApply && $this->wasRecentlyUsed($purpose, $user, $normalized)
                     ? self::OUTCOME_ALREADY_USED
                     : self::OUTCOME_MISSING;
             }
@@ -135,6 +155,10 @@ final class OtpCodeService
                 $otp->update(['status' => OtpCodeStatus::Expired]);
 
                 return self::OUTCOME_EXPIRED;
+            }
+
+            if ($selfApply) {
+                $normalized = (string) $otp->code;
             }
 
             if (! hash_equals((string) $otp->code, $normalized)) {
@@ -167,6 +191,11 @@ final class OtpCodeService
                     'used_at' => now(),
                     'used_in' => mb_substr($usedIn, 0, 255),
                     'used_url' => $this->currentUrl(),
+                    ...($selfApply ? [
+                        'self_applied' => true,
+                        'self_applied_at' => now(),
+                        'self_applied_ip' => $this->currentIp(),
+                    ] : []),
                 ]);
             }
 
@@ -174,6 +203,10 @@ final class OtpCodeService
         });
 
         if ($outcome instanceof OtpCode) {
+            if ($selfApply && $usedIn !== null) {
+                $this->selfApplyNotifier->notify($outcome, $user);
+            }
+
             return $outcome;
         }
 
@@ -184,7 +217,9 @@ final class OtpCodeService
                 self::OUTCOME_WRONG => 'El código OTP es incorrecto.',
                 self::OUTCOME_LOCKED => 'Demasiados intentos con un código incorrecto. Solicite una clave OTP nueva.',
                 self::OUTCOME_FINGERPRINT => 'Los datos cambiaron desde que se solicitó la clave OTP. Solicite una nueva.',
-                default => 'El código OTP no fue solicitado o ya no está vigente. Solicite uno nuevo (válido 10 minutos).',
+                default => $selfApply
+                    ? 'No tiene una clave OTP vigente para usar. Pulse «Solicitar código OTP» y vuelva a marcar «Usar OTP».'
+                    : 'El código OTP no fue solicitado o ya no está vigente. Solicite uno nuevo (válido 10 minutos).',
             },
         ]);
     }
@@ -198,6 +233,11 @@ final class OtpCodeService
             ->where('used_at', '>=', now()->subSeconds(OtpCode::TTL_SECONDS))
             ->get(['id', 'code'])
             ->contains(fn (OtpCode $used): bool => hash_equals((string) $used->code, $code));
+    }
+
+    private function currentIp(): ?string
+    {
+        return app()->bound('request') ? request()->ip() : null;
     }
 
     /**

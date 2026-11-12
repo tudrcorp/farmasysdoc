@@ -10,6 +10,7 @@ use App\Models\InventoryAudit;
 use App\Models\InventoryAuditLine;
 use App\Services\Inventory\InventoryAuditApplyService;
 use App\Services\Inventory\InventoryAuditOpenLineSyncService;
+use App\Support\Filament\SelfApplyOtp;
 use App\Support\Inventory\InventoryAuditTrace;
 use App\Support\Inventory\InventoryQuantityFormat;
 use Filament\Actions\Action;
@@ -379,7 +380,7 @@ class WorkInventoryAudit extends Page implements HasTable
                                 'counted_quantity' => $data['counted_quantity'],
                                 'new_cost_price' => $data['new_cost_price'] ?? null,
                                 'product_category_id' => $data['product_category_id'] ?? null,
-                                'otp_code' => isset($data['otp_code']) ? (string) $data['otp_code'] : null,
+                                'otp_code' => SelfApplyOtp::resolve($data, 'otp_code'),
                             ], Auth::user());
                         } catch (ValidationException $e) {
                             Notification::make()

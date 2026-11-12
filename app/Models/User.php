@@ -608,6 +608,15 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     }
 
     /**
+     * Puede marcar «Usar OTP» en los modales que piden clave: usa la OTP que solicitó sin
+     * esperar a un gerente o administrador. Queda registrado en `otp_codes` y se avisa a los administradores.
+     */
+    public function canSelfApplyOtp(): bool
+    {
+        return $this->canAccessFarmaadminMenuKey('otp_self_apply');
+    }
+
+    /**
      * Anular ventas completadas: solo Administrador o Gerencia, con permiso asignado al rol.
      */
     public function canVoidSales(): bool

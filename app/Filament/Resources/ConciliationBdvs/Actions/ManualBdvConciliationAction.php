@@ -9,6 +9,7 @@ use App\Services\BdvConciliation\BdvPagomovilConciliationService;
 use App\Services\BdvConciliation\ManualBdvConciliationOtpService;
 use App\Services\BdvConciliation\ManualBdvConciliationService;
 use App\Support\Filament\BranchAuthScope;
+use App\Support\Filament\SelfApplyOtp;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\OneTimeCodeInput;
@@ -66,6 +67,7 @@ final class ManualBdvConciliationAction
             'destination_phone' => $service->resolveCommercePhone($branchId),
             'origin_bank' => VenezuelanPagoMovilBank::BancoDeVenezuela->value,
             'otp_code' => null,
+            SelfApplyOtp::fieldName('otp_code') => false,
         ];
     }
 
@@ -211,9 +213,11 @@ final class ManualBdvConciliationAction
             OneTimeCodeInput::make('otp_code')
                 ->label('Código OTP')
                 ->length(6)
-                ->required()
+                ->required(fn (Get $get): bool => ! SelfApplyOtp::isChecked($get, 'otp_code'))
+                ->hidden(fn (Get $get): bool => SelfApplyOtp::isChecked($get, 'otp_code'))
                 ->helperText('Ingrese el código de 6 dígitos. Es de un solo uso y caduca a los 10 minutos.')
                 ->columnSpanFull(),
+            SelfApplyOtp::checkbox('otp_code'),
         ];
     }
 
@@ -229,6 +233,8 @@ final class ManualBdvConciliationAction
 
             return;
         }
+
+        $data['otp_code'] = SelfApplyOtp::resolve($data, 'otp_code');
 
         try {
             app(ManualBdvConciliationService::class)->register($user, $data);

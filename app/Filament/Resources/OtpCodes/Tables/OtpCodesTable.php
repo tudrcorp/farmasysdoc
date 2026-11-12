@@ -75,6 +75,20 @@ class OtpCodesTable
                     ->label('Usada por')
                     ->description(fn (OtpCode $record): ?string => $record->used_at?->timezone(config('app.timezone'))->format('d/m/Y H:i:s'))
                     ->placeholder('—'),
+                TextColumn::make('self_applied')
+                    ->label('Autorización')
+                    ->badge()
+                    ->state(fn (OtpCode $record): ?string => match (true) {
+                        $record->self_applied => 'Usar OTP (automática)',
+                        $record->used_at !== null => 'Tercero',
+                        default => null,
+                    })
+                    ->color(fn (OtpCode $record): string => $record->self_applied ? 'warning' : 'gray')
+                    ->icon(fn (OtpCode $record): ?Heroicon => $record->self_applied ? Heroicon::ExclamationTriangle : null)
+                    ->tooltip(fn (OtpCode $record): ?string => $record->self_applied
+                        ? 'La usó quien la pidió marcando «Usar OTP», sin que un gerente o administrador se la indicara.'
+                        : null)
+                    ->placeholder('—'),
                 TextColumn::make('used_in')
                     ->label('Usada en')
                     ->limit(50)
@@ -93,6 +107,17 @@ class OtpCodesTable
                         return $status instanceof OtpCodeStatus
                             ? $query->withEffectiveStatus($status)
                             : $query;
+                    }),
+                SelectFilter::make('self_applied')
+                    ->label('Autorización')
+                    ->options([
+                        '1' => 'Usar OTP (automática)',
+                        '0' => 'Indicada por un tercero',
+                    ])
+                    ->query(fn (Builder $query, array $data): Builder => match ((string) ($data['value'] ?? '')) {
+                        '1' => $query->where('self_applied', true),
+                        '0' => $query->where('self_applied', false)->whereNotNull('used_at'),
+                        default => $query,
                     }),
                 SelectFilter::make('purpose')
                     ->label('Módulo')
@@ -147,6 +172,17 @@ class OtpCodesTable
                                     ->label('Usada el')
                                     ->dateTime('d/m/Y H:i:s')
                                     ->placeholder('—'),
+                                TextEntry::make('self_applied_label')
+                                    ->label('Autorización')
+                                    ->badge()
+                                    ->state(fn (OtpCode $record): string => $record->self_applied
+                                        ? 'Usar OTP (automática) · '.$record->self_applied_at?->timezone(config('app.timezone'))->format('d/m/Y H:i:s')
+                                        : ($record->used_at !== null ? 'Indicada por un tercero' : 'Sin usar'))
+                                    ->color(fn (OtpCode $record): string => $record->self_applied ? 'warning' : 'gray'),
+                                TextEntry::make('self_applied_ip')
+                                    ->label('IP del uso automático')
+                                    ->placeholder('—')
+                                    ->visible(fn (OtpCode $record): bool => $record->self_applied),
                                 TextEntry::make('used_in')
                                     ->label('Lugar del sistema')
                                     ->placeholder('—')

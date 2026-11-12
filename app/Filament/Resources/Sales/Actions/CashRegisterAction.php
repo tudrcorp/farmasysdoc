@@ -15,6 +15,7 @@ use App\Models\FiscalDocument;
 use App\Models\Inventory;
 use App\Models\PhysicalCashBox;
 use App\Models\PhysicalCashBoxMovement;
+use App\Models\PosHeldSale;
 use App\Models\PosTerminal;
 use App\Models\Product;
 use App\Models\ProductTransfer;
@@ -36,7 +37,9 @@ use App\Services\Inventory\PosInventoryStockFailureRegistrar;
 use App\Services\Sales\CacheaConciliationRegistrar;
 use App\Services\Sales\ClientCommercialDiscountResolver;
 use App\Services\Sales\PosDiscountOtpService;
+use App\Services\Sales\PosHeldSaleService;
 use App\Support\Cash\PhysicalCashBoxBillingGate;
+use App\Support\Filament\SelfApplyOtp;
 use App\Support\Finance\BcvRate;
 use App\Support\Finance\DefaultIgtfRate;
 use App\Support\Finance\DefaultVatRate;
@@ -61,6 +64,7 @@ use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\ViewField;
@@ -83,6 +87,7 @@ use Filament\Support\Enums\Width;
 use Filament\Support\Exceptions\Halt;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Arrayable;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
@@ -107,6 +112,14 @@ final class CashRegisterAction
     public const PAGO_MOVIL_CONCILIATION_ACTION_NAME = 'posPagoMovilConciliation';
 
     public const CREDIT_SALE_CONFIRMATION_ACTION_NAME = 'posCreditSaleConfirmation';
+
+    public const PAUSE_SALE_ACTION_NAME = 'posPauseSale';
+
+    public const HELD_SALES_ACTION_NAME = 'posHeldSales';
+
+    public const RESUME_HELD_SALE_ACTION_NAME = 'posResumeHeldSale';
+
+    public const DISCARD_HELD_SALE_ACTION_NAME = 'posDiscardHeldSale';
 
     /** Modal posterior a la venta: vueltos en efectivo USD y movimiento en caja física. */
     public const EFECTIVO_USD_POST_SALE_CHANGE_ACTION_NAME = 'posEfectivoUsdPostSaleChange';
@@ -140,6 +153,10 @@ final class CashRegisterAction
                 self::makeCreditSaleConfirmation(),
                 self::makePagoMovilConciliation(),
                 self::makeEfectivoUsdPostSaleChange(),
+            ])
+            ->extraModalFooterActions(fn (): array => [
+                self::makePauseSale(),
+                self::makeHeldSales(),
             ])
             ->mountUsing(function (Action $action, ?Schema $schema): void {
                 $args = $action->getArguments();
@@ -194,6 +211,14 @@ final class CashRegisterAction
                                     ->default(false),
                                 Hidden::make('credit_sale_confirmed')
                                     ->default(false),
+                                Hidden::make('pos_held_sale_id')
+                                    ->default(null),
+                                Placeholder::make('pos_held_sales_banner')
+                                    ->hiddenLabel()
+                                    ->dehydrated(false)
+                                    ->visible(fn (): bool => self::authenticatedCashierPausedCount() > 0)
+                                    ->content(fn (Get $get): HtmlString => self::posHeldSalesBannerHtml($get))
+                                    ->columnSpanFull(),
                                 ViewField::make('pos_product_consult')
                                     ->hiddenLabel()
                                     ->view('filament.sales.pos-product-consult')
@@ -1924,6 +1949,10 @@ final class CashRegisterAction
                     $saleSuccessBody .= ' · Efectivo VES registrado en caja física.';
                 }
 
+                if ($actorUser instanceof User && filled($data['pos_held_sale_id'] ?? null)) {
+                    app(PosHeldSaleService::class)->markCompleted((int) $data['pos_held_sale_id'], $sale, $actorUser);
+                }
+
                 Notification::make()
                     ->title('Venta registrada')
                     ->body($saleSuccessBody)
@@ -1936,6 +1965,326 @@ final class CashRegisterAction
                     self::continueAfterSaleCommitted($sale, $actorUser, $data, $livewire);
                 });
             });
+    }
+
+    /**
+     * Pausa la venta en curso (solo el carrito) y deja la caja limpia para el siguiente cliente.
+     */
+    public static function makePauseSale(): Action
+    {
+        return Action::make(self::PAUSE_SALE_ACTION_NAME)
+            ->label('Pausar venta')
+            ->icon(Heroicon::Pause)
+            ->color('warning')
+            ->modalHeading('Pausar venta')
+            ->modalDescription('La venta queda guardada para retomarla después y la caja se limpia para atender al siguiente cliente. No se aparta la existencia: al retomarla se recalculan precios, tasa y existencia.')
+            ->modalIcon(Heroicon::Pause)
+            ->modalWidth(Width::Medium)
+            ->modalSubmitActionLabel('Pausar')
+            ->schema([
+                TextInput::make('note')
+                    ->label('Referencia (opcional)')
+                    ->placeholder('Ej.: señora de camisa azul, va al cajero')
+                    ->maxLength(255)
+                    ->autofocus(),
+            ])
+            ->action(function (Action $action, array $data): void {
+                $livewire = $action->getLivewire();
+                $user = Auth::user();
+
+                if (! $livewire instanceof BasePage || ! $user instanceof User) {
+                    return;
+                }
+
+                $formData = self::currentPosRegisterMountedFormData($livewire);
+
+                try {
+                    $heldSale = self::pausePosFormData($user, $formData, isset($data['note']) ? (string) $data['note'] : null);
+                } catch (ValidationException $e) {
+                    Notification::make()
+                        ->title('No se pudo pausar la venta')
+                        ->body(collect($e->errors())->flatten()->first() ?: 'Error de validación.')
+                        ->warning()
+                        ->send();
+
+                    $action->halt();
+
+                    return;
+                }
+
+                Notification::make()
+                    ->title('Venta en pausa')
+                    ->body(($heldSale->label ?? 'Venta').' quedó en pausa. Puede retomarla desde «Ventas en pausa».')
+                    ->success()
+                    ->send();
+
+                $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME);
+            });
+    }
+
+    /**
+     * Lista de ventas en pausa (caja y listado de ventas), con «Retomar» y «Eliminar».
+     */
+    public static function makeHeldSales(): Action
+    {
+        return Action::make(self::HELD_SALES_ACTION_NAME)
+            ->label(function (): string {
+                $count = self::authenticatedVisiblePausedCount();
+
+                return $count > 0 ? 'Ventas en pausa ('.$count.')' : 'Ventas en pausa';
+            })
+            ->icon(Heroicon::QueueList)
+            ->color(fn (): string => self::authenticatedVisiblePausedCount() > 0 ? 'warning' : 'gray')
+            ->badge(fn (): ?string => ($count = self::authenticatedVisiblePausedCount()) > 0 ? (string) $count : null)
+            ->badgeColor('danger')
+            ->extraAttributes([
+                'class' => 'farmadoc-ios-action',
+            ])
+            ->modalHeading('Ventas en pausa')
+            ->modalDescription('Retome la venta para cobrarla o elimínela si el cliente no va a pagar. La caja no se puede cerrar mientras tenga ventas en pausa.')
+            ->modalIcon(Heroicon::QueueList)
+            ->modalWidth(Width::ThreeExtraLarge)
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Cerrar')
+            ->modalContent(function (): View {
+                $user = Auth::user();
+                $service = app(PosHeldSaleService::class);
+
+                return view('filament.sales.pos-held-sales-list', [
+                    'heldSales' => $user instanceof User ? $service->pausedVisibleTo($user) : collect(),
+                    'viewerId' => $user instanceof User ? (int) $user->getKey() : 0,
+                    'canUseRegister' => PhysicalCashBoxBillingGate::userMayUseCashRegister($user),
+                    'resumeActionName' => self::RESUME_HELD_SALE_ACTION_NAME,
+                    'discardActionName' => self::DISCARD_HELD_SALE_ACTION_NAME,
+                    'reminderMinutes' => (int) config('pos_held_sales.reminder_after_minutes', 15),
+                ]);
+            })
+            ->registerModalActions([
+                self::makeResumeHeldSale(),
+                self::makeDiscardHeldSale(),
+            ]);
+    }
+
+    public static function makeResumeHeldSale(): Action
+    {
+        return Action::make(self::RESUME_HELD_SALE_ACTION_NAME)
+            ->label('Retomar')
+            ->action(function (Action $action): void {
+                $livewire = $action->getLivewire();
+                $user = Auth::user();
+
+                if (! $livewire instanceof BasePage || ! $user instanceof User) {
+                    return;
+                }
+
+                $heldSale = PosHeldSale::query()->find((int) ($action->getArguments()['heldSaleId'] ?? 0));
+                $service = app(PosHeldSaleService::class);
+
+                if (! $heldSale instanceof PosHeldSale || ! $service->canResume($user, $heldSale)) {
+                    Notification::make()
+                        ->title('No se puede retomar')
+                        ->body('La venta ya no está en pausa o fue pausada por otro cajero.')
+                        ->warning()
+                        ->send();
+
+                    return;
+                }
+
+                if (! PhysicalCashBoxBillingGate::userMayUseCashRegister($user)) {
+                    Notification::make()
+                        ->title('Caja no disponible')
+                        ->body(PhysicalCashBoxBillingGate::cashRegisterUnavailableMessage($user))
+                        ->warning()
+                        ->send();
+
+                    return;
+                }
+
+                $current = self::currentPosRegisterMountedFormData($livewire);
+                $currentHeldSaleId = (int) ($current['pos_held_sale_id'] ?? 0);
+                $currentHasItems = PosHeldSaleService::snapshotFromFormData($current)['line_items'] !== [];
+
+                if ($currentHasItems && $currentHeldSaleId !== (int) $heldSale->getKey()) {
+                    try {
+                        $paused = self::pausePosFormData($user, $current);
+
+                        Notification::make()
+                            ->title('Venta actual en pausa')
+                            ->body(($paused->label ?? 'La venta').' que estaba en la caja quedó en pausa.')
+                            ->info()
+                            ->send();
+                    } catch (ValidationException) {
+                        // El carrito actual no tenía productos válidos: no hay nada que pausar.
+                    }
+                }
+
+                $state = $service->resumeFormData($user, $heldSale);
+
+                $livewire->replaceMountedAction(self::REGISTER_ACTION_NAME, [
+                    'pos_data' => $state,
+                    'client_id' => $state['client_id'] ?? null,
+                ]);
+
+                Notification::make()
+                    ->title('Venta retomada')
+                    ->body('Revise los precios y la existencia antes de cobrar: se recalcularon al momento.')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    public static function makeDiscardHeldSale(): Action
+    {
+        return Action::make(self::DISCARD_HELD_SALE_ACTION_NAME)
+            ->label('Eliminar')
+            ->color('danger')
+            ->modalHeading('Eliminar venta en pausa')
+            ->modalDescription(function (Action $action): string {
+                $heldSale = PosHeldSale::query()->find((int) ($action->getArguments()['heldSaleId'] ?? 0));
+
+                return $heldSale instanceof PosHeldSale
+                    ? 'Se eliminará la venta en pausa «'.($heldSale->label ?? 'Mostrador').'» ('.$heldSale->items_count.' producto(s)). Esta acción no se puede deshacer.'
+                    : 'La venta en pausa ya no existe.';
+            })
+            ->modalIcon(Heroicon::Trash)
+            ->modalWidth(Width::Medium)
+            ->modalSubmitActionLabel('Eliminar venta')
+            ->schema([
+                Textarea::make('reason')
+                    ->label('Motivo')
+                    ->placeholder('Ej.: el cliente decidió no comprar')
+                    ->required()
+                    ->maxLength(255)
+                    ->rows(2)
+                    ->autofocus(),
+            ])
+            ->action(function (Action $action, array $data): void {
+                $user = Auth::user();
+                $heldSale = PosHeldSale::query()->find((int) ($action->getArguments()['heldSaleId'] ?? 0));
+
+                if (! $user instanceof User || ! $heldSale instanceof PosHeldSale) {
+                    return;
+                }
+
+                try {
+                    app(PosHeldSaleService::class)->discard($user, $heldSale, (string) ($data['reason'] ?? ''));
+                } catch (ValidationException $e) {
+                    Notification::make()
+                        ->title('No se pudo eliminar')
+                        ->body(collect($e->errors())->flatten()->first() ?: 'Error de validación.')
+                        ->danger()
+                        ->send();
+
+                    $action->halt();
+
+                    return;
+                }
+
+                Notification::make()
+                    ->title('Venta en pausa eliminada')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * @param  array<string, mixed>  $formData
+     */
+    private static function pausePosFormData(User $user, array $formData, ?string $note = null): PosHeldSale
+    {
+        return app(PosHeldSaleService::class)->pause(
+            $user,
+            $formData,
+            self::posHeldSaleSummaryFromData($formData, $user),
+            $note,
+        );
+    }
+
+    /**
+     * Resumen para la lista de ventas en pausa: cliente, productos y total aproximado al pausar.
+     *
+     * @param  array<string, mixed>  $formData
+     * @return array{label: string, item_lines: list<string>, estimated_total_usd: float|null}
+     */
+    private static function posHeldSaleSummaryFromData(array $formData, User $user): array
+    {
+        $snapshot = PosHeldSaleService::snapshotFromFormData($formData);
+
+        $clientName = $snapshot['client_id'] !== null
+            ? Client::query()->whereKey($snapshot['client_id'])->value('name')
+            : null;
+
+        $productNames = Product::query()
+            ->whereIn('id', array_column($snapshot['line_items'], 'product_id'))
+            ->pluck('name', 'id');
+
+        $itemLines = array_map(
+            fn (array $line): string => ($productNames[$line['product_id']] ?? 'Producto #'.$line['product_id'])
+                .' × '.InventoryQuantityFormat::display($line['quantity']),
+            $snapshot['line_items'],
+        );
+
+        $estimatedTotal = null;
+        $branchId = (int) ($user->branch_id ?? 0);
+        if ($branchId > 0) {
+            try {
+                $valid = self::buildValidPosLinesFromRaw($snapshot['line_items'], $branchId);
+                if ($valid !== []) {
+                    $plan = self::resolvePosDiscountPlan($valid, $snapshot['sale_discount_percent'], $snapshot['client_id'], $user);
+                    $pricing = self::finalizePosPricingFromValidLines(
+                        $plan['lines'],
+                        (string) ($formData['payment_method'] ?? 'punto_venta_ves'),
+                    );
+                    $estimatedTotal = (float) $pricing['document_total'];
+                }
+            } catch (Throwable $e) {
+                report($e);
+            }
+        }
+
+        return [
+            'label' => filled($clientName) ? (string) $clientName : 'Mostrador',
+            'item_lines' => $itemLines,
+            'estimated_total_usd' => $estimatedTotal,
+        ];
+    }
+
+    private static function authenticatedCashierPausedCount(): int
+    {
+        $user = Auth::user();
+
+        return $user instanceof User
+            ? app(PosHeldSaleService::class)->pausedCountForCashier($user)
+            : 0;
+    }
+
+    private static function authenticatedVisiblePausedCount(): int
+    {
+        $user = Auth::user();
+
+        return $user instanceof User
+            ? app(PosHeldSaleService::class)->pausedCountVisibleTo($user)
+            : 0;
+    }
+
+    private static function posHeldSalesBannerHtml(Get $get): HtmlString
+    {
+        $count = self::authenticatedCashierPausedCount();
+        $resuming = filled($get('pos_held_sale_id'));
+
+        $text = $count === 1
+            ? 'Tiene 1 venta en pausa.'
+            : 'Tiene '.$count.' ventas en pausa.';
+
+        if ($resuming) {
+            $text .= ' Está cobrando una venta retomada.';
+        }
+
+        return new HtmlString(
+            '<div class="rounded-xl border border-warning-500/40 bg-warning-500/10 px-3 py-2 text-sm font-medium text-warning-700 dark:text-warning-200">'
+            .e($text).' Atiéndalas o elimínelas desde «Ventas en pausa»; la caja no se puede cerrar mientras tenga ventas en pausa.'
+            .'</div>'
+        );
     }
 
     public static function makeCreditSaleConfirmation(): Action
@@ -2657,6 +3006,7 @@ final class CashRegisterAction
                     'bdv_pm_failure_message' => null,
                     'bdv_pm_manual_otp_requested' => false,
                     'bdv_pm_otp_code' => null,
+                    SelfApplyOtp::fieldName('bdv_pm_otp_code') => false,
                 ]);
             })
             ->schema([
@@ -2780,8 +3130,10 @@ final class CashRegisterAction
                             ->label('Código OTP')
                             ->length(6)
                             ->columnSpanFull()
-                            ->visible(fn (Get $get): bool => self::bdvPmManualOtpUiVisible($get))
+                            ->visible(fn (Get $get): bool => self::bdvPmManualOtpUiVisible($get) && ! SelfApplyOtp::isChecked($get, 'bdv_pm_otp_code'))
                             ->helperText('Ingrese el código de 6 dígitos que le indique el gerente o un administrador. Es de un solo uso.'),
+                        SelfApplyOtp::checkbox('bdv_pm_otp_code')
+                            ->visible(fn (Get $get): bool => self::bdvPmManualOtpUiVisible($get) && SelfApplyOtp::userCanSelfApply()),
                         Action::make('bdvPmConfirmManualConciliation')
                             ->label('Confirmar conciliación manual')
                             ->icon(Heroicon::Check)
@@ -3204,12 +3556,10 @@ final class CashRegisterAction
         }
 
         $candidate['referencia'] = $reference;
-        $rawOtp = self::posManualConciliationWizardValue($get, $livewire, 'bdv_pm_otp_code');
-        if (is_array($rawOtp)) {
-            $otpCode = implode('', array_map(static fn (mixed $digit): string => (string) $digit, $rawOtp));
-        } else {
-            $otpCode = $rawOtp !== null && $rawOtp !== '' ? (string) $rawOtp : null;
-        }
+        $otpCode = SelfApplyOtp::resolve([
+            'bdv_pm_otp_code' => self::posManualConciliationWizardValue($get, $livewire, 'bdv_pm_otp_code'),
+            SelfApplyOtp::fieldName('bdv_pm_otp_code') => self::posManualConciliationWizardValue($get, $livewire, SelfApplyOtp::fieldName('bdv_pm_otp_code')),
+        ], 'bdv_pm_otp_code');
 
         try {
             $record = app(ManualBdvConciliationService::class)->registerFromPos($user, $candidate, $otpCode);
@@ -5351,8 +5701,10 @@ final class CashRegisterAction
                 ->label('Código OTP de descuento')
                 ->length(6)
                 ->columnSpanFull()
-                ->visible(fn (Get $get): bool => self::posDiscountOtpFingerprintFromGet($get) !== null)
+                ->visible(fn (Get $get): bool => self::posDiscountOtpFingerprintFromGet($get) !== null && ! SelfApplyOtp::isChecked($get, 'pos_discount_otp_code'))
                 ->helperText('Clave de 6 dígitos que le indique el gerente o un administrador. Es de un solo uso.'),
+            SelfApplyOtp::checkbox('pos_discount_otp_code')
+                ->visible(fn (Get $get): bool => self::posDiscountOtpFingerprintFromGet($get) !== null && SelfApplyOtp::userCanSelfApply()),
         ];
     }
 
@@ -5426,6 +5778,7 @@ final class CashRegisterAction
 
         $set('pos_discount_otp_requested', true);
         $set('pos_discount_otp_code', null);
+        $set(SelfApplyOtp::fieldName('pos_discount_otp_code'), false);
 
         Notification::make()
             ->title('Código OTP generado')
@@ -5473,10 +5826,7 @@ final class CashRegisterAction
             return false;
         }
 
-        $rawCode = $data['pos_discount_otp_code'] ?? null;
-        $code = is_array($rawCode)
-            ? implode('', array_map(static fn (mixed $digit): string => (string) $digit, $rawCode))
-            : ($rawCode !== null ? (string) $rawCode : null);
+        $code = SelfApplyOtp::resolve($data, 'pos_discount_otp_code');
 
         $service = app(PosDiscountOtpService::class);
 
@@ -7414,7 +7764,9 @@ final class CashRegisterAction
             'cachea_complement_payment_method' => 'efectivo_usd',
             'bdv_pm_conciliated' => false,
             'pos_discount_otp_code' => null,
+            SelfApplyOtp::fieldName('pos_discount_otp_code') => false,
             'pos_discount_otp_requested' => false,
+            'pos_held_sale_id' => null,
             'pos_terminal_id' => null,
             'card_last4' => null,
             'mixed_usd_paid' => null,

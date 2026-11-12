@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\User;
 use App\Services\Inventory\InventoryAuditApplyService;
 use App\Support\Filament\BranchAuthScope;
+use App\Support\Filament\SelfApplyOtp;
 use App\Support\Inventory\InventoryQuantityFormat;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Hidden;
@@ -225,7 +226,7 @@ final class InventoryAuditExpressAction
                     'counted_quantity' => $data['counted_quantity'] ?? null,
                     'new_cost_price' => $data['new_cost_price'] ?? null,
                     'product_category_id' => $data['product_category_id'] ?? null,
-                    'otp_code' => isset($data['otp_code']) ? (string) $data['otp_code'] : null,
+                    'otp_code' => SelfApplyOtp::resolve($data, 'otp_code'),
                 ],
                 actor: Auth::user(),
             );
@@ -259,6 +260,7 @@ final class InventoryAuditExpressAction
         $set('_product_name', null);
         $set('_branch_name', null);
         $set('otp_code', null);
+        $set(SelfApplyOtp::fieldName('otp_code'), false);
     }
 
     private static function hydrateProductContext(int $productId, Get $get, Set $set): void

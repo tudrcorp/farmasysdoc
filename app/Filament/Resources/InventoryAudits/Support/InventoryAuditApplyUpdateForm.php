@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\User;
 use App\Services\Inventory\InventoryAuditOtpService;
+use App\Support\Filament\SelfApplyOtp;
 use App\Support\Inventory\InventoryFinancialPricingBreakdown;
 use App\Support\Inventory\InventoryQuantityFormat;
 use Filament\Actions\Action;
@@ -158,8 +159,10 @@ final class InventoryAuditApplyUpdateForm
                 ->label('Código OTP')
                 ->length(6)
                 ->helperText('Ingrese el código de 6 dígitos. Es de un solo uso: al aplicar el cambio deberá solicitar otra clave.')
-                ->visible(fn (): bool => self::actorRequiresOtp())
+                ->visible(fn (Get $get): bool => self::actorRequiresOtp() && ! SelfApplyOtp::isChecked($get, 'otp_code'))
                 ->dehydrated(fn (): bool => self::actorRequiresOtp()),
+            SelfApplyOtp::checkbox('otp_code')
+                ->visible(fn (): bool => self::actorRequiresOtp() && SelfApplyOtp::userCanSelfApply()),
         ];
     }
 
@@ -273,7 +276,8 @@ final class InventoryAuditApplyUpdateForm
      *     _original_quantity: float,
      *     _product_name: string,
      *     _branch_name: string,
-     *     otp_code: null
+     *     otp_code: null,
+     *     otp_code_self_apply: false
      * }
      */
     public static function fillFromProductAndBranch(
@@ -300,6 +304,7 @@ final class InventoryAuditApplyUpdateForm
             '_product_name' => (string) ($product->name ?? ''),
             '_branch_name' => $branchName,
             'otp_code' => null,
+            SelfApplyOtp::fieldName('otp_code') => false,
         ];
     }
 }

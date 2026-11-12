@@ -43,6 +43,9 @@ class OtpCode extends Model
         'used_at',
         'used_in',
         'used_url',
+        'self_applied',
+        'self_applied_at',
+        'self_applied_ip',
         'cancelled_at',
         'cancellation_reason',
     ];
@@ -68,6 +71,8 @@ class OtpCode extends Model
             'failed_attempts' => 'integer',
             'expires_at' => 'datetime',
             'used_at' => 'datetime',
+            'self_applied' => 'boolean',
+            'self_applied_at' => 'datetime',
             'cancelled_at' => 'datetime',
         ];
     }

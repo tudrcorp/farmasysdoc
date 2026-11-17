@@ -47,7 +47,6 @@ use App\Http\Controllers\Shop\ShopLogoutController;
 use App\Http\Controllers\Shop\ShopManifestController;
 use App\Http\Controllers\StorefrontCheckoutController;
 use App\Http\Controllers\StorefrontHomeController;
-use App\Http\Controllers\WhatsappAgent\WhatsappMessageMediaController;
 use App\Http\Middleware\EnsureSystemReportsAccess;
 use App\Livewire\EmployeePortal\AbsenceRequestForm;
 use App\Livewire\EmployeePortal\Account;
@@ -182,8 +181,6 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('agente-ia/reportes/{report}/{format}', AiAgentReportController::class)
         ->whereIn('format', ['xlsx', 'pdf'])
         ->name('ai-agent.report');
-    Route::get('whatsapp/mensajes/{message}/archivo', WhatsappMessageMediaController::class)
-        ->name('whatsapp-agent.message-media');
 });
 
 Route::middleware(['auth'])->prefix('geo')->name('geo.')->group(function (): void {

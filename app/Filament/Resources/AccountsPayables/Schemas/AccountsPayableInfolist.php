@@ -4,6 +4,7 @@ namespace App\Filament\Resources\AccountsPayables\Schemas;
 
 use App\Models\AccountsPayable;
 use App\Support\Finance\AccountsPayableStatus;
+use App\Support\Finance\VatRetentionAgentPolicy;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -120,6 +121,10 @@ class AccountsPayableInfolist
                                     ->helperText(function (mixed $record): ?string {
                                         if (! $record instanceof AccountsPayable) {
                                             return null;
+                                        }
+
+                                        if (! VatRetentionAgentPolicy::retainsOnInvoiceDate($record->purchase?->supplier_invoice_date)) {
+                                            return 'Sin retención: la fecha de la factura está en el período en que la empresa no actúa como agente de retención.';
                                         }
 
                                         $percent = $record->purchase?->purchaseBook?->seniat_retention_percent

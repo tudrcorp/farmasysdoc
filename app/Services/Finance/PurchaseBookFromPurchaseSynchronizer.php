@@ -8,6 +8,7 @@ use App\Models\PurchaseBook;
 use App\Services\Audit\AuditLogger;
 use App\Support\Finance\AccountsPayableStatus;
 use App\Support\Finance\PurchaseFiscalVesAmounts;
+use App\Support\Finance\VatRetentionAgentPolicy;
 use App\Support\Fiscal\CompanyFiscalAddress;
 use App\Support\Fiscal\VenezuelanRifFormatter;
 use App\Support\Purchases\PurchaseBookVoucherNumberAllocator;
@@ -17,7 +18,8 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Genera una fila de Retenciones al confirmar una compra con IVA
- * (idempotente por purchase_id; omite compras sin impuesto causado).
+ * (idempotente por purchase_id; omite compras sin impuesto causado y facturas
+ * fechadas en el período en que la empresa no es agente de retención).
  */
 final class PurchaseBookFromPurchaseSynchronizer
 {
@@ -50,6 +52,25 @@ final class PurchaseBookFromPurchaseSynchronizer
                     'net_taxable_after_document_discount' => $purchase->net_taxable_after_document_discount,
                 ],
             );
+
+            return null;
+        }
+
+        if (! VatRetentionAgentPolicy::retainsOnInvoiceDate($purchase->supplier_invoice_date)) {
+            AuditLogger::record(
+                event: 'purchase_book_skipped_not_retention_agent',
+                description: 'Retenciones: no se generó fila porque la fecha de la factura está en el período en que la empresa no actúa como agente de retención.',
+                auditableType: Purchase::class,
+                auditableId: (string) $purchase->getKey(),
+                auditableLabel: $purchase->purchase_number,
+                properties: [
+                    'purchase_id' => $purchase->id,
+                    'supplier_invoice_date' => $purchase->supplier_invoice_date?->toDateString(),
+                    'vat_retention_window' => VatRetentionAgentPolicy::window(),
+                ],
+            );
+
+            $this->refreshAccountsPayableBalance($purchase);
 
             return null;
         }

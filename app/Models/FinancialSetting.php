@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Support\Finance\DefaultIgtfRate;
 use App\Support\Finance\DefaultVatRate;
+use App\Support\Finance\VatRetentionAgentPolicy;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -17,6 +18,9 @@ class FinancialSetting extends Model
     protected $fillable = [
         'default_vat_rate_percent',
         'igtf_rate_percent',
+        'vat_retention_agent_active',
+        'vat_retention_suspended_from',
+        'vat_retention_resumed_from',
     ];
 
     protected static function booted(): void
@@ -24,6 +28,7 @@ class FinancialSetting extends Model
         static::saved(function (): void {
             DefaultVatRate::forgetCache();
             DefaultIgtfRate::forgetCache();
+            VatRetentionAgentPolicy::forgetCache();
         });
     }
 
@@ -35,6 +40,9 @@ class FinancialSetting extends Model
         return [
             'default_vat_rate_percent' => 'decimal:2',
             'igtf_rate_percent' => 'decimal:2',
+            'vat_retention_agent_active' => 'boolean',
+            'vat_retention_suspended_from' => 'date',
+            'vat_retention_resumed_from' => 'date',
         ];
     }
 

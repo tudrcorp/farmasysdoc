@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AccountsReceivables\Tables;
 
+use App\Filament\Resources\AccountsReceivables\Actions\DownloadAccountsReceivableInvoiceAction;
 use App\Filament\Resources\Branches\BranchResource;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Models\AccountsReceivable;
@@ -90,6 +91,7 @@ class AccountsReceivablesTable
             ])
             ->defaultSort('issued_at', 'desc')
             ->recordActions([
+                DownloadAccountsReceivableInvoiceAction::make(),
                 ViewAction::make()
                     ->label('Ver'),
             ])

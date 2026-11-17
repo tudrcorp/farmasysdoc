@@ -67,6 +67,7 @@ final class AccountsPayableInvoiceTaxSnapshot
             $percent = $purchase->supplier?->seniat_retention_percent !== null
                 ? (float) $purchase->supplier->seniat_retention_percent
                 : ($book->seniat_retention_percent !== null ? (float) $book->seniat_retention_percent : null);
+            $percent = VatRetentionAgentPolicy::effectivePercent($percent, $purchase->supplier_invoice_date);
 
             return self::$memo[$memoKey] = new self(
                 taxCausedVes: (float) ($book->tax_caused_ves ?? 0),
@@ -81,9 +82,10 @@ final class AccountsPayableInvoiceTaxSnapshot
         }
 
         $taxCausedVes = self::taxTotalToVes($purchase);
-        $percent = $purchase->supplier?->seniat_retention_percent !== null
-            ? (float) $purchase->supplier->seniat_retention_percent
-            : null;
+        $percent = VatRetentionAgentPolicy::effectivePercent(
+            $purchase->supplier?->seniat_retention_percent !== null ? (float) $purchase->supplier->seniat_retention_percent : null,
+            $purchase->supplier_invoice_date,
+        );
         $taxRetainedVes = $percent !== null
             ? round($taxCausedVes * ($percent / 100), 2)
             : null;

@@ -4,6 +4,7 @@ use App\Http\Controllers\AiAgentReportController;
 use App\Http\Controllers\Dev\BdvConciliationTestController;
 use App\Http\Controllers\Finance\AccountsPayableBulkPaymentReportPdfController;
 use App\Http\Controllers\Finance\AccountsPayablePaymentReportPdfController;
+use App\Http\Controllers\Finance\AccountsReceivableInvoicePdfController;
 use App\Http\Controllers\Fiscal\SalesBookReportController;
 use App\Http\Controllers\FiscalAgentDownloadController;
 use App\Http\Controllers\FiscalPrintStatusController;
@@ -22,6 +23,7 @@ use App\Http\Controllers\Inventory\InventoryAuditDetailedReportPdfController;
 use App\Http\Controllers\NominatimProxyController;
 use App\Http\Controllers\Partners\PartnerAgreementDocumentController;
 use App\Http\Controllers\Partners\PartnerCompanyDocumentController;
+use App\Http\Controllers\Partners\PartnerDeliveryNoteController;
 use App\Http\Controllers\PettyCash\PettyCashApprovalController;
 use App\Http\Controllers\ProductTransfers\ProductTransferReportPdfController;
 use App\Http\Controllers\ProductTransfers\ProductTransferSaleReportPdfController;
@@ -45,6 +47,7 @@ use App\Http\Controllers\Shop\ShopLogoutController;
 use App\Http\Controllers\Shop\ShopManifestController;
 use App\Http\Controllers\StorefrontCheckoutController;
 use App\Http\Controllers\StorefrontHomeController;
+use App\Http\Controllers\WhatsappAgent\WhatsappMessageMediaController;
 use App\Http\Middleware\EnsureSystemReportsAccess;
 use App\Livewire\EmployeePortal\AbsenceRequestForm;
 use App\Livewire\EmployeePortal\Account;
@@ -179,6 +182,8 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('agente-ia/reportes/{report}/{format}', AiAgentReportController::class)
         ->whereIn('format', ['xlsx', 'pdf'])
         ->name('ai-agent.report');
+    Route::get('whatsapp/mensajes/{message}/archivo', WhatsappMessageMediaController::class)
+        ->name('whatsapp-agent.message-media');
 });
 
 Route::middleware(['auth'])->prefix('geo')->name('geo.')->group(function (): void {
@@ -222,6 +227,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('sales/{sale}/delivery-note/print', [FiscalReceiptController::class, 'printDeliveryNote'])
         ->name('sales.delivery-note.print');
 
+    Route::get('partner-agreement-sales/{partnerAgreementSale}/delivery-note', PartnerDeliveryNoteController::class)
+        ->name('partner-agreement-sales.delivery-note');
+
     Route::get('sales/cash-close-pdf', CashRegisterClosePdfController::class)
         ->middleware('signed')
         ->name('sales.cash-close-pdf');
@@ -264,6 +272,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('accounts-payables/{accountsPayable}/payment-report-pdf', AccountsPayablePaymentReportPdfController::class)
         ->middleware('signed')
         ->name('accounts-payables.payment-report-pdf');
+
+    Route::get('accounts-receivables/{accountsReceivable}/invoice-pdf', AccountsReceivableInvoicePdfController::class)
+        ->middleware('signed')
+        ->name('accounts-receivables.invoice-pdf');
 
     Route::get('accounts-payables/bulk-payment-report-pdf', AccountsPayableBulkPaymentReportPdfController::class)
         ->middleware('signed')

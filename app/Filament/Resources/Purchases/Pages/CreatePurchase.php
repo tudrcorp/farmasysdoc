@@ -18,6 +18,7 @@ use App\Services\Finance\AccountsPayableFromPurchaseSynchronizer;
 use App\Services\Finance\PurchaseBookFromPurchaseSynchronizer;
 use App\Services\Finance\PurchaseHistoryFromPurchaseSynchronizer;
 use App\Services\Finance\PurchaseLedgerFromPurchaseSynchronizer;
+use App\Support\Finance\VatRetentionAgentPolicy;
 use App\Support\Purchases\PurchaseBcvRate;
 use App\Support\Purchases\PurchaseCreateSummaryPresenter;
 use App\Support\Purchases\PurchaseDeclaredInvoiceTotalTolerance;
@@ -109,6 +110,10 @@ class CreatePurchase extends CreateRecord
     {
         $supplierId = $this->data['supplier_id'] ?? null;
         if (blank($supplierId)) {
+            return false;
+        }
+
+        if (! VatRetentionAgentPolicy::retainsOnInvoiceDate($this->data['supplier_invoice_date'] ?? null)) {
             return false;
         }
 

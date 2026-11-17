@@ -9,6 +9,7 @@ use App\Models\PurchaseHistory;
 use App\Models\PurchaseLedger;
 use App\Services\Audit\AuditLogger;
 use App\Support\Finance\PurchaseFiscalHistoryBackfillResult;
+use App\Support\Finance\VatRetentionAgentPolicy;
 use App\Support\Purchases\PurchaseHistoryEntryType;
 use App\Support\Purchases\PurchasePaymentStatus;
 use Illuminate\Support\Facades\Auth;
@@ -109,7 +110,8 @@ final class PurchaseFiscalHistoryBackfillSynchronizer
         $ledgerCountBefore = PurchaseLedger::query()->where('purchase_id', $purchase->id)->count();
 
         $purchase->loadMissing('supplier');
-        if ($purchase->supplier?->seniat_retention_percent === null) {
+        if ($purchase->supplier?->seniat_retention_percent === null
+            && VatRetentionAgentPolicy::retainsOnInvoiceDate($purchase->supplier_invoice_date)) {
             $result->skippedMissingRetentionPercent++;
             $supplierLabel = $purchase->supplier !== null
                 ? (filled($purchase->supplier->legal_name)

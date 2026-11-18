@@ -163,7 +163,7 @@ class OrderForm
                     ->columnSpanFull(),
 
                 Section::make('Productos del pedido')
-                    ->description('Líneas del pedido y resumen monetario. Los importes se calculan desde el catálogo (precio lista, descuento % e IVA si el producto grava IVA).')
+                    ->description('Busque por nombre, código (SKU o código de barras) o principio activo. Los importes se calculan desde el catálogo (precio lista, descuento % e IVA si el producto grava IVA).')
                     ->icon(Heroicon::Cube)
                     ->schema([
                         Checkbox::make('is_wholesale')
@@ -189,13 +189,17 @@ class OrderForm
                                 self::applyComputedOrderTotals($set, $get);
                             })
                             ->addActionLabel('Añadir producto')
+                            ->extraAttributes(['class' => 'fi-order-items-table'])
                             ->table([
-                                TableColumn::make('Producto')->width('65%'),
-                                TableColumn::make('Cantidad'),
+                                TableColumn::make('Producto')->width('42%'),
+                                TableColumn::make('Código')->width('18%'),
+                                TableColumn::make('Principio activo')->width('24%'),
+                                TableColumn::make('Cantidad')->width('16%'),
                             ])
                             ->schema([
                                 Select::make('product_id')
                                     ->label('Producto')
+                                    ->hiddenLabel()
                                     ->relationship(
                                         name: 'product',
                                         titleAttribute: 'name',
@@ -208,11 +212,19 @@ class OrderForm
                                     ->native(false)
                                     ->live()
                                     ->required()
-                                    ->helperText('Busque por nombre, código de barras, SKU, slug o principio activo.')
+                                    ->placeholder('Nombre, código o principio activo')
                                     ->prefixIcon(Heroicon::Cube),
+                                Placeholder::make('line_code')
+                                    ->label('Código')
+                                    ->hiddenLabel()
+                                    ->content(fn (Get $get): string => self::productCodeLabel(self::productForOrderLine($get('product_id')))),
+                                Placeholder::make('line_ingredient')
+                                    ->label('Principio activo')
+                                    ->hiddenLabel()
+                                    ->content(fn (Get $get): string => self::productIngredientLabel(self::productForOrderLine($get('product_id')))),
                                 TextInput::make('quantity')
                                     ->label(fn (Get $get): string => self::orderItemQuantityLabel($get))
-                                    ->helperText(fn (Get $get): string => self::orderItemQuantityHelper($get))
+                                    ->hiddenLabel()
                                     ->numeric()
                                     ->minValue(0.001)
                                     ->step(0.001)
@@ -609,19 +621,18 @@ class OrderForm
             ->orderBy('name', 'asc');
 
         if ($term !== '') {
-            $like = '%'.addcslashes($term, '%_\\').'%';
-            $ingredientLike = '%'.addcslashes(mb_strtolower($term), '%_\\').'%';
-            $query->where(function (Builder $w) use ($like, $ingredientLike): void {
-                $w->where('name', 'like', $like)
-                    ->orWhere('barcode', 'like', $like)
-                    ->orWhereRaw('LOWER(active_ingredient) LIKE ?', [$ingredientLike]);
+            $like = '%'.addcslashes(mb_strtolower($term), '%_\\').'%';
+            $query->where(function (Builder $w) use ($like): void {
+                $w->whereRaw('LOWER(name) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(COALESCE(barcode, \'\')) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(COALESCE(active_ingredient, \'\')) LIKE ?', [$like]);
 
                 if (SchemaFacade::hasColumn('products', 'sku')) {
-                    $w->orWhere('sku', 'like', $like);
+                    $w->orWhereRaw('LOWER(COALESCE(sku, \'\')) LIKE ?', [$like]);
                 }
 
                 if (SchemaFacade::hasColumn('products', 'slug')) {
-                    $w->orWhere('slug', 'like', $like);
+                    $w->orWhereRaw('LOWER(COALESCE(slug, \'\')) LIKE ?', [$like]);
                 }
             });
         }
@@ -647,6 +658,57 @@ class OrderForm
         }
 
         return self::formatProductOptionLabelForOrderSelect($product);
+    }
+
+    private static function productForOrderLine(mixed $id): ?Product
+    {
+        if (blank($id)) {
+            return null;
+        }
+
+        $key = (int) $id;
+        if ($key <= 0) {
+            return null;
+        }
+
+        static $cache = [];
+
+        return $cache[$key] ??= Product::query()->find($key);
+    }
+
+    private static function productCodeLabel(?Product $product): string
+    {
+        if (! $product instanceof Product) {
+            return '—';
+        }
+
+        $sku = trim((string) ($product->sku ?? ''));
+        $barcode = trim((string) ($product->barcode ?? ''));
+
+        if ($sku !== '' && $barcode !== '' && $sku !== $barcode) {
+            return $sku.' · '.$barcode;
+        }
+
+        if ($barcode !== '') {
+            return $barcode;
+        }
+
+        return $sku !== '' ? $sku : '—';
+    }
+
+    private static function productIngredientLabel(?Product $product): string
+    {
+        if (! $product instanceof Product) {
+            return '—';
+        }
+
+        $ingredients = $product->active_ingredient;
+        $values = array_values(array_filter(
+            array_map('strval', is_array($ingredients) ? $ingredients : [$ingredients]),
+            fn (string $value): bool => trim($value) !== '',
+        ));
+
+        return $values === [] ? '—' : implode(', ', $values);
     }
 
     private static function applyComputedOrderTotals(Set $set, Get $get): void
@@ -686,15 +748,6 @@ class OrderForm
         $wholesale = filter_var($get('../../is_wholesale'), FILTER_VALIDATE_BOOLEAN);
 
         return $wholesale ? 'Cantidad (cajas)' : 'Cantidad (unidades)';
-    }
-
-    private static function orderItemQuantityHelper(Get $get): string
-    {
-        $wholesale = filter_var($get('../../is_wholesale'), FILTER_VALIDATE_BOOLEAN);
-
-        return $wholesale
-            ? 'La cantidad en esta línea es número de cajas del producto (pedido al mayor).'
-            : 'La cantidad en esta línea es en unidades al detalle.';
     }
 
     private static function orderForPartnerFromGet(Get $get): bool

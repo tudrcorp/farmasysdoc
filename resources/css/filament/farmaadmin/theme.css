@@ -12513,6 +12513,37 @@ html.fi.dark .farmadoc-rol-perms__empty-sub {
     color: rgb(224 231 255);
 }
 
+/* Líneas del pedido: repeater en tabla (producto, código, principio activo, cantidad). */
+.fi-order-items-table.fi-fo-table-repeater table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.fi-order-items-table.fi-fo-table-repeater thead th {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
+.fi-order-items-table.fi-fo-table-repeater tbody td {
+    vertical-align: middle;
+}
+
+.fi-order-items-table .fi-fo-placeholder {
+    min-height: 2.25rem;
+    display: flex;
+    align-items: center;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+}
+
+.fi-order-items-table .fi-fo-field-wrp-helper-text,
+.fi-order-items-table .fi-fo-field-wrp-label {
+    display: none;
+}
+
 /* Resumen monetario integrado bajo el repetidor de líneas del pedido (OrderForm). */
 .fi-order-form-line-totals.fi-fieldset {
     margin-top: 1.25rem;

@@ -2,7 +2,10 @@
 
 namespace Database\Factories;
 
+use App\Enums\PartnerPanelPermission;
 use App\Models\Branch;
+use App\Models\PartnerCompany;
+use App\Models\PartnerCompanyUser;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -61,5 +64,33 @@ class UserFactory extends Factory
             'two_factor_recovery_codes' => encrypt(json_encode(['recovery-code-1'])),
             'two_factor_confirmed_at' => now(),
         ]);
+    }
+
+    /**
+     * Usuario activo del panel de aliados (dale · Aliados), vinculado a la compañía.
+     *
+     * @param  list<PartnerPanelPermission>|null  $permissions  null = todos los permisos asignables.
+     * @param  bool  $admin  administrador del panel (todos los permisos y gestión de usuarios).
+     */
+    public function partnerPanelUser(PartnerCompany $partner, ?array $permissions = null, bool $admin = false): static
+    {
+        return $this->state(fn (): array => [
+            'partner_is_admin' => $admin,
+            'branch_id' => null,
+            'roles' => null,
+            'partner_company_id' => $partner->getKey(),
+            'partner_company_code' => $partner->code,
+            'partner_user_is_active' => true,
+            'partner_permissions' => array_map(
+                fn (PartnerPanelPermission $permission): string => $permission->value,
+                $permissions ?? PartnerPanelPermission::assignable(),
+            ),
+            'partner_activated_at' => now(),
+        ])->afterCreating(function (User $user) use ($partner): void {
+            PartnerCompanyUser::query()->create([
+                'partner_company_id' => $partner->getKey(),
+                'user_id' => $user->getKey(),
+            ]);
+        });
     }
 }

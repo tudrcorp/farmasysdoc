@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\PartnerAgreementStatus;
 use App\Enums\PartnerCompanyClientType;
 use App\Enums\PartnerCompanyPaymentModality;
+use App\Support\Partners\AgreementTermStatus;
 use Database\Factories\PartnerCompanyFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -53,6 +54,7 @@ class PartnerCompany extends Model
         'updated_by',
         'date_created',
         'date_updated',
+        'agreement_expires_on',
         'assigned_credit_limit',
         'profit_percentage_a',
         'profit_percentage_b',
@@ -71,6 +73,7 @@ class PartnerCompany extends Model
             'credit_limit_usd' => 'decimal:2',
             'date_created' => 'date',
             'date_updated' => 'date',
+            'agreement_expires_on' => 'date',
             'assigned_credit_limit' => 'decimal:2',
             'profit_percentage_a' => 'decimal:6',
             'profit_percentage_b' => 'decimal:6',
@@ -187,6 +190,19 @@ class PartnerCompany extends Model
     }
 
     /**
+     * Planes corporativos asignados al aliado.
+     *
+     * @return BelongsToMany<Plan, $this>
+     */
+    public function plans(): BelongsToMany
+    {
+        return $this->belongsToMany(Plan::class)
+            ->using(PartnerCompanyPlan::class)
+            ->withPivot(PartnerCompanyPlan::PIVOT_COLUMNS)
+            ->withTimestamps();
+    }
+
+    /**
      * Convenio vigente (como máximo uno).
      *
      * @return HasOne<PartnerCompanyAgreement, $this>
@@ -196,6 +212,14 @@ class PartnerCompany extends Model
         return $this->hasOne(PartnerCompanyAgreement::class)
             ->where('status', PartnerAgreementStatus::Active->value)
             ->latestOfMany('starts_on');
+    }
+
+    /**
+     * Vigencia del convenio según la fecha de creación y la de vencimiento.
+     */
+    public function agreementTermStatus(): AgreementTermStatus
+    {
+        return AgreementTermStatus::fromDates($this->date_created, $this->agreement_expires_on);
     }
 
     /**

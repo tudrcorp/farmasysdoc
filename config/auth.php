@@ -110,6 +110,17 @@ return [
             'expire' => 60,
             'throttle' => 60,
         ],
+
+        /*
+         * Panel de aliados (dale · Aliados): el mismo enlace sirve para la invitación (el usuario
+         * define su primera clave) y para «¿Olvidó su contraseña?». Vence en 72 horas y es de un solo uso.
+         */
+        'partner_panel' => [
+            'provider' => 'users',
+            'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
+            'expire' => (int) env('PARTNER_PANEL_ACCESS_LINK_MINUTES', 4320),
+            'throttle' => 60,
+        ],
     ],
 
     /*

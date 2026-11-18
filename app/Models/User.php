@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\PartnerPanelPermission;
 use App\Support\Cash\CashierShiftLock;
 use App\Support\Filament\FarmaadminMenuAccessCatalog;
 use App\Support\Sales\PosManualDiscount;
@@ -21,17 +22,23 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'branch_id', 'partner_company_id', 'partner_company_code', 'partner_user_is_active', 'roles', 'avatar_path', 'delivery_identity_document', 'delivery_mobile_phone', 'whatsapp_phone'])]
+#[Fillable(['name', 'email', 'password', 'branch_id', 'partner_company_id', 'partner_company_code', 'partner_user_is_active', 'partner_is_admin', 'partner_permissions', 'partner_access_sent_at', 'partner_activated_at', 'partner_last_login_at', 'partner_uses_default_password', 'roles', 'avatar_path', 'delivery_identity_document', 'delivery_mobile_phone', 'whatsapp_phone'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser, HasAvatar
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, TwoFactorAuthenticatable;
+
+    /**
+     * Id del panel de aliados (dale · Aliados).
+     */
+    public const PARTNER_PANEL_ID = 'business-partners';
 
     /**
      * Get the attributes that should be cast.
@@ -46,7 +53,34 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
             'password' => 'hashed',
             'roles' => 'array',
             'partner_user_is_active' => 'boolean',
+            'partner_is_admin' => 'boolean',
+            'partner_permissions' => 'array',
+            'partner_access_sent_at' => 'datetime',
+            'partner_activated_at' => 'datetime',
+            'partner_last_login_at' => 'datetime',
+            'partner_uses_default_password' => 'boolean',
         ];
+    }
+
+    /**
+     * La marca de «clave estándar» de los usuarios de aliados se recalcula cada vez que cambia la clave.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (User $user): void {
+            if (! $user->isPartnerCompanyUser() || ! $user->isDirty('password')) {
+                return;
+            }
+
+            $default = (string) config('partner_panel.default_password');
+
+            $user->partner_uses_default_password = $default !== '' && Hash::check($default, (string) $user->getAttributes()['password']);
+        });
+    }
+
+    public function usesDefaultPartnerPassword(): bool
+    {
+        return $this->isPartnerCompanyUser() && (bool) $this->partner_uses_default_password;
     }
 
     /**
@@ -63,15 +97,112 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
 
     public function canAccessPanel(Panel $panel): bool
     {
+        if ($panel->getId() === self::PARTNER_PANEL_ID) {
+            return $this->canAccessPartnerPanel();
+        }
+
         if ($this->isCashier() && CashierShiftLock::isLocked($this)) {
             return false;
         }
 
-        if ($this->isPartnerCompanyUser() && ! $this->isAdministrator() && ! ($this->partner_user_is_active ?? true)) {
+        if ($this->isPartnerCompanyUser() && ! $this->isAdministrator()) {
             return false;
         }
 
         return true;
+    }
+
+    /**
+     * Usuario de aliado activo, cuya compañía está activa: único que entra al panel de aliados.
+     */
+    public function canAccessPartnerPanel(): bool
+    {
+        if (! $this->isPartnerCompanyUser() || ! ($this->partner_user_is_active ?? false)) {
+            return false;
+        }
+
+        $company = $this->partnerCompany;
+
+        return $company instanceof PartnerCompany && (bool) $company->is_active;
+    }
+
+    /**
+     * Motivo legible por el que el usuario no puede entrar al panel de aliados, o null si puede.
+     */
+    public function partnerPanelAccessDeniedReason(): ?string
+    {
+        if (! $this->isPartnerCompanyUser()) {
+            return 'Este acceso es solo para el equipo de las compañías aliadas. El personal de Farmadoc ingresa por su panel interno.';
+        }
+
+        if (! ($this->partner_user_is_active ?? false)) {
+            return 'Su acceso está suspendido. Comuníquese con el administrador de su empresa o con su ejecutivo de Farmadoc.';
+        }
+
+        $company = $this->partnerCompany;
+
+        if (! $company instanceof PartnerCompany || ! $company->is_active) {
+            return 'Su empresa no está activa en este momento. Comuníquese con su ejecutivo de Farmadoc.';
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function partnerPermissionValues(): array
+    {
+        return PartnerPanelPermission::normalize($this->partner_permissions);
+    }
+
+    public function hasPartnerPermission(PartnerPanelPermission $permission): bool
+    {
+        if (! $this->isPartnerCompanyUser()) {
+            return false;
+        }
+
+        if ($this->isPartnerAdmin()) {
+            return true;
+        }
+
+        return in_array($permission->value, $this->partnerPermissionValues(), true);
+    }
+
+    /**
+     * Administrador del panel dale · Aliados (lo designa Farmadoc): todos los permisos y gestión de usuarios.
+     */
+    public function isPartnerAdmin(): bool
+    {
+        return $this->isPartnerCompanyUser() && (bool) $this->partner_is_admin;
+    }
+
+    /**
+     * Permisos efectivos (para mostrar): un administrador tiene todos.
+     *
+     * @return list<string>
+     */
+    public function effectivePartnerPermissionValues(): array
+    {
+        return $this->isPartnerAdmin() ? PartnerPanelPermission::values() : $this->partnerPermissionValues();
+    }
+
+    /**
+     * Estado del acceso al panel de aliados: suspendido, invitación pendiente o activo.
+     *
+     * @return array{key: 'suspended'|'pending'|'active', label: string, color: string}
+     */
+    public function partnerAccessStatus(): array
+    {
+        if (! ($this->partner_user_is_active ?? false)) {
+            return ['key' => 'suspended', 'label' => 'Suspendido', 'color' => 'danger'];
+        }
+
+        if ($this->partner_activated_at === null) {
+            return ['key' => 'pending', 'label' => 'Invitación pendiente', 'color' => 'warning'];
+        }
+
+        return ['key' => 'active', 'label' => 'Activo', 'color' => 'success'];
     }
 
     /**
@@ -528,7 +659,14 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
      */
     public function canAccessFarmaadminMenuKey(string $menuKey): bool
     {
-        return in_array($menuKey, $this->resolvedAllowedFarmaadminMenuItems(), true);
+        $allowed = $this->resolvedAllowedFarmaadminMenuItems();
+
+        if (in_array($menuKey, $allowed, true)) {
+            return true;
+        }
+
+        // Quien usa la caja (menú «Ventas») ve también sus ventas por convenio: llega a la nota de entrega al cerrar la venta.
+        return $menuKey === 'partner_agreement_sales' && in_array('sales', $allowed, true);
     }
 
     /**

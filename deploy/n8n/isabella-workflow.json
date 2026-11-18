@@ -1,0 +1,1011 @@
+{
+  "name": "Isabella · Pedidos por WhatsApp (Farmadoc)",
+  "nodes": [
+    {
+      "id": "106600fa-03f1-4d33-babd-f9601ab16e67",
+      "name": "Turno de Farmasysdoc",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "isabella",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Farmasysdoc · Isabella"
+        }
+      },
+      "webhookId": "8b4513f5-1497-43f7-a381-cfcf7c2a3f31"
+    },
+    {
+      "id": "6d934e2b-cad0-437f-b22d-6eab0df25136",
+      "name": "Preparar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body ?? {};\nconst context = body.context ?? {};\nconst pending = Array.isArray(context.pending_media) ? context.pending_media : [];\n\nreturn [{\n  json: {\n    conversation_id: context.conversation_id,\n    api: String(body.api_base_url ?? '').replace(/\\/$/, ''),\n    pending_media: pending,\n    has_media: pending.length > 0,\n  },\n}];"
+      }
+    },
+    {
+      "id": "b65419c8-731e-4e59-89e9-2ca1e9fe81fb",
+      "name": "¿Hay fotos o notas de voz?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "3031e4e8-6eb0-4235-a32d-cf3c3cdda89c",
+              "leftValue": "={{ $json.has_media }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "3a61d39d-5fee-4a4d-8e96-dc854089943f",
+      "name": "Separar archivos",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        660,
+        160
+      ],
+      "parameters": {
+        "fieldToSplitOut": "pending_media",
+        "options": {}
+      }
+    },
+    {
+      "id": "1eab09bd-6d31-432b-9bfc-5c5f1e1a1570",
+      "name": "Recorrer archivos",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        880,
+        160
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "6303b192-e7c7-4492-ad00-834d6285d342",
+      "name": "Descargar archivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        40
+      ],
+      "parameters": {
+        "url": "={{ $json.download_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Farmasysdoc · Isabella"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "ea6ee886-4dd1-4dd9-ae00-b92e2906f532",
+      "name": "Preparar petición a Gemini",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        40
+      ],
+      "parameters": {
+        "jsCode": "const file = $('Recorrer archivos').first().json;\nlet b64 = '';\nlet mime = file.mime || 'application/octet-stream';\n\ntry {\n  const buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\n  b64 = buffer.toString('base64');\n  mime = file.mime || $input.first().binary?.data?.mimeType || mime;\n} catch (error) {\n  b64 = '';\n}\n\nconst recipePrompt = `Eres una farmacéutica venezolana experta en leer récipes médicos escritos a mano o impresos.\nAnaliza la imagen y responde SOLO con el JSON pedido.\n\n- is_prescription: true si es un récipe o indicación médica; false si es otra cosa (caja de un producto, documento, foto personal).\n  Si es la foto de un producto, pon su nombre en items y is_prescription = false.\n- legibility: \"legible\" si puedes leer con seguridad los medicamentos; \"dudosa\" si hay partes que no se leen bien; \"ilegible\" si está borrosa, cortada, oscura o no se entiende.\n- items: cada medicamento con nombre, concentración (ej. \"50 mg\"), presentación (tabletas, jarabe…), cantidad indicada, indicaciones de uso y confidence entre 0 y 1.\n- is_controlled_substance: true si es psicotrópico o estupefaciente (ej. clonazepam, alprazolam, tramadol, morfina, metilfenidato).\n- NUNCA inventes ni completes un nombre que no se lee: baja la confianza y explica el problema en issues.\n- issues: problemas de la imagen o de la lectura, en español y en pocas palabras.`;\n\nconst schema = {\n  type: 'OBJECT',\n  properties: {\n    is_prescription: { type: 'BOOLEAN' },\n    legibility: { type: 'STRING', enum: ['legible', 'dudosa', 'ilegible'] },\n    overall_confidence: { type: 'NUMBER' },\n    doctor_name: { type: 'STRING' },\n    prescription_date: { type: 'STRING' },\n    issues: { type: 'ARRAY', items: { type: 'STRING' } },\n    items: {\n      type: 'ARRAY',\n      items: {\n        type: 'OBJECT',\n        properties: {\n          medication_name: { type: 'STRING' },\n          concentration: { type: 'STRING' },\n          presentation: { type: 'STRING' },\n          quantity_text: { type: 'STRING' },\n          dosage_instructions: { type: 'STRING' },\n          confidence: { type: 'NUMBER' },\n          is_controlled_substance: { type: 'BOOLEAN' },\n        },\n        required: ['medication_name', 'confidence'],\n      },\n    },\n  },\n  required: ['is_prescription', 'legibility', 'items'],\n};\n\nconst isImage = file.type === 'image';\n\nconst request = isImage\n  ? {\n      contents: [{ role: 'user', parts: [{ text: recipePrompt }, { inline_data: { mime_type: mime, data: b64 } }] }],\n      generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: schema },\n    }\n  : {\n      contents: [{ role: 'user', parts: [\n        { text: 'Transcribe literalmente, en español, esta nota de voz de un cliente de una farmacia en Venezuela. Devuelve solo el texto, sin comentarios. Si no se entiende nada, devuelve [inaudible].' },\n        { inline_data: { mime_type: mime, data: b64 } },\n      ] }],\n      generationConfig: { temperature: 0 },\n    };\n\nreturn [{ json: { ...file, mime, gemini_request: request } }];"
+      }
+    },
+    {
+      "id": "5537d6b7-c804-4ee9-bf7a-4e69d7a2afa1",
+      "name": "Gemini · leer archivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        40
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.gemini_request) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Gemini API (x-goog-api-key)"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "faee0bf5-a270-4c2e-8be0-dd124787bd2e",
+      "name": "Interpretar lectura",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        40
+      ],
+      "parameters": {
+        "jsCode": "const file = $('Preparar petición a Gemini').first().json;\nconst prep = $('Preparar').first().json;\nconst parts = $input.first().json?.candidates?.[0]?.content?.parts ?? [];\nconst text = parts.map((part) => part.text ?? '').join('').trim();\nconst clamp = (value) => (typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : null);\n\nif (file.type === 'image') {\n  let reading;\n  try {\n    reading = JSON.parse(text);\n  } catch (error) {\n    reading = { is_prescription: true, legibility: 'ilegible', items: [], issues: ['No se pudo leer la imagen con el modelo'] };\n  }\n\n  const items = (Array.isArray(reading.items) ? reading.items : [])\n    .filter((item) => item && item.medication_name)\n    .map((item) => ({ ...item, confidence: clamp(item.confidence) }));\n\n  return [{\n    json: {\n      save_method: 'POST',\n      save_url: `${prep.api}/conversations/${prep.conversation_id}/prescription-readings`,\n      save_body: {\n        whatsapp_message_id: file.message_id,\n        is_prescription: reading.is_prescription !== false,\n        legibility: ['legible', 'dudosa', 'ilegible'].includes(reading.legibility) ? reading.legibility : 'dudosa',\n        overall_confidence: clamp(reading.overall_confidence),\n        doctor_name: reading.doctor_name || null,\n        prescription_date: reading.prescription_date || null,\n        issues: Array.isArray(reading.issues) ? reading.issues.slice(0, 10) : [],\n        items: items.slice(0, 20),\n        raw_response: reading,\n      },\n    },\n  }];\n}\n\nreturn [{\n  json: {\n    save_method: 'POST',\n    save_url: `${prep.api}/messages/${file.message_id}/transcription`,\n    save_body: { transcription: text || '[Nota de voz que no se pudo transcribir]' },\n  },\n}];"
+      }
+    },
+    {
+      "id": "0c2619fa-d0bf-443a-8241-4d4c66e6950f",
+      "name": "Guardar en Farmasysdoc",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        40
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.save_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.save_body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Farmasysdoc · Isabella"
+        }
+      }
+    },
+    {
+      "id": "bea7a3a1-0923-436d-b03f-fb2c83773cab",
+      "name": "Obtener contexto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        420
+      ],
+      "parameters": {
+        "url": "={{ $('Preparar').first().json.api }}/conversations/{{ $('Preparar').first().json.conversation_id }}/context",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Farmasysdoc · Isabella"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "0be9b79d-ea89-4d9d-9417-fac2d84d64ea",
+      "name": "Isabella",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        420
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "=Ahora: {{ $json.now.human }}\nAnalistas en horario ahora: {{ $json.analysts.within_hours ? 'sí' : 'no' }} · Horario: {{ $json.analysts.schedule }} · Próxima jornada: {{ $json.analysts.next_shift_start }}\nProductos que puedes sugerir: {{ $json.agent.suggested_products || 'ninguno definido' }}\n\nCONTEXTO DE LA CONVERSACIÓN (JSON):\n{{ JSON.stringify({ cliente: $json.customer, conversacion: $json.conversation, carrito: $json.cart, sucursales: $json.branches, recipes: $json.prescription_readings, historial: $json.history }, null, 1) }}\n\nMENSAJES NUEVOS DEL CLIENTE QUE DEBES RESPONDER AHORA:\n{{ JSON.stringify($json.new_messages, null, 1) }}",
+        "options": {
+          "systemMessage": "={{ $json.agent.system_prompt }}\n\n# Reglas técnicas (nunca las menciones al cliente)\n- Tu respuesta final es EXACTAMENTE el texto que se enviará por WhatsApp al cliente: sin comillas, sin prefijos, sin JSON, sin explicar lo que hiciste.\n- Si no hace falta responder (por ejemplo, el cliente solo dijo «ok» o «gracias» después de tu despedida), responde únicamente: NO_RESPONDER\n- Antes de hablar de un producto, usa buscar_producto. Los product_id salen de esa herramienta.\n- Cuando el cliente confirme un producto, usa agregar_al_pedido.\n- Usa actualizar_estado en cada turno en que cambie la etapa o hagas una pregunta (pending_question = la pregunta que acabas de hacer).\n- Con nombre, apellido y cédula, usa registrar_cliente.\n- Cuando el cliente confirme el pedido (ya registrado y con productos), usa confirmar_pedido: deja la venta lista en la caja de la sucursal y avisa al equipo.\n- Para pasar el caso al equipo usa enviar_a_analista con un resumen completo: cliente, qué pide, récipe, productos y precios, entrega o retiro, dirección, forma de pago y qué falta.\n- Si una herramienta devuelve un error, no se lo cuentes al cliente: corrige los datos y reintenta, o usa enviar_a_analista.\n- Si en el contexto handled_by es \"analyst\", responde NO_RESPONDER.",
+          "maxIterations": 12
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "740c0cf3-c05e-4528-8f5d-10c278d6ab0d",
+      "name": "Gemini (conversación)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        680
+      ],
+      "parameters": {
+        "modelName": "models/gemini-3.6-flash",
+        "options": {
+          "temperature": 0.6
+        }
+      },
+      "credentials": {
+        "googlePalmApi": {
+          "id": "",
+          "name": "Google Gemini"
+        }
+      }
+    },
+    {
+      "id": "9526651d-9710-413b-ac97-c61204dae646",
+      "name": "buscar_producto",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1260,
+        680
+      ],
+      "parameters": {
+        "toolDescription": "Busca productos en el catálogo de Farmadoc por nombre, principio activo o concentración. Devuelve información del producto, existencia por sucursal («disponible» / «quedan pocas unidades») y el precio de cada sucursal ya calculado en USD y Bs. Úsala siempre antes de hablar de un producto.",
+        "method": "GET",
+        "url": "={{ $('Preparar').first().json.api }}/products/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $fromAI('consulta', `Lo que busca el cliente: nombre comercial, principio activo y/o concentración. Ej.: losartan 50 mg`, 'string') }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Farmasysdoc · Isabella"
+        }
+      }
+    },
+    {
+      "id": "f474792b-30a4-46c3-b1f4-ac133e48bcb6",
+      "name": "registrar_cliente",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1420,
+        680
+      ],
+      "parameters": {
+        "toolDescription": "Registra al cliente en la caja con su nombre, apellido y cédula. El teléfono se toma solo de WhatsApp. Úsala apenas tengas los tres datos.",
+        "method": "POST",
+        "url": "={{ $('Preparar').first().json.api }}/conversations/{{ $('Preparar').first().json.conversation_id }}/customer",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "full_name",
+              "value": "={{ $fromAI('nombre_completo', `Nombre y apellido del cliente, tal como los dio`, 'string') }}"
+            },
+            {
+              "name": "document_type",
+              "value": "={{ $fromAI('tipo_cedula', `Letra de la cédula: V o E`, 'string', \"V\") }}"
+            },
+            {
+              "name": "document_number",
+              "value": "={{ $fromAI('numero_cedula', `Número de cédula, solo dígitos`, 'string') }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Farmasysdoc · Isabella"
+        }
+      }
+    },
+    {
+      "id": "e14c77a1-d8d4-425e-861c-1908b9419258",
+      "name": "agregar_al_pedido",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1580,
+        680
+      ],
+      "parameters": {
+        "toolDescription": "Agrega un producto al pedido del cliente (o cambia su cantidad si ya estaba). Úsala cuando el cliente confirme que lo quiere.",
+        "method": "POST",
+        "url": "={{ $('Preparar').first().json.api }}/conversations/{{ $('Preparar').first().json.conversation_id }}/items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "product_id",
+              "value": "={{ $fromAI('product_id', `product_id que devolvió buscar_producto. Usa 0 si el producto no está en el catálogo`, 'number', 0) }}"
+            },
+            {
+              "name": "requested_name",
+              "value": "={{ $fromAI('nombre_pedido', `Nombre del producto tal como lo pidió el cliente`, 'string') }}"
+            },
+            {
+              "name": "quantity",
+              "value": "={{ $fromAI('cantidad', `Cantidad de unidades o cajas`, 'number', 1) }}"
+            },
+            {
+              "name": "notes",
+              "value": "={{ $fromAI('nota', `Nota opcional (presentación, sucursal preferida…)`, 'string', \"\") }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Farmasysdoc · Isabella"
+        }
+      }
+    },
+    {
+      "id": "12e15e9d-46c0-425c-bba5-14a9b6f83e48",
+      "name": "quitar_del_pedido",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1740,
+        680
+      ],
+      "parameters": {
+        "toolDescription": "Quita un producto del pedido usando su item_id (lo ves en el carrito del contexto).",
+        "method": "DELETE",
+        "url": "={{ $('Preparar').first().json.api }}/conversations/{{ $('Preparar').first().json.conversation_id }}/items/{{ $fromAI('item_id', `item_id del carrito que hay que quitar`, 'number') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Farmasysdoc · Isabella"
+        }
+      }
+    },
+    {
+      "id": "1093f14c-2a77-4a2a-8c49-0e106efdc303",
+      "name": "actualizar_estado",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1900,
+        680
+      ],
+      "parameters": {
+        "toolDescription": "Guarda el hilo de la conversación: etapa, la pregunta que acabas de hacer, notas y los datos de entrega y pago. Deja vacío lo que no cambia.",
+        "method": "PATCH",
+        "url": "={{ $('Preparar').first().json.api }}/conversations/{{ $('Preparar').first().json.conversation_id }}/state",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "stage",
+              "value": "={{ $fromAI('etapa', `Una de: saludo, necesidad, recipe, cotizacion, datos_cliente, entrega, pago, confirmacion, enviado_analista`, 'string', \"\") }}"
+            },
+            {
+              "name": "pending_question",
+              "value": "={{ $fromAI('pregunta_pendiente', `La pregunta que le acabas de hacer al cliente`, 'string', \"\") }}"
+            },
+            {
+              "name": "notes",
+              "value": "={{ $fromAI('notas', `Notas útiles para no perder el hilo (productos sin existencia, preferencias…)`, 'string', \"\") }}"
+            },
+            {
+              "name": "preferred_branch",
+              "value": "={{ $fromAI('sucursal_preferida', `Sucursal que prefiere el cliente`, 'string', \"\") }}"
+            },
+            {
+              "name": "fulfillment_type",
+              "value": "={{ $fromAI('tipo_entrega', `delivery o retiro`, 'string', \"\") }}"
+            },
+            {
+              "name": "delivery_address",
+              "value": "={{ $fromAI('direccion', `Dirección de entrega`, 'string', \"\") }}"
+            },
+            {
+              "name": "delivery_reference",
+              "value": "={{ $fromAI('punto_referencia', `Punto de referencia de la dirección`, 'string', \"\") }}"
+            },
+            {
+              "name": "delivery_recipient_name",
+              "value": "={{ $fromAI('quien_recibe', `Quién recibe, si no es el cliente`, 'string', \"\") }}"
+            },
+            {
+              "name": "delivery_recipient_phone",
+              "value": "={{ $fromAI('telefono_quien_recibe', `Teléfono de quien recibe, si no es el cliente`, 'string', \"\") }}"
+            },
+            {
+              "name": "payment_method",
+              "value": "={{ $fromAI('forma_pago', `Cómo va a pagar (pago móvil, efectivo USD, punto de venta, Zelle…)`, 'string', \"\") }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Farmasysdoc · Isabella"
+        }
+      }
+    },
+    {
+      "id": "2997ae1c-3140-4038-91cb-bb5e2666ffea",
+      "name": "confirmar_pedido",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        2220,
+        680
+      ],
+      "parameters": {
+        "toolDescription": "Confirma el pedido cuando el cliente dijo que sí: lo deja en «Ventas en pausa» de la caja de la sucursal para facturar y avisa al equipo para verificar el pago. Requiere al cliente registrado y productos en el pedido.",
+        "method": "POST",
+        "url": "={{ $('Preparar').first().json.api }}/conversations/{{ $('Preparar').first().json.conversation_id }}/confirm-order",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "fulfillment_type",
+              "value": "={{ $fromAI('tipo_entrega', `retiro o delivery`, 'string') }}"
+            },
+            {
+              "name": "branch_id",
+              "value": "={{ $fromAI('sucursal_id', `branch_id de la sucursal donde retira (de la lista de sucursales del contexto). Para delivery puede ser 0`, 'number', 0) }}"
+            },
+            {
+              "name": "payment_method",
+              "value": "={{ $fromAI('forma_pago', `Cómo va a pagar (pago móvil, efectivo USD, punto de venta, Zelle…)`, 'string', \"\") }}"
+            },
+            {
+              "name": "summary",
+              "value": "={{ $fromAI('resumen', `Resumen completo del pedido para el equipo: cliente, productos y cantidades, productos por conseguir, total, entrega y forma de pago`, 'string') }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Farmasysdoc · Isabella"
+        }
+      }
+    },
+    {
+      "id": "b324b53a-51cc-4790-a637-7afeba68fbbb",
+      "name": "enviar_a_analista",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        2060,
+        680
+      ],
+      "parameters": {
+        "toolDescription": "Pasa la conversación al equipo de Farmadoc: récipe dudoso o controlado, emergencia, reclamo, el cliente pide una persona, o el pedido está confirmado y listo para gestionar.",
+        "method": "POST",
+        "url": "={{ $('Preparar').first().json.api }}/conversations/{{ $('Preparar').first().json.conversation_id }}/escalate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "reason",
+              "value": "={{ $fromAI('motivo', `Motivo corto por el que pasa al equipo`, 'string') }}"
+            },
+            {
+              "name": "summary",
+              "value": "={{ $fromAI('resumen', `Resumen completo para el analista: cliente, qué pide, récipe, productos y precios, entrega o retiro, dirección, forma de pago y qué falta`, 'string') }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Farmasysdoc · Isabella"
+        }
+      }
+    },
+    {
+      "id": "2661c0c2-4d52-430e-97db-919f4b0b43e0",
+      "name": "¿Hay que responder?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1700,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "5c65b29c-41a2-403d-bac4-8cd1108008ef",
+              "leftValue": "={{ String($json.output ?? '').trim() }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "3e21aafd-fff8-41f4-8fe5-5e6181893037",
+              "leftValue": "={{ String($json.output ?? '').trim() }}",
+              "rightValue": "NO_RESPONDER",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e10f3817-14f4-440b-a9aa-27dd9ff364a9",
+      "name": "Enviar respuesta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1940,
+        380
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Preparar').first().json.api }}/conversations/{{ $('Preparar').first().json.conversation_id }}/reply",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ body: String($json.output).trim() }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Farmasysdoc · Isabella"
+        }
+      }
+    },
+    {
+      "id": "e036f3a3-1845-4dba-8822-8181d9dd97a9",
+      "name": "Avisar falla al equipo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1700,
+        560
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Preparar').first().json.api }}/conversations/{{ $('Preparar').first().json.conversation_id }}/escalate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ reason: 'El asistente tuvo una falla técnica y no respondió. Atienda al cliente directamente.', summary: 'Error en n8n: ' + String($json.error?.message ?? $json.error ?? 'desconocido').slice(0, 1000) }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Farmasysdoc · Isabella"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Turno de Farmasysdoc": {
+      "main": [
+        [
+          {
+            "node": "Preparar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar": {
+      "main": [
+        [
+          {
+            "node": "¿Hay fotos o notas de voz?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay fotos o notas de voz?": {
+      "main": [
+        [
+          {
+            "node": "Separar archivos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Obtener contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar archivos": {
+      "main": [
+        [
+          {
+            "node": "Recorrer archivos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recorrer archivos": {
+      "main": [
+        [
+          {
+            "node": "Obtener contexto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Descargar archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar archivo": {
+      "main": [
+        [
+          {
+            "node": "Preparar petición a Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar petición a Gemini": {
+      "main": [
+        [
+          {
+            "node": "Gemini · leer archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini · leer archivo": {
+      "main": [
+        [
+          {
+            "node": "Interpretar lectura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpretar lectura": {
+      "main": [
+        [
+          {
+            "node": "Guardar en Farmasysdoc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar en Farmasysdoc": {
+      "main": [
+        [
+          {
+            "node": "Recorrer archivos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener contexto": {
+      "main": [
+        [
+          {
+            "node": "Isabella",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Isabella": {
+      "main": [
+        [
+          {
+            "node": "¿Hay que responder?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisar falla al equipo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay que responder?": {
+      "main": [
+        [
+          {
+            "node": "Enviar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Gemini (conversación)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Isabella",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar_producto": {
+      "ai_tool": [
+        [
+          {
+            "node": "Isabella",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "registrar_cliente": {
+      "ai_tool": [
+        [
+          {
+            "node": "Isabella",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agregar_al_pedido": {
+      "ai_tool": [
+        [
+          {
+            "node": "Isabella",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "quitar_del_pedido": {
+      "ai_tool": [
+        [
+          {
+            "node": "Isabella",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "actualizar_estado": {
+      "ai_tool": [
+        [
+          {
+            "node": "Isabella",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "confirmar_pedido": {
+      "ai_tool": [
+        [
+          {
+            "node": "Isabella",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "enviar_a_analista": {
+      "ai_tool": [
+        [
+          {
+            "node": "Isabella",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Caracas",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

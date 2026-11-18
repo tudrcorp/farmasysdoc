@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class ActiveIngredient extends Model
 {
@@ -25,5 +26,13 @@ class ActiveIngredient extends Model
         return [
             'slug' => 'string',
         ];
+    }
+
+    /**
+     * @return BelongsToMany<FormularyCategory, $this>
+     */
+    public function formularyCategories(): BelongsToMany
+    {
+        return $this->belongsToMany(FormularyCategory::class)->withPivot(['presentation', 'sort'])->withTimestamps();
     }
 }

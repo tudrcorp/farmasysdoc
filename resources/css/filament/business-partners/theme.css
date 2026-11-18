@@ -1,0 +1,390 @@
+/*
+|--------------------------------------------------------------------------
+| dale · Aliados — tema del panel de aliados
+|--------------------------------------------------------------------------
+|
+| Parte del tema de Farmaadmin (los formularios y tablas compartidos, como
+| pedidos, dependen de sus estilos) y encima aplica la capa de diseño de dale:
+| Poppins, turquesa #0BA2AF y gris azulado #C8D2D9 (la paleta llega desde el
+| panel: App\Support\Branding\DaleBrand), movimiento corto y cifras tabulares.
+|
+*/
+
+@import '../farmaadmin/theme.css';
+
+@source '../../../../app/Filament/BusinessPartners/**/*';
+@source '../../../../resources/views/filament/business-partners/**/*';
+
+
+:root {
+    --dale-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --dale-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --dale-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+    --dale-duration-fast: 150ms;
+    --dale-duration: 220ms;
+}
+
+/* --- Base ------------------------------------------------------------------------------------- */
+
+body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+.fi-ta-table,
+.fi-in-text,
+.fi-wi-stats-overview-stat-value,
+.fi-badge,
+.dale-figures {
+    font-variant-numeric: tabular-nums;
+}
+
+a:focus-visible,
+button:focus-visible,
+[role='button']:focus-visible,
+[role='tab']:focus-visible {
+    outline: 2px solid var(--primary-500);
+    outline-offset: 2px;
+}
+
+::selection {
+    background-color: color-mix(in oklab, var(--primary-500) 25%, transparent);
+}
+
+/* --- Sign-in and other simple pages: a quiet wash of the business colour ------------------- */
+
+.fi-simple-layout {
+    background-image:
+        radial-gradient(60rem 30rem at 50% -10%, color-mix(in oklab, var(--primary-500) 14%, transparent), transparent 70%),
+        radial-gradient(40rem 20rem at 100% 100%, color-mix(in oklab, var(--primary-300) 10%, transparent), transparent 70%);
+}
+
+.fi-simple-main {
+    @apply rounded-2xl shadow-lg ring-gray-950/5;
+}
+
+/* --- Page header ------------------------------------------------------------------------------ */
+
+.fi-header-heading {
+    @apply text-2xl font-semibold tracking-tight sm:text-[1.75rem];
+}
+
+.fi-header-subheading {
+    @apply text-sm text-gray-500 sm:text-base dark:text-gray-400;
+}
+
+/* --- Topbar: the business logo stays visible on phones ------------------------------------- */
+
+@media (max-width: 1023px) {
+    .fi-topbar-start {
+        @apply me-auto flex;
+
+        & .fi-icon-btn {
+            @apply hidden;
+        }
+
+        & .fi-logo {
+            @apply ms-1 h-7!;
+        }
+    }
+}
+
+/* --- Sidebar: denser, calmer, labelled groups ------------------------------------------------- */
+
+.fi-sidebar-nav {
+    @apply gap-y-5 px-4 py-6;
+}
+
+.fi-sidebar-nav-groups {
+    @apply gap-y-5;
+}
+
+.fi-sidebar-group,
+.fi-sidebar-group-items {
+    @apply gap-y-0.5;
+}
+
+.fi-sidebar-group-label {
+    @apply text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400;
+}
+
+.fi-sidebar-item-btn {
+    @apply py-1.5;
+    transition: background-color var(--dale-duration-fast) var(--dale-ease-out);
+}
+
+.fi-sidebar-item.fi-active > .fi-sidebar-item-btn .fi-sidebar-item-label {
+    @apply font-semibold;
+}
+
+/* --- Buttons: tactile press, smooth colour -------------------------------------------------- */
+
+.fi-btn,
+.fi-icon-btn,
+.fi-link {
+    transition-property: transform, background-color, border-color, color, box-shadow, opacity;
+    transition-duration: var(--dale-duration-fast);
+    transition-timing-function: var(--dale-ease-out);
+}
+
+.fi-btn:active:not(:disabled):not(.fi-disabled) {
+    transform: scale(0.97);
+}
+
+.fi-icon-btn:active:not(:disabled):not(.fi-disabled) {
+    transform: scale(0.92);
+}
+
+.fi-btn {
+    @apply font-semibold;
+}
+
+/* --- Modals and slide-overs: fast in, faster out -------------------------------------------- */
+
+.fi-modal-window.fi-transition-enter {
+    transition-duration: var(--dale-duration);
+    transition-timing-function: var(--dale-ease-out);
+}
+
+.fi-modal-window.fi-transition-leave {
+    transition-duration: var(--dale-duration-fast);
+    transition-timing-function: var(--dale-ease-out);
+}
+
+.fi-modal:not(.fi-modal-slide-over) > .fi-modal-window-ctn > .fi-modal-window {
+    &.fi-transition-enter-start,
+    &.fi-transition-leave-end {
+        transform: scale(0.96);
+        opacity: 0;
+    }
+}
+
+.fi-modal.fi-modal-slide-over > .fi-modal-window-ctn > .fi-modal-window.fi-transition-enter {
+    transition-duration: 400ms;
+    transition-timing-function: var(--dale-ease-drawer);
+}
+
+.fi-modal > .fi-modal-close-overlay {
+    transition-duration: var(--dale-duration);
+    @apply backdrop-blur-[2px];
+}
+
+.fi-modal-window {
+    @apply rounded-2xl;
+}
+
+/* --- Dropdowns and tooltips ----------------------------------------------------------------- */
+
+.fi-dropdown-panel {
+    @apply rounded-xl shadow-xl;
+    transition-duration: var(--dale-duration-fast);
+    transition-timing-function: var(--dale-ease-out);
+}
+
+/* --- Forms ---------------------------------------------------------------------------------- */
+
+.fi-input-wrp {
+    transition:
+        box-shadow var(--dale-duration-fast) var(--dale-ease-out),
+        background-color var(--dale-duration-fast) var(--dale-ease-out);
+}
+
+.fi-fo-field-label-content {
+    @apply font-medium;
+}
+
+/* --- Sections and cards --------------------------------------------------------------------- */
+
+.fi-section {
+    @apply rounded-2xl;
+}
+
+.fi-section-header-heading {
+    @apply font-semibold tracking-tight;
+}
+
+/* --- Tables: scannable, quiet chrome, figures that line up ----------------------------------- */
+
+.fi-ta-ctn {
+    @apply rounded-2xl;
+}
+
+.fi-ta-header-cell {
+    @apply text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400;
+}
+
+.fi-ta-text:not(.fi-inline) {
+    @apply py-3;
+}
+
+.fi-ta-row {
+    transition: background-color 120ms var(--dale-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .fi-ta-row.fi-clickable:hover {
+        @apply bg-gray-50 dark:bg-white/5;
+    }
+}
+
+.fi-badge {
+    @apply font-medium;
+}
+
+/* --- Dashboard shortcuts -------------------------------------------------------------------- */
+
+.dale-shortcut {
+    transition:
+        transform var(--dale-duration-fast) var(--dale-ease-out),
+        box-shadow var(--dale-duration-fast) var(--dale-ease-out);
+
+    &:active {
+        transform: scale(0.98);
+    }
+}
+
+.dale-shortcut-arrow {
+    transition: transform var(--dale-duration) var(--dale-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .dale-shortcut:hover {
+        @apply shadow-sm ring-gray-950/10 dark:ring-white/20;
+
+        & .dale-shortcut-arrow {
+            transform: translateX(2px);
+        }
+    }
+}
+
+/* --- Point of sale ------------------------------------------------------------------------- */
+
+@media (hover: hover) and (pointer: fine) {
+    .dale-remove-line:hover {
+        @apply text-danger-600 dark:text-danger-400;
+    }
+}
+
+/* --- Notifications -------------------------------------------------------------------------- */
+
+.fi-no-notification {
+    @apply rounded-xl;
+    transition-duration: 300ms !important;
+    transition-timing-function: var(--dale-ease-out) !important;
+}
+
+/* --- Accessibility: honour "reduce motion" -------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .fi-btn:active,
+    .fi-icon-btn:active {
+        transform: none !important;
+    }
+}
+
+/* --- dale · Aliados: piezas propias del panel ------------------------------------------------ */
+
+html.fi .fi-body {
+    font-family: var(--font-family), 'Poppins', ui-sans-serif, system-ui, sans-serif;
+}
+
+.fi-logo {
+    @apply w-auto;
+}
+
+.dale-card {
+    @apply rounded-2xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10;
+}
+
+.dale-figures,
+.dale-kpi-value {
+    font-variant-numeric: tabular-nums;
+}
+
+.dale-progress-bar {
+    transition: width 600ms var(--dale-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    a.dale-card:hover,
+    .dale-row-link:hover {
+        @apply ring-primary-500/40;
+    }
+}
+
+/* Autocompletado del navegador: sin el fondo amarillo, con los colores del panel */
+.fi-input:-webkit-autofill,
+.fi-input:-webkit-autofill:hover,
+.fi-input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--gray-950);
+    -webkit-box-shadow: 0 0 0 1000px var(--color-white) inset;
+    transition: background-color 9999s ease-out 0s;
+}
+
+.dark .fi-input:-webkit-autofill,
+.dark .fi-input:-webkit-autofill:hover,
+.dark .fi-input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--color-white);
+    -webkit-box-shadow: 0 0 0 1000px var(--gray-900) inset;
+}
+
+/*
+ * Barra superior y menús desplegables sin «vidrio esmerilado» (backdrop-filter): Chrome recorta
+ * los desplegables con desenfoque anidados dentro de la barra con desenfoque (el menú de usuario
+ * salía cortado) y el efecto es costoso en GPU. Fondos sólidos con la paleta de dale.
+ */
+.fi-topbar-ctn {
+    overflow: visible;
+    isolation: auto;
+}
+
+.fi-topbar,
+.dark .fi-topbar {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+.fi-topbar {
+    background-color: var(--color-white);
+}
+
+.dark .fi-topbar {
+    background-color: var(--gray-950);
+}
+
+.fi-dropdown-panel,
+.dark .fi-dropdown-panel {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+.fi-dropdown-panel {
+    background: var(--color-white) !important;
+}
+
+.dark .fi-dropdown-panel {
+    background: var(--gray-900) !important;
+    box-shadow:
+        0 0 0 1px color-mix(in oklab, var(--color-white) 10%, transparent),
+        0 16px 40px rgb(0 0 0 / 0.5) !important;
+}
+
+.fi-user-menu .fi-dropdown-panel {
+    z-index: 60 !important;
+    min-width: 13rem;
+}
+
+/* Perfil: la foto centrada en la tarjeta de identidad */
+.dale-profile-card .fi-fo-file-upload {
+    @apply mx-auto w-32;
+}

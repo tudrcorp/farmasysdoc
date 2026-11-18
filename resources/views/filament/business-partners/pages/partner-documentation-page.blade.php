@@ -18,7 +18,7 @@
                 <li><a href="#pedidos" class="fi-bp-ios-doc__toc-link">Lista de pedidos</a></li>
                 <li><a href="#clics" class="fi-bp-ios-doc__toc-link">Clics en la tabla y paneles</a></li>
                 <li><a href="#detalle" class="fi-bp-ios-doc__toc-link">Ver un pedido</a></li>
-                <li><a href="#historico" class="fi-bp-ios-doc__toc-link">Histórico de movimientos</a></li>
+                <li><a href="#historico" class="fi-bp-ios-doc__toc-link">Estado de cuenta</a></li>
                 <li><a href="#consejos" class="fi-bp-ios-doc__toc-link">Consejos rápidos</a></li>
             </ul>
         </nav>
@@ -71,14 +71,14 @@
                     <ul class="fi-bp-ios-doc__list fi-bp-ios-doc__list--compact">
                         <li>En el inicio aparece la tarjeta <strong>«Crédito disponible»</strong> con tope, consumido y saldo.</li>
                         <li>Esa tarjeta se refresca sola cada pocos segundos (útil cuando un pedido pasa a «En proceso» y consume cupo).</li>
-                        <li>En el menú <strong>Operaciones</strong> verá además <strong>«Histórico de movimientos»</strong> (solo lectura) con el detalle contable de su línea.</li>
+                        <li>En el menú <strong>Mi gestión</strong> verá además <strong>«Estado de cuenta»</strong> (solo lectura) con el detalle contable de su línea.</li>
                     </ul>
                 </div>
                 <div class="fi-bp-ios-doc__compare-card fi-bp-ios-doc__compare-card--off">
                     <h3 class="fi-bp-ios-doc__h3">Empresa sin línea de crédito</h3>
                     <ul class="fi-bp-ios-doc__list fi-bp-ios-doc__list--compact">
                         <li>No verá la tarjeta de crédito en el inicio.</li>
-                        <li>No aparecerá la opción <strong>«Histórico de movimientos»</strong> en el menú.</li>
+                        <li>No aparecerá la opción <strong>«Estado de cuenta»</strong> en el menú.</li>
                         <li>El resto — pedidos, gráficos y estados — funciona igual.</li>
                     </ul>
                 </div>
@@ -165,7 +165,7 @@
         </section>
 
         <section id="historico" class="fi-bp-ios-doc__section">
-            <h2 class="fi-bp-ios-doc__h2">Histórico de movimientos</h2>
+            <h2 class="fi-bp-ios-doc__h2">Estado de cuenta</h2>
             @if ($hasAssignedCredit)
                 <p class="fi-bp-ios-doc__p">
                     Si su menú incluye esta sección, es un listado de solo lectura de movimientos vinculados a su línea de crédito.

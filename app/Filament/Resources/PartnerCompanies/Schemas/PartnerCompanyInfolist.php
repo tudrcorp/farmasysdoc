@@ -2,14 +2,19 @@
 
 namespace App\Filament\Resources\PartnerCompanies\Schemas;
 
+use App\Enums\PartnerAgreementStatus;
 use App\Enums\PartnerAgreementType;
 use App\Enums\PartnerCompanyClientType;
 use App\Enums\PartnerCompanyPaymentModality;
 use App\Filament\Resources\PartnerAgreements\PartnerCompanyAgreementResource;
 use App\Filament\Resources\PartnerAgreements\Schemas\PartnerCompanyAgreementInfolist;
+use App\Filament\Resources\Plans\PlanResource;
 use App\Models\PartnerCompany;
+use App\Models\PartnerCompanyAgreement;
 use App\Models\PartnerCompanyDocument;
 use App\Models\User;
+use App\Support\Partners\AgreementTermStatus;
+use App\Support\Partners\PartnerPlanCards;
 use Filament\Actions\Action;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -79,6 +84,30 @@ class PartnerCompanyInfolist
                                     ->trueColor('success')
                                     ->falseColor('danger'),
                             ]),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+                Section::make('Planes corporativos')
+                    ->description(fn (PartnerCompany $record): string => self::plansDescription($record))
+                    ->icon(Heroicon::ShieldCheck)
+                    ->extraAttributes(['class' => 'fi-client-marketing-behavior'])
+                    ->headerActions([
+                        Action::make('viewPartnerPlans')
+                            ->label('Ver en Planes')
+                            ->icon(Heroicon::ArrowTopRightOnSquare)
+                            ->visible(fn (): bool => PlanResource::canViewAny())
+                            ->url(fn (PartnerCompany $record): string => PlanResource::getUrl('index', [
+                                'filters' => ['partner_company' => ['value' => $record->getKey()]],
+                            ])),
+                    ])
+                    ->schema([
+                        TextEntry::make('plan_cards')
+                            ->hiddenLabel()
+                            ->state(fn (PartnerCompany $record): string => view('filament.partner-companies.plan-cards', [
+                                'cards' => PartnerPlanCards::for($record, linkToPlans: PlanResource::canViewAny()),
+                            ])->render())
+                            ->html()
+                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
@@ -351,27 +380,52 @@ class PartnerCompanyInfolist
                     ->columns(1)
                     ->columnSpanFull(),
                 Section::make('Vigencia del convenio')
-                    ->description('Fechas asociadas al acuerdo con el aliado.')
+                    ->description(fn (PartnerCompany $record): string => $record->isGovernedByAgreements()
+                        ? 'Fechas del convenio vigente. Se actualizan al aprobar una renovación.'
+                        : 'Fechas registradas en la ficha del aliado.')
                     ->icon(Heroicon::CalendarDays)
                     ->schema([
-                        Grid::make([
-                            'default' => 1,
-                            'sm' => 2,
-                        ])
-                            ->schema([
-                                TextEntry::make('date_created')
-                                    ->label('Fecha de creación del convenio')
-                                    ->date('d/m/Y')
-                                    ->placeholder('—')
-                                    ->icon(Heroicon::CalendarDays)
-                                    ->iconColor('gray'),
-                                TextEntry::make('date_updated')
-                                    ->label('Fecha de actualización del convenio')
-                                    ->date('d/m/Y')
-                                    ->placeholder('—')
-                                    ->icon(Heroicon::ArrowPath)
-                                    ->iconColor('gray'),
-                            ]),
+                        TextEntry::make('agreement_term')
+                            ->hiddenLabel()
+                            ->state(fn (PartnerCompany $record): string => view('filament.partner-companies.agreement-term', [
+                                'term' => $record->agreementTermStatus(),
+                            ])->render())
+                            ->html()
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+                Section::make('Historial de convenios')
+                    ->description(fn (PartnerCompany $record): string => self::agreementHistoryDescription($record))
+                    ->icon(Heroicon::ClipboardDocumentList)
+                    ->collapsible()
+                    ->headerActions([
+                        Action::make('renewAgreement')
+                            ->label('Renovar convenio')
+                            ->icon(Heroicon::ArrowPath)
+                            ->color('primary')
+                            ->visible(fn (PartnerCompany $record): bool => PartnerCompanyAgreementResource::canCreate() && self::canRenew($record))
+                            ->url(fn (PartnerCompany $record): string => PartnerCompanyAgreementResource::getUrl('create', [
+                                'partner' => $record->getKey(),
+                                'type' => PartnerAgreementType::Renewal->value,
+                            ])),
+                        Action::make('openInitialDraft')
+                            ->label('Completar convenio inicial')
+                            ->icon(Heroicon::PaperClip)
+                            ->color('warning')
+                            ->visible(fn (PartnerCompany $record): bool => PartnerCompanyAgreementResource::canViewAny() && self::initialDraft($record) !== null)
+                            ->url(fn (PartnerCompany $record): ?string => ($draft = self::initialDraft($record)) === null
+                                ? null
+                                : PartnerCompanyAgreementResource::getUrl('view', ['record' => $draft])),
+                    ])
+                    ->schema([
+                        TextEntry::make('agreement_history')
+                            ->hiddenLabel()
+                            ->state(fn (PartnerCompany $record): string => view('filament.partner-companies.agreement-history', [
+                                'items' => self::agreementHistory($record),
+                            ])->render())
+                            ->html()
+                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),
@@ -549,5 +603,96 @@ class PartnerCompanyInfolist
                     ->columns(1)
                     ->columnSpanFull(),
             ]);
+    }
+
+    /**
+     * Convenios del aliado del más reciente al más antiguo, formateados para la línea de tiempo.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function agreementHistory(PartnerCompany $partner): array
+    {
+        $canView = PartnerCompanyAgreementResource::canViewAny();
+        $currentId = $partner->currentAgreement?->getKey();
+
+        return $partner->agreements()
+            ->orderByDesc('starts_on')
+            ->orderByDesc('id')
+            ->get()
+            ->map(function (PartnerCompanyAgreement $agreement) use ($canView, $currentId): array {
+                $isCurrent = $agreement->getKey() === $currentId;
+                $term = AgreementTermStatus::fromDates($agreement->starts_on, $agreement->ends_on);
+
+                return [
+                    'number' => $agreement->number ?? 'Sin número',
+                    'url' => $canView ? PartnerCompanyAgreementResource::getUrl('view', ['record' => $agreement]) : null,
+                    'type' => $agreement->type->label(),
+                    'type_color' => $agreement->type->color(),
+                    'status' => $agreement->status->label(),
+                    'status_color' => $agreement->status->color(),
+                    'is_current' => $isCurrent,
+                    'is_automatic' => (bool) $agreement->is_automatic,
+                    'period' => $agreement->starts_on?->format('d/m/Y').' al '.$agreement->ends_on?->format('d/m/Y'),
+                    'days' => $term->totalDays === null ? '' : number_format($term->totalDays, 0, ',', '.').' días de vigencia',
+                    'term_label' => $isCurrent ? $term->label : null,
+                    'reason' => $agreement->change_reason,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private static function agreementHistoryDescription(PartnerCompany $partner): string
+    {
+        $count = $partner->agreements()->count();
+        $renewals = $partner->agreements()->where('type', PartnerAgreementType::Renewal->value)->count();
+
+        if ($count === 0) {
+            return 'Sin convenios registrados.';
+        }
+
+        return ($count === 1 ? '1 convenio' : "{$count} convenios")
+            .' · '.($renewals === 1 ? '1 renovación' : "{$renewals} renovaciones").'.';
+    }
+
+    /**
+     * Se renueva a partir de un convenio aprobado, vigente o vencido, sin otro trámite en curso.
+     */
+    private static function canRenew(PartnerCompany $partner): bool
+    {
+        $agreements = $partner->agreements()->get(['id', 'status']);
+
+        $hasBase = $agreements->contains(fn (PartnerCompanyAgreement $agreement): bool => in_array($agreement->status, [
+            PartnerAgreementStatus::Approved,
+            PartnerAgreementStatus::Active,
+            PartnerAgreementStatus::Expired,
+        ], true));
+
+        $inFlight = $agreements->contains(fn (PartnerCompanyAgreement $agreement): bool => in_array($agreement->status, [
+            PartnerAgreementStatus::Draft,
+            PartnerAgreementStatus::PendingApproval,
+        ], true));
+
+        return $hasBase && ! $inFlight;
+    }
+
+    private static function initialDraft(PartnerCompany $partner): ?PartnerCompanyAgreement
+    {
+        return $partner->agreements()
+            ->where('type', PartnerAgreementType::Initial->value)
+            ->whereIn('status', [PartnerAgreementStatus::Draft->value, PartnerAgreementStatus::Rejected->value, PartnerAgreementStatus::PendingApproval->value])
+            ->latest('id')
+            ->first();
+    }
+
+    private static function plansDescription(PartnerCompany $record): string
+    {
+        $count = $record->plans()->count();
+
+        return match ($count) {
+            0 => 'Sin planes asignados.',
+            1 => '1 plan asignado a este aliado.',
+            default => "{$count} planes asignados a este aliado.",
+        };
     }
 }

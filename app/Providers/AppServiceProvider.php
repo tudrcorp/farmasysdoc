@@ -4,13 +4,17 @@ namespace App\Providers;
 
 use App\Http\Responses\Auth\LogoutResponse;
 use App\Listeners\RecordAuthenticationAudit;
+use App\Listeners\TrackPartnerPanelAccess;
 use App\Models\Inventory;
 use App\Models\PurchaseItem;
 use App\Observers\AuditModelObserver;
 use App\Observers\InventoryObserver;
 use App\Observers\PurchaseItemObserver;
+use App\Services\Partners\PartnerDashboardMetrics;
 use App\Support\Filesystem\ResilientFilesystem;
 use App\Support\Livewire\LivewireTemporaryUploadMirror;
+use App\Support\WhatsappAgent\UltramsgWhatsappGateway;
+use App\Support\WhatsappAgent\WhatsappGateway;
 use Carbon\CarbonImmutable;
 use Filament\Auth\Http\Responses\Contracts\LogoutResponse as FilamentLogoutResponseContract;
 use Filament\Support\Facades\FilamentView;
@@ -18,6 +22,7 @@ use Filament\View\PanelsRenderHook;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Date;
@@ -46,6 +51,7 @@ class AppServiceProvider extends ServiceProvider
             LogoutResponse::class,
         );
         $this->app->singleton(FortifyLogoutResponseContract::class, LogoutResponse::class);
+        $this->app->bind(WhatsappGateway::class, UltramsgWhatsappGateway::class);
     }
 
     /**
@@ -60,6 +66,10 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(Login::class, [$authAudit, 'handleLogin']);
         Event::listen(Logout::class, [$authAudit, 'handleLogout']);
         Event::listen(Failed::class, [$authAudit, 'handleFailed']);
+
+        Event::listen(Login::class, [TrackPartnerPanelAccess::class, 'handleLogin']);
+        Event::listen(PasswordReset::class, [TrackPartnerPanelAccess::class, 'handlePasswordReset']);
+        PartnerDashboardMetrics::registerCacheInvalidation();
 
         $auditObserver = app(AuditModelObserver::class);
         foreach (config('audit.models', []) as $modelClass) {

@@ -3,11 +3,13 @@
 namespace App\Filament\Pages;
 
 use App\Enums\VenezuelanPagoMovilBank;
+use App\Filament\Resources\Sales\SaleResource;
 use App\Models\PhysicalCashBox;
 use App\Models\PhysicalCashBoxMovement;
 use App\Models\PosTerminal;
 use App\Models\User;
 use App\Services\Sales\PhysicalCashBoxCloseService;
+use App\Services\Sales\PosHeldSaleService;
 use App\Support\Cash\CashierShiftLock;
 use App\Support\Cash\NotifyOnPhysicalCashBoxOpen;
 use App\Support\Cash\PhysicalCashBoxBillingGate;
@@ -238,6 +240,10 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
         return Action::make('closePhysicalCashBox')
             ->label('Cerrar caja física')
             ->color('gray')
+            ->disabled(fn (): bool => $this->authenticatedPausedSalesCount() > 0)
+            ->tooltip(fn (): ?string => $this->authenticatedPausedSalesCount() > 0
+                ? 'Tiene ventas en pausa: cóbrelas o elimínelas antes de cerrar la caja.'
+                : null)
             ->modalHeading('Confirmar cierre de caja física')
             ->modalDescription(fn (): string => 'Declare los totales de punto de venta por banco, el efectivo USD/VES y adjunte las fotos. Al confirmar, se cerrará su turno y no podrá ingresar al sistema hasta las '
                 .CashierShiftLock::dailyUnlockTimeLabel()
@@ -350,6 +356,15 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
             });
     }
 
+    private function authenticatedPausedSalesCount(): int
+    {
+        $user = Auth::user();
+
+        return $user instanceof User
+            ? app(PosHeldSaleService::class)->pausedCountForCashier($user)
+            : 0;
+    }
+
     private function normalizeUploadedPhotoPath(mixed $value): string
     {
         if (is_array($value)) {
@@ -369,6 +384,24 @@ final class CashierPhysicalCashBoxPage extends Page implements HasActions
         $user = Auth::user();
         if (! $user instanceof User || ! $user->isCashier()) {
             abort(403);
+        }
+
+        $pausedSales = app(PosHeldSaleService::class)->pausedCountForCashier($user);
+        if ($pausedSales > 0) {
+            Notification::make()
+                ->title('Tiene ventas en pausa')
+                ->body(($pausedSales === 1 ? 'Tiene 1 venta en pausa' : 'Tiene '.$pausedSales.' ventas en pausa')
+                    .'. Cóbrelas o elimínelas desde «Ventas en pausa» en la caja antes de cerrar la caja física.')
+                ->danger()
+                ->persistent()
+                ->actions([
+                    Action::make('openHeldSales')
+                        ->label('Ver ventas en pausa')
+                        ->url(SaleResource::getUrl('index', ['ventas_pausadas' => 1])),
+                ])
+                ->send();
+
+            return;
         }
 
         $box = $this->resolveBox();

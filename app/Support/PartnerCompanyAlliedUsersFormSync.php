@@ -2,9 +2,11 @@
 
 namespace App\Support;
 
+use App\Enums\PartnerPanelPermission;
 use App\Models\PartnerCompany;
 use App\Models\PartnerCompanyUser;
 use App\Models\User;
+use App\Services\Partners\PartnerPanelUserService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 
@@ -51,15 +53,11 @@ final class PartnerCompanyAlliedUsersFormSync
                     "partner_users.{$index}.email" => 'Nombre y correo son obligatorios para cada usuario.',
                 ]);
             }
-            if (blank($row['password'] ?? null)) {
-                throw ValidationException::withMessages([
-                    "partner_users.{$index}.password" => 'Defina una contraseña para cada usuario nuevo.',
-                ]);
-            }
         }
 
         self::assertUniqueEmailsInSubmission($rows);
         self::assertEmailsAvailableInDatabase($rows);
+        self::assertHasActiveAdmin($rows);
     }
 
     /**
@@ -89,15 +87,12 @@ final class PartnerCompanyAlliedUsersFormSync
                         "partner_users.{$index}.user_id" => 'Usuario no válido para esta compañía aliada.',
                     ]);
                 }
-            } elseif (blank($row['password'] ?? null)) {
-                throw ValidationException::withMessages([
-                    "partner_users.{$index}.password" => 'Defina una contraseña para cada usuario nuevo.',
-                ]);
             }
         }
 
         self::assertUniqueEmailsInSubmission($rows);
         self::assertEmailsAvailableInDatabase($rows);
+        self::assertHasActiveAdmin($rows);
     }
 
     /**
@@ -105,34 +100,12 @@ final class PartnerCompanyAlliedUsersFormSync
      */
     public static function createUsers(PartnerCompany $company, array $rows): void
     {
-        if ($rows === []) {
+        if ($rows === [] || ! self::actorManagesPartnerUsers()) {
             return;
         }
 
-        $code = (string) $company->code;
-
         foreach ($rows as $index => $row) {
-            $requestedActive = (bool) ($row['is_active'] ?? true);
-            $effectiveActive = self::resolvePartnerUserActivationForActor(
-                $requestedActive,
-                $index,
-            );
-
-            $user = User::query()->create([
-                'name' => (string) $row['name'],
-                'email' => strtolower(trim((string) $row['email'])),
-                'password' => (string) $row['password'],
-                'branch_id' => null,
-                'partner_company_id' => $company->getKey(),
-                'partner_company_code' => $code,
-                'partner_user_is_active' => $effectiveActive,
-                'roles' => null,
-            ]);
-
-            PartnerCompanyUser::query()->create([
-                'partner_company_id' => $company->getKey(),
-                'user_id' => $user->getKey(),
-            ]);
+            self::createUser($company, $row, $index);
         }
     }
 
@@ -141,101 +114,86 @@ final class PartnerCompanyAlliedUsersFormSync
      */
     public static function syncUsers(PartnerCompany $company, array $rows): void
     {
+        if (! self::actorManagesPartnerUsers()) {
+            return;
+        }
+
+        $service = app(PartnerPanelUserService::class);
         $code = (string) $company->code;
 
         $existingLinks = PartnerCompanyUser::query()
             ->where('partner_company_id', $company->getKey())
             ->get();
 
-        if ($rows === []) {
-            foreach ($existingLinks as $link) {
-                PartnerCompanyUser::query()->whereKey($link->getKey())->delete();
-                User::query()->whereKey($link->user_id)->update([
-                    'partner_company_id' => null,
-                    'partner_company_code' => null,
-                    'partner_user_is_active' => false,
-                ]);
-            }
-
-            return;
-        }
-
         $keepUserIds = collect();
 
         foreach ($rows as $index => $row) {
             $userId = (int) ($row['user_id'] ?? 0);
 
-            if ($userId > 0) {
-                $link = $existingLinks->firstWhere('user_id', $userId);
-                if ($link === null) {
-                    continue;
-                }
+            if ($userId <= 0) {
+                $keepUserIds->push((int) self::createUser($company, $row, $index)->getKey());
 
-                $user = User::query()->find($userId);
-                if ($user === null) {
-                    continue;
-                }
-
-                $requestedActive = (bool) ($row['is_active'] ?? true);
-                $effectiveActive = self::resolvePartnerUserActivationForActor(
-                    $requestedActive,
-                    $index,
-                    $user
-                );
-
-                $payload = [
-                    'name' => (string) $row['name'],
-                    'email' => strtolower(trim((string) $row['email'])),
-                    'partner_company_id' => $company->getKey(),
-                    'partner_company_code' => $code,
-                    'partner_user_is_active' => $effectiveActive,
-                ];
-
-                if (filled($row['password'] ?? null)) {
-                    $payload['password'] = (string) $row['password'];
-                }
-
-                $user->update($payload);
-                $keepUserIds->push($userId);
-            } else {
-                $requestedActive = (bool) ($row['is_active'] ?? true);
-                $effectiveActive = self::resolvePartnerUserActivationForActor(
-                    $requestedActive,
-                    $index,
-                );
-
-                $user = User::query()->create([
-                    'name' => (string) $row['name'],
-                    'email' => strtolower(trim((string) $row['email'])),
-                    'password' => (string) $row['password'],
-                    'branch_id' => null,
-                    'partner_company_id' => $company->getKey(),
-                    'partner_company_code' => $code,
-                    'partner_user_is_active' => $effectiveActive,
-                    'roles' => null,
-                ]);
-
-                PartnerCompanyUser::query()->create([
-                    'partner_company_id' => $company->getKey(),
-                    'user_id' => $user->getKey(),
-                ]);
-
-                $keepUserIds->push((int) $user->getKey());
+                continue;
             }
+
+            if ($existingLinks->firstWhere('user_id', $userId) === null) {
+                continue;
+            }
+
+            $user = User::query()->find($userId);
+            if ($user === null) {
+                continue;
+            }
+
+            $service->update($user, [
+                'name' => trim((string) $row['name']),
+                'email' => (string) $row['email'],
+                'is_active' => self::resolvePartnerUserActivationForActor((bool) ($row['is_active'] ?? true), $index, $user),
+                'is_admin' => (bool) ($row['is_admin'] ?? false),
+                'permissions' => $row['permissions'] ?? [],
+            ], Auth::user() instanceof User ? Auth::user() : null);
+
+            if ((int) $user->partner_company_id !== (int) $company->getKey()) {
+                $user->forceFill(['partner_company_id' => $company->getKey(), 'partner_company_code' => $code])->save();
+            }
+
+            $keepUserIds->push($userId);
         }
 
         $idsToDetach = $existingLinks->pluck('user_id')->diff($keepUserIds->unique()->values());
 
-        foreach ($idsToDetach as $detachUserId) {
-            PartnerCompanyUser::query()
-                ->where('partner_company_id', $company->getKey())
-                ->where('user_id', $detachUserId)
-                ->delete();
+        $actor = Auth::user() instanceof User ? Auth::user() : null;
+        User::query()->whereKey($idsToDetach->all())->get()->each(fn (User $user) => $service->detach($user, $actor));
+    }
 
-            User::query()->whereKey($detachUserId)->update([
-                'partner_company_id' => null,
-                'partner_company_code' => null,
-                'partner_user_is_active' => false,
+    /**
+     * Crea el usuario con la clave estándar: entra de inmediato y decide si la cambia.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private static function createUser(PartnerCompany $company, array $row, int $index): User
+    {
+        return app(PartnerPanelUserService::class)->create($company, [
+            'name' => (string) $row['name'],
+            'email' => (string) $row['email'],
+            'permissions' => $row['permissions'] ?? PartnerPanelPermission::defaults(),
+            'is_active' => self::resolvePartnerUserActivationForActor((bool) ($row['is_active'] ?? true), $index),
+            'is_admin' => (bool) ($row['is_admin'] ?? false),
+        ], sendAccess: false, withDefaultPassword: true, actor: Auth::user() instanceof User ? Auth::user() : null);
+    }
+
+    /**
+     * Toda empresa con usuarios en el panel debe tener al menos un administrador activo.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     */
+    private static function assertHasActiveAdmin(array $rows): void
+    {
+        $hasAdmin = collect($rows)->contains(fn (array $row): bool => (bool) ($row['is_admin'] ?? false) && (bool) ($row['is_active'] ?? true));
+
+        if (! $hasAdmin) {
+            throw ValidationException::withMessages([
+                'partner_users' => 'Marque al menos un usuario activo como «Administrador del panel dale»: es quien gestionará a los usuarios de la empresa.',
             ]);
         }
     }
@@ -273,6 +231,16 @@ final class PartnerCompanyAlliedUsersFormSync
                 ]);
             }
         }
+    }
+
+    /**
+     * Solo administradores y gerentes ven la sección de usuarios; para el resto no se toca nada.
+     */
+    public static function actorManagesPartnerUsers(): bool
+    {
+        $authUser = Auth::user();
+
+        return $authUser instanceof User && ($authUser->isAdministrator() || $authUser->isManager());
     }
 
     private static function shouldApplyManagerActivationRestriction(): bool

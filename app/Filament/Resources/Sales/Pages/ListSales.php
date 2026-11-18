@@ -9,6 +9,7 @@ use App\Filament\Resources\Sales\Widgets\StatsListSaleByPaymentMethod;
 use App\Filament\Resources\Sales\Widgets\StatsListSaleOverview;
 use App\Models\Branch;
 use App\Models\User;
+use App\Services\Sales\PosHeldSaleService;
 use App\Support\Cash\PhysicalCashBoxBillingGate;
 use App\Support\Filament\BranchAuthScope;
 use App\Support\Sales\SalesBillingAccess;
@@ -44,6 +45,16 @@ class ListSales extends ListRecords
             $this->salesStatsVisibilitySessionKey(),
             true,
         );
+
+        if (request()->boolean('ventas_pausadas') && SaleResource::canViewAny()) {
+            $this->js(
+                'setTimeout(() => $wire.mountAction('
+                    .Js::from(CashRegisterAction::HELD_SALES_ACTION_NAME)
+                    .'), 80)'
+            );
+
+            return;
+        }
 
         if (request()->query('abrir') === 'caja' && SaleResource::canViewAny()) {
             if (! PhysicalCashBoxBillingGate::userMayUseCashRegister(Auth::user())) {
@@ -96,6 +107,24 @@ class ListSales extends ListRecords
     }
 
     /**
+     * Cajeros con caja disponible, o cualquier usuario con ventas en pausa visibles (gerentes y administradores).
+     */
+    private static function userSeesHeldSales(): bool
+    {
+        $user = Auth::user();
+
+        if (! $user instanceof User) {
+            return false;
+        }
+
+        if (PhysicalCashBoxBillingGate::userMayUseCashRegister($user)) {
+            return true;
+        }
+
+        return app(PosHeldSaleService::class)->pausedCountVisibleTo($user) > 0;
+    }
+
+    /**
      * @return array<class-string>
      */
     protected function getHeaderWidgets(): array
@@ -132,6 +161,9 @@ class ListSales extends ListRecords
                 ]);
             $actions[] = CashRegisterAction::makeRegister();
         }
+
+        $actions[] = CashRegisterAction::makeHeldSales()
+            ->visible(fn (): bool => self::userSeesHeldSales());
 
         return [
             ...$actions,

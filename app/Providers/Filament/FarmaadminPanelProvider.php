@@ -20,6 +20,7 @@ use App\Http\Middleware\AuditFarmaadminHttpActivity;
 use App\Http\Middleware\EnsureCashierShiftNotLocked;
 use App\Http\Middleware\EnsureFarmaadminMenuAccess;
 use App\Http\Middleware\LogInventoryAuditLivewireRequest;
+use App\Livewire\Filament\FarmadocDatabaseNotifications;
 use App\Models\User;
 use App\Support\Filament\FarmaadminDeliveryUserAccess;
 use App\Support\Filament\FarmaadminQuickShortcuts;
@@ -62,8 +63,8 @@ class FarmaadminPanelProvider extends PanelProvider
             ])
             ->emailVerification(EmailVerificationPrompt::class)
             ->emailChangeVerification()
-            ->databaseNotifications()
-            ->databaseNotificationsPolling('60s')
+            ->databaseNotifications(livewireComponent: FarmadocDatabaseNotifications::class)
+            ->databaseNotificationsPolling('30s')
             ->favicon(asset('images/logos/favicon.png'))
             ->brandLogo(asset('images/logos/farmadoc-ligth.png'))
             ->darkModeBrandLogo(asset('images/logos/farmadoc-dark.png'))
@@ -148,6 +149,16 @@ class FarmaadminPanelProvider extends PanelProvider
                         'items' => $items,
                     ])->render();
                 },
+            )
+            ->renderHook(
+                PanelsRenderHook::HEAD_END,
+                fn (): string => view('filament.farmaadmin.components.notification-bell-script')->render(),
+            )
+            ->renderHook(
+                PanelsRenderHook::USER_MENU_BEFORE,
+                fn (): string => Auth::check()
+                    ? view('filament.farmaadmin.components.notification-sound-toggle')->render()
+                    : '',
             )
             ->renderHook(
                 PanelsRenderHook::SIDEBAR_NAV_START,

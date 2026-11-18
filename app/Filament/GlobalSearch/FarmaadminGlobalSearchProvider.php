@@ -485,7 +485,7 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
                 'country',
                 'agreement_reference',
                 'date_created',
-                'date_updated',
+                'agreement_expires_on',
                 'assigned_credit_limit',
                 'is_active',
             ])
@@ -518,8 +518,8 @@ final class FarmaadminGlobalSearchProvider implements GlobalSearchProvider
                 'Creación convenio' => $company->date_created
                     ? $company->date_created->format('d/m/Y')
                     : '—',
-                'Actualización convenio' => $company->date_updated
-                    ? $company->date_updated->format('d/m/Y')
+                'Vencimiento convenio' => $company->agreement_expires_on
+                    ? $company->agreement_expires_on->format('d/m/Y').' · '.$company->agreementTermStatus()->label
                     : '—',
                 'Saldo crédito (USD)' => $company->assigned_credit_limit !== null && $company->assigned_credit_limit !== ''
                     ? '$'.number_format((float) $company->assigned_credit_limit, 2, '.', ',')

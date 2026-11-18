@@ -2,9 +2,11 @@
 
 namespace App\Filament\Resources\Sales\Actions;
 
+use App\Enums\PartnerAffiliateSource;
 use App\Enums\ProductTransferStatus;
 use App\Enums\SaleStatus;
 use App\Enums\VenezuelanPagoMovilBank;
+use App\Filament\Resources\PartnerAgreementSales\PartnerAgreementSaleResource;
 use App\Filament\Resources\Sales\SaleResource;
 use App\Http\Requests\BdvConciliation\GetMovementRequest;
 use App\Models\Branch;
@@ -13,6 +15,9 @@ use App\Models\ConciliationBdv;
 use App\Models\ConciliationCachea;
 use App\Models\FiscalDocument;
 use App\Models\Inventory;
+use App\Models\PartnerAgreementSale;
+use App\Models\PartnerCompanyPlan;
+use App\Models\PartnerPlanAffiliate;
 use App\Models\PhysicalCashBox;
 use App\Models\PhysicalCashBoxMovement;
 use App\Models\PosHeldSale;
@@ -34,6 +39,8 @@ use App\Services\Inventory\FefoLotSaleDispatchService;
 use App\Services\Inventory\FefoPosAlertSaleLinker;
 use App\Services\Inventory\PosFefoAlertLogRegistrar;
 use App\Services\Inventory\PosInventoryStockFailureRegistrar;
+use App\Services\Partners\PartnerAffiliateService;
+use App\Services\Partners\PartnerAgreementSaleService;
 use App\Services\Sales\CacheaConciliationRegistrar;
 use App\Services\Sales\ClientCommercialDiscountResolver;
 use App\Services\Sales\PosDiscountOtpService;
@@ -144,7 +151,7 @@ final class CashRegisterAction
             ->modalDescription('Cargue productos, revise totales y confirme el cobro.')
             ->modalIcon(Heroicon::Banknotes)
             ->modalWidth(Width::SevenExtraLarge)
-            ->modalSubmitActionLabel('Registrar venta')
+            ->modalSubmitActionLabel(fn (Action $action): string => self::truthyFormBool($action->getRawData()['charge_to_agreement'] ?? false) && filled($action->getRawData()['agreement_affiliate_id'] ?? null) ? 'Emitir nota de entrega' : 'Registrar venta')
             ->closeModalByClickingAway(false)
             ->closeModalByEscaping(false)
             ->modalCancelAction(fn (Action $action): Action => $action->color('danger'))
@@ -207,6 +214,7 @@ final class CashRegisterAction
                             ])
                             ->schema([
                                 ...self::posRegisterClientSchema(),
+                                ...self::posAgreementSchema(),
                                 Hidden::make('bdv_pm_conciliated')
                                     ->default(false),
                                 Hidden::make('credit_sale_confirmed')
@@ -216,7 +224,7 @@ final class CashRegisterAction
                                 Placeholder::make('pos_held_sales_banner')
                                     ->hiddenLabel()
                                     ->dehydrated(false)
-                                    ->visible(fn (): bool => self::authenticatedCashierPausedCount() > 0)
+                                    ->visible(fn (): bool => self::authenticatedCashierPausedCount() > 0 || self::authenticatedWhatsappPausedCount() > 0)
                                     ->content(fn (Get $get): HtmlString => self::posHeldSalesBannerHtml($get))
                                     ->columnSpanFull(),
                                 ViewField::make('pos_product_consult')
@@ -396,9 +404,9 @@ final class CashRegisterAction
                                 'class' => 'farmadoc-pos-summary-stack',
                             ])
                             ->schema([
-                                Section::make('Total a cobrar')
+                                Section::make(fn (Get $get): string => self::chargesToAgreement($get) ? 'Nota de entrega por convenio' : 'Total a cobrar')
                                     // ->description('IVA solo en productos con «Grava IVA». IGTF (configurable) solo si el cobro es Efectivo USD. Descuentos globales no aplican en pagos solo en dólares (transferencia/Zelle).')
-                                    ->icon(Heroicon::Banknotes)
+                                    ->icon(fn (Get $get): Heroicon => self::chargesToAgreement($get) ? Heroicon::DocumentCheck : Heroicon::Banknotes)
                                     ->iconColor('primary')
                                     ->schema([
                                         Grid::make(1)
@@ -410,6 +418,7 @@ final class CashRegisterAction
                                                 ...self::posDiscountOtpFields(),
                                                 TextEntry::make('pos_total_banner')
                                                     ->hiddenLabel()
+                                                    ->hidden(fn (Get $get): bool => self::chargesToAgreement($get))
                                                     ->alignment(Alignment::Center)
                                                     ->weight(FontWeight::Bold)
                                                     ->size(TextSize::Medium)
@@ -420,6 +429,7 @@ final class CashRegisterAction
                                                     ]),
                                                 TextEntry::make('pos_totals_breakdown')
                                                     ->hiddenLabel()
+                                                    ->hidden(fn (Get $get): bool => self::chargesToAgreement($get))
                                                     ->alignment(Alignment::Center)
                                                     ->html()
                                                     ->state(fn (Get $get): HtmlString => self::buildPosTotalsBreakdownHtml($get))
@@ -429,6 +439,7 @@ final class CashRegisterAction
                                                     ]),
                                                 TextEntry::make('pos_total_banner_ves')
                                                     ->hiddenLabel()
+                                                    ->hidden(fn (Get $get): bool => self::chargesToAgreement($get))
                                                     ->alignment(Alignment::Center)
                                                     ->html()
                                                     ->state(fn (Get $get): HtmlString => self::buildTotalVesBannerHtml($get))
@@ -436,6 +447,12 @@ final class CashRegisterAction
                                                     ->extraEntryWrapperAttributes([
                                                         'class' => 'farmadoc-pos-total-ios__sub',
                                                     ]),
+                                                TextEntry::make('pos_agreement_charge_summary')
+                                                    ->hiddenLabel()
+                                                    ->html()
+                                                    ->visible(fn (Get $get): bool => self::chargesToAgreement($get))
+                                                    ->state(fn (Get $get): HtmlString => self::posAgreementChargeSummaryHtml($get))
+                                                    ->dehydrated(false),
                                                 TextInput::make('ves_usd_rate')
                                                     ->hiddenLabel()
                                                     ->type('hidden')
@@ -461,6 +478,7 @@ final class CashRegisterAction
                                     // ->description('Seleccione la forma de pago y el monto a pagar.')
                                     ->icon(Heroicon::CreditCard)
                                     ->iconColor('primary')
+                                    ->hidden(fn (Get $get): bool => self::chargesToAgreement($get))
                                     ->extraAttributes([
                                         'class' => 'farmadoc-pos-payment-section',
                                     ])
@@ -1066,6 +1084,12 @@ final class CashRegisterAction
                         ->title('Tu usuario no tiene sucursal asignada.')
                         ->danger()
                         ->send();
+
+                    return;
+                }
+
+                if (self::truthyFormBool($data['charge_to_agreement'] ?? false)) {
+                    self::registerAgreementSaleFromPos($data, $action, (int) $branchId);
 
                     return;
                 }
@@ -2258,6 +2282,15 @@ final class CashRegisterAction
             : 0;
     }
 
+    private static function authenticatedWhatsappPausedCount(): int
+    {
+        $user = Auth::user();
+
+        return $user instanceof User
+            ? app(PosHeldSaleService::class)->whatsappPausedCountForCashier($user)
+            : 0;
+    }
+
     private static function authenticatedVisiblePausedCount(): int
     {
         $user = Auth::user();
@@ -2270,19 +2303,27 @@ final class CashRegisterAction
     private static function posHeldSalesBannerHtml(Get $get): HtmlString
     {
         $count = self::authenticatedCashierPausedCount();
+        $whatsappCount = self::authenticatedWhatsappPausedCount();
         $resuming = filled($get('pos_held_sale_id'));
+        $parts = [];
 
-        $text = $count === 1
-            ? 'Tiene 1 venta en pausa.'
-            : 'Tiene '.$count.' ventas en pausa.';
+        if ($count > 0) {
+            $parts[] = ($count === 1 ? 'Tiene 1 venta en pausa.' : 'Tiene '.$count.' ventas en pausa.')
+                .' Atiéndalas o elimínelas desde «Ventas en pausa»; la caja no se puede cerrar mientras tenga ventas en pausa.';
+        }
+
+        if ($whatsappCount > 0) {
+            $parts[] = ($whatsappCount === 1 ? 'Hay 1 pedido de WhatsApp listo para cobrar' : 'Hay '.$whatsappCount.' pedidos de WhatsApp listos para cobrar')
+                .' en «Ventas en pausa».';
+        }
 
         if ($resuming) {
-            $text .= ' Está cobrando una venta retomada.';
+            $parts[] = 'Está cobrando una venta retomada.';
         }
 
         return new HtmlString(
             '<div class="rounded-xl border border-warning-500/40 bg-warning-500/10 px-3 py-2 text-sm font-medium text-warning-700 dark:text-warning-200">'
-            .e($text).' Atiéndalas o elimínelas desde «Ventas en pausa»; la caja no se puede cerrar mientras tenga ventas en pausa.'
+            .e(implode(' ', $parts))
             .'</div>'
         );
     }
@@ -5662,6 +5703,7 @@ final class CashRegisterAction
                     'min' => 'El porcentaje no puede ser negativo.',
                     'max' => 'El porcentaje no puede superar 100.',
                 ])
+                ->hidden(fn (Get $get): bool => self::chargesToAgreement($get))
                 ->columnSpanFull(),
         ];
     }
@@ -7306,6 +7348,7 @@ final class CashRegisterAction
                     }
 
                     $set('client_id', (int) $state);
+                    self::resetPosAgreement($set);
                     self::recordPosClientPickedFromCatalog((int) $state, 'busqueda_caja');
                 })
                 ->native(false)
@@ -7426,6 +7469,7 @@ final class CashRegisterAction
         $set('client_id', null);
         $set('pos_client_picker', null);
         self::clearPosQuickClientFields($set);
+        self::resetPosAgreement($set);
 
         if ($livewire instanceof LivewireComponent) {
             $livewire->js(self::mountPosRegisterFocusClientSelectJs());
@@ -7767,6 +7811,8 @@ final class CashRegisterAction
             SelfApplyOtp::fieldName('pos_discount_otp_code') => false,
             'pos_discount_otp_requested' => false,
             'pos_held_sale_id' => null,
+            'charge_to_agreement' => false,
+            'agreement_affiliate_id' => null,
             'pos_terminal_id' => null,
             'card_last4' => null,
             'mixed_usd_paid' => null,
@@ -8112,5 +8158,327 @@ final class CashRegisterAction
         }
 
         return self::buildPosSearchOptionLabelFromCatalog($branchId, $productId, $get);
+    }
+
+    /**
+     * Bloque «Convenio» de la caja: si el cliente es afiliado de un plan Flexible, permite cobrar
+     * la venta al fondo del aliado (nota de entrega, sin factura ni cobro). También afilia en
+     * mostrador tras validar con el aliado.
+     *
+     * @return array<int, Component|\Filament\Forms\Components\Component>
+     */
+    private static function posAgreementSchema(): array
+    {
+        return [
+            Section::make('Convenio')
+                ->icon(Heroicon::BuildingOffice2)
+                ->iconColor('primary')
+                ->compact()
+                ->visible(fn (Get $get): bool => filled($get('client_id')))
+                ->extraAttributes(fn (Get $get): array => ['class' => 'farmadoc-pos-agreement-section'.(self::chargesToAgreement($get) ? ' farmadoc-pos-agreement-section--active ring-2 ring-success-500/60' : '')])
+                ->headerActions([
+                    Action::make('enrollPosClientInAgreement')
+                        ->label('Afiliar a convenio')
+                        ->icon(Heroicon::UserPlus)
+                        ->color('gray')
+                        ->modalHeading('Afiliar cliente a un convenio')
+                        ->modalDescription('Úselo solo después de validar con la empresa que el cliente pertenece a ella y al plan.')
+                        ->modalSubmitActionLabel('Afiliar')
+                        ->modalWidth(Width::Large)
+                        ->schema([
+                            Select::make('assignment_id')
+                                ->label('Empresa y plan')
+                                ->options(fn (): array => app(PartnerAffiliateService::class)->flexibleAssignmentOptions())
+                                ->searchable()
+                                ->required(),
+                            TextInput::make('validated_with')
+                                ->label('Validado con')
+                                ->helperText('Nombre y cargo de la persona de la empresa que confirmó la afiliación.')
+                                ->required()
+                                ->maxLength(255),
+                        ])
+                        ->action(function (array $data, Get $get, Set $set): void {
+                            $client = Client::query()->find((int) $get('client_id'));
+                            $assignment = PartnerCompanyPlan::query()->find((int) ($data['assignment_id'] ?? 0));
+                            $user = Auth::user();
+
+                            if (! $client instanceof Client || ! $assignment instanceof PartnerCompanyPlan || ! $user instanceof User) {
+                                Notification::make()->title('No se pudo afiliar: datos incompletos.')->danger()->send();
+
+                                return;
+                            }
+
+                            if (! PartnerAffiliateService::flexibleAssignmentsQuery()->whereKey($assignment->getKey())->exists()) {
+                                Notification::make()->title('Ese plan ya no está disponible.')->danger()->send();
+
+                                return;
+                            }
+
+                            $affiliate = app(PartnerAffiliateService::class)->enroll(
+                                $assignment,
+                                $client,
+                                PartnerAffiliateSource::Counter,
+                                $user,
+                                (string) $data['validated_with'],
+                                filled($user->branch_id) ? (int) $user->branch_id : null,
+                            );
+
+                            $set('agreement_affiliate_id', (int) $affiliate->getKey());
+                            $set('agreement_affiliate_picker', (int) $affiliate->getKey());
+                            $set('charge_to_agreement', true);
+
+                            Notification::make()->title('Cliente afiliado')->body('La venta se cobrará al convenio.')->success()->send();
+                        }),
+                ])
+                ->schema([
+                    TextEntry::make('pos_agreement_none')
+                        ->hiddenLabel()
+                        ->html()
+                        ->state(new HtmlString('<p class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400"><span class="inline-block h-2 w-2 rounded-full bg-gray-300 dark:bg-gray-600"></span>Sin convenios Flexible. Si la empresa confirma la afiliación, use «Afiliar a convenio».</p>'))
+                        ->visible(fn (Get $get): bool => self::posAgreementOptions($get) === [])
+                        ->dehydrated(false),
+                    Hidden::make('agreement_affiliate_id')
+                        ->afterStateHydrated(function (mixed $state, Set $set, Get $get): void {
+                            if (blank($state) && ($first = self::posAgreementOptions($get)[0] ?? null) !== null) {
+                                $set('agreement_affiliate_id', $first['affiliate_id']);
+                            }
+                        }),
+                    Select::make('agreement_affiliate_picker')
+                        ->label('Convenio a usar')
+                        ->options(fn (Get $get): array => collect(self::posAgreementOptions($get))
+                            ->mapWithKeys(fn (array $option): array => [$option['affiliate_id'] => $option['partner'].' · '.$option['plan'].' · disponible '.self::formatMoney($option['available'])])
+                            ->all())
+                        ->visible(fn (Get $get): bool => count(self::posAgreementOptions($get)) > 1)
+                        ->formatStateUsing(fn (Get $get): mixed => $get('agreement_affiliate_id'))
+                        ->afterStateUpdated(fn (mixed $state, Set $set) => $set('agreement_affiliate_id', filled($state) ? (int) $state : null))
+                        ->dehydrated(false)
+                        ->live()
+                        ->native(false)
+                        ->selectablePlaceholder(false),
+                    TextEntry::make('pos_agreement_card')
+                        ->hiddenLabel()
+                        ->html()
+                        ->visible(fn (Get $get): bool => self::posAgreementOptions($get) !== [])
+                        ->state(fn (Get $get): HtmlString => self::posAgreementCardHtml($get))
+                        ->dehydrated(false),
+                    Toggle::make('charge_to_agreement')
+                        ->label('Cobrar al convenio')
+                        ->helperText('Emite nota de entrega a nombre del afiliado y descuenta del fondo. Sin factura ni cobro en caja.')
+                        ->onIcon(Heroicon::Check)
+                        ->onColor('success')
+                        ->visible(fn (Get $get): bool => self::posAgreementOptions($get) !== [])
+                        ->live()
+                        ->afterStateUpdated(function (mixed $state, Set $set, Get $get): void {
+                            if (filter_var($state, FILTER_VALIDATE_BOOLEAN) && blank($get('agreement_affiliate_id'))) {
+                                $set('agreement_affiliate_id', self::posAgreementOptions($get)[0]['affiliate_id'] ?? null);
+                            }
+                        }),
+                ])
+                ->columnSpanFull(),
+        ];
+    }
+
+    /**
+     * @return list<array{affiliate_id: int, assignment_id: int, partner: string, plan: string, available: float}>
+     */
+    private static function posAgreementOptions(Get $get): array
+    {
+        $clientId = (int) ($get('client_id') ?? 0);
+
+        if ($clientId <= 0) {
+            return [];
+        }
+
+        return once(fn (): array => app(PartnerAffiliateService::class)->flexibleOptionsForClient($clientId));
+    }
+
+    private static function chargesToAgreement(Get $get): bool
+    {
+        return filled($get('client_id'))
+            && filter_var($get('charge_to_agreement') ?? false, FILTER_VALIDATE_BOOLEAN)
+            && filled($get('agreement_affiliate_id'));
+    }
+
+    private static function resetPosAgreement(Set $set): void
+    {
+        $set('charge_to_agreement', false);
+        $set('agreement_affiliate_id', null);
+        $set('agreement_affiliate_picker', null);
+    }
+
+    /**
+     * Tarjeta del convenio elegido (izquierda): empresa, plan y saldo disponible.
+     */
+    private static function posAgreementCardHtml(Get $get): HtmlString
+    {
+        $options = self::posAgreementOptions($get);
+        $option = collect($options)->firstWhere('affiliate_id', (int) $get('agreement_affiliate_id')) ?? ($options[0] ?? null);
+
+        if ($option === null) {
+            return new HtmlString('');
+        }
+
+        $charging = self::chargesToAgreement($get);
+        $chip = $charging
+            ? '<span class="inline-flex items-center gap-1 rounded-full bg-success-500/15 px-2.5 py-0.5 text-xs font-semibold text-success-700 dark:text-success-300"><span class="h-1.5 w-1.5 rounded-full bg-success-500"></span>Cobrando al convenio</span>'
+            : '<span class="inline-flex items-center gap-1 rounded-full bg-primary-500/10 px-2.5 py-0.5 text-xs font-semibold text-primary-700 dark:text-primary-300">Afiliado</span>';
+        $more = count($options) > 1 ? '<p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">Tiene '.count($options).' convenios: elija cuál usar arriba.</p>' : '';
+
+        return new HtmlString(
+            '<div class="flex items-center gap-4 rounded-xl border border-primary-500/25 bg-gradient-to-r from-primary-500/10 via-primary-500/5 to-transparent px-4 py-3 dark:border-primary-400/25">'
+            .'<span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm">'
+            .'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-6 w-6"><path fill-rule="evenodd" d="M4.5 2.25a.75.75 0 0 0 0 1.5v16.5h-.75a.75.75 0 0 0 0 1.5h16.5a.75.75 0 0 0 0-1.5h-.75V3.75a.75.75 0 0 0 0-1.5h-15ZM9 6a.75.75 0 0 0 0 1.5h1.5a.75.75 0 0 0 0-1.5H9Zm-.75 3.75A.75.75 0 0 1 9 9h1.5a.75.75 0 0 1 0 1.5H9a.75.75 0 0 1-.75-.75ZM9 12a.75.75 0 0 0 0 1.5h1.5a.75.75 0 0 0 0-1.5H9Zm3.75-5.25A.75.75 0 0 1 13.5 6H15a.75.75 0 0 1 0 1.5h-1.5a.75.75 0 0 1-.75-.75ZM13.5 9a.75.75 0 0 0 0 1.5H15A.75.75 0 0 0 15 9h-1.5Zm-.75 3.75a.75.75 0 0 1 .75-.75H15a.75.75 0 0 1 0 1.5h-1.5a.75.75 0 0 1-.75-.75ZM9 19.5v-2.25a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-.75.75h-4.5A.75.75 0 0 1 9 19.5Z" clip-rule="evenodd"/></svg>'
+            .'</span>'
+            .'<div class="min-w-0 flex-1">'
+            .'<div class="flex flex-wrap items-center gap-2"><p class="truncate text-sm font-semibold text-gray-950 dark:text-white">'.e($option['partner']).'</p>'.$chip.'</div>'
+            .'<p class="truncate text-xs text-gray-600 dark:text-gray-300">'.e($option['plan']).'</p>'
+            .$more
+            .'</div>'
+            .'<div class="shrink-0 text-right">'
+            .'<p class="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Disponible</p>'
+            .'<p class="text-lg font-bold tabular-nums text-primary-700 dark:text-primary-300">'.e(self::formatMoney((float) $option['available'])).'</p>'
+            .'</div>'
+            .'</div>'
+        );
+    }
+
+    /**
+     * Panel derecho en modo convenio: total de la nota, equivalente en Bs., efecto en el fondo y avisos.
+     */
+    private static function posAgreementChargeSummaryHtml(Get $get): HtmlString
+    {
+        $options = self::posAgreementOptions($get);
+        $option = collect($options)->firstWhere('affiliate_id', (int) $get('agreement_affiliate_id')) ?? ($options[0] ?? null);
+        $branchId = (int) (Auth::user()?->branch_id ?? 0);
+        $lines = collect(is_array($get('line_items')) ? $get('line_items') : [])
+            ->filter(fn (mixed $row): bool => is_array($row) && filled($row['product_id'] ?? null))
+            ->map(fn (array $row): array => ['product_id' => $row['product_id'], 'quantity' => $row['quantity'] ?? 0])
+            ->values()
+            ->all();
+
+        $plan = $option !== null ? PartnerCompanyPlan::query()->find($option['assignment_id'])?->plan : null;
+        $quote = app(PartnerAgreementSaleService::class)->quote($branchId, $lines, $plan);
+        $total = (float) $quote['total'];
+        $available = (float) ($option['available'] ?? 0);
+        $after = round($available - $total, 2);
+        $insufficient = $total > $available + 0.001;
+        $rate = self::effectiveVesUsdRateForPosProductLabels($get);
+        $ves = $rate > 0 ? 'Bs. '.number_format($total * $rate, 2, ',', '.') : null;
+        $share = $available > 0 ? (int) min(100, round($total / $available * 100)) : 100;
+        $keep = max(0, 100 - $share);
+
+        $alerts = '';
+        if ($lines === []) {
+            $alerts .= '<p class="rounded-lg bg-gray-500/10 px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300">Cargue los productos para ver el total de la nota.</p>';
+        }
+        if ($insufficient) {
+            $alerts .= '<p class="rounded-lg bg-danger-500/10 px-3 py-2 text-xs font-semibold text-danger-700 dark:text-danger-300">Saldo insuficiente: faltan '.e(self::formatMoney($total - $available)).'. Quite productos o cobre por caja.</p>';
+        }
+        if ($quote['uncovered'] !== []) {
+            $alerts .= '<p class="rounded-lg bg-warning-500/10 px-3 py-2 text-xs font-semibold text-warning-700 dark:text-warning-300">No cubiertos por el plan: '.e(implode(', ', $quote['uncovered'])).'</p>';
+        }
+
+        $check = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5 shrink-0 text-success-600 dark:text-success-400"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd"/></svg>';
+
+        return new HtmlString(
+            '<div class="space-y-4">'
+            .'<div class="text-center">'
+            .'<span class="inline-flex items-center gap-1.5 rounded-full bg-primary-500/10 px-3 py-1 text-xs font-semibold text-primary-700 ring-1 ring-inset ring-primary-500/20 dark:text-primary-300">Forma de pago: '.e(PartnerAgreementSale::PAYMENT_LABEL).'</span>'
+            .'<p class="mt-3 text-4xl font-bold tracking-tight tabular-nums text-gray-950 dark:text-white">'.e(self::formatMoney($total)).'</p>'
+            .($ves !== null ? '<p class="mt-1 text-sm tabular-nums text-gray-500 dark:text-gray-400">≈ '.e($ves).'</p>' : '')
+            .'<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">'.e(($option['partner'] ?? '').' · '.($option['plan'] ?? '')).'</p>'
+            .'</div>'
+            .'<div class="rounded-xl bg-gray-50 p-3.5 ring-1 ring-gray-950/5 dark:bg-white/5 dark:ring-white/10">'
+            .'<div class="flex h-2.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-white/10" aria-hidden="true">'
+            .'<div class="h-full '.($insufficient ? 'bg-danger-500' : 'bg-primary-500').'" style="width: '.$share.'%"></div>'
+            .'<div class="h-full bg-success-500/50" style="width: '.$keep.'%"></div>'
+            .'</div>'
+            .'<dl class="mt-3 space-y-1.5 text-sm tabular-nums">'
+            .'<div class="flex justify-between"><dt class="text-gray-500 dark:text-gray-400">Disponible del fondo</dt><dd class="font-medium text-gray-900 dark:text-gray-100">'.e(self::formatMoney($available)).'</dd></div>'
+            .'<div class="flex justify-between"><dt class="flex items-center gap-1.5 text-gray-500 dark:text-gray-400"><span class="h-2 w-2 rounded-full '.($insufficient ? 'bg-danger-500' : 'bg-primary-500').'"></span>Esta nota</dt><dd class="font-medium text-gray-900 dark:text-gray-100">− '.e(self::formatMoney($total)).'</dd></div>'
+            .'<div class="flex justify-between border-t border-gray-200 pt-1.5 dark:border-white/10"><dt class="flex items-center gap-1.5 font-semibold text-gray-700 dark:text-gray-200"><span class="h-2 w-2 rounded-full '.($insufficient ? 'bg-danger-500' : 'bg-success-500/60').'"></span>'.($insufficient ? 'Faltan' : 'Queda').'</dt><dd class="font-bold '.($insufficient ? 'text-danger-600 dark:text-danger-400' : 'text-success-700 dark:text-success-400').'">'.e(self::formatMoney(abs($after))).'</dd></div>'
+            .'</dl>'
+            .'</div>'
+            .($alerts !== '' ? '<div class="space-y-2">'.$alerts.'</div>' : '')
+            .'<ul class="grid grid-cols-1 gap-1.5 text-xs text-gray-600 dark:text-gray-300">'
+            .'<li class="flex items-center gap-1.5">'.$check.'Nota de entrega a nombre del afiliado</li>'
+            .'<li class="flex items-center gap-1.5">'.$check.'Sin factura fiscal ni cobro en caja</li>'
+            .'<li class="flex items-center gap-1.5">'.$check.'Precio normal, sin descuentos</li>'
+            .'</ul>'
+            .'</div>'
+        );
+    }
+
+    /**
+     * Registra la venta por convenio y lleva al cajero a la nota de entrega.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function registerAgreementSaleFromPos(array $data, Action $action, int $branchId): void
+    {
+        $user = Auth::user();
+
+        if (! $user instanceof User || ! filled($data['client_id'] ?? null) || ! filled($data['agreement_affiliate_id'] ?? null)) {
+            Notification::make()->title('Seleccione el cliente y su convenio.')->danger()->send();
+            $action->halt();
+
+            return;
+        }
+
+        $affiliateBelongs = PartnerPlanAffiliate::query()
+            ->whereKey((int) $data['agreement_affiliate_id'])
+            ->where('client_id', (int) $data['client_id'])
+            ->exists();
+
+        if (! $affiliateBelongs) {
+            Notification::make()->title('El convenio elegido no corresponde a este cliente.')->danger()->send();
+            $action->halt();
+
+            return;
+        }
+
+        $lines = collect($data['line_items'] ?? [])
+            ->filter(fn (mixed $row): bool => is_array($row) && filled($row['product_id'] ?? null) && (float) ($row['quantity'] ?? 0) > 0)
+            ->map(fn (array $row): array => ['product_id' => $row['product_id'], 'quantity' => $row['quantity']])
+            ->values()
+            ->all();
+
+        $rate = self::effectiveVesUsdRateFromData($data);
+
+        try {
+            $sale = app(PartnerAgreementSaleService::class)->register(
+                $branchId,
+                (int) $data['agreement_affiliate_id'],
+                $lines,
+                $user,
+                $rate > 0 ? $rate : null,
+            );
+        } catch (ValidationException $exception) {
+            Notification::make()
+                ->title('No se registró la venta por convenio')
+                ->body((string) collect($exception->errors())->flatten()->first())
+                ->danger()
+                ->persistent()
+                ->send();
+            $action->halt();
+
+            return;
+        }
+
+        if ($user instanceof User && filled($data['pos_held_sale_id'] ?? null)) {
+            app(PosHeldSaleService::class)->markCompletedWithoutSale((int) $data['pos_held_sale_id'], $user);
+        }
+
+        Notification::make()
+            ->title('Venta por convenio registrada')
+            ->body('Nota de entrega '.$sale->number.' · '.self::formatMoney((float) $sale->total).' · Disponible '.self::formatMoney((float) $sale->fund_balance_after_usd))
+            ->success()
+            ->send();
+
+        $livewire = $action->getLivewire();
+
+        if ($livewire instanceof LivewireComponent) {
+            $livewire->redirect(PartnerAgreementSaleResource::getUrl('view', ['record' => $sale]));
+        }
     }
 }

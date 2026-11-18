@@ -17,6 +17,8 @@ use App\Models\FiscalCompanySetting;
 use App\Models\FiscalDocument;
 use App\Models\FiscalPrinter;
 use App\Models\FiscalZReport;
+use App\Models\Formulary;
+use App\Models\FormularyCategory;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\MarketingBroadcast;
@@ -29,11 +31,21 @@ use App\Models\Order;
 use App\Models\OrderService;
 use App\Models\OrgChart;
 use App\Models\OrgChartNode;
+use App\Models\PartnerAgreementSale;
 use App\Models\PartnerCompany;
 use App\Models\PartnerCompanyAgreement;
+use App\Models\PartnerCompanyPlan;
 use App\Models\PartnerCompanyUser;
+use App\Models\PartnerFundMovement;
+use App\Models\PartnerPlanAffiliate;
 use App\Models\PettyCashExpense;
 use App\Models\PettyCashFund;
+use App\Models\Plan;
+use App\Models\PlanAffiliateBand;
+use App\Models\PlanAffiliateBandPrice;
+use App\Models\PlanAgeRange;
+use App\Models\PlanService;
+use App\Models\PlanSubplan;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductTransfer;
@@ -52,6 +64,7 @@ use App\Models\TrainingCourse;
 use App\Models\TrainingEnrollment;
 use App\Models\TrainingSession;
 use App\Models\User;
+use App\Models\WhatsappAgentSetting;
 
 return [
 
@@ -88,6 +101,7 @@ return [
         Inventory::class,
         InventoryMovement::class,
         Client::class,
+        WhatsappAgentSetting::class,
         Supplier::class,
         Order::class,
         Branch::class,
@@ -110,6 +124,18 @@ return [
         MarketingUtmLink::class,
         PartnerCompanyUser::class,
         PartnerCompanyAgreement::class,
+        Plan::class,
+        PartnerCompanyPlan::class,
+        PartnerPlanAffiliate::class,
+        PartnerAgreementSale::class,
+        PartnerFundMovement::class,
+        PlanAgeRange::class,
+        PlanService::class,
+        PlanSubplan::class,
+        PlanAffiliateBand::class,
+        PlanAffiliateBandPrice::class,
+        Formulary::class,
+        FormularyCategory::class,
         SupplierReturn::class,
         PettyCashFund::class,
         PettyCashExpense::class,

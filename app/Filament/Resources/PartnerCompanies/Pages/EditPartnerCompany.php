@@ -3,9 +3,11 @@
 namespace App\Filament\Resources\PartnerCompanies\Pages;
 
 use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
+use App\Filament\Resources\PartnerCompanies\Support\InitialAgreementDraftNotice;
 use App\Models\PartnerCompany;
 use App\Models\PartnerCompanyUser;
 use App\Models\User;
+use App\Services\Partners\PartnerInitialAgreementDraftSync;
 use App\Support\PartnerCompanyAlliedUsersFormSync;
 use App\Support\Partners\PartnerCompanyCreditTerms;
 use Filament\Actions\DeleteAction;
@@ -36,8 +38,9 @@ class EditPartnerCompany extends EditRecord
                     'user_id' => $link->user_id,
                     'name' => (string) ($link->user?->name ?? ''),
                     'email' => (string) ($link->user?->email ?? ''),
-                    'password' => '',
                     'is_active' => (bool) ($link->user?->partner_user_is_active ?? true),
+                    'is_admin' => (bool) ($link->user?->partner_is_admin ?? false),
+                    'permissions' => $link->user?->partnerPermissionValues() ?? [],
                 ];
             })
             ->values()
@@ -74,6 +77,20 @@ class EditPartnerCompany extends EditRecord
         );
 
         PartnerCompanyAlliedUsersFormSync::syncUsers($record->fresh(), $rows);
+
+        if ($record->wasChanged(PartnerInitialAgreementDraftSync::SOURCE_FIELDS) || $this->initialAgreementMissing($record)) {
+            InitialAgreementDraftNotice::syncAndNotify($record->fresh());
+        }
+    }
+
+    /**
+     * Aliado con fechas de convenio pero sin ningún convenio registrado todavía.
+     */
+    private function initialAgreementMissing(PartnerCompany $record): bool
+    {
+        return $record->date_created !== null
+            && $record->agreement_expires_on !== null
+            && ! $record->agreements()->exists();
     }
 
     /**
@@ -95,7 +112,7 @@ class EditPartnerCompany extends EditRecord
         }
 
         if ($record instanceof PartnerCompany && $record->isGovernedByAgreements()) {
-            foreach (['payment_modality', 'credit_limit_usd', 'discount_percentage', 'profit_percentage_a', 'agreement_reference', 'agreement_terms', 'date_created', 'date_updated'] as $governedField) {
+            foreach (['payment_modality', 'credit_limit_usd', 'discount_percentage', 'profit_percentage_a', 'agreement_reference', 'agreement_terms', 'date_created', 'date_updated', 'agreement_expires_on'] as $governedField) {
                 $data[$governedField] = $record->getAttribute($governedField);
             }
         }

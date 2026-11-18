@@ -3,6 +3,7 @@
 namespace App\Filament\BusinessPartners\Resources\Orders;
 
 use App\Enums\OrderStatus;
+use App\Enums\PartnerPanelPermission;
 use App\Filament\BusinessPartners\Resources\Orders\Pages\CreateOrder;
 use App\Filament\BusinessPartners\Resources\Orders\Pages\EditOrder;
 use App\Filament\BusinessPartners\Resources\Orders\Pages\ListOrders;
@@ -11,7 +12,7 @@ use App\Filament\BusinessPartners\Resources\Orders\Schemas\OrderForm;
 use App\Filament\BusinessPartners\Resources\Orders\Schemas\OrderInfolist;
 use App\Filament\Resources\Orders\Tables\OrdersTable;
 use App\Models\Order;
-use App\Models\User;
+use App\Support\Partners\PartnerPanel;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -30,11 +31,33 @@ class OrderResource extends Resource
 
     protected static ?string $pluralModelLabel = 'pedidos';
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::ListBullet;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentList;
+
+    protected static string|BackedEnum|null $activeNavigationIcon = Heroicon::ClipboardDocumentList;
+
+    protected static ?int $navigationSort = 10;
 
     public static function getNavigationGroup(): ?string
     {
         return 'Operaciones';
+    }
+
+    public static function getNavigationBadge(): ?string
+    {
+        $partnerId = PartnerPanel::companyId();
+
+        if ($partnerId === null) {
+            return null;
+        }
+
+        $pending = Order::query()->where('partner_company_id', $partnerId)->where('status', OrderStatus::Pending->value)->count();
+
+        return $pending > 0 ? (string) $pending : null;
+    }
+
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        return 'Pedidos pendientes';
     }
 
     public static function form(Schema $schema): Schema
@@ -59,46 +82,49 @@ class OrderResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
-        $user = auth()->user();
-        if ($user instanceof User && $user->isPartnerCompanyUser()) {
-            return $query->where('partner_company_id', (int) $user->partner_company_id);
-        }
+        $partnerId = PartnerPanel::companyId();
 
-        return $query->whereRaw('1 = 0');
+        return $partnerId === null
+            ? parent::getEloquentQuery()->whereRaw('1 = 0')
+            : parent::getEloquentQuery()->where('partner_company_id', $partnerId);
+    }
+
+    public static function canViewAny(): bool
+    {
+        return PartnerPanel::canAny(PartnerPanelPermission::ViewOrders, PartnerPanelPermission::CreateOrders);
     }
 
     public static function canCreate(): bool
     {
-        $user = auth()->user();
-        if (! $user instanceof User) {
-            return false;
-        }
-
-        return $user->isPartnerCompanyUser();
+        return PartnerPanel::can(PartnerPanelPermission::CreateOrders);
     }
 
     public static function canView(Model $record): bool
     {
-        if (! $record instanceof Order) {
-            return false;
-        }
-
-        $user = auth()->user();
-        if (! $user instanceof User || ! $user->isPartnerCompanyUser()) {
-            return false;
-        }
-
-        return (int) $record->partner_company_id === (int) $user->partner_company_id;
+        return static::canViewAny()
+            && $record instanceof Order
+            && (int) $record->partner_company_id === PartnerPanel::companyId();
     }
 
+    /**
+     * Solo los pedidos pendientes se modifican o eliminan, y solo con «Crear pedidos».
+     */
     public static function canEdit(Model $record): bool
     {
-        if (! static::canView($record) || ! $record instanceof Order) {
-            return false;
-        }
+        return static::canView($record)
+            && static::canCreate()
+            && $record instanceof Order
+            && $record->status === OrderStatus::Pending;
+    }
 
-        return $record->status === OrderStatus::Pending;
+    public static function canDelete(Model $record): bool
+    {
+        return static::canEdit($record);
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return false;
     }
 
     public static function getRelations(): array

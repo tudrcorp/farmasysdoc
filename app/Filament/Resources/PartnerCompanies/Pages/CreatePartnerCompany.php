@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\PartnerCompanies\Pages;
 
 use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
+use App\Filament\Resources\PartnerCompanies\Support\InitialAgreementDraftNotice;
 use App\Models\PartnerCompany;
 use App\Models\User;
 use App\Support\PartnerCompanyAlliedUsersFormSync;
@@ -64,5 +65,7 @@ class CreatePartnerCompany extends CreateRecord
         if ($rows !== []) {
             PartnerCompanyAlliedUsersFormSync::createUsers($this->record, $rows);
         }
+
+        InitialAgreementDraftNotice::syncAndNotify($this->record);
     }
 }

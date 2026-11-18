@@ -51,6 +51,7 @@ final class PartnerAgreementTermsApplier
             'agreement_terms' => $agreement->terms,
             'date_created' => $partner->date_created ?? $agreement->starts_on,
             'date_updated' => $agreement->starts_on,
+            'agreement_expires_on' => $agreement->ends_on,
         ])->save();
 
         return [

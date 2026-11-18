@@ -80,6 +80,13 @@ return [
         'timeout' => (int) env('GEMINI_TIMEOUT', 60),
     ],
 
+    'whatsapp_agent' => [
+        'public_url' => env('WHATSAPP_AGENT_PUBLIC_URL'),
+        'vision_model' => env('WHATSAPP_AGENT_VISION_MODEL', 'gemini-3.8-flash'),
+        'vision_pro_model' => env('WHATSAPP_AGENT_VISION_PRO_MODEL', 'gemini-3.1-pro-preview'),
+        'audio_model' => env('WHATSAPP_AGENT_AUDIO_MODEL', 'gemini-3.8-flash'),
+    ],
+
     'ultramsg' => [
         'enabled' => env('ULTRAMSG_ENABLED', false),
         'base_url' => env('ULTRAMSG_BASE_URL'),

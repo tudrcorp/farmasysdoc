@@ -4,6 +4,7 @@ namespace App\Services\Audit;
 
 use App\Models\FiscalPrinter;
 use App\Models\User;
+use App\Models\WhatsappAgentSetting;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -184,6 +185,10 @@ final class AuditLogger
 
         if ($modelClass === FiscalPrinter::class) {
             unset($attributes['agent_token_hash']);
+        }
+
+        if ($modelClass === WhatsappAgentSetting::class) {
+            unset($attributes['ultramsg_token'], $attributes['agent_api_token'], $attributes['webhook_secret']);
         }
 
         foreach ($attributes as $key => $value) {

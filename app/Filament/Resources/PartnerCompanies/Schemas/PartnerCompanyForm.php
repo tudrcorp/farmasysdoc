@@ -5,6 +5,7 @@ namespace App\Filament\Resources\PartnerCompanies\Schemas;
 use App\Enums\PartnerCompanyClientType;
 use App\Enums\PartnerCompanyDocumentType;
 use App\Enums\PartnerCompanyPaymentModality;
+use App\Enums\PartnerPanelPermission;
 use App\Models\Branch;
 use App\Models\City;
 use App\Models\Country;
@@ -12,6 +13,13 @@ use App\Models\PartnerCompany;
 use App\Models\PartnerCompanyDocument;
 use App\Models\State;
 use App\Models\User;
+use App\Services\Partners\PartnerPanelUserService;
+use App\Support\PartnerCompanyAlliedUsersFormSync;
+use App\Support\Partners\AgreementTermStatus;
+use App\Support\Partners\PartnerPanel;
+use Carbon\CarbonImmutable;
+use Filament\Actions\Action;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
@@ -20,12 +28,18 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Js;
+use Illuminate\Validation\ValidationException;
+use Livewire\Component;
 
 class PartnerCompanyForm
 {
@@ -358,15 +372,42 @@ class PartnerCompanyForm
                                     ->default(now())
                                     ->native(false)
                                     ->displayFormat('d/m/Y')
-                                    ->prefixIcon(Heroicon::CalendarDays),
-                                DatePicker::make('date_updated')
+                                    ->prefixIcon(Heroicon::CalendarDays)
+                                    ->live(),
+                                DatePicker::make('agreement_expires_on')
                                     ->disabled(fn (?PartnerCompany $record): bool => self::isGovernedByAgreements($record))
-                                    ->label('Fecha de actualización del convenio')
-                                    ->helperText('Opcional. Use cuando el convenio se modifique o renueve.')
+                                    ->label('Fecha de vencimiento del convenio')
+                                    ->helperText(fn (?PartnerCompany $record): string => self::isGovernedByAgreements($record)
+                                        ? 'Tomada del convenio vigente. Para extenderla, renueve el convenio desde la ficha del aliado.'
+                                        : 'Al guardar se registra el convenio inicial en borrador para adjuntar el contrato y aprobarlo.')
                                     ->native(false)
                                     ->displayFormat('d/m/Y')
-                                    ->prefixIcon(Heroicon::ArrowPath)
+                                    ->prefixIcon(Heroicon::CalendarDateRange)
+                                    ->afterOrEqual('date_created')
+                                    ->validationMessages(['after_or_equal' => 'El vencimiento no puede ser anterior a la fecha de creación del convenio.'])
+                                    ->live()
+                                    ->hintActions(collect(['6 meses' => 6, '1 año' => 12, '2 años' => 24])
+                                        ->map(fn (int $months, string $label): Action => Action::make('expiresIn'.$months)
+                                            ->label('+'.$label)
+                                            ->link()
+                                            ->size('xs')
+                                            ->hidden(fn (?PartnerCompany $record): bool => self::isGovernedByAgreements($record))
+                                            ->action(fn (Get $get, Set $set) => $set('agreement_expires_on', self::expiryAfterMonths($get('date_created'), $months))))
+                                        ->values()
+                                        ->all())
                                     ->nullable(),
+                                TextEntry::make('agreement_term_status')
+                                    ->hiddenLabel()
+                                    ->state(fn (Get $get): string => AgreementTermStatus::fromDates($get('date_created'), $get('agreement_expires_on'))->summary())
+                                    ->icon(fn (Get $get): Heroicon => match (AgreementTermStatus::fromDates($get('date_created'), $get('agreement_expires_on'))->tone) {
+                                        'ok' => Heroicon::CheckCircle,
+                                        'warning' => Heroicon::ExclamationTriangle,
+                                        'danger' => Heroicon::XCircle,
+                                        default => Heroicon::InformationCircle,
+                                    })
+                                    ->color(fn (Get $get): string => AgreementTermStatus::fromDates($get('date_created'), $get('agreement_expires_on'))->color())
+                                    ->weight('medium')
+                                    ->columnSpanFull(),
                                 Textarea::make('agreement_terms')
                                     ->disabled(fn (?PartnerCompany $record): bool => self::isGovernedByAgreements($record))
                                     ->label('Términos del convenio')
@@ -500,63 +541,142 @@ class PartnerCompanyForm
                     ->columnSpanFull(),
 
                 Section::make('Usuarios del panel (aliado)')
-                    ->description('Administradores y Gerentes pueden gestionar usuarios del aliado. En rol Gerente: desde el 3er usuario quedan pendientes de activación por Administrador.')
+                    ->description(fn (): string => 'Acceso a dale · Aliados con su correo. Indique al menos un administrador del panel: él creará al resto de su equipo y asignará permisos. Cada usuario nuevo entra con la clave estándar «'.PartnerPanelUserService::defaultPassword().'» y decide si la cambia. En rol Gerente: desde el 3er usuario quedan pendientes de activación por Administrador.')
                     ->icon(Heroicon::UserGroup)
-                    ->visible(function (): bool {
-                        $authUser = request()->user();
-
-                        return $authUser instanceof User
-                            && ($authUser->isAdministrator() || $authUser->isManager());
-                    })
+                    ->visible(fn (): bool => PartnerCompanyAlliedUsersFormSync::actorManagesPartnerUsers())
                     ->schema([
                         Repeater::make('partner_users')
                             ->label('')
                             ->schema([
-                                Grid::make([
-                                    'default' => 1,
-                                    'lg' => 2,
-                                ])
+                                Hidden::make('user_id')
+                                    ->dehydrated(),
+                                Grid::make(['default' => 1, 'lg' => 2])
                                     ->schema([
-                                        Hidden::make('user_id')
-                                            ->dehydrated(),
                                         TextInput::make('name')
                                             ->label('Nombre completo')
                                             ->required()
                                             ->maxLength(255)
                                             ->prefixIcon(Heroicon::UserCircle),
                                         TextInput::make('email')
-                                            ->label('Correo electrónico')
+                                            ->label('Correo electrónico (usuario)')
                                             ->email()
                                             ->required()
                                             ->maxLength(255)
                                             ->prefixIcon(Heroicon::Envelope)
                                             ->autocomplete(false),
-                                        TextInput::make('password')
-                                            ->label('Contraseña')
-                                            ->password()
-                                            ->revealable()
-                                            ->maxLength(255)
-                                            ->minLength(8)
-                                            ->helperText(fn (Get $get): string => filled($get('user_id'))
-                                                ? 'Opcional al editar. Déjela en blanco para no cambiar la contraseña.'
-                                                : 'Mínimo 8 caracteres. Se usará para iniciar sesión en el panel.')
-                                            ->required(fn (Get $get): bool => blank($get('user_id')))
-                                            ->dehydrated(fn (Get $get): bool => filled($get('password')))
-                                            ->prefixIcon(Heroicon::Key),
-                                        Toggle::make('is_active')
-                                            ->label('Usuario activo')
-                                            ->helperText('Si está desactivado, no podrá acceder al panel como usuario de esta compañía aliada.')
-                                            ->default(true)
-                                            ->inline(false)
-                                            ->columnSpanFull(),
                                     ]),
+                                TextEntry::make('access_status')
+                                    ->hiddenLabel()
+                                    ->state(fn (Get $get): ?string => self::partnerUserStatusLine($get('user_id')))
+                                    ->visible(fn (Get $get): bool => filled($get('user_id')))
+                                    ->color('gray')
+                                    ->icon(Heroicon::InformationCircle),
+                                Toggle::make('is_admin')
+                                    ->label('Administrador del panel dale')
+                                    ->helperText('Tiene todos los permisos y es quien crea usuarios de su empresa y les asigna permisos. Solo Farmadoc designa administradores.')
+                                    ->onIcon(Heroicon::Star)
+                                    ->live()
+                                    ->default(false)
+                                    ->inline(false),
+                                CheckboxList::make('permissions')
+                                    ->label('Permisos')
+                                    ->hidden(fn (Get $get): bool => (bool) $get('is_admin'))
+                                    ->options(PartnerPanelPermission::assignableOptions())
+                                    ->descriptions(PartnerPanelPermission::descriptions())
+                                    ->default(array_map(fn (PartnerPanelPermission $permission): string => $permission->value, PartnerPanelPermission::defaults()))
+                                    ->columns(['default' => 1, 'md' => 2, 'xl' => 3])
+                                    ->bulkToggleable()
+                                    ->required()
+                                    ->validationMessages(['required' => 'Marque al menos un permiso.']),
+                                Toggle::make('is_active')
+                                    ->label('Acceso activo')
+                                    ->helperText('Desactívelo para suspender el acceso sin borrar el usuario.')
+                                    ->default(true)
+                                    ->inline(false),
+                            ])
+                            ->extraItemActions([
+                                Action::make('sendPartnerAccess')
+                                    ->label('Enviar acceso por correo')
+                                    ->tooltip('Enviar acceso por correo')
+                                    ->icon(Heroicon::PaperAirplane)
+                                    ->color('primary')
+                                    ->visible(fn (array $arguments, Repeater $component): bool => filled($component->getRawItemState($arguments['item'])['user_id'] ?? null))
+                                    ->requiresConfirmation()
+                                    ->modalHeading('Enviar acceso por correo')
+                                    ->modalDescription('Se enviará un enlace para crear (o cambiar) la clave. Los enlaces anteriores dejan de funcionar.')
+                                    ->modalSubmitActionLabel('Enviar')
+                                    ->action(function (array $arguments, Repeater $component): void {
+                                        $userId = (int) ($component->getRawItemState($arguments['item'])['user_id'] ?? 0);
+                                        $record = $component->getRecord();
+                                        $user = User::query()->find($userId);
+
+                                        if (! $user instanceof User || ! $record instanceof PartnerCompany || (int) $user->partner_company_id !== (int) $record->getKey()) {
+                                            Notification::make()->title('Usuario no válido para esta compañía aliada.')->danger()->send();
+
+                                            return;
+                                        }
+
+                                        try {
+                                            app(PartnerPanelUserService::class)->sendAccess($user, request()->user());
+                                        } catch (ValidationException $exception) {
+                                            Notification::make()->title(collect($exception->errors())->flatten()->first())->warning()->send();
+
+                                            return;
+                                        }
+
+                                        Notification::make()
+                                            ->title('Acceso enviado')
+                                            ->body("Se envió el enlace a {$user->email}.")
+                                            ->success()
+                                            ->send();
+                                    }),
+                                Action::make('copyPartnerAccessLink')
+                                    ->label('Copiar enlace de acceso')
+                                    ->tooltip('Copiar enlace de acceso')
+                                    ->icon(Heroicon::Link)
+                                    ->color('gray')
+                                    ->visible(fn (array $arguments, Repeater $component): bool => request()->user()?->isAdministrator() === true
+                                        && filled($component->getRawItemState($arguments['item'])['user_id'] ?? null))
+                                    ->requiresConfirmation()
+                                    ->modalIcon(Heroicon::Link)
+                                    ->modalHeading('Copiar enlace de acceso')
+                                    ->modalDescription('Genera el enlace para que el usuario cree su clave, sin enviar correo. Es personal, de un solo uso y vence en '.PartnerPanel::accessLinkHours().' horas. Los enlaces anteriores dejan de funcionar. Queda registrado en la auditoría.')
+                                    ->modalSubmitActionLabel('Generar y copiar')
+                                    ->action(function (array $arguments, Repeater $component, Component $livewire): void {
+                                        $userId = (int) ($component->getRawItemState($arguments['item'])['user_id'] ?? 0);
+                                        $record = $component->getRecord();
+                                        $user = User::query()->with('partnerCompany')->find($userId);
+                                        $actor = request()->user();
+
+                                        if (! $user instanceof User || ! $actor instanceof User || ! $record instanceof PartnerCompany || (int) $user->partner_company_id !== (int) $record->getKey()) {
+                                            Notification::make()->title('Usuario no válido para esta compañía aliada.')->danger()->send();
+
+                                            return;
+                                        }
+
+                                        try {
+                                            $url = app(PartnerPanelUserService::class)->accessLink($user, $actor);
+                                        } catch (ValidationException $exception) {
+                                            Notification::make()->title(collect($exception->errors())->flatten()->first())->warning()->send();
+
+                                            return;
+                                        }
+
+                                        $livewire->js('navigator.clipboard?.writeText('.Js::from($url).')');
+
+                                        Notification::make()
+                                            ->title('Enlace copiado')
+                                            ->body(new HtmlString('Enlace de <strong>'.e($user->email).'</strong> copiado al portapapeles. Si no se copió, selecciónelo aquí:<br><code style="word-break: break-all; user-select: all;">'.e($url).'</code>'))
+                                            ->success()
+                                            ->persistent()
+                                            ->send();
+                                    }),
                             ])
                             ->defaultItems(0)
                             ->addActionLabel('Añadir usuario')
                             ->collapsible()
-                            ->itemLabel(fn (?array $state): ?string => filled($state['name'] ?? null)
-                                ? (string) $state['name']
-                                : 'Nuevo usuario')
+                            ->itemLabel(fn (?array $state): ?string => (filled($state['name'] ?? null) ? (string) $state['name'] : 'Nuevo usuario')
+                                .(($state['is_admin'] ?? false) ? ' ★ Administrador' : ''))
                             ->columnSpanFull()
                             ->dehydrated(false),
                     ])
@@ -598,8 +718,53 @@ class PartnerCompanyForm
         return $modality?->usesCreditLimit() ?? false;
     }
 
+    /**
+     * Vencimiento sugerido: el día anterior a cumplir los meses desde la fecha de creación (o desde hoy).
+     */
+    private static function expiryAfterMonths(mixed $startsOn, int $months): string
+    {
+        $start = filled($startsOn) ? CarbonImmutable::parse((string) $startsOn) : CarbonImmutable::today();
+
+        return $start->addMonthsNoOverflow($months)->subDay()->toDateString();
+    }
+
     private static function isGovernedByAgreements(?PartnerCompany $record): bool
     {
         return $record instanceof PartnerCompany && $record->isGovernedByAgreements();
+    }
+
+    /**
+     * Estado del acceso de un usuario ya creado (invitación, activación, último ingreso).
+     */
+    private static function partnerUserStatusLine(mixed $userId): ?string
+    {
+        if (! is_numeric($userId)) {
+            return null;
+        }
+
+        $user = User::query()->find((int) $userId);
+
+        if (! $user instanceof User) {
+            return null;
+        }
+
+        $status = $user->partnerAccessStatus();
+        $parts = [$status['label']];
+
+        if ($status['key'] === 'pending') {
+            $parts[] = $user->partner_access_sent_at === null
+                ? 'aún no se le ha enviado el acceso'
+                : 'acceso enviado el '.$user->partner_access_sent_at->format('d/m/Y h:i a');
+        }
+
+        if ($status['key'] !== 'suspended' && $user->usesDefaultPartnerPassword()) {
+            $parts[] = 'usa la clave estándar';
+        }
+
+        if ($user->partner_last_login_at !== null) {
+            $parts[] = 'último ingreso '.$user->partner_last_login_at->format('d/m/Y h:i a');
+        }
+
+        return implode(' · ', $parts);
     }
 }

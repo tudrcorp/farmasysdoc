@@ -9,6 +9,7 @@ use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Support\Purchases\LotExpirationMonthYear;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Descuenta existencia por lote en ventas POS siguiendo FEFO (First Expired, First Out).
@@ -30,12 +31,28 @@ final class FefoLotSaleDispatchService
         Sale $sale,
         string $actorLabel,
     ): void {
+        $this->dispatchLine($branchId, $product, $quantity, $inventory, $sale, 'Venta '.$sale->sale_number, $actorLabel);
+    }
+
+    /**
+     * Igual que {@see self::dispatchForSaleLine()} para cualquier documento de salida (p. ej. una
+     * venta por convenio): los movimientos quedan referenciados a `$reference` con `$referenceLabel`.
+     */
+    public function dispatchLine(
+        int $branchId,
+        Product $product,
+        float $quantity,
+        Inventory $inventory,
+        Model $reference,
+        string $referenceLabel,
+        string $actorLabel,
+    ): void {
         if ($quantity <= 0.0001) {
             return;
         }
 
         if (! $product->requires_expiry_on_purchase) {
-            $this->createGenericMovement($product, $inventory, $sale, $quantity, $actorLabel);
+            $this->createGenericMovement($product, $inventory, $reference, $referenceLabel, $quantity, $actorLabel);
 
             return;
         }
@@ -44,7 +61,7 @@ final class FefoLotSaleDispatchService
         $balances = $this->fefoQuery->fefoBalancesWithLotsForProduct($branchId, (int) $product->getKey());
 
         if ($balances === []) {
-            $this->createGenericMovement($product, $inventory, $sale, $remaining, $actorLabel);
+            $this->createGenericMovement($product, $inventory, $reference, $referenceLabel, $remaining, $actorLabel);
 
             return;
         }
@@ -95,9 +112,9 @@ final class FefoLotSaleDispatchService
                 'unit_cost' => $unitCost > 0 ? $unitCost : null,
                 'batch_number' => $invoiceRef !== '' ? $invoiceRef : null,
                 'expiry_date' => $expiryDate,
-                'reference_type' => Sale::class,
-                'reference_id' => $sale->getKey(),
-                'notes' => 'Venta '.$sale->sale_number.' · Lote '.$lotLabel,
+                'reference_type' => $reference::class,
+                'reference_id' => $reference->getKey(),
+                'notes' => $referenceLabel.' · Lote '.$lotLabel,
                 'created_by' => $actorLabel,
             ]);
 
@@ -108,10 +125,11 @@ final class FefoLotSaleDispatchService
             $this->createGenericMovement(
                 $product,
                 $inventory,
-                $sale,
+                $reference,
+                $referenceLabel,
                 $remaining,
                 $actorLabel,
-                'Venta '.$sale->sale_number.' (saldo sin lote asignado)',
+                $referenceLabel.' (saldo sin lote asignado)',
             );
         }
     }
@@ -119,7 +137,8 @@ final class FefoLotSaleDispatchService
     private function createGenericMovement(
         Product $product,
         Inventory $inventory,
-        Sale $sale,
+        Model $reference,
+        string $referenceLabel,
         float $quantity,
         string $actorLabel,
         ?string $notesOverride = null,
@@ -132,9 +151,9 @@ final class FefoLotSaleDispatchService
             'movement_type' => InventoryMovementType::Sale,
             'quantity' => -1 * abs($quantity),
             'unit_cost' => $unitCost > 0 ? $unitCost : null,
-            'reference_type' => Sale::class,
-            'reference_id' => $sale->getKey(),
-            'notes' => $notesOverride ?? ('Venta '.$sale->sale_number),
+            'reference_type' => $reference::class,
+            'reference_id' => $reference->getKey(),
+            'notes' => $notesOverride ?? $referenceLabel,
             'created_by' => $actorLabel,
         ]);
     }

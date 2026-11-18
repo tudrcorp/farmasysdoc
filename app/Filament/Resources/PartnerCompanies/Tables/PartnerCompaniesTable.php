@@ -212,15 +212,15 @@ class PartnerCompaniesTable
                     ->icon(Heroicon::CalendarDays)
                     ->iconColor('gray')
                     ->tooltip('Fecha de creación del convenio'),
-                TextColumn::make('date_updated')
-                    ->label('Actualiz. convenio')
+                TextColumn::make('agreement_expires_on')
+                    ->label('Vence convenio')
                     ->date('d/m/Y')
                     ->sortable()
-                    ->placeholder('—')
-                    ->icon(Heroicon::ArrowPath)
-                    ->iconColor('gray')
-                    ->toggleable(isToggledHiddenByDefault: true)
-                    ->tooltip('Fecha de actualización del convenio'),
+                    ->placeholder('Sin vencimiento')
+                    ->icon(Heroicon::CalendarDateRange)
+                    ->iconColor(fn (PartnerCompany $record): string => $record->agreementTermStatus()->color())
+                    ->description(fn (PartnerCompany $record): ?string => $record->agreement_expires_on === null ? null : $record->agreementTermStatus()->label)
+                    ->tooltip('Fecha de vencimiento del convenio'),
                 TextColumn::make('order_services_count')
                     ->label('Órdenes de servicio')
                     ->numeric()

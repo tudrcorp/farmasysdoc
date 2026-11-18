@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AuthenticateApiClient;
 use App\Http\Middleware\AuthenticateFiscalAgent;
+use App\Http\Middleware\AuthenticateWhatsappAgent;
 use App\Http\Middleware\ConditionalConvertEmptyStringsToNull;
 use App\Http\Middleware\ConditionalTrimStrings;
 use App\Http\Middleware\EnsureEmployeePortalAccess;
@@ -31,6 +32,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withSchedule(function (Schedule $schedule): void {
+        $schedule->command('pos-held-sales:remind')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->onOneServer();
+
+        $schedule->command('whatsapp-agent:shift-start-digest')
+            ->everyTenMinutes()
+            ->timezone('America/Caracas')
+            ->withoutOverlapping()
+            ->onOneServer();
+
         $schedule->command('accounts-payable:recalculate-current-balances')
             ->dailyAt('07:00')
             ->timezone('America/Caracas');
@@ -82,6 +94,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'api.client' => AuthenticateApiClient::class,
             'fiscal.agent' => AuthenticateFiscalAgent::class,
+            'whatsapp.agent' => AuthenticateWhatsappAgent::class,
             'local' => EnsureLocalEnvironment::class,
             'employee.portal' => EnsureEmployeePortalAccess::class,
             'employee.portal.guest' => EnsureEmployeePortalGuest::class,

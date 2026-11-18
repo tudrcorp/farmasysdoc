@@ -1408,6 +1408,15 @@ html.fi.dark .fi-sidebar-close-overlay {
     background: linear-gradient(180deg, rgb(26 32 48 / 0.72) 0%, rgb(22 28 42 / 0.55) 100%);
 }
 
+/*
+ * El backdrop-filter de la toolbar crea su propia capa: sin z-index, la barra de «Filtros activos»
+ * y la cabecera de columnas (que vienen después) se pintaban encima del panel de filtros/columnas.
+ */
+.fi-ta-ctn .fi-ta-header-toolbar {
+    position: relative;
+    z-index: 20;
+}
+
 /* Cabecera de columnas */
 .fi-ta-ctn .fi-ta-table thead {
     background-color: rgb(249 250 251 / 0.72);
@@ -19367,5 +19376,116 @@ a.fi-farmaadmin-today-summary__overdue-item:hover {
     .fi-farmaadmin-today-summary__branch,
     .fi-farmaadmin-cashier-goal__live-dot {
         animation: none;
+    }
+}
+
+/* Campana de notificaciones: se sacude mientras haya avisos sin leer y «suena» cuando llega uno nuevo. */
+.farmadoc-bell {
+    display: inline-flex;
+}
+
+.farmadoc-bell[data-unread-count]:not([data-unread-count='0']) .fi-topbar-database-notifications-btn > .fi-icon,
+.farmadoc-bell[data-unread-count]:not([data-unread-count='0']) .fi-sidebar-database-notifications-btn > .fi-icon {
+    transform-origin: 50% 8%;
+    animation: farmadoc-bell-shake 3.2s ease-in-out infinite;
+}
+
+.farmadoc-bell[data-unread-count]:not([data-unread-count='0']) .fi-icon-btn-badge-ctn .fi-badge,
+.farmadoc-bell[data-unread-count]:not([data-unread-count='0']) .fi-sidebar-database-notifications-btn-badge-ctn .fi-badge {
+    animation: farmadoc-bell-badge-pulse 1.8s ease-out infinite;
+}
+
+.farmadoc-bell--alert .fi-topbar-database-notifications-btn > .fi-icon,
+.farmadoc-bell--alert .fi-sidebar-database-notifications-btn > .fi-icon {
+    transform-origin: 50% 8%;
+    animation: farmadoc-bell-ring 0.9s ease-in-out 3 !important;
+}
+
+.farmadoc-bell--alert .fi-topbar-database-notifications-btn,
+.farmadoc-bell--alert .fi-sidebar-database-notifications-btn {
+    border-radius: 9999px;
+    animation: farmadoc-bell-halo 0.9s ease-out 3;
+}
+
+.farmadoc-notification-mute {
+    display: inline-flex;
+    align-items: center;
+}
+
+@keyframes farmadoc-bell-shake {
+    0%,
+    72%,
+    100% {
+        transform: rotate(0deg);
+    }
+    75% {
+        transform: rotate(16deg);
+    }
+    79% {
+        transform: rotate(-14deg);
+    }
+    83% {
+        transform: rotate(10deg);
+    }
+    87% {
+        transform: rotate(-8deg);
+    }
+    91% {
+        transform: rotate(5deg);
+    }
+    95% {
+        transform: rotate(-2deg);
+    }
+}
+
+@keyframes farmadoc-bell-ring {
+    0%,
+    100% {
+        transform: rotate(0deg) scale(1);
+    }
+    15% {
+        transform: rotate(22deg) scale(1.15);
+    }
+    30% {
+        transform: rotate(-20deg) scale(1.15);
+    }
+    45% {
+        transform: rotate(16deg) scale(1.1);
+    }
+    60% {
+        transform: rotate(-12deg) scale(1.05);
+    }
+    75% {
+        transform: rotate(6deg);
+    }
+}
+
+@keyframes farmadoc-bell-badge-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgb(239 68 68 / 0.55);
+    }
+    70% {
+        box-shadow: 0 0 0 8px rgb(239 68 68 / 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgb(239 68 68 / 0);
+    }
+}
+
+@keyframes farmadoc-bell-halo {
+    0% {
+        box-shadow: 0 0 0 0 rgb(252 228 34 / 0.7);
+    }
+    100% {
+        box-shadow: 0 0 0 14px rgb(252 228 34 / 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .farmadoc-bell .fi-icon,
+    .farmadoc-bell .fi-badge,
+    .farmadoc-bell .fi-topbar-database-notifications-btn,
+    .farmadoc-bell .fi-sidebar-database-notifications-btn {
+        animation: none !important;
     }
 }

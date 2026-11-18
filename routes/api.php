@@ -17,6 +17,12 @@ use App\Http\Controllers\Api\ExternalInventoryController;
 use App\Http\Controllers\Api\ExternalOrderController;
 use App\Http\Controllers\Api\ExternalServiceOrderController;
 use App\Http\Controllers\Api\FiscalAgent\FiscalAgentController;
+use App\Http\Controllers\Api\WhatsappAgent\UltramsgWebhookController;
+use App\Http\Controllers\Api\WhatsappAgent\WhatsappAgentCartController;
+use App\Http\Controllers\Api\WhatsappAgent\WhatsappAgentConversationController;
+use App\Http\Controllers\Api\WhatsappAgent\WhatsappAgentMessageController;
+use App\Http\Controllers\Api\WhatsappAgent\WhatsappAgentPrescriptionController;
+use App\Http\Controllers\Api\WhatsappAgent\WhatsappAgentProductController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1/delivery/auth')
@@ -93,4 +99,39 @@ Route::prefix('fiscal-agent/v1')
             ->name('api.fiscal-agent.v1.jobs.result');
         Route::post('/heartbeat', [FiscalAgentController::class, 'heartbeat'])
             ->name('api.fiscal-agent.v1.heartbeat');
+    });
+
+Route::post('webhooks/whatsapp/ultramsg/{secret}', UltramsgWebhookController::class)
+    ->where('secret', '[A-Za-z0-9]+')
+    ->middleware('throttle:600,1')
+    ->name('api.whatsapp.ultramsg.webhook');
+
+Route::prefix('whatsapp-agent/v1')
+    ->middleware('whatsapp.agent')
+    ->group(function (): void {
+        Route::get('/conversations/{conversation}/context', [WhatsappAgentConversationController::class, 'context'])
+            ->name('api.whatsapp-agent.conversations.context');
+        Route::post('/conversations/{conversation}/reply', [WhatsappAgentConversationController::class, 'reply'])
+            ->name('api.whatsapp-agent.conversations.reply');
+        Route::patch('/conversations/{conversation}/state', [WhatsappAgentConversationController::class, 'updateState'])
+            ->name('api.whatsapp-agent.conversations.state');
+        Route::post('/conversations/{conversation}/customer', [WhatsappAgentConversationController::class, 'registerCustomer'])
+            ->name('api.whatsapp-agent.conversations.customer');
+        Route::post('/conversations/{conversation}/confirm-order', [WhatsappAgentConversationController::class, 'confirmOrder'])
+            ->name('api.whatsapp-agent.conversations.confirm-order');
+        Route::post('/conversations/{conversation}/escalate', [WhatsappAgentConversationController::class, 'escalate'])
+            ->name('api.whatsapp-agent.conversations.escalate');
+        Route::post('/conversations/{conversation}/items', [WhatsappAgentCartController::class, 'store'])
+            ->name('api.whatsapp-agent.conversations.items.store');
+        Route::delete('/conversations/{conversation}/items/{item}', [WhatsappAgentCartController::class, 'destroy'])
+            ->whereNumber('item')
+            ->name('api.whatsapp-agent.conversations.items.destroy');
+        Route::post('/conversations/{conversation}/prescription-readings', [WhatsappAgentPrescriptionController::class, 'store'])
+            ->name('api.whatsapp-agent.conversations.prescription-readings.store');
+        Route::get('/messages/{message}/media', [WhatsappAgentMessageController::class, 'media'])
+            ->name('api.whatsapp-agent.messages.media');
+        Route::post('/messages/{message}/transcription', [WhatsappAgentMessageController::class, 'transcription'])
+            ->name('api.whatsapp-agent.messages.transcription');
+        Route::get('/products/search', [WhatsappAgentProductController::class, 'search'])
+            ->name('api.whatsapp-agent.products.search');
     });

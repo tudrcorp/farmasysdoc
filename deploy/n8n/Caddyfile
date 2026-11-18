@@ -1,0 +1,5 @@
+# HTTPS automático (Let's Encrypt) para n8n. El dominio debe apuntar (registro A) a la IP del VPS.
+{$N8N_DOMAIN} {
+	encode gzip
+	reverse_proxy n8n:5678
+}

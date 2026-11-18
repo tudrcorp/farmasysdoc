@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\ExternalBranchesController;
 use App\Http\Controllers\Api\ExternalBranchInventoryController;
 use App\Http\Controllers\Api\ExternalInventoryController;
 use App\Http\Controllers\Api\ExternalOrderController;
+use App\Http\Controllers\Api\ExternalPrincipalInventoryController;
 use App\Http\Controllers\Api\ExternalServiceOrderController;
 use App\Http\Controllers\Api\FiscalAgent\FiscalAgentController;
 use App\Http\Controllers\Api\WhatsappAgent\UltramsgWebhookController;
@@ -80,6 +81,8 @@ Route::prefix('external')
             ->name('api.external.inventory.index');
         Route::get('/inventory-by-branch', [ExternalBranchInventoryController::class, 'index'])
             ->name('api.external.inventory-by-branch.index');
+        Route::get('/inventory/las-delicias', ExternalPrincipalInventoryController::class)
+            ->name('api.external.inventory.las-delicias');
         Route::post('/orders', [ExternalOrderController::class, 'store'])
             ->name('api.external.orders.store');
         Route::post('/service-orders', [ExternalServiceOrderController::class, 'store'])

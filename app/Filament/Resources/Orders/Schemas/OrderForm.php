@@ -10,6 +10,7 @@ use App\Models\PartnerCompany;
 use App\Models\Product;
 use App\Models\User;
 use App\Support\Filament\BranchAuthScope;
+use App\Support\Inventory\LasDeliciasBranch;
 use App\Support\Orders\OrderTotalsCalculator;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\FileUpload;
@@ -43,6 +44,7 @@ class OrderForm
                 Section::make('Datos del pedido')
                     ->description('Identificación del pedido, cliente o compañía aliada, sucursal y estado en el flujo de entrega.')
                     ->icon(Heroicon::ShoppingCart)
+                    ->hidden(fn (): bool => self::allyOrderUsesLasDelicias())
                     ->schema([
                         Checkbox::make('order_for_partner')
                             ->label('Pedido para una compañía aliada')
@@ -203,7 +205,15 @@ class OrderForm
                                     ->relationship(
                                         name: 'product',
                                         titleAttribute: 'name',
-                                        modifyQueryUsing: fn (Builder $query): Builder => $query->where('is_active', true)->orderBy('name'),
+                                        modifyQueryUsing: function (Builder $query): Builder {
+                                            $query->where('is_active', true)->orderBy('name');
+
+                                            if (self::allyOrderUsesLasDelicias()) {
+                                                self::limitProductsToLasDeliciasInventory($query);
+                                            }
+
+                                            return $query;
+                                        },
                                     )
                                     ->searchable()
                                     ->getSearchResultsUsing(fn (string $search): array => self::productSearchResultsForOrderSelect($search))
@@ -620,6 +630,10 @@ class OrderForm
             ->where('is_active', true)
             ->orderBy('name', 'asc');
 
+        if (self::allyOrderUsesLasDelicias()) {
+            self::limitProductsToLasDeliciasInventory($query);
+        }
+
         if ($term !== '') {
             $like = '%'.addcslashes(mb_strtolower($term), '%_\\').'%';
             $query->where(function (Builder $w) use ($like): void {
@@ -748,6 +762,36 @@ class OrderForm
         $wholesale = filter_var($get('../../is_wholesale'), FILTER_VALIDATE_BOOLEAN);
 
         return $wholesale ? 'Cantidad (cajas)' : 'Cantidad (unidades)';
+    }
+
+    /**
+     * El aliado no elige sucursal ni estado: el catálogo y el pedido son de Las Delicias, en Pendiente.
+     */
+    private static function allyOrderUsesLasDelicias(): bool
+    {
+        $user = Auth::user();
+
+        return $user instanceof User
+            && $user->isPartnerCompanyUser()
+            && ! $user->isAdministrator();
+    }
+
+    /**
+     * @param  Builder<Product>  $query
+     * @return Builder<Product>
+     */
+    private static function limitProductsToLasDeliciasInventory(Builder $query): Builder
+    {
+        $branchId = LasDeliciasBranch::resolve()?->getKey();
+
+        if ($branchId === null) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereHas(
+            'inventories',
+            fn (Builder $inventory): Builder => $inventory->where('branch_id', $branchId),
+        );
     }
 
     private static function orderForPartnerFromGet(Get $get): bool

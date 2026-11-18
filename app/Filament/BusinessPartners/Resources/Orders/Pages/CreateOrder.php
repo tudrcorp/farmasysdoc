@@ -3,12 +3,15 @@
 namespace App\Filament\BusinessPartners\Resources\Orders\Pages;
 
 use App\Enums\ConvenioType;
+use App\Enums\OrderStatus;
 use App\Filament\BusinessPartners\Resources\Orders\OrderResource;
 use App\Models\User;
+use App\Support\Inventory\LasDeliciasBranch;
 use App\Support\Orders\PartnerOrderDeliverySync;
 use App\Support\Orders\PartnerOrderFormMutator;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class CreateOrder extends CreateRecord
 {
@@ -41,6 +44,8 @@ class CreateOrder extends CreateRecord
         if ($user instanceof User && $user->isPartnerCompanyUser() && ! $user->isAdministrator()) {
             $data['partner_company_id'] = (int) $user->partner_company_id;
             $data['client_id'] = null;
+            $data['status'] = OrderStatus::Pending->value;
+            $data['branch_id'] = self::lasDeliciasBranchId();
         } elseif ($user instanceof User && $user->isAdministrator()) {
             if (! empty($data['partner_company_id'] ?? null)) {
                 $data['client_id'] = null;
@@ -54,5 +59,18 @@ class CreateOrder extends CreateRecord
         $data = PartnerOrderFormMutator::sanitizeForSave($data, $user);
 
         return collect($data)->except(['items'])->all();
+    }
+
+    private static function lasDeliciasBranchId(): int
+    {
+        $branchId = LasDeliciasBranch::resolve()?->getKey();
+
+        if ($branchId === null) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'No hay una sucursal activa de Las Delicias.',
+            ]);
+        }
+
+        return (int) $branchId;
     }
 }

@@ -2,15 +2,18 @@
 
 namespace App\Filament\BusinessPartners\Resources\Orders\Pages;
 
+use App\Enums\OrderStatus;
 use App\Filament\BusinessPartners\Resources\Orders\OrderResource;
 use App\Models\Order;
 use App\Models\User;
+use App\Support\Inventory\LasDeliciasBranch;
 use App\Support\Orders\OrderTotalsCalculator;
 use App\Support\Orders\PartnerOrderDeliverySync;
 use App\Support\Orders\PartnerOrderFormMutator;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Validation\ValidationException;
 
 class EditOrder extends EditRecord
 {
@@ -64,6 +67,16 @@ class EditOrder extends EditRecord
         if ($user instanceof User && $user->isPartnerCompanyUser() && ! $user->isAdministrator()) {
             $data['partner_company_id'] = (int) $user->partner_company_id;
             $data['client_id'] = null;
+            $branchId = LasDeliciasBranch::resolve()?->getKey();
+
+            if ($branchId === null) {
+                throw ValidationException::withMessages([
+                    'branch_id' => 'No hay una sucursal activa de Las Delicias.',
+                ]);
+            }
+
+            $data['branch_id'] = (int) $branchId;
+            $data['status'] = $data['status'] ?? OrderStatus::Pending->value;
         } elseif ($user instanceof User && $user->isAdministrator()) {
             if (! empty($data['partner_company_id'] ?? null)) {
                 $data['client_id'] = null;

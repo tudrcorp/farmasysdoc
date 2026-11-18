@@ -166,7 +166,7 @@ class EditProfile extends FarmaadminEditProfile
             'facts' => array_values(array_filter([
                 ['label' => 'Último ingreso', 'value' => $user?->partner_last_login_at?->diffForHumans() ?? 'Primera vez', 'icon' => 'heroicon-m-clock'],
                 ['label' => 'Miembro desde', 'value' => $user?->created_at?->translatedFormat('j M Y') ?? '—', 'icon' => 'heroicon-m-calendar'],
-                ['label' => 'Permisos', 'value' => ($user?->isPartnerAdmin() ? 'Todos (administrador)' : count($user?->effectivePartnerPermissionValues() ?? []).' de '.count(PartnerPanelPermission::values())), 'icon' => 'heroicon-m-shield-check'],
+                ['label' => 'Permisos', 'value' => ($user?->isPartnerAdmin() ? 'Todos (administrador)' : count($user?->effectivePartnerPermissionValues() ?? []).' de '.count(PartnerPanelPermission::assignableForCompany($user?->partnerCompany))), 'icon' => 'heroicon-m-shield-check'],
             ])),
         ];
     }
@@ -177,7 +177,14 @@ class EditProfile extends FarmaadminEditProfile
     private function permissions(): array
     {
         $user = $this->currentUser();
-        $cases = $user?->isPartnerAdmin() ? PartnerPanelPermission::cases() : PartnerPanelPermission::assignable();
+        $cases = $user?->isPartnerAdmin() ? PartnerPanelPermission::cases() : PartnerPanelPermission::assignableForCompany($user?->partnerCompany);
+
+        if (! $user?->partnerCompany?->can_place_orders) {
+            $cases = array_values(array_filter(
+                $cases,
+                fn (PartnerPanelPermission $permission): bool => $permission !== PartnerPanelPermission::PlacePrincipalInventoryOrders,
+            ));
+        }
 
         return array_map(fn (PartnerPanelPermission $permission): array => [
             'label' => $permission->label(),

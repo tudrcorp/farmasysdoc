@@ -3,6 +3,7 @@
 namespace App\Enums;
 
 use App\Enums\Concerns\HasSpanishLabels;
+use App\Models\PartnerCompany;
 
 /**
  * Permisos de un usuario del panel de aliados (dale · Aliados). Se guardan por usuario en
@@ -20,6 +21,7 @@ enum PartnerPanelPermission: string
     case Account = 'account';
     case ViewOrders = 'orders_view';
     case CreateOrders = 'orders_create';
+    case PlacePrincipalInventoryOrders = 'principal_inventory_orders';
     case ApiDocs = 'api_docs';
     case DeactivateAffiliates = 'affiliates_deactivate';
     case ManageUsers = 'users_manage';
@@ -32,6 +34,7 @@ enum PartnerPanelPermission: string
             self::Account => 'Estado de cuenta',
             self::ViewOrders => 'Ver pedidos',
             self::CreateOrders => 'Crear pedidos',
+            self::PlacePrincipalInventoryOrders => 'Hacer pedidos del inventario',
             self::ApiDocs => 'Documentación API',
             self::DeactivateAffiliates => 'Dar de baja afiliados',
             self::ManageUsers => 'Gestionar usuarios',
@@ -46,6 +49,7 @@ enum PartnerPanelPermission: string
             self::Account => 'Crédito, saldo, consumo y movimientos.',
             self::ViewOrders => 'Listado y detalle de los pedidos.',
             self::CreateOrders => 'Hacer y modificar pedidos pendientes (incluye verlos).',
+            self::PlacePrincipalInventoryOrders => 'Ver el inventario de Las Delicias, elegir productos e indicar la cantidad para crear un pedido.',
             self::ApiDocs => 'Página de integración por API.',
             self::DeactivateAffiliates => 'Retirar (y reincorporar) afiliados del convenio, indicando el motivo.',
             self::ManageUsers => 'Crear usuarios del equipo, asignar permisos y suspender accesos. Solo administradores del panel.',
@@ -73,6 +77,22 @@ enum PartnerPanelPermission: string
     }
 
     /**
+     * Permisos que se pueden marcar para los analistas de esta compañía.
+     * «Hacer pedidos del inventario» solo aparece si Farmadoc lo habilitó en el aliado.
+     *
+     * @return list<self>
+     */
+    public static function assignableForCompany(?PartnerCompany $company): array
+    {
+        $allowsInventoryOrders = (bool) $company?->can_place_orders;
+
+        return array_values(array_filter(
+            self::assignable(),
+            fn (self $permission): bool => $allowsInventoryOrders || $permission !== self::PlacePrincipalInventoryOrders,
+        ));
+    }
+
+    /**
      * @return list<string>
      */
     public static function values(): array
@@ -81,14 +101,14 @@ enum PartnerPanelPermission: string
     }
 
     /**
-     * Opciones para formularios: solo los permisos asignables.
+     * Opciones para formularios: solo los permisos que esta compañía puede otorgar.
      *
      * @return array<string, string>
      */
-    public static function assignableOptions(): array
+    public static function assignableOptions(?PartnerCompany $company = null): array
     {
         $options = [];
-        foreach (self::assignable() as $case) {
+        foreach (self::assignableForCompany($company) as $case) {
             $options[$case->value] = $case->label();
         }
 
@@ -98,10 +118,10 @@ enum PartnerPanelPermission: string
     /**
      * @return array<string, string>
      */
-    public static function descriptions(): array
+    public static function assignableDescriptions(?PartnerCompany $company = null): array
     {
         $descriptions = [];
-        foreach (self::assignable() as $case) {
+        foreach (self::assignableForCompany($company) as $case) {
             $descriptions[$case->value] = $case->description();
         }
 
@@ -126,5 +146,24 @@ enum PartnerPanelPermission: string
         }
 
         return collect(self::values())->filter(fn (string $value): bool => $valid->contains($value))->values()->all();
+    }
+
+    /**
+     * Igual que {@see normalize()}, pero quita el pedido del inventario si Farmadoc no lo habilitó.
+     *
+     * @return list<string>
+     */
+    public static function normalizeForCompany(mixed $values, ?PartnerCompany $company): array
+    {
+        $normalized = self::normalize($values);
+
+        if ($company?->can_place_orders) {
+            return $normalized;
+        }
+
+        return array_values(array_filter(
+            $normalized,
+            fn (string $value): bool => $value !== self::PlacePrincipalInventoryOrders->value,
+        ));
     }
 }

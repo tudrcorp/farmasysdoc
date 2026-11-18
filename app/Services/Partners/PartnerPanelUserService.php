@@ -58,7 +58,7 @@ class PartnerPanelUserService
                 'partner_company_code' => (string) $company->code,
                 'partner_user_is_active' => (bool) ($data['is_active'] ?? true),
                 'partner_is_admin' => $isAdmin,
-                'partner_permissions' => PartnerPanelPermission::normalize($data['permissions'] ?? PartnerPanelPermission::defaults()),
+                'partner_permissions' => PartnerPanelPermission::normalizeForCompany($data['permissions'] ?? PartnerPanelPermission::defaults(), $company),
                 'roles' => null,
             ]);
 
@@ -116,7 +116,7 @@ class PartnerPanelUserService
         }
 
         if (array_key_exists('permissions', $data)) {
-            $payload['partner_permissions'] = PartnerPanelPermission::normalize($data['permissions']);
+            $payload['partner_permissions'] = PartnerPanelPermission::normalizeForCompany($data['permissions'], $user->partnerCompany);
         }
 
         if (array_key_exists('is_active', $data)) {

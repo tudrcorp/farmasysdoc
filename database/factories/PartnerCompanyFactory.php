@@ -30,6 +30,7 @@ class PartnerCompanyFactory extends Factory
             'phone' => fake()->numerify('0212#######'),
             'country' => 'VENEZUELA',
             'is_active' => true,
+            'can_place_orders' => false,
             'date_created' => now()->toDateString(),
         ];
     }

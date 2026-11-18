@@ -125,8 +125,8 @@ class TeamUserResource extends Resource
                     ->dehydrateStateUsing(fn (?string $state): string => PartnerPanelUserService::normalizeEmail((string) $state)),
                 CheckboxList::make('partner_permissions')
                     ->label('Permisos')
-                    ->options(PartnerPanelPermission::assignableOptions())
-                    ->descriptions(PartnerPanelPermission::descriptions())
+                    ->options(fn (): array => PartnerPanelPermission::assignableOptions(PartnerPanel::user()?->partnerCompany))
+                    ->descriptions(fn (): array => PartnerPanelPermission::assignableDescriptions(PartnerPanel::user()?->partnerCompany))
                     ->default(array_map(fn (PartnerPanelPermission $permission): string => $permission->value, PartnerPanelPermission::defaults()))
                     ->formatStateUsing(fn (mixed $state): array => PartnerPanelPermission::normalize($state))
                     ->bulkToggleable()
@@ -162,7 +162,7 @@ class TeamUserResource extends Resource
                         ? ['Administrador: todos los permisos']
                         : array_map(
                             fn (string $value): string => PartnerPanelPermission::from($value)->label(),
-                            $record->partnerPermissionValues(),
+                            $record->effectivePartnerPermissionValues(),
                         ))
                     ->badge()
                     ->color('gray')

@@ -162,6 +162,10 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
             return false;
         }
 
+        if ($permission === PartnerPanelPermission::PlacePrincipalInventoryOrders && ! $this->partnerCompany?->can_place_orders) {
+            return false;
+        }
+
         if ($this->isPartnerAdmin()) {
             return true;
         }
@@ -184,7 +188,16 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
      */
     public function effectivePartnerPermissionValues(): array
     {
-        return $this->isPartnerAdmin() ? PartnerPanelPermission::values() : $this->partnerPermissionValues();
+        $values = $this->isPartnerAdmin() ? PartnerPanelPermission::values() : $this->partnerPermissionValues();
+
+        if ($this->partnerCompany?->can_place_orders) {
+            return $values;
+        }
+
+        return array_values(array_filter(
+            $values,
+            fn (string $value): bool => $value !== PartnerPanelPermission::PlacePrincipalInventoryOrders->value,
+        ));
     }
 
     /**

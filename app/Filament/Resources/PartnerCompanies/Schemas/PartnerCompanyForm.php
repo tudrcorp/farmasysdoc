@@ -30,6 +30,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
+use Filament\Resources\Pages\EditRecord;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
@@ -137,6 +138,14 @@ class PartnerCompanyForm
                                             : 'Desactiva este estado para ocultar la compañía de nuevas operaciones.';
                                     })
                                     ->inline(false),
+                                Toggle::make('can_place_orders')
+                                    ->label('Puede hacer pedidos del inventario')
+                                    ->helperText('Habilita el inventario de Las Delicias en el panel del aliado. El administrador de esa empresa podrá asignar el permiso a sus analistas.')
+                                    ->default(false)
+                                    ->live()
+                                    ->inline(false)
+                                    ->visible(fn (): bool => request()->user() instanceof User && request()->user()->isAdministrator())
+                                    ->dehydrated(fn (): bool => request()->user() instanceof User && request()->user()->isAdministrator()),
                             ]),
                     ])
                     ->columns(1)
@@ -581,8 +590,8 @@ class PartnerCompanyForm
                                 CheckboxList::make('permissions')
                                     ->label('Permisos')
                                     ->hidden(fn (Get $get): bool => (bool) $get('is_admin'))
-                                    ->options(PartnerPanelPermission::assignableOptions())
-                                    ->descriptions(PartnerPanelPermission::descriptions())
+                                    ->options(fn (Get $get, Component $livewire): array => PartnerPanelPermission::assignableOptions(self::permissionCompany($get, $livewire)))
+                                    ->descriptions(fn (Get $get, Component $livewire): array => PartnerPanelPermission::assignableDescriptions(self::permissionCompany($get, $livewire)))
                                     ->default(array_map(fn (PartnerPanelPermission $permission): string => $permission->value, PartnerPanelPermission::defaults()))
                                     ->columns(['default' => 1, 'md' => 2, 'xl' => 3])
                                     ->bulkToggleable()
@@ -766,5 +775,48 @@ class PartnerCompanyForm
         }
 
         return implode(' · ', $parts);
+    }
+
+    /**
+     * La casilla de la compañía manda cuando la edita un administrador.
+     * El resto ve el valor ya guardado, sin poder habilitar el permiso de empresa.
+     */
+    private static function permissionCompany(Get $get, Component $livewire): PartnerCompany
+    {
+        $saved = null;
+
+        if ($livewire instanceof EditRecord) {
+            $candidate = $livewire->getRecord();
+            $saved = $candidate instanceof PartnerCompany ? $candidate : null;
+        }
+        $actor = request()->user();
+        $company = new PartnerCompany;
+
+        $company->can_place_orders = $actor instanceof User && $actor->isAdministrator()
+            ? self::formAllowsPrincipalInventoryOrders($get)
+            : (bool) $saved?->can_place_orders;
+
+        return $company;
+    }
+
+    private static function formAllowsPrincipalInventoryOrders(Get $get): bool
+    {
+        foreach ([
+            'can_place_orders',
+            '../can_place_orders',
+            '../../can_place_orders',
+            '../../../can_place_orders',
+            '../../../../can_place_orders',
+        ] as $path) {
+            $value = $get($path);
+
+            if (is_bool($value)) {
+                return $value;
+            }
+        }
+
+        $absolute = $get('/data.can_place_orders', true);
+
+        return is_bool($absolute) ? $absolute : false;
     }
 }

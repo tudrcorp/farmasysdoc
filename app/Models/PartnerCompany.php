@@ -50,6 +50,7 @@ class PartnerCompany extends Model
         'agreement_terms',
         'notes',
         'is_active',
+        'can_place_orders',
         'created_by',
         'updated_by',
         'date_created',
@@ -68,6 +69,7 @@ class PartnerCompany extends Model
     {
         return [
             'is_active' => 'boolean',
+            'can_place_orders' => 'boolean',
             'client_type' => PartnerCompanyClientType::class,
             'payment_modality' => PartnerCompanyPaymentModality::class,
             'credit_limit_usd' => 'decimal:2',

@@ -83,6 +83,13 @@ class PartnerCompanyInfolist
                                     ->falseIcon(Heroicon::XCircle)
                                     ->trueColor('success')
                                     ->falseColor('danger'),
+                                IconEntry::make('can_place_orders')
+                                    ->label('Pedidos del inventario')
+                                    ->boolean()
+                                    ->trueIcon(Heroicon::CheckCircle)
+                                    ->falseIcon(Heroicon::XCircle)
+                                    ->trueColor('success')
+                                    ->falseColor('gray'),
                             ]),
                     ])
                     ->columns(1)

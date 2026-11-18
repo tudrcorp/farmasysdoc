@@ -45,6 +45,10 @@ class CreatePartnerCompany extends CreateRecord
             $data['is_active'] = false;
         }
 
+        if (! ($authUser instanceof User && $authUser->isAdministrator())) {
+            $data['can_place_orders'] = false;
+        }
+
         unset($data['code']);
 
         return PartnerCompanyCreditTerms::normalize($data, isCreating: true);

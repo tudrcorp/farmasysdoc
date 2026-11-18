@@ -111,6 +111,10 @@ class EditPartnerCompany extends EditRecord
             $data['is_active'] = (bool) $record->is_active;
         }
 
+        if (! ($authUser instanceof User && $authUser->isAdministrator()) && $record instanceof PartnerCompany) {
+            $data['can_place_orders'] = (bool) $record->can_place_orders;
+        }
+
         if ($record instanceof PartnerCompany && $record->isGovernedByAgreements()) {
             foreach (['payment_modality', 'credit_limit_usd', 'discount_percentage', 'profit_percentage_a', 'agreement_reference', 'agreement_terms', 'date_created', 'date_updated', 'agreement_expires_on'] as $governedField) {
                 $data[$governedField] = $record->getAttribute($governedField);

@@ -27,6 +27,7 @@ use App\Http\Controllers\Partners\PartnerDeliveryNoteController;
 use App\Http\Controllers\PettyCash\PettyCashApprovalController;
 use App\Http\Controllers\ProductTransfers\ProductTransferReportPdfController;
 use App\Http\Controllers\ProductTransfers\ProductTransferSaleReportPdfController;
+use App\Http\Controllers\Public\PartnerGuestOrderPdfController;
 use App\Http\Controllers\PublicProductSearchController;
 use App\Http\Controllers\Purchases\MedicationQuotePdfController;
 use App\Http\Controllers\Purchases\PurchaseAnnulmentApprovalController;
@@ -59,6 +60,7 @@ use App\Livewire\EmployeePortal\Profile;
 use App\Livewire\EmployeePortal\Receipts;
 use App\Livewire\EmployeePortal\Requests;
 use App\Livewire\EmployeePortal\Trainings;
+use App\Livewire\Public\PartnerGuestOrder;
 use App\Livewire\Shop\Account as ShopAccount;
 use App\Livewire\Shop\Auth\Login as ShopLogin;
 use App\Livewire\Shop\Auth\Register as ShopRegister;
@@ -140,6 +142,10 @@ Route::prefix('app')->name('shop.')->group(function (): void {
 });
 
 Route::view('/docs/api', 'public.api-docs')->name('public.api-docs');
+Route::livewire('/pedido-aliado', PartnerGuestOrder::class)->name('public.partner-order');
+Route::get('/pedido-aliado/{order}/pdf', PartnerGuestOrderPdfController::class)
+    ->middleware('signed')
+    ->name('public.partner-order.pdf');
 Route::get('/buscar-productos', PublicProductSearchController::class)->name('public.products.search');
 Route::post('/realizar-pago', StorefrontCheckoutController::class)->name('storefront.checkout');
 Route::livewire('/pagar', StorefrontPay::class)->name('storefront.pay');

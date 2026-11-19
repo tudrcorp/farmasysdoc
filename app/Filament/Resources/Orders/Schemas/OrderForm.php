@@ -559,7 +559,7 @@ class OrderForm
         if ($partnerCompanyId !== null && $partnerCompanyId > 0) {
             $partner = PartnerCompany::query()->find($partnerCompanyId);
             if ($partner instanceof PartnerCompany) {
-                $partnerProfitPercentage = max(0.0, (float) ($partner->profit_percentage_a ?? 0));
+                $partnerProfitPercentage = $partner->medicineDispatchProfitPercent();
             }
         }
 

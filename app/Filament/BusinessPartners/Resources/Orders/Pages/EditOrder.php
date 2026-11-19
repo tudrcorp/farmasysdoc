@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Support\Inventory\LasDeliciasBranch;
 use App\Support\Orders\OrderTotalsCalculator;
+use App\Support\Orders\PartnerMedicineCharge;
 use App\Support\Orders\PartnerOrderDeliverySync;
 use App\Support\Orders\PartnerOrderFormMutator;
 use Filament\Actions\DeleteAction;
@@ -50,6 +51,8 @@ class EditOrder extends EditRecord
     {
         $record = $this->getRecord();
         $record->recalculateTotalsFromItems();
+        $record->loadMissing('partnerCompany');
+        PartnerMedicineCharge::forCompany($record->partnerCompany)->rememberOn($record);
         PartnerOrderDeliverySync::sync($record, auth()->user());
     }
 

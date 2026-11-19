@@ -41,6 +41,13 @@ class PlanMaintenance
             if ($plan->has_subplans) {
                 $plan->forceFill(['has_subplans' => false])->save();
             }
+
+            if ($plan->prices_medicines_by_cost_profit || $plan->medicine_cost_profit_percent !== null) {
+                $plan->forceFill([
+                    'prices_medicines_by_cost_profit' => false,
+                    'medicine_cost_profit_percent' => null,
+                ])->save();
+            }
         }
 
         if (! $plan->usesFlatPremium() && ($plan->monthly_premium_usd !== null || $plan->monthly_premium_ves !== null)) {

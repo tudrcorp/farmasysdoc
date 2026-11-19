@@ -14,6 +14,8 @@ final class OrderTotalsCalculator
     /**
      * @return array{
      *     unit_price: float,
+     *     unit_cost: float|null,
+     *     profit_percent: float|null,
      *     discount_amount: float,
      *     line_subtotal: float,
      *     tax_amount: float,
@@ -25,14 +27,19 @@ final class OrderTotalsCalculator
     public static function lineAmounts(Product $product, float $quantity, float $partnerProfitPercentage = 0.0): array
     {
         $qty = max(0.001, $quantity);
-        $unitPriceEffective = $product->effectiveSaleUnitPrice();
+        $unitCost = max(0.0, (float) ($product->cost_price ?? 0));
         $partnerProfitPercentage = max(0.0, $partnerProfitPercentage);
         $discountAmount = $product->monetaryLineDiscountForQuantity($qty);
+        $storedCost = null;
+        $storedPercent = null;
 
         if ($partnerProfitPercentage > 0) {
-            $unitCost = max(0.0, (float) ($product->cost_price ?? 0));
             $unitPriceEffective = $unitCost * (1 + ($partnerProfitPercentage / 100));
             $discountAmount = 0.0;
+            $storedCost = round($unitCost, 2);
+            $storedPercent = round($partnerProfitPercentage, 6);
+        } else {
+            $unitPriceEffective = $product->effectiveSaleUnitPrice();
         }
 
         $unitPriceEffective = round($unitPriceEffective, 2);
@@ -44,6 +51,8 @@ final class OrderTotalsCalculator
 
         return [
             'unit_price' => $unitPriceEffective,
+            'unit_cost' => $storedCost,
+            'profit_percent' => $storedPercent,
             'discount_amount' => $discountAmount,
             'line_subtotal' => $lineSubtotal,
             'tax_amount' => $taxAmount,
@@ -69,7 +78,7 @@ final class OrderTotalsCalculator
         if ($partnerCompanyId !== null && $partnerCompanyId > 0) {
             $partner = PartnerCompany::query()->find($partnerCompanyId);
             if ($partner instanceof PartnerCompany) {
-                $partnerProfitPercentage = max(0.0, (float) ($partner->profit_percentage_a ?? 0));
+                $partnerProfitPercentage = $partner->medicineDispatchProfitPercent();
                 $partnerOrderDiscountPercentage = max(0.0, (float) ($partner->discount_percentage ?? 0));
             }
         }

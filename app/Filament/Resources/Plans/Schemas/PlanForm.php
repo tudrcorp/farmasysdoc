@@ -250,8 +250,18 @@ class PlanForm
                                     ->multiple()
                                     ->searchable(),
                             ]),
+                        Toggle::make('prices_medicines_by_cost_profit')
+                            ->label('Ganancia por porcentaje sobre el costo')
+                            ->helperText('Actívelo cuando la negociación no sea un monto fijo por medicamento. El porcentaje se escribe en cada tramo, según la cantidad de afiliados.')
+                            ->default(false)
+                            ->live()
+                            ->inline(false)
+                            ->visible(fn (Get $get): bool => self::usesAffiliateBands($get))
+                            ->dehydrated(fn (Get $get): bool => self::usesAffiliateBands($get)),
                         Repeater::make('affiliate_bands')
-                            ->label('Baremo · USD por afiliado al mes')
+                            ->label(fn (Get $get): string => self::pricesByCostProfit($get)
+                                ? 'Baremo · porcentaje de ganancia sobre el costo'
+                                : 'Baremo · USD por afiliado al mes')
                             ->visible(fn (Get $get): bool => self::usesAffiliateBands($get))
                             ->required(fn (Get $get): bool => self::usesAffiliateBands($get))
                             ->minItems(1)
@@ -291,15 +301,28 @@ class PlanForm
                                     ->placeholder('o más')
                                     ->live(onBlur: true),
                                 ...collect(self::priceColumns($get))
-                                    ->map(fn (string $label, string $key): TextInput => TextInput::make("prices.{$key}")
-                                        ->numeric()
-                                        ->prefix('$')
-                                        ->minValue(0.01)
-                                        ->step(0.01)
-                                        ->required()
-                                        ->validationMessages(['required' => "Falta el precio de {$label} en este tramo."])
-                                        ->validationAttribute("precio de {$label}")
-                                        ->live(onBlur: true))
+                                    ->map(function (string $label, string $key) use ($get): TextInput {
+                                        $profit = self::pricesByCostProfit($get);
+                                        $input = TextInput::make("prices.{$key}")
+                                            ->numeric()
+                                            ->minValue(0.01)
+                                            ->step(0.01)
+                                            ->required()
+                                            ->live(onBlur: true);
+
+                                        if ($profit) {
+                                            return $input
+                                                ->suffix('%')
+                                                ->maxValue(1000)
+                                                ->validationMessages(['required' => 'Falta el porcentaje de ganancia en este tramo.'])
+                                                ->validationAttribute('porcentaje de ganancia');
+                                        }
+
+                                        return $input
+                                            ->prefix('$')
+                                            ->validationMessages(['required' => "Falta el precio de {$label} en este tramo."])
+                                            ->validationAttribute("precio de {$label}");
+                                    })
                                     ->values()
                                     ->all(),
                             ])
@@ -558,6 +581,11 @@ class PlanForm
         return array_map(fn (array $band): array => [...$band, 'prices' => []], PlanAffiliateBandRules::STANDARD_BANDS);
     }
 
+    private static function pricesByCostProfit(Get $get, string $path = ''): bool
+    {
+        return self::usesAffiliateBands($get, $path) && (bool) $get($path.'prices_medicines_by_cost_profit');
+    }
+
     /**
      * Columnas de precio del baremo: una por subplan (clave = uuid) o una sola si no hay subplanes.
      *
@@ -565,13 +593,42 @@ class PlanForm
      */
     private static function priceColumns(Get $get, string $path = ''): array
     {
+        $base = self::pricesByCostProfit($get, $path) ? 'Porcentaje de ganancia' : 'Tarifa (USD)';
+
         if (! (bool) $get($path.'has_subplans')) {
-            return [PlanCostStructureSynchronizer::BASE_PRICE_KEY => 'Tarifa (USD)'];
+            return [PlanCostStructureSynchronizer::BASE_PRICE_KEY => $base];
         }
 
         $columns = self::subplanOptions($get, $path);
 
-        return $columns === [] ? [PlanCostStructureSynchronizer::BASE_PRICE_KEY => 'Tarifa (USD)'] : $columns;
+        if ($columns === []) {
+            return [PlanCostStructureSynchronizer::BASE_PRICE_KEY => $base];
+        }
+
+        if (! self::pricesByCostProfit($get, $path)) {
+            return $columns;
+        }
+
+        return collect($columns)
+            ->map(fn (string $name): string => $name.' (%)')
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public static function normalizeMedicineProfitState(array $data): array
+    {
+        $mode = $data['premium_mode'] ?? null;
+        $modeValue = $mode instanceof PlanPremiumMode ? $mode->value : (is_string($mode) ? $mode : null);
+        $enabled = $modeValue === PlanPremiumMode::AffiliateBands->value
+            && (bool) ($data['prices_medicines_by_cost_profit'] ?? false);
+
+        $data['prices_medicines_by_cost_profit'] = $enabled;
+        $data['medicine_cost_profit_percent'] = null;
+
+        return $data;
     }
 
     /**
@@ -642,7 +699,7 @@ class PlanForm
     {
         $band = self::assignmentBand($get);
 
-        if ($band !== null && $band['rate'] !== null) {
+        if ($band !== null && $band['rate'] !== null && ! self::pricesByCostProfit($get, '../../')) {
             $set('agreed_rate_usd', number_format($band['rate'], 2, '.', ''));
         }
     }
@@ -664,7 +721,9 @@ class PlanForm
         if ($band !== null) {
             $text = 'Tramo '.$band['label'].' · '.$text;
 
-            if ($band['rate'] !== null && round($band['rate'], 2) !== round((float) $rate, 2)) {
+            if ($band['rate'] !== null && self::pricesByCostProfit($get, '../../')) {
+                $text .= ' · ganancia '.number_format($band['rate'], 2, ',', '.').' %';
+            } elseif ($band['rate'] !== null && round($band['rate'], 2) !== round((float) $rate, 2)) {
                 $text .= ' (baremo: $'.number_format($band['rate'], 2, ',', '.').')';
             }
         }

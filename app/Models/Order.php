@@ -70,6 +70,11 @@ class Order extends Model
         'branch_id',
         'partner_company_id',
         'partner_company_code',
+        'partner_prices_by_cost_profit',
+        'partner_pricing_plan_name',
+        'partner_pricing_band_label',
+        'partner_pricing_profit_percent',
+        'partner_pricing_affiliates_count',
         'is_wholesale',
         'partner_fulfillment_type',
         'partner_payment_terms',
@@ -114,6 +119,9 @@ class Order extends Model
     {
         return [
             'is_wholesale' => 'boolean',
+            'partner_prices_by_cost_profit' => 'boolean',
+            'partner_pricing_profit_percent' => 'decimal:6',
+            'partner_pricing_affiliates_count' => 'integer',
             'status' => OrderStatus::class,
             'convenio_type' => ConvenioType::class,
             'partner_fulfillment_type' => OrderFulfillmentType::class,

@@ -7,7 +7,11 @@
     <p class="text-sm text-gray-500 dark:text-gray-400">Sin tramos cargados.</p>
 @else
     <div class="overflow-x-auto">
-        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">USD por afiliado al mes · Contratación por cliente.</p>
+        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+            {{ $plan->prices_medicines_by_cost_profit
+                ? 'Porcentaje de ganancia sobre el costo, según la cantidad de afiliados.'
+                : 'USD por afiliado al mes · Contratación por cliente.' }}
+        </p>
         <table class="w-full min-w-[28rem] border-separate border-spacing-y-1 text-sm">
             <thead>
                 <tr class="border-t-2 border-warning-400">
@@ -19,7 +23,9 @@
                             'bg-gray-50 px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-primary-700 dark:bg-white/5 dark:text-primary-400',
                             'rounded-e-lg' => $loop->last,
                         ])>
-                            {{ $subplan?->name ?? 'Tarifa' }}
+                            {{ $plan->prices_medicines_by_cost_profit
+                                ? ($subplan?->name ? $subplan->name.' (%)' : 'Porcentaje de ganancia')
+                                : ($subplan?->name ?? 'Tarifa') }}
                         </th>
                     @endforeach
                 </tr>
@@ -36,7 +42,7 @@
                                 'px-4 py-3 text-center text-base font-bold tabular-nums text-primary-700 dark:text-primary-400',
                                 'rounded-e-lg' => $loop->last,
                             ])>
-                                {{ $price === null ? '—' : number_format($price, 2, ',', '.') }}
+                                {{ $price === null ? '—' : ($plan->prices_medicines_by_cost_profit ? number_format($price, 2, ',', '.').' %' : '$'.number_format($price, 2, ',', '.')) }}
                             </td>
                         @endforeach
                     </tr>

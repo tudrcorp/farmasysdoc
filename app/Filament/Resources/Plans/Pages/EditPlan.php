@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Plans\Pages;
 
 use App\Filament\Resources\Plans\PlanResource;
+use App\Filament\Resources\Plans\Schemas\PlanForm;
 use App\Models\Plan;
 use App\Services\Partners\PlanCostStructureSynchronizer;
 use App\Services\Partners\PlanMaintenance;
@@ -101,7 +102,7 @@ class EditPlan extends EditRecord
     {
         $data['updated_by'] = Auth::id();
 
-        return $data;
+        return PlanForm::normalizeMedicineProfitState($data);
     }
 
     protected function afterSave(): void

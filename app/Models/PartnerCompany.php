@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\PartnerAgreementStatus;
 use App\Enums\PartnerCompanyClientType;
 use App\Enums\PartnerCompanyPaymentModality;
+use App\Support\Orders\PartnerMedicineCharge;
 use App\Support\Partners\AgreementTermStatus;
 use Database\Factories\PartnerCompanyFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -202,6 +203,15 @@ class PartnerCompany extends Model
             ->using(PartnerCompanyPlan::class)
             ->withPivot(PartnerCompanyPlan::PIVOT_COLUMNS)
             ->withTimestamps();
+    }
+
+    /**
+     * Porcentaje que se aplica al costo de cada medicamento despachado o vendido a este aliado.
+     * Si un plan activo asignado lo define, ese porcentaje manda. Si no, se usa el porcentaje libre del aliado.
+     */
+    public function medicineDispatchProfitPercent(): float
+    {
+        return PartnerMedicineCharge::forCompany($this)->profitPercent;
     }
 
     /**

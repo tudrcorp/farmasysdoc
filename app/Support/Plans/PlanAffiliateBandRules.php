@@ -87,7 +87,7 @@ final class PlanAffiliateBandRules
 
                 if (is_numeric($previous) && is_numeric($current) && (float) $current > (float) $previous) {
                     $warnings[] = "{$name}: el tramo ".self::describe((int) $rows[$index]['min_affiliates'], is_numeric($rows[$index]['max_affiliates'] ?? null) ? (int) $rows[$index]['max_affiliates'] : null)
-                        .' es más caro que el anterior.';
+                        .' es mayor que el anterior.';
                 }
             }
         }

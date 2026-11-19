@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Orders\Pages;
 use App\Enums\ConvenioType;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Models\User;
+use App\Support\Orders\PartnerMedicineCharge;
 use App\Support\Orders\PartnerOrderDeliverySync;
 use App\Support\Orders\PartnerOrderFormMutator;
 use Filament\Resources\Pages\CreateRecord;
@@ -19,6 +20,8 @@ class CreateOrder extends CreateRecord
         $record = $this->getRecord();
         $record->assignCanonicalOrderNumber();
         $record->recalculateTotalsFromItems();
+        $record->loadMissing('partnerCompany');
+        PartnerMedicineCharge::forCompany($record->partnerCompany)->rememberOn($record);
         PartnerOrderDeliverySync::sync($record, auth()->user());
     }
 

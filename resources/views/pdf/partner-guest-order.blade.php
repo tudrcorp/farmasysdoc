@@ -31,7 +31,6 @@
 </head>
 <body>
     @php
-        $money = static fn (float $amount): string => 'USD '.number_format($amount, 2, ',', '.');
         $qty = static fn (float $amount): string => rtrim(rtrim(number_format($amount, 3, ',', '.'), '0'), ',');
     @endphp
     <div class="band">
@@ -57,7 +56,7 @@
         <div class="label">Aliado</div>
         <div class="name">{{ $ally_name }}</div>
         <div>Código {{ $ally_code }} · Sucursal {{ $branch_name }}</div>
-        <div>Entrega: {{ $fulfillment_label }} · Pago: {{ $payment_label }}@if ($cash_method_label) · {{ $cash_method_label }}@endif</div>
+        <div>Entrega: {{ $fulfillment_label }}</div>
         @if ($order->delivery_recipient_name)
             <div style="margin-top: 6px;">Recibe: {{ $order->delivery_recipient_name }} · {{ $order->delivery_phone }}</div>
         @endif
@@ -76,8 +75,6 @@
                 <th>Código</th>
                 <th>Principio activo</th>
                 <th class="num">Cant.</th>
-                <th class="num">Precio</th>
-                <th class="num">Importe</th>
             </tr>
         </thead>
         <tbody>
@@ -87,31 +84,11 @@
                     <td>{{ $line['code'] }}</td>
                     <td>{{ $line['ingredient'] !== '' ? $line['ingredient'] : '—' }}</td>
                     <td class="num">{{ $qty($line['quantity']) }}</td>
-                    <td class="num">{{ $money($line['unit_price']) }}</td>
-                    <td class="num">{{ $money($line['line_total']) }}</td>
                 </tr>
             @endforeach
         </tbody>
     </table>
 
-    <table class="totals">
-        <tr>
-            <td></td>
-            <td class="num" style="width: 180px;">Impuesto</td>
-            <td class="num" style="width: 120px;">{{ $money($tax_total) }}</td>
-        </tr>
-        <tr>
-            <td></td>
-            <td class="num">Descuento</td>
-            <td class="num">{{ $money($discount_total) }}</td>
-        </tr>
-        <tr>
-            <td></td>
-            <td class="num grand">Total</td>
-            <td class="num grand">{{ $money($total) }}</td>
-        </tr>
-    </table>
-
-    <p class="foot">Farmadoc · {{ $branch_name }}. Conserve este comprobante como detalle del pedido {{ $order_number }}.</p>
+    <p class="foot">Farmadoc · {{ $branch_name }}. Pedido pendiente {{ $order_number }}. No es factura fiscal ni comprobante del SENIAT.</p>
 </body>
 </html>

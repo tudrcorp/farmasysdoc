@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Plans\Pages;
 
 use App\Filament\Resources\Plans\PlanResource;
+use App\Filament\Resources\Plans\Schemas\PlanForm;
 use App\Models\Plan;
 use App\Services\Partners\PlanCostStructureSynchronizer;
 use App\Services\Partners\PlanMaintenance;
@@ -25,7 +26,7 @@ class CreatePlan extends CreateRecord
         $data['created_by'] = Auth::id();
         $data['updated_by'] = Auth::id();
 
-        return $data;
+        return PlanForm::normalizeMedicineProfitState($data);
     }
 
     /**

@@ -3,16 +3,12 @@
 namespace App\Livewire\Public;
 
 use App\Enums\OrderFulfillmentType;
-use App\Enums\OrderPartnerCashPaymentMethod;
-use App\Enums\OrderPartnerPaymentTerms;
 use App\Models\PartnerCompany;
 use App\Models\Product;
 use App\Services\Orders\PartnerGuestOrderPlacer;
 use App\Support\Inventory\LasDeliciasBranch;
-use App\Support\Orders\OrderTotalsCalculator;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -20,15 +16,11 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
-use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
-use Livewire\WithFileUploads;
 
 #[Layout('layouts.partner-guest')]
 #[Title('Pedido aliado')]
 class PartnerGuestOrder extends Component
 {
-    use WithFileUploads;
-
     public string $step = 'code';
 
     public string $partnerCode = '';
@@ -42,7 +34,7 @@ class PartnerGuestOrder extends Component
 
     public string $search = '';
 
-    /** @var list<array{id: int, name: string, code: string, ingredient: string, price: float}> */
+    /** @var list<array{id: int, name: string, code: string, ingredient: string}> */
     public array $results = [];
 
     /** @var list<array{product_id: int, name: string, code: string, ingredient: string, quantity: int}> */
@@ -51,18 +43,6 @@ class PartnerGuestOrder extends Component
     public bool $isWholesale = false;
 
     public string $fulfillment = 'delivery';
-
-    public string $paymentTerms = 'contado';
-
-    public string $cashMethod = 'pago_movil';
-
-    public string $pagoMovilReference = '';
-
-    public string $zelleName = '';
-
-    public string $zelleTransaction = '';
-
-    public mixed $proof = null;
 
     public string $recipientName = '';
 
@@ -159,6 +139,38 @@ class PartnerGuestOrder extends Component
         $this->resetErrorBag('lines');
     }
 
+    public function incrementProduct(int $productId): void
+    {
+        foreach ($this->lines as $index => $line) {
+            if ((int) $line['product_id'] === $productId) {
+                $this->lines[$index]['quantity'] = min(9999, (int) $line['quantity'] + 1);
+
+                return;
+            }
+        }
+
+        $this->addProduct($productId);
+    }
+
+    public function decrementProduct(int $productId): void
+    {
+        foreach ($this->lines as $index => $line) {
+            if ((int) $line['product_id'] !== $productId) {
+                continue;
+            }
+
+            if ((int) $line['quantity'] <= 1) {
+                $this->removeLine($index);
+
+                return;
+            }
+
+            $this->lines[$index]['quantity'] = (int) $line['quantity'] - 1;
+
+            return;
+        }
+    }
+
     public function updatedLines(mixed $value, string $key): void
     {
         if (! str_ends_with($key, '.quantity')) {
@@ -190,19 +202,11 @@ class PartnerGuestOrder extends Component
         $company = $this->ensureCompany();
         $this->ensureNotRateLimited('partner-guest-place', 6);
 
-        $cash = $this->paymentTerms === OrderPartnerPaymentTerms::Cash->value;
-
         $this->validate([
             'lines' => ['required', 'array', 'min:1', 'max:'.PartnerGuestOrderPlacer::MAX_LINES],
             'lines.*.product_id' => ['required', 'integer'],
             'lines.*.quantity' => ['required', 'integer', 'min:1', 'max:9999'],
             'fulfillment' => ['required', Rule::enum(OrderFulfillmentType::class)],
-            'paymentTerms' => ['required', Rule::enum(OrderPartnerPaymentTerms::class)],
-            'cashMethod' => [Rule::requiredIf($cash), Rule::enum(OrderPartnerCashPaymentMethod::class)],
-            'pagoMovilReference' => [Rule::requiredIf($cash && $this->cashMethod === OrderPartnerCashPaymentMethod::PagoMovil->value), 'nullable', 'string', 'max:255'],
-            'zelleName' => [Rule::requiredIf($cash && $this->cashMethod === OrderPartnerCashPaymentMethod::Zelle->value), 'nullable', 'string', 'max:255'],
-            'zelleTransaction' => ['nullable', 'string', 'max:255'],
-            'proof' => [Rule::requiredIf($cash), 'nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
             'recipientName' => ['required', 'string', 'max:255'],
             'recipientPhone' => ['required', 'string', 'max:40'],
             'recipientDocument' => ['nullable', 'string', 'max:64'],
@@ -216,46 +220,20 @@ class PartnerGuestOrder extends Component
             'recipientName.required' => 'Indique quién recibe el pedido.',
             'recipientPhone.required' => 'Indique un teléfono de contacto.',
             'address.required' => 'Indique la dirección de entrega.',
-            'cashMethod.required' => 'Elija cómo pagará de contado.',
-            'pagoMovilReference.required' => 'Escriba la referencia del pago móvil.',
-            'zelleName.required' => 'Escriba el nombre de quien envió el Zelle.',
-            'proof.required' => 'Adjunte el comprobante del pago.',
-            'proof.mimes' => 'El comprobante debe ser una imagen o un PDF.',
-            'proof.max' => 'El comprobante no puede pasar de 5 MB.',
         ]);
 
-        $proofPath = null;
-
-        if ($cash && $this->proof instanceof TemporaryUploadedFile) {
-            $proofPath = $this->proof->store('orders/partner-payment-proofs', 'public');
-        }
-
-        try {
-            $order = app(PartnerGuestOrderPlacer::class)->place($company, [
-                'lines' => $this->lines,
-                'is_wholesale' => $this->isWholesale,
-                'fulfillment' => $this->fulfillment,
-                'payment_terms' => $this->paymentTerms,
-                'cash_method' => $cash ? $this->cashMethod : null,
-                'pago_movil_reference' => $this->pagoMovilReference,
-                'zelle_name' => $this->zelleName,
-                'zelle_transaction' => $this->zelleTransaction,
-                'proof_path' => $proofPath,
-                'recipient_name' => $this->recipientName,
-                'recipient_phone' => $this->recipientPhone,
-                'recipient_document' => $this->recipientDocument,
-                'address' => $this->address,
-                'city' => $this->city,
-                'state' => $this->state,
-                'delivery_notes' => $this->deliveryNotes,
-            ]);
-        } catch (ValidationException $exception) {
-            if (is_string($proofPath)) {
-                Storage::disk('public')->delete($proofPath);
-            }
-
-            throw $exception;
-        }
+        $order = app(PartnerGuestOrderPlacer::class)->place($company, [
+            'lines' => $this->lines,
+            'is_wholesale' => $this->isWholesale,
+            'fulfillment' => $this->fulfillment,
+            'recipient_name' => $this->recipientName,
+            'recipient_phone' => $this->recipientPhone,
+            'recipient_document' => $this->recipientDocument,
+            'address' => $this->address,
+            'city' => $this->city,
+            'state' => $this->state,
+            'delivery_notes' => $this->deliveryNotes,
+        ]);
 
         $this->orderNumber = (string) $order->order_number;
         $this->pdfUrl = URL::temporarySignedRoute(
@@ -267,7 +245,6 @@ class PartnerGuestOrder extends Component
         $this->lines = [];
         $this->results = [];
         $this->search = '';
-        $this->proof = null;
     }
 
     public function another(): void
@@ -283,24 +260,14 @@ class PartnerGuestOrder extends Component
         $this->reset();
         $this->step = 'code';
         $this->fulfillment = OrderFulfillmentType::Delivery->value;
-        $this->paymentTerms = OrderPartnerPaymentTerms::Cash->value;
-        $this->cashMethod = OrderPartnerCashPaymentMethod::PagoMovil->value;
     }
 
     /**
-     * @return array{subtotal: float, tax_total: float, discount_total: float, total: float, count: int}
+     * @return array{count: int}
      */
     public function summary(): array
     {
-        $states = array_map(fn (array $line): array => [
-            'product_id' => $line['product_id'],
-            'quantity' => $line['quantity'],
-        ], $this->lines);
-
-        $totals = OrderTotalsCalculator::aggregateFromItemStates($states, $this->partnerCompanyId);
-
         return [
-            ...$totals,
             'count' => count($this->lines),
         ];
     }
@@ -309,8 +276,9 @@ class PartnerGuestOrder extends Component
     {
         return view('livewire.public.partner-guest-order', [
             'summary' => $this->summary(),
-            'pagoMovilQr' => asset((string) config('orders.partner_payment_qr.pago_movil')),
-            'zelleQr' => asset((string) config('orders.partner_payment_qr.zelle')),
+            'quantities' => collect($this->lines)->mapWithKeys(
+                fn (array $line): array => [(int) $line['product_id'] => (int) $line['quantity']],
+            )->all(),
         ]);
     }
 
@@ -345,7 +313,7 @@ class PartnerGuestOrder extends Component
     }
 
     /**
-     * @return list<array{id: int, name: string, code: string, ingredient: string, price: float}>
+     * @return list<array{id: int, name: string, code: string, ingredient: string}>
      */
     private function searchProducts(string $term): array
     {
@@ -366,8 +334,6 @@ class PartnerGuestOrder extends Component
         }
 
         $like = '%'.addcslashes(mb_strtolower($term), '%_\\').'%';
-        $company = PartnerCompany::query()->find($this->partnerCompanyId);
-        $profit = max(0.0, (float) ($company?->profit_percentage_a ?? 0));
 
         return Product::query()
             ->where('is_active', true)
@@ -381,17 +347,12 @@ class PartnerGuestOrder extends Component
             ->orderBy('name')
             ->limit(8)
             ->get()
-            ->map(function (Product $product) use ($profit): array {
-                $price = OrderTotalsCalculator::lineAmounts($product, 1, $profit)['unit_price'];
-
-                return [
-                    'id' => (int) $product->id,
-                    'name' => (string) $product->name,
-                    'code' => $this->codeLabel($product),
-                    'ingredient' => $this->ingredientLabel($product),
-                    'price' => $price,
-                ];
-            })
+            ->map(fn (Product $product): array => [
+                'id' => (int) $product->id,
+                'name' => (string) $product->name,
+                'code' => $this->codeLabel($product),
+                'ingredient' => $this->ingredientLabel($product),
+            ])
             ->all();
     }
 

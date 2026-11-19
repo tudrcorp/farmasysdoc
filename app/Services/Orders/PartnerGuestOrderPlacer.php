@@ -4,8 +4,6 @@ namespace App\Services\Orders;
 
 use App\Enums\ConvenioType;
 use App\Enums\OrderFulfillmentType;
-use App\Enums\OrderPartnerCashPaymentMethod;
-use App\Enums\OrderPartnerPaymentTerms;
 use App\Enums\OrderStatus;
 use App\Models\Inventory;
 use App\Models\Order;
@@ -15,6 +13,7 @@ use App\Models\Product;
 use App\Services\Partners\PartnerPanelActivityRecorder;
 use App\Support\Inventory\LasDeliciasBranch;
 use App\Support\Orders\OrderTotalsCalculator;
+use App\Support\Orders\PartnerMedicineCharge;
 use App\Support\Orders\PartnerOrderDeliverySync;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -32,12 +31,6 @@ final class PartnerGuestOrderPlacer
      *     lines: list<array{product_id?: mixed, quantity?: mixed}>,
      *     is_wholesale?: bool,
      *     fulfillment?: string,
-     *     payment_terms?: string,
-     *     cash_method?: ?string,
-     *     pago_movil_reference?: ?string,
-     *     zelle_name?: ?string,
-     *     zelle_transaction?: ?string,
-     *     proof_path?: ?string,
      *     recipient_name?: ?string,
      *     recipient_phone?: ?string,
      *     recipient_document?: ?string,
@@ -64,21 +57,10 @@ final class PartnerGuestOrderPlacer
         }
 
         $fulfillment = OrderFulfillmentType::tryFrom((string) ($data['fulfillment'] ?? ''));
-        $paymentTerms = OrderPartnerPaymentTerms::tryFrom((string) ($data['payment_terms'] ?? ''));
 
-        if ($fulfillment === null || $paymentTerms === null) {
+        if ($fulfillment === null) {
             throw ValidationException::withMessages([
-                'fulfillment' => 'Indique el tipo de entrega y la forma de pago.',
-            ]);
-        }
-
-        $cashMethod = $paymentTerms === OrderPartnerPaymentTerms::Cash
-            ? OrderPartnerCashPaymentMethod::tryFrom((string) ($data['cash_method'] ?? ''))
-            : null;
-
-        if ($paymentTerms === OrderPartnerPaymentTerms::Cash && $cashMethod === null) {
-            throw ValidationException::withMessages([
-                'cashMethod' => 'Elija cómo pagará de contado.',
+                'fulfillment' => 'Indique el tipo de entrega.',
             ]);
         }
 
@@ -98,8 +80,8 @@ final class PartnerGuestOrderPlacer
 
         $actor = 'aliado:'.(string) $company->code;
 
-        return DB::transaction(function () use ($company, $branch, $data, $lines, $fulfillment, $paymentTerms, $cashMethod, $actor): Order {
-            $profit = max(0.0, (float) ($company->profit_percentage_a ?? 0));
+        return DB::transaction(function () use ($company, $branch, $data, $lines, $fulfillment, $actor): Order {
+            $profit = $company->medicineDispatchProfitPercent();
             $inventories = [];
 
             foreach ($lines as $line) {
@@ -129,20 +111,12 @@ final class PartnerGuestOrderPlacer
                 'convenio_type' => ConvenioType::Particular,
                 'is_wholesale' => (bool) ($data['is_wholesale'] ?? false),
                 'partner_fulfillment_type' => $fulfillment,
-                'partner_payment_terms' => $paymentTerms,
-                'partner_cash_payment_method' => $cashMethod,
-                'partner_pago_movil_reference' => $cashMethod === OrderPartnerCashPaymentMethod::PagoMovil
-                    ? $this->nullableString($data['pago_movil_reference'] ?? null)
-                    : null,
-                'partner_zelle_reference_name' => $cashMethod === OrderPartnerCashPaymentMethod::Zelle
-                    ? $this->nullableString($data['zelle_name'] ?? null)
-                    : null,
-                'partner_zelle_transaction_number' => $cashMethod === OrderPartnerCashPaymentMethod::Zelle
-                    ? $this->nullableString($data['zelle_transaction'] ?? null)
-                    : null,
-                'partner_cash_payment_proof_path' => $paymentTerms === OrderPartnerPaymentTerms::Cash
-                    ? $this->nullableString($data['proof_path'] ?? null)
-                    : null,
+                'partner_payment_terms' => null,
+                'partner_cash_payment_method' => null,
+                'partner_pago_movil_reference' => null,
+                'partner_zelle_reference_name' => null,
+                'partner_zelle_transaction_number' => null,
+                'partner_cash_payment_proof_path' => null,
                 'delivery_recipient_name' => $this->nullableString($data['recipient_name'] ?? null),
                 'delivery_phone' => $this->nullableString($data['recipient_phone'] ?? null),
                 'delivery_recipient_document' => $this->nullableString($data['recipient_document'] ?? null),
@@ -178,6 +152,7 @@ final class PartnerGuestOrderPlacer
 
             $order->assignCanonicalOrderNumber();
             $order->recalculateTotalsFromItems();
+            PartnerMedicineCharge::forCompany($company)->rememberOn($order);
             PartnerOrderDeliverySync::sync($order->fresh());
             $order->refresh();
 

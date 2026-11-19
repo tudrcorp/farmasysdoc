@@ -93,6 +93,14 @@ class PlanInfolist
                     ->visible(fn (Plan $record): bool => $record->usesAffiliateBands())
                     ->extraAttributes(['class' => 'fi-client-marketing-behavior'])
                     ->schema([
+                        TextEntry::make('medicine_profit_rule')
+                            ->label('Precio del medicamento')
+                            ->state(fn (Plan $record): string => $record->prices_medicines_by_cost_profit
+                                ? 'Porcentaje de ganancia según la cantidad de afiliados'
+                                : 'Monto fijo por medicamento')
+                            ->icon(Heroicon::Beaker)
+                            ->color('info')
+                            ->columnSpanFull(),
                         TextEntry::make('affiliate_rate_table')
                             ->hiddenLabel()
                             ->state(fn (Plan $record): string => view('filament.plans.affiliate-rate-table', [

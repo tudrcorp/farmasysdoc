@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\Partners\PartnerPanelActivityRecorder;
 use App\Support\Inventory\LasDeliciasBranch;
 use App\Support\Orders\OrderTotalsCalculator;
+use App\Support\Orders\PartnerMedicineCharge;
 use App\Support\Orders\PartnerOrderDeliverySync;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -83,7 +84,7 @@ final class PrincipalInventoryOrderPlacer
             }
 
             $actorName = filled($actor->email) ? (string) $actor->email : (string) $actor->name;
-            $profit = max(0.0, (float) ($company->profit_percentage_a ?? 0));
+            $profit = $company->medicineDispatchProfitPercent();
 
             $order = Order::query()->create([
                 'order_number' => 'TMP-'.Str::lower((string) Str::ulid()),
@@ -126,6 +127,7 @@ final class PrincipalInventoryOrderPlacer
 
             $order->assignCanonicalOrderNumber();
             $order->recalculateTotalsFromItems();
+            PartnerMedicineCharge::forCompany($company)->rememberOn($order);
             PartnerOrderDeliverySync::sync($order, $actor);
 
             $order->refresh();

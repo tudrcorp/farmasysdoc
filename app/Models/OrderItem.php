@@ -21,6 +21,8 @@ class OrderItem extends Model
         'inventory_id',
         'quantity',
         'unit_price',
+        'unit_cost',
+        'profit_percent',
         'discount_amount',
         'line_subtotal',
         'tax_amount',
@@ -37,6 +39,8 @@ class OrderItem extends Model
         return [
             'quantity' => 'decimal:3',
             'unit_price' => 'decimal:2',
+            'unit_cost' => 'decimal:2',
+            'profit_percent' => 'decimal:6',
             'discount_amount' => 'decimal:2',
             'line_subtotal' => 'decimal:2',
             'tax_amount' => 'decimal:2',

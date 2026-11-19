@@ -176,6 +176,7 @@ class OrderInfolist
                     ->extraAttributes([
                         'class' => 'fi-order-infolist-products-section',
                     ])
+                    ->visible(fn (Order $record): bool => ! ($enableAdminResourceLinks && $record->partner_prices_by_cost_profit))
                     ->schema([
                         RepeatableEntry::make('items')
                             ->label('Líneas del pedido')
@@ -219,6 +220,84 @@ class OrderInfolist
                                     ->weight('medium')
                                     ->alignment(Alignment::End),
                             ])
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
+                Section::make('Cobro del pedido')
+                    ->description(function (Order $record): string {
+                        $percent = number_format((float) $record->partner_pricing_profit_percent, 2, ',', '.');
+                        $people = number_format((int) $record->partner_pricing_affiliates_count, 0, ',', '.');
+
+                        return 'Plan '.$record->partner_pricing_plan_name
+                            .' · tramo '.$record->partner_pricing_band_label
+                            .' · '.$people.' afiliados · ganancia '.$percent.' % sobre el costo.';
+                    })
+                    ->icon(Heroicon::Banknotes)
+                    ->visible(fn (Order $record): bool => $enableAdminResourceLinks && $record->partner_prices_by_cost_profit)
+                    ->schema([
+                        RepeatableEntry::make('pricing_items')
+                            ->label('Detalle por medicamento')
+                            ->state(fn (Order $record) => $record->items)
+                            ->table([
+                                TableColumn::make('Medicamento'),
+                                TableColumn::make('Cant.')->alignment(Alignment::Center),
+                                TableColumn::make('Costo')->alignment(Alignment::End),
+                                TableColumn::make('%')->alignment(Alignment::End),
+                                TableColumn::make('Ganancia')->alignment(Alignment::End),
+                                TableColumn::make('Precio')->alignment(Alignment::End),
+                                TableColumn::make('Total')->alignment(Alignment::End),
+                            ])
+                            ->schema([
+                                TextEntry::make('product_name_snapshot')
+                                    ->formatStateUsing(function ($state, OrderItem $record): string {
+                                        $name = filled($state) ? (string) $state : (string) ($record->product?->name ?? 'Producto');
+                                        $sku = filled($record->sku_snapshot) ? (string) $record->sku_snapshot : '';
+
+                                        return $sku === '' ? $name : $name.' · '.$sku;
+                                    }),
+                                TextEntry::make('quantity')
+                                    ->alignment(Alignment::Center)
+                                    ->formatStateUsing(fn ($state): string => rtrim(rtrim(number_format((float) $state, 3, ',', '.'), '0'), ',')),
+                                TextEntry::make('unit_cost')
+                                    ->alignment(Alignment::End)
+                                    ->formatStateUsing(fn ($state): string => 'USD '.number_format((float) $state, 2, ',', '.')),
+                                TextEntry::make('profit_percent')
+                                    ->alignment(Alignment::End)
+                                    ->formatStateUsing(fn ($state): string => number_format((float) $state, 2, ',', '.').' %'),
+                                TextEntry::make('line_profit')
+                                    ->alignment(Alignment::End)
+                                    ->state(function (OrderItem $record): string {
+                                        $gain = ((float) $record->unit_price - (float) $record->unit_cost) * (float) $record->quantity;
+
+                                        return 'USD '.number_format($gain, 2, ',', '.');
+                                    }),
+                                TextEntry::make('unit_price')
+                                    ->alignment(Alignment::End)
+                                    ->formatStateUsing(fn ($state): string => 'USD '.number_format((float) $state, 2, ',', '.')),
+                                TextEntry::make('line_total')
+                                    ->alignment(Alignment::End)
+                                    ->weight('medium')
+                                    ->formatStateUsing(fn ($state): string => 'USD '.number_format((float) $state, 2, ',', '.')),
+                            ])
+                            ->columnSpanFull(),
+                        TextEntry::make('pricing_totals')
+                            ->hiddenLabel()
+                            ->state(function (Order $record): string {
+                                $cost = 0.0;
+                                $gain = 0.0;
+
+                                foreach ($record->items as $item) {
+                                    $cost += (float) $item->unit_cost * (float) $item->quantity;
+                                    $gain += ((float) $item->unit_price - (float) $item->unit_cost) * (float) $item->quantity;
+                                }
+
+                                return 'Costo USD '.number_format($cost, 2, ',', '.')
+                                    .' · Ganancia USD '.number_format($gain, 2, ',', '.')
+                                    .' · Total del pedido USD '.number_format((float) $record->total, 2, ',', '.');
+                            })
+                            ->weight('medium')
                             ->columnSpanFull(),
                     ])
                     ->columns(1)

@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\ExternalBranchesController;
 use App\Http\Controllers\Api\ExternalBranchInventoryController;
 use App\Http\Controllers\Api\ExternalInventoryController;
 use App\Http\Controllers\Api\ExternalOrderController;
+use App\Http\Controllers\Api\ExternalOrderStatusController;
 use App\Http\Controllers\Api\ExternalPrincipalInventoryController;
 use App\Http\Controllers\Api\ExternalServiceOrderController;
 use App\Http\Controllers\Api\FiscalAgent\FiscalAgentController;
@@ -83,6 +84,9 @@ Route::prefix('external')
             ->name('api.external.inventory-by-branch.index');
         Route::get('/inventory/las-delicias', ExternalPrincipalInventoryController::class)
             ->name('api.external.inventory.las-delicias');
+        Route::get('/orders/{order}', ExternalOrderStatusController::class)
+            ->where('order', '[A-Za-z0-9][A-Za-z0-9._-]{0,254}')
+            ->name('api.external.orders.show');
         Route::post('/orders', [ExternalOrderController::class, 'store'])
             ->name('api.external.orders.store');
         Route::post('/service-orders', [ExternalServiceOrderController::class, 'store'])

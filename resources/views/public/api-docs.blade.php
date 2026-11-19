@@ -30,6 +30,7 @@
                 <a href="#inventory-las-delicias" class="rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-900/5 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white">Las Delicias</a>
                 <a href="#inventory-by-branch" class="rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-900/5 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white">Inventario sucursal</a>
                 <a href="#external-orders" class="rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-900/5 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white">Pedidos</a>
+                <a href="#external-order-status" class="rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-900/5 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white">Estado pedido</a>
                 <a href="#service-orders" class="rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-900/5 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white">Orden servicio</a>
                 <a href="#playground" class="rounded-xl px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-900/5 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white">Playground</a>
             </nav>
@@ -125,6 +126,7 @@
                 <a href="#inventory-las-delicias" class="rounded-full bg-amber-100 px-3 py-1 font-semibold text-amber-950 dark:bg-amber-500/20 dark:text-amber-100">GET Las Delicias</a>
                 <a href="#inventory-by-branch" class="rounded-full bg-teal-100 px-3 py-1 font-semibold text-teal-900 dark:bg-teal-500/20 dark:text-teal-100">GET inventario sucursal</a>
                 <a href="#external-orders" class="rounded-full bg-emerald-100 px-3 py-1 font-semibold text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-100">POST pedidos</a>
+                <a href="#external-order-status" class="rounded-full bg-lime-100 px-3 py-1 font-semibold text-lime-900 dark:bg-lime-500/20 dark:text-lime-100">GET estado pedido</a>
                 <a href="#service-orders" class="rounded-full bg-violet-100 px-3 py-1 font-semibold text-violet-900 dark:bg-violet-500/20 dark:text-violet-100">POST orden servicio</a>
             </div>
 
@@ -517,6 +519,54 @@
 }</code></pre>
             </details>
 
+            <details id="external-order-status" class="group rounded-3xl border border-zinc-200/80 bg-white/80 p-6 shadow-xl shadow-zinc-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-lime-700 dark:text-lime-300">GET</p>
+                        <h3 class="font-mono text-base sm:text-lg">/api/external/orders/{order}</h3>
+                    </div>
+                    <span class="rounded-full bg-lime-200 px-3 py-1 text-xs font-semibold text-lime-900 dark:bg-lime-500/30 dark:text-lime-100">Estado del pedido</span>
+                </summary>
+                <p class="mt-4 text-sm text-zinc-600 dark:text-zinc-300">Consulta el estado de un pedido ya creado. <code class="rounded bg-zinc-100 px-1 font-mono text-xs dark:bg-zinc-800">{order}</code> es el <code class="rounded bg-zinc-100 px-1 font-mono text-xs dark:bg-zinc-800">order_number</code> devuelto al crear (por ejemplo <code class="rounded bg-zinc-100 px-1 font-mono text-xs dark:bg-zinc-800">EXT-20260322123000-4321</code>) o el <code class="rounded bg-zinc-100 px-1 font-mono text-xs dark:bg-zinc-800">order_id</code> numérico. Solo devuelve pedidos de la compañía indicada.</p>
+                <div class="mt-4 overflow-x-auto rounded-2xl border border-zinc-200/80 dark:border-white/10">
+                    <table class="w-full min-w-[40rem] border-collapse text-left text-xs sm:text-sm">
+                        <thead>
+                            <tr class="border-b border-zinc-200 bg-zinc-50/90 dark:border-white/10 dark:bg-zinc-900/80">
+                                <th class="px-3 py-2 font-semibold">Parámetro</th>
+                                <th class="px-3 py-2 font-semibold">Tipo</th>
+                                <th class="px-3 py-2 font-semibold">Obligatorio</th>
+                                <th class="px-3 py-2 font-semibold">Validación / notas</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-zinc-700 dark:text-zinc-200">
+                            <tr class="border-b border-zinc-100 dark:border-white/5"><td class="px-3 py-2 font-mono">partner_company</td><td class="px-3 py-2">string (query)</td><td class="px-3 py-2">Sí</td><td class="px-3 py-2">Código del aliado; debe existir en <code class="font-mono">partner_companies.code</code></td></tr>
+                            <tr><td class="px-3 py-2 font-mono">order</td><td class="px-3 py-2">string (ruta)</td><td class="px-3 py-2">Sí</td><td class="px-3 py-2"><code class="font-mono">order_number</code> o <code class="font-mono">order_id</code>. Si no pertenece a ese aliado, responde 404</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="mt-4 text-sm text-zinc-600 dark:text-zinc-300"><code class="rounded bg-zinc-100 px-1 font-mono text-xs dark:bg-zinc-800">status</code> usa <code class="text-[11px]">pendiente</code>, <code class="text-[11px]">en-proceso</code> o <code class="text-[11px]">finalizado</code>. <code class="rounded bg-zinc-100 px-1 font-mono text-xs dark:bg-zinc-800">status_label</code> es el texto en español.</p>
+                <p class="mt-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Respuesta HTTP 200 — ejemplo</p>
+                <pre class="mt-2 overflow-auto rounded-xl bg-zinc-900 p-3 text-xs text-zinc-100"><code>{
+  "data": {
+    "order_id": 1002,
+    "order_number": "EXT-20260322123000-4321",
+    "partner_company": "ALDO-2026-001",
+    "status": "en-proceso",
+    "status_label": "En proceso",
+    "items_count": 1,
+    "subtotal": 24000,
+    "tax_total": 0,
+    "discount_total": 0,
+    "total": 24000,
+    "updated_at": "2026-03-24T18:30:00+00:00"
+  }
+}</code></pre>
+                <p class="mt-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Respuesta HTTP 404 — el pedido no existe para ese aliado</p>
+                <pre class="mt-2 overflow-auto rounded-xl bg-zinc-900 p-3 text-xs text-zinc-100"><code>{
+  "message": "No se encontró un pedido de ese aliado con ese identificador."
+}</code></pre>
+            </details>
+
             <details id="service-orders" class="group rounded-3xl border border-zinc-200/80 bg-white/80 p-6 shadow-xl shadow-zinc-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
                 <summary class="flex cursor-pointer list-none items-center justify-between gap-4">
                     <div>
@@ -603,6 +653,7 @@
                         <option value="branches">GET listar sucursales activas</option>
                         <option value="inventory_by_branch">GET inventario por sucursal</option>
                         <option value="orders">POST crear pedido</option>
+                        <option value="order_status">GET estado de un pedido</option>
                         <option value="service_orders">POST orden de servicio (aliado)</option>
                     </select>
                 </label>
@@ -675,6 +726,7 @@
             branches: '<strong>GET /api/external/branches</strong> — query obligatorio: <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">partner_company</code>. Lista sucursales <strong>activas</strong> con <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">id</code>, <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">code</code>, nombre y ubicación.',
             inventory_by_branch: '<strong>GET /api/external/inventory-by-branch</strong> — query: <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">partner_company</code> (oblig.) y <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">branch_id</code> (entero, sucursal <strong>activa</strong>). Respuesta: objeto <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">branch</code> + arreglo <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">data</code> con líneas de inventario.',
             orders: '<strong>POST /api/external/orders</strong> — JSON raíz: <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">partner_company</code> (código oblig.), <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">client_id</code> (int, oblig.) e <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">items[]</code> con <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">product_id</code>, <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">quantity</code> &gt; 0, <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">unit_price</code> ≥ 0. El ejemplo incluye campos opcionales frecuentes.',
+            order_status: '<strong>GET /api/external/orders/{order}</strong> — query obligatorio: <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">partner_company</code>. <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">{order}</code> es el <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">order_number</code> o el <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">order_id</code>. Solo devuelve pedidos de ese aliado.',
             service_orders: '<strong>POST /api/external/service-orders</strong> — JSON: <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">partner_company</code> (código en partner_companies), datos de paciente, <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">diagnosis</code>, <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">items[]</code> con <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">name</code> e <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">indicacion</code>. No envíes <code class="rounded bg-white/60 px-1 font-mono dark:bg-black/30">ordered_at</code> (lo asigna el servidor).',
         };
 
@@ -1073,6 +1125,98 @@ try {
     echo (string) $response->getBody() . PHP_EOL;
 } catch (RequestException $e) {
     echo $e->getMessage() . PHP_EOL;
+    exit(1);
+}`,
+            },
+            order_status: {
+                curl: (baseUrl, token) => `# === GET /api/external/orders/{order} ===
+# {order} = order_number (EXT-...) o order_id numerico
+# Query obligatorio: partner_company
+curl -sS -G "${baseUrl}/api/external/orders/EXT-20260322123000-4321" \\
+  -H "Accept: application/json" \\
+  -H "Authorization: Bearer ${token}" \\
+  --data-urlencode "partner_company=ALDO-2026-001" \\
+  -w "\\nHTTP %{http_code}\\n"`,
+                javascript: (baseUrl, token) => `// === GET /api/external/orders/{order} ===
+const baseUrl = ${JSON.stringify(baseUrl)};
+const token = ${JSON.stringify(token || 'TU_TOKEN_AQUI')};
+const order = 'EXT-20260322123000-4321';
+const params = new URLSearchParams({ partner_company: 'ALDO-2026-001' });
+const response = await fetch(\`\${baseUrl}/api/external/orders/\${encodeURIComponent(order)}?\${params}\`, {
+  method: 'GET',
+  headers: { Accept: 'application/json', Authorization: \`Bearer \${token}\` },
+});
+const bodyText = await response.text();
+let data;
+try { data = JSON.parse(bodyText); } catch { data = bodyText; }
+console.log('HTTP', response.status);
+console.log(data);`,
+                python: (baseUrl, token) => `"""GET /api/external/orders/{order} — estado de un pedido del aliado."""
+import requests
+
+BASE_URL = ${JSON.stringify(baseUrl)}
+TOKEN = ${JSON.stringify(token || 'TU_TOKEN_AQUI')}
+ORDER = "EXT-20260322123000-4321"
+
+response = requests.get(
+    f"{BASE_URL}/api/external/orders/{ORDER}",
+    params={"partner_company": "ALDO-2026-001"},
+    headers={"Accept": "application/json", "Authorization": f"Bearer {TOKEN}"},
+    timeout=30,
+)
+print("HTTP", response.status_code)
+print(response.text)`,
+                php: (baseUrl, token) => `&lt;?php
+$baseUrl = ${JSON.stringify(baseUrl)};
+$token = ${JSON.stringify(token || 'TU_TOKEN_AQUI')};
+$order = 'EXT-20260322123000-4321';
+$url = rtrim($baseUrl, '/') . '/api/external/orders/' . rawurlencode($order) . '?partner_company=' . rawurlencode('ALDO-2026-001');
+
+$ch = curl_init($url);
+curl_setopt_array($ch, [
+    CURLOPT_HTTPGET => true,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        'Accept: application/json',
+        'Authorization: Bearer ' . $token,
+    ],
+]);
+$body = curl_exec($ch);
+$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo 'HTTP ' . $code . PHP_EOL;
+echo $body . PHP_EOL;`,
+                guzzle: (baseUrl, token) => `&lt;?php
+require 'vendor/autoload.php';
+
+use GuzzleHttp\\Client;
+use GuzzleHttp\\Exception\\RequestException;
+
+$baseUrl = ${JSON.stringify(baseUrl)};
+$token = ${JSON.stringify(token || 'TU_TOKEN_AQUI')};
+$order = 'EXT-20260322123000-4321';
+
+$client = new Client([
+    'base_uri' => rtrim($baseUrl, '/') . '/',
+    'timeout' => 30,
+]);
+
+try {
+    $response = $client->get('api/external/orders/' . rawurlencode($order), [
+        'query' => ['partner_company' => 'ALDO-2026-001'],
+        'headers' => [
+            'Accept' => 'application/json',
+            'Authorization' => 'Bearer ' . $token,
+        ],
+    ]);
+    echo 'HTTP ' . $response->getStatusCode() . PHP_EOL;
+    echo (string) $response->getBody() . PHP_EOL;
+} catch (RequestException $e) {
+    $res = $e->hasResponse() ? $e->getResponse() : null;
+    echo $e->getMessage() . PHP_EOL;
+    if ($res) {
+        echo (string) $res->getBody() . PHP_EOL;
+    }
     exit(1);
 }`,
             },

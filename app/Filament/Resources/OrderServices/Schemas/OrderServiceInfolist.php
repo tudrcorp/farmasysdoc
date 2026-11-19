@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\OrderServices\Schemas;
 
+use App\Filament\Resources\Orders\OrderResource;
 use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Models\OrderService;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -36,6 +37,17 @@ class OrderServiceInfolist
                                     ->copyable()
                                     ->copyMessage('Número copiado')
                                     ->placeholder('—'),
+                                TextEntry::make('order.order_number')
+                                    ->label('Pedido asociado')
+                                    ->badge()
+                                    ->color('info')
+                                    ->copyable()
+                                    ->placeholder('—')
+                                    ->url(fn (OrderService $record): ?string => $record->order_id
+                                        ? OrderResource::getUrl('view', ['record' => $record->order_id], isAbsolute: false)
+                                        : null)
+                                    ->icon(Heroicon::ShoppingCart)
+                                    ->iconColor('gray'),
                                 TextEntry::make('partnerCompany.legal_name')
                                     ->label('Compañía aliada')
                                     ->weight('medium')

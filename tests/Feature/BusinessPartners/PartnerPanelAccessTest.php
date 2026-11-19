@@ -10,6 +10,7 @@ use App\Jobs\SendPartnerPanelAccessJob;
 use App\Mail\PartnerPanelAccessMail;
 use App\Models\Client;
 use App\Models\Order;
+use App\Models\OrderService;
 use App\Models\PartnerCompany;
 use App\Models\PartnerCompanyPlan;
 use App\Models\PartnerCompanyUser;
@@ -47,6 +48,7 @@ describe('panel access', function (): void {
         'mi empresa' => '/business-partners/mi-empresa',
         'pedidos' => '/business-partners/orders',
         'crear pedido' => '/business-partners/orders/create',
+        'órdenes de servicio' => '/business-partners/ordenes-de-servicio',
         'usuarios' => '/business-partners/usuarios',
         'guía' => '/business-partners/guia-del-modulo',
     ]);
@@ -93,6 +95,49 @@ describe('panel access', function (): void {
         $this->actingAs($user);
         $this->get("/business-partners/orders/{$foreignOrder->getKey()}")->assertNotFound();
         $this->get('/business-partners/usuarios')->assertOk()->assertDontSee($foreignUser->email);
+    });
+
+    test('a partner sees its service order and the linked order, and not those of another ally', function (): void {
+        $other = PartnerCompany::factory()->create();
+        $user = User::factory()->partnerPanelUser($this->partner, [PartnerPanelPermission::ViewOrders])->create();
+        $ownOrder = Order::factory()->create([
+            'partner_company_id' => $this->partner->getKey(),
+            'order_number' => 'IC-PANEL-PROPIO',
+        ]);
+        $ownService = OrderService::query()->create([
+            'service_order_number' => 'ORD-PANEL-1',
+            'partner_company_id' => $this->partner->getKey(),
+            'order_id' => $ownOrder->getKey(),
+            'status' => 'en-proceso',
+            'priority' => 'media',
+            'service_type' => 'medicamentos',
+            'external_reference' => 'REF-PANEL',
+            'patient_name' => 'PACIENTE PROPIO',
+            'ordered_at' => now(),
+            'items' => [['name' => 'ACETAMINOFEN', 'indicacion' => 'Cantidad: 1']],
+        ]);
+        $foreignService = OrderService::query()->create([
+            'service_order_number' => 'ORD-PANEL-AJENA',
+            'partner_company_id' => $other->getKey(),
+            'status' => 'en-proceso',
+            'priority' => 'media',
+            'patient_name' => 'PACIENTE AJENO',
+            'ordered_at' => now(),
+            'items' => [],
+        ]);
+
+        $this->actingAs($user);
+        $this->get('/business-partners/ordenes-de-servicio')
+            ->assertOk()
+            ->assertSee('ORD-PANEL-1')
+            ->assertSee('IC-PANEL-PROPIO')
+            ->assertDontSee('ORD-PANEL-AJENA');
+        $this->get('/business-partners/ordenes-de-servicio/'.$ownService->getKey())
+            ->assertOk()
+            ->assertSee('PACIENTE PROPIO')
+            ->assertSee('IC-PANEL-PROPIO');
+        $this->get('/business-partners/ordenes-de-servicio/'.$foreignService->getKey())
+            ->assertNotFound();
     });
 });
 

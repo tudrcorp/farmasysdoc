@@ -8,7 +8,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreExternalOrderRequest;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\OrderService;
+use App\Models\PartnerCompany;
 use App\Models\Product;
+use App\Services\Orders\ExternalOrderServiceLinker;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
@@ -28,7 +31,13 @@ class ExternalOrderController extends Controller
         $items = $payload['items'];
         unset($payload['items']);
 
-        $order = DB::transaction(function () use ($payload, $items, $actor, $partnerCompanyCode): Order {
+        /** @var array<string, mixed>|null $serviceContext */
+        $serviceContext = is_array($payload['service_order'] ?? null) ? $payload['service_order'] : null;
+        unset($payload['service_order']);
+
+        $partner = PartnerCompany::query()->where('code', $partnerCompanyCode)->firstOrFail();
+
+        $result = DB::transaction(function () use ($payload, $items, $actor, $partner, $serviceContext): array {
             $status = $payload['status'] ?? OrderStatus::Pending->value;
             $convenioType = $payload['convenio_type'] ?? ConvenioType::Particular->value;
 
@@ -36,7 +45,8 @@ class ExternalOrderController extends Controller
                 'order_number' => $payload['order_number'] ?? $this->generateOrderNumber(),
                 'client_id' => $payload['client_id'],
                 'branch_id' => $payload['branch_id'] ?? null,
-                'partner_company_code' => $partnerCompanyCode,
+                'partner_company_id' => $partner->id,
+                'partner_company_code' => $partner->code,
                 'status' => $status,
                 'convenio_type' => $convenioType,
                 'convenio_partner_name' => $payload['convenio_partner_name'] ?? null,
@@ -102,22 +112,44 @@ class ExternalOrderController extends Controller
                 'total' => round($subtotal + $taxTotal, 2),
             ]);
 
-            return $order->load('items');
+            $serviceOrder = $serviceContext === null
+                ? null
+                : app(ExternalOrderServiceLinker::class)->create($order->fresh() ?? $order, $serviceContext, $actor);
+
+            return [
+                'order' => $order->load('items'),
+                'service_order' => $serviceOrder,
+            ];
         });
+
+        /** @var Order $order */
+        $order = $result['order'];
+        /** @var OrderService|null $serviceOrder */
+        $serviceOrder = $result['service_order'];
+
+        $data = [
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+            'partner_company' => $partnerCompanyCode,
+            'status' => $order->status?->value ?? $order->status,
+            'items_count' => $order->items->count(),
+            'subtotal' => (float) $order->subtotal,
+            'tax_total' => (float) $order->tax_total,
+            'discount_total' => (float) $order->discount_total,
+            'total' => (float) $order->total,
+        ];
+
+        if ($serviceOrder instanceof OrderService) {
+            $data['service_order'] = [
+                'order_service_id' => $serviceOrder->id,
+                'service_order_number' => $serviceOrder->service_order_number,
+                'status' => $serviceOrder->status,
+            ];
+        }
 
         return response()->json([
             'message' => 'Pedido creado correctamente.',
-            'data' => [
-                'order_id' => $order->id,
-                'order_number' => $order->order_number,
-                'partner_company' => $partnerCompanyCode,
-                'status' => $order->status?->value ?? $order->status,
-                'items_count' => $order->items->count(),
-                'subtotal' => (float) $order->subtotal,
-                'tax_total' => (float) $order->tax_total,
-                'discount_total' => (float) $order->discount_total,
-                'total' => (float) $order->total,
-            ],
+            'data' => $data,
         ], JsonResponse::HTTP_CREATED);
     }
 

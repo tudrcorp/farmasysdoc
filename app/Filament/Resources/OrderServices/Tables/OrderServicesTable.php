@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\OrderServices\Tables;
 
+use App\Filament\Resources\Orders\OrderResource;
 use App\Filament\Resources\OrderServices\OrderServiceResource;
 use App\Models\OrderService;
 use Filament\Actions\BulkActionGroup;
@@ -22,7 +23,7 @@ class OrderServicesTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['partnerCompany', 'client', 'branch']))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['partnerCompany', 'client', 'branch', 'order']))
             ->columns([
                 TextColumn::make('service_order_number')
                     ->label('Número')
@@ -34,6 +35,17 @@ class OrderServicesTable
                     ->copyMessage('Número copiado')
                     ->weight('medium')
                     ->icon(Heroicon::Hashtag)
+                    ->iconColor('gray'),
+                TextColumn::make('order.order_number')
+                    ->label('Pedido')
+                    ->searchable()
+                    ->placeholder('—')
+                    ->copyable()
+                    ->copyMessage('Número de pedido copiado')
+                    ->url(fn (OrderService $record): ?string => $record->order_id
+                        ? OrderResource::getUrl('view', ['record' => $record->order_id], isAbsolute: false)
+                        : null)
+                    ->icon(Heroicon::ShoppingCart)
                     ->iconColor('gray'),
                 TextColumn::make('partnerCompany.legal_name')
                     ->label('Compañía aliada')

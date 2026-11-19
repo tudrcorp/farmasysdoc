@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 class Order extends Model
@@ -173,6 +174,16 @@ class Order extends Model
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    /**
+     * Orden de servicio abierta a partir de este pedido, cuando el aliado la solicita.
+     *
+     * @return HasOne<OrderService, $this>
+     */
+    public function serviceOrder(): HasOne
+    {
+        return $this->hasOne(OrderService::class);
     }
 
     /**

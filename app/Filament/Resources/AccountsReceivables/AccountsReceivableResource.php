@@ -8,7 +8,6 @@ use App\Filament\Resources\AccountsReceivables\Schemas\AccountsReceivableInfolis
 use App\Filament\Resources\AccountsReceivables\Tables\AccountsReceivablesTable;
 use App\Filament\Resources\Concerns\RestrictsAccessForDeliveryUsers;
 use App\Models\AccountsReceivable;
-use App\Models\User;
 use App\Support\Filament\BranchAuthScope;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -18,6 +17,7 @@ use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use UnitEnum;
 
 class AccountsReceivableResource extends Resource
 {
@@ -33,14 +33,9 @@ class AccountsReceivableResource extends Resource
 
     protected static ?int $navigationSort = 11;
 
+    protected static string|UnitEnum|null $navigationGroup = 'operations';
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::ArrowTrendingUp;
-
-    public static function getNavigationGroup(): ?string
-    {
-        $user = auth()->user();
-
-        return $user instanceof User ? $user->navigationOperationsGroupLabel() : 'Farmadoc®';
-    }
 
     public static function form(Schema $schema): Schema
     {

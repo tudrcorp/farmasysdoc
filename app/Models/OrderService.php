@@ -20,6 +20,7 @@ class OrderService extends Model
         'partner_company_id',
         'client_id',
         'branch_id',
+        'order_id',
         'status',
         'priority',
         'service_type',
@@ -146,6 +147,16 @@ class OrderService extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * Pedido de Farmadoc del que salió esta orden de servicio.
+     *
+     * @return BelongsTo<Order, $this>
+     */
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
     }
 
     /**

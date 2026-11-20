@@ -13,6 +13,7 @@ enum OrderStatus: string
 
     case Pending = 'pendiente';
     case Accepted = 'aceptado';
+    case Shipped = 'enviado';
     case InProgress = 'en-proceso';
     case Completed = 'finalizado';
 
@@ -21,6 +22,7 @@ enum OrderStatus: string
         return match ($this) {
             self::Pending => 'Pendiente',
             self::Accepted => 'Aceptado',
+            self::Shipped => 'Enviado',
             self::InProgress => 'En proceso',
             self::Completed => 'Finalizado',
         };
@@ -34,6 +36,7 @@ enum OrderStatus: string
         return match ($this) {
             self::Pending => 'danger',
             self::Accepted => 'info',
+            self::Shipped => 'success',
             self::InProgress => 'warning',
             self::Completed => 'success',
         };

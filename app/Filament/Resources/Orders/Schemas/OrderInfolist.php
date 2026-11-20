@@ -175,9 +175,16 @@ class OrderInfolist
                         $rate = number_format((float) ($acceptance?->bcv_ves_per_usd ?? 0), 2, ',', '.');
                         $acceptedAt = $acceptance?->accepted_at?->timezone(config('app.timezone'));
 
+                        $shipment = $acceptance?->shipment_authorized_at?->timezone(config('app.timezone'));
+                        $shipmentLine = $shipment === null
+                            ? ''
+                            : ' · envío autorizado por '.($acceptance?->shipment_authorized_by_name ?: '—')
+                                .' el '.$shipment->format('d/m/Y h:i a');
+
                         return 'Nota '.($acceptance?->delivery_note_number ?? '—')
                             .' · tasa BCV '.$rate.' Bs. por USD'
-                            .' · aceptado el '.($acceptedAt?->format('d/m/Y h:i a') ?? '—');
+                            .' · aceptado el '.($acceptedAt?->format('d/m/Y h:i a') ?? '—')
+                            .$shipmentLine;
                     })
                     ->icon(Heroicon::ClipboardDocumentCheck)
                     ->visible(fn (Order $record): bool => $record->acceptance !== null)
@@ -198,6 +205,18 @@ class OrderInfolist
                                 TextEntry::make('acceptance.accepted_by_name')
                                     ->label('Aceptado por')
                                     ->placeholder('—'),
+                                TextEntry::make('acceptance.shipment_authorized_by_name')
+                                    ->label('Envío autorizado por')
+                                    ->placeholder('—')
+                                    ->visible(fn (Order $record): bool => $record->acceptance?->shipment_authorized_at !== null),
+                                TextEntry::make('acceptance.shipment_authorized_at')
+                                    ->label('Envío autorizado el')
+                                    ->state(function (Order $record): string {
+                                        $authorizedAt = $record->acceptance?->shipment_authorized_at?->timezone(config('app.timezone'));
+
+                                        return $authorizedAt?->format('d/m/Y h:i a') ?? '—';
+                                    })
+                                    ->visible(fn (Order $record): bool => $record->acceptance?->shipment_authorized_at !== null),
                             ]),
                         RepeatableEntry::make('acceptance_items')
                             ->hiddenLabel()

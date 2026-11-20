@@ -80,6 +80,8 @@ class ExternalOrderStatusController extends Controller
                 'order' => $order->order_number,
                 'partner_company' => $partner->code,
             ]),
+            'shipment_authorized_at' => $acceptance->shipment_authorized_at?->toIso8601String(),
+            'shipment_authorized_by' => $acceptance->shipment_authorized_by_name,
             'items' => $acceptance->items->map(fn (OrderAcceptanceItem $item): array => [
                 'product_name' => $item->product_name,
                 'barcode' => $item->barcode,

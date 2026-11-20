@@ -472,6 +472,40 @@ class ReviewOrderAcceptance extends Page implements HasTable
             ->send();
     }
 
+    public function authorizeShipment(): void
+    {
+        $user = Auth::user();
+
+        if (! $user instanceof User) {
+            abort(403);
+        }
+
+        try {
+            app(OrderAcceptanceService::class)->authorizeShipment($this->order(), $user);
+        } catch (ValidationException $exception) {
+            $message = collect($exception->errors())->flatten()->first();
+
+            Notification::make()
+                ->title('No se pudo autorizar el envío')
+                ->body(is_string($message) ? $message : 'Revise el estado del pedido e intente de nuevo.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $this->order()->refresh();
+        $this->order()->unsetRelation('acceptance');
+        $this->order()->load(['items.product', 'acceptance.items', 'partnerCompany']);
+        $this->previewCache = null;
+
+        Notification::make()
+            ->title('Envío autorizado')
+            ->body('El aliado ya ve el pedido como Enviado y quién autorizó el envío.')
+            ->success()
+            ->send();
+    }
+
     protected function getHeaderActions(): array
     {
         return [
@@ -494,6 +528,16 @@ class ReviewOrderAcceptance extends Page implements HasTable
 
                     return app(OrderAcceptanceNotePdfFactory::class)->stream($acceptance);
                 }),
+            Action::make('authorizeShipment')
+                ->label('Autorizar envío')
+                ->icon(Heroicon::Truck)
+                ->color('success')
+                ->visible(fn (): bool => $this->order()->status === OrderStatus::Accepted && $this->acceptance() instanceof OrderAcceptance)
+                ->requiresConfirmation()
+                ->modalHeading('Autorizar envío')
+                ->modalDescription('El pedido pasará a Enviado. El aliado verá este estatus y quién autorizó el envío.')
+                ->modalSubmitActionLabel('Autorizar envío')
+                ->action(fn () => $this->authorizeShipment()),
             Action::make('acceptOrder')
                 ->label('Aceptar pedido')
                 ->icon(Heroicon::CheckCircle)

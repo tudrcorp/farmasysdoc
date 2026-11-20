@@ -22,6 +22,12 @@
                 <p class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Tasa BCV</p>
                 <p class="mt-1 text-lg font-semibold text-gray-950 dark:text-white">{{ $rateLabel }} Bs. por USD</p>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Nota {{ $acceptance->delivery_note_number }}</p>
+                @if ($acceptance->shipment_authorized_at)
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Envío autorizado por {{ $acceptance->shipment_authorized_by_name ?: '—' }}
+                        el {{ $acceptance->shipment_authorized_at->timezone(config('app.timezone'))->format('d/m/Y h:i a') }}
+                    </p>
+                @endif
             </div>
         </div>
 

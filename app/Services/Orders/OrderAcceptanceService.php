@@ -228,4 +228,52 @@ final class OrderAcceptanceService
             return $acceptance->load('items');
         });
     }
+
+    public function authorizeShipment(Order $order, User $actor): OrderAcceptance
+    {
+        return DB::transaction(function () use ($order, $actor): OrderAcceptance {
+            $locked = Order::query()->whereKey($order->getKey())->lockForUpdate()->firstOrFail();
+            $acceptance = OrderAcceptance::query()
+                ->where('order_id', $locked->getKey())
+                ->lockForUpdate()
+                ->first();
+
+            if (! $acceptance instanceof OrderAcceptance) {
+                throw ValidationException::withMessages([
+                    'order' => 'Este pedido todavía no fue aceptado.',
+                ]);
+            }
+
+            if ($locked->status !== OrderStatus::Accepted) {
+                throw ValidationException::withMessages([
+                    'order' => 'Solo se autoriza el envío de un pedido aceptado.',
+                ]);
+            }
+
+            if ($acceptance->shipment_authorized_at !== null) {
+                throw ValidationException::withMessages([
+                    'order' => 'El envío de este pedido ya fue autorizado.',
+                ]);
+            }
+
+            $actorName = trim((string) ($actor->name ?? ''));
+
+            if ($actorName === '') {
+                $actorName = (string) ($actor->email ?? 'sistema');
+            }
+
+            $acceptance->forceFill([
+                'shipment_authorized_by' => $actor->getKey(),
+                'shipment_authorized_by_name' => $actorName,
+                'shipment_authorized_at' => now(),
+            ])->save();
+
+            $locked->forceFill([
+                'status' => OrderStatus::Shipped,
+                'updated_by' => $actorName,
+            ])->save();
+
+            return $acceptance->refresh();
+        });
+    }
 }

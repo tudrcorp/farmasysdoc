@@ -26,6 +26,9 @@ class OrderAcceptance extends Model
         'accepted_total_usd',
         'accepted_total_ves',
         'delivery_note_number',
+        'shipment_authorized_by',
+        'shipment_authorized_by_name',
+        'shipment_authorized_at',
     ];
 
     /**
@@ -35,6 +38,7 @@ class OrderAcceptance extends Model
     {
         return [
             'accepted_at' => 'datetime',
+            'shipment_authorized_at' => 'datetime',
             'bcv_ves_per_usd' => 'decimal:2',
             'accepted_total_usd' => 'decimal:2',
             'accepted_total_ves' => 'decimal:2',
@@ -73,6 +77,14 @@ class OrderAcceptance extends Model
     public function acceptedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'accepted_by');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function shipmentAuthorizedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'shipment_authorized_by');
     }
 
     /**

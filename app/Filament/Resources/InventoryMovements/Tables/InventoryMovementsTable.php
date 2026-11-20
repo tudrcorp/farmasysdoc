@@ -185,7 +185,7 @@ class InventoryMovementsTable
     {
         return match ($state) {
             InventoryMovementType::Purchase, InventoryMovementType::Initial, InventoryMovementType::Return => 'success',
-            InventoryMovementType::Sale, InventoryMovementType::Loss, InventoryMovementType::Damage => 'danger',
+            InventoryMovementType::Sale, InventoryMovementType::Loss, InventoryMovementType::Damage, InventoryMovementType::PartnerDispatch => 'danger',
             InventoryMovementType::Adjustment, InventoryMovementType::Transfer, InventoryMovementType::StockTake => 'warning',
             default => 'gray',
         };
@@ -195,7 +195,7 @@ class InventoryMovementsTable
     {
         return match ($type) {
             InventoryMovementType::Purchase, InventoryMovementType::Initial, InventoryMovementType::Return => 'success',
-            InventoryMovementType::Sale, InventoryMovementType::Loss, InventoryMovementType::Damage => 'danger',
+            InventoryMovementType::Sale, InventoryMovementType::Loss, InventoryMovementType::Damage, InventoryMovementType::PartnerDispatch => 'danger',
             default => 'gray',
         };
     }

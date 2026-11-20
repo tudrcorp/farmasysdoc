@@ -187,6 +187,16 @@ class Order extends Model
     }
 
     /**
+     * Decisión de Farmasys sobre qué líneas del pedido se despachan.
+     *
+     * @return HasOne<OrderAcceptance, $this>
+     */
+    public function acceptance(): HasOne
+    {
+        return $this->hasOne(OrderAcceptance::class);
+    }
+
+    /**
      * Filas de entrega en `deliveries` vinculadas al pedido (cualquier `delivery_type`).
      *
      * @return HasMany<Delivery, $this>

@@ -17,6 +17,7 @@ enum InventoryMovementType: string
     case Damage = 'daño';
     case Transfer = 'transferencia';
     case StockTake = 'toma-física';
+    case PartnerDispatch = 'despacho-aliado';
 
     public function label(): string
     {
@@ -30,6 +31,7 @@ enum InventoryMovementType: string
             self::Damage => 'Daño',
             self::Transfer => 'Transferencia',
             self::StockTake => 'Toma física',
+            self::PartnerDispatch => 'Despacho a aliado',
         };
     }
 }

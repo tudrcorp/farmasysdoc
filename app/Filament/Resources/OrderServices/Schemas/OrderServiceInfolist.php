@@ -5,13 +5,10 @@ namespace App\Filament\Resources\OrderServices\Schemas;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Models\OrderService;
-use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
-use Filament\Support\Enums\Alignment;
 use Filament\Support\Icons\Heroicon;
 
 class OrderServiceInfolist
@@ -143,46 +140,6 @@ class OrderServiceInfolist
                                     ->icon(Heroicon::Envelope)
                                     ->iconColor('gray'),
                             ]),
-                    ])
-                    ->columns(1)
-                    ->columnSpanFull(),
-
-                Section::make('Medicamentos de la orden')
-                    ->description('Revise los medicamentos declarados para esta orden.')
-                    ->icon(Heroicon::Beaker)
-                    ->schema([
-                        RepeatableEntry::make('items')
-                            ->label('Medicamentos asociados')
-                            ->placeholder('No hay medicamentos registrados en esta orden.')
-                            ->state(fn (OrderService $record): array => $record->medicationItemsForDisplay())
-                            ->table([
-                                TableColumn::make('N.º')
-                                    ->width('4rem')
-                                    ->alignment(Alignment::Center),
-                                TableColumn::make('Medicamento'),
-                                TableColumn::make('Código de barra'),
-                                TableColumn::make('Indicación'),
-                            ])
-                            ->schema([
-                                TextEntry::make('position')
-                                    ->alignCenter()
-                                    ->badge()
-                                    ->color('gray'),
-                                TextEntry::make('name')
-                                    ->weight('medium')
-                                    ->placeholder('—'),
-                                TextEntry::make('barcode')
-                                    ->placeholder('—')
-                                    ->copyable()
-                                    ->copyMessage('Código copiado')
-                                    ->fontFamily('mono'),
-                                TextEntry::make('indicacion')
-                                    ->label('')
-                                    ->placeholder('—')
-                                    ->prose()
-                                    ->wrap(),
-                            ])
-                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

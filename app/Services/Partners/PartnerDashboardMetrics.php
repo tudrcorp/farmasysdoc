@@ -282,6 +282,7 @@ class PartnerDashboardMetrics
             'label' => $status->label(),
             'color' => match ($status) {
                 OrderStatus::Pending => 'warning',
+                OrderStatus::Accepted => 'primary',
                 OrderStatus::InProgress => 'info',
                 OrderStatus::Completed => 'success',
             },

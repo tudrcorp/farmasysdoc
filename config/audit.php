@@ -28,6 +28,7 @@ use App\Models\MarketingCoupon;
 use App\Models\MarketingSegment;
 use App\Models\MarketingUtmLink;
 use App\Models\Order;
+use App\Models\OrderAcceptance;
 use App\Models\OrderService;
 use App\Models\OrgChart;
 use App\Models\OrgChartNode;
@@ -104,6 +105,7 @@ return [
         WhatsappAgentSetting::class,
         Supplier::class,
         Order::class,
+        OrderAcceptance::class,
         Branch::class,
         BranchCategoryProfitMargin::class,
         User::class,

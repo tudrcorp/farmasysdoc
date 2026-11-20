@@ -2,9 +2,12 @@
 
 namespace App\Support\Orders;
 
+use App\Models\Inventory;
+use App\Models\OrderItem;
 use App\Models\PartnerCompany;
 use App\Models\Product;
 use App\Support\Finance\DefaultVatRate;
+use App\Support\Sales\ProductUnitPricingForBranch;
 
 /**
  * Montos de línea y agregados de pedido a partir del catálogo (precio lista, descuento %, IVA opcional).
@@ -59,6 +62,47 @@ final class OrderTotalsCalculator
             'line_total' => $lineTotal,
             'product_name_snapshot' => (string) $product->name,
             'sku_snapshot' => $product->sku,
+        ];
+    }
+
+    /**
+     * Precio de venta de una línea al aceptarla.
+     * Si el pedido llegó sin precio, se usa el de Las Delicias (o el de lista del producto).
+     *
+     * @return array{unit_price_usd: float, line_total_usd: float}
+     */
+    public static function acceptanceSaleAmounts(OrderItem $item, ?int $branchId, ?Inventory $inventory): array
+    {
+        $quantity = round(max(0.0, (float) $item->quantity), 3);
+        $unit = round((float) $item->unit_price, 2);
+        $line = round((float) $item->line_total, 2);
+
+        if ($unit > 0.0 || $line > 0.0) {
+            if ($line <= 0.0) {
+                $line = round($unit * $quantity, 2);
+            }
+
+            return [
+                'unit_price_usd' => $unit,
+                'line_total_usd' => $line,
+            ];
+        }
+
+        $product = $item->product;
+
+        if (! $product instanceof Product) {
+            return [
+                'unit_price_usd' => 0.0,
+                'line_total_usd' => 0.0,
+            ];
+        }
+
+        $pricing = ProductUnitPricingForBranch::resolve($product, (int) ($branchId ?? 0), $inventory);
+        $unit = round(max(0.0, (float) $pricing['unit_final']), 2);
+
+        return [
+            'unit_price_usd' => $unit,
+            'line_total_usd' => round($unit * $quantity, 2),
         ];
     }
 

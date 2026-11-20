@@ -46,13 +46,14 @@ final class FefoLotSaleDispatchService
         Model $reference,
         string $referenceLabel,
         string $actorLabel,
+        InventoryMovementType $movementType = InventoryMovementType::Sale,
     ): void {
         if ($quantity <= 0.0001) {
             return;
         }
 
         if (! $product->requires_expiry_on_purchase) {
-            $this->createGenericMovement($product, $inventory, $reference, $referenceLabel, $quantity, $actorLabel);
+            $this->createGenericMovement($product, $inventory, $reference, $referenceLabel, $quantity, $actorLabel, null, $movementType);
 
             return;
         }
@@ -61,7 +62,7 @@ final class FefoLotSaleDispatchService
         $balances = $this->fefoQuery->fefoBalancesWithLotsForProduct($branchId, (int) $product->getKey());
 
         if ($balances === []) {
-            $this->createGenericMovement($product, $inventory, $reference, $referenceLabel, $remaining, $actorLabel);
+            $this->createGenericMovement($product, $inventory, $reference, $referenceLabel, $remaining, $actorLabel, null, $movementType);
 
             return;
         }
@@ -107,7 +108,7 @@ final class FefoLotSaleDispatchService
             InventoryMovement::query()->create([
                 'product_id' => $product->getKey(),
                 'inventory_id' => $inventory->getKey(),
-                'movement_type' => InventoryMovementType::Sale,
+                'movement_type' => $movementType,
                 'quantity' => -1 * abs($take),
                 'unit_cost' => $unitCost > 0 ? $unitCost : null,
                 'batch_number' => $invoiceRef !== '' ? $invoiceRef : null,
@@ -130,6 +131,7 @@ final class FefoLotSaleDispatchService
                 $remaining,
                 $actorLabel,
                 $referenceLabel.' (saldo sin lote asignado)',
+                $movementType,
             );
         }
     }
@@ -142,13 +144,14 @@ final class FefoLotSaleDispatchService
         float $quantity,
         string $actorLabel,
         ?string $notesOverride = null,
+        InventoryMovementType $movementType = InventoryMovementType::Sale,
     ): void {
         $unitCost = round(max(0.0, (float) ($product->cost_price ?? 0)), 2);
 
         InventoryMovement::query()->create([
             'product_id' => $product->getKey(),
             'inventory_id' => $inventory->getKey(),
-            'movement_type' => InventoryMovementType::Sale,
+            'movement_type' => $movementType,
             'quantity' => -1 * abs($quantity),
             'unit_cost' => $unitCost > 0 ? $unitCost : null,
             'reference_type' => $reference::class,

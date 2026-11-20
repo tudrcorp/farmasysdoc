@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\ExternalApiStatusController;
 use App\Http\Controllers\Api\ExternalBranchesController;
 use App\Http\Controllers\Api\ExternalBranchInventoryController;
 use App\Http\Controllers\Api\ExternalInventoryController;
+use App\Http\Controllers\Api\ExternalOrderAcceptanceNoteController;
 use App\Http\Controllers\Api\ExternalOrderController;
 use App\Http\Controllers\Api\ExternalOrderStatusController;
 use App\Http\Controllers\Api\ExternalPrincipalInventoryController;
@@ -84,6 +85,9 @@ Route::prefix('external')
             ->name('api.external.inventory-by-branch.index');
         Route::get('/inventory/las-delicias', ExternalPrincipalInventoryController::class)
             ->name('api.external.inventory.las-delicias');
+        Route::get('/orders/{order}/nota-de-entrega', ExternalOrderAcceptanceNoteController::class)
+            ->where('order', '[A-Za-z0-9][A-Za-z0-9._-]{0,254}')
+            ->name('api.external.orders.delivery-note');
         Route::get('/orders/{order}', ExternalOrderStatusController::class)
             ->where('order', '[A-Za-z0-9][A-Za-z0-9._-]{0,254}')
             ->name('api.external.orders.show');

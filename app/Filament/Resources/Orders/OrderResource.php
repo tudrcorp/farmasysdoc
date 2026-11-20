@@ -7,6 +7,7 @@ use App\Filament\Resources\Concerns\RestrictsAccessForDeliveryUsers;
 use App\Filament\Resources\Orders\Pages\CreateOrder;
 use App\Filament\Resources\Orders\Pages\EditOrder;
 use App\Filament\Resources\Orders\Pages\ListOrders;
+use App\Filament\Resources\Orders\Pages\ReviewOrderAcceptance;
 use App\Filament\Resources\Orders\Pages\ViewOrder;
 use App\Filament\Resources\Orders\Schemas\OrderForm;
 use App\Filament\Resources\Orders\Schemas\OrderInfolist;
@@ -132,6 +133,7 @@ class OrderResource extends Resource
             'index' => ListOrders::route('/'),
             'create' => CreateOrder::route('/create'),
             'view' => ViewOrder::route('/{record}'),
+            'acceptance' => ReviewOrderAcceptance::route('/{record}/detalle'),
             'edit' => EditOrder::route('/{record}/edit'),
         ];
     }

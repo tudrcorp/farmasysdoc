@@ -12,6 +12,7 @@ enum OrderStatus: string
     use HasSpanishLabels;
 
     case Pending = 'pendiente';
+    case Accepted = 'aceptado';
     case InProgress = 'en-proceso';
     case Completed = 'finalizado';
 
@@ -19,6 +20,7 @@ enum OrderStatus: string
     {
         return match ($this) {
             self::Pending => 'Pendiente',
+            self::Accepted => 'Aceptado',
             self::InProgress => 'En proceso',
             self::Completed => 'Finalizado',
         };
@@ -31,6 +33,7 @@ enum OrderStatus: string
     {
         return match ($this) {
             self::Pending => 'danger',
+            self::Accepted => 'info',
             self::InProgress => 'warning',
             self::Completed => 'success',
         };

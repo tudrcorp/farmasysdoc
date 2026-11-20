@@ -11,6 +11,7 @@ use App\Filament\Resources\Branches\BranchResource;
 use App\Filament\Resources\Clients\ClientResource;
 use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Models\Order;
+use App\Models\OrderAcceptanceItem;
 use App\Models\OrderItem;
 use App\Models\User;
 use Filament\Infolists\Components\ImageEntry;
@@ -164,6 +165,82 @@ class OrderInfolist
                                     ->color(fn (?bool $state): string => $state ? 'warning' : 'gray')
                                     ->icon(Heroicon::Scale),
                             ]),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
+                Section::make('Decisión del pedido')
+                    ->description(function (Order $record): string {
+                        $acceptance = $record->acceptance;
+                        $rate = number_format((float) ($acceptance?->bcv_ves_per_usd ?? 0), 2, ',', '.');
+                        $acceptedAt = $acceptance?->accepted_at?->timezone(config('app.timezone'));
+
+                        return 'Nota '.($acceptance?->delivery_note_number ?? '—')
+                            .' · tasa BCV '.$rate.' Bs. por USD'
+                            .' · aceptado el '.($acceptedAt?->format('d/m/Y h:i a') ?? '—');
+                    })
+                    ->icon(Heroicon::ClipboardDocumentCheck)
+                    ->visible(fn (Order $record): bool => $record->acceptance !== null)
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 3,
+                        ])
+                            ->schema([
+                                TextEntry::make('acceptance.accepted_total_usd')
+                                    ->label('Total aceptado USD')
+                                    ->state(fn (Order $record): string => 'USD '.number_format((float) ($record->acceptance?->accepted_total_usd ?? 0), 2, ',', '.'))
+                                    ->weight('medium'),
+                                TextEntry::make('acceptance.accepted_total_ves')
+                                    ->label('Total aceptado VES')
+                                    ->state(fn (Order $record): string => 'Bs. '.number_format((float) ($record->acceptance?->accepted_total_ves ?? 0), 2, ',', '.'))
+                                    ->weight('medium'),
+                                TextEntry::make('acceptance.accepted_by_name')
+                                    ->label('Aceptado por')
+                                    ->placeholder('—'),
+                            ]),
+                        RepeatableEntry::make('acceptance_items')
+                            ->hiddenLabel()
+                            ->state(fn (Order $record) => $record->acceptance?->items ?? [])
+                            ->placeholder('Sin líneas registradas.')
+                            ->table([
+                                TableColumn::make('Medicamento'),
+                                TableColumn::make('Pedido')->alignment(Alignment::Center),
+                                TableColumn::make('Existencia')->alignment(Alignment::Center),
+                                TableColumn::make('Decisión')->alignment(Alignment::Center),
+                                TableColumn::make('Total USD')->alignment(Alignment::End),
+                            ])
+                            ->schema([
+                                TextEntry::make('product_name')
+                                    ->formatStateUsing(function ($state, OrderAcceptanceItem $record): string {
+                                        $name = filled($state) ? (string) $state : 'Producto';
+                                        $barcode = filled($record->barcode) ? (string) $record->barcode : 'sin código';
+                                        $note = $record->accepted ? '' : ' · '.$record->rejection_note;
+
+                                        return $name.' · '.$barcode.$note;
+                                    }),
+                                TextEntry::make('quantity_ordered')
+                                    ->alignment(Alignment::Center)
+                                    ->formatStateUsing(fn ($state): string => rtrim(rtrim(number_format((float) $state, 3, ',', '.'), '0'), ',')),
+                                TextEntry::make('quantity_on_hand')
+                                    ->alignment(Alignment::Center)
+                                    ->formatStateUsing(fn ($state): string => rtrim(rtrim(number_format((float) $state, 3, ',', '.'), '0'), ',')),
+                                TextEntry::make('accepted')
+                                    ->alignment(Alignment::Center)
+                                    ->badge()
+                                    ->formatStateUsing(fn (?bool $state): string => $state ? 'Se envía' : 'No se envía')
+                                    ->color(fn (?bool $state): string => $state ? 'success' : 'danger'),
+                                TextEntry::make('line_total_usd')
+                                    ->alignment(Alignment::End)
+                                    ->formatStateUsing(function ($state, OrderAcceptanceItem $record): string {
+                                        if (! $record->accepted) {
+                                            return '—';
+                                        }
+
+                                        return 'USD '.number_format((float) $state, 2, ',', '.');
+                                    }),
+                            ])
+                            ->columnSpanFull(),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

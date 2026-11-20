@@ -4,9 +4,13 @@ namespace App\Filament\Resources\Orders\Pages;
 
 use App\Filament\Resources\Orders\OrderResource;
 use App\Models\Order;
+use App\Models\OrderAcceptance;
 use App\Models\OrderItem;
+use App\Services\Orders\OrderAcceptanceNotePdfFactory;
+use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Support\Icons\Heroicon;
 
 class ViewOrder extends ViewRecord
 {
@@ -21,7 +25,7 @@ class ViewOrder extends ViewRecord
             return;
         }
 
-        $order->load(['items.product', 'partnerDeliveries.user']);
+        $order->load(['items.product', 'partnerDeliveries.user', 'acceptance.items']);
         $order->setRelation(
             'items',
             $order->items->each(function (OrderItem $item) use ($order): void {
@@ -33,6 +37,34 @@ class ViewOrder extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('reviewAcceptance')
+                ->label('Ver detalle del Pedido')
+                ->icon(Heroicon::ClipboardDocumentList)
+                ->color('primary')
+                ->visible(function (): bool {
+                    $order = $this->getRecord();
+
+                    return $order instanceof Order && ReviewOrderAcceptance::canOpen($order);
+                })
+                ->url(fn (): string => OrderResource::getUrl('acceptance', ['record' => $this->getRecord()])),
+            Action::make('downloadAcceptanceNote')
+                ->label('Descargar nota de entrega')
+                ->icon(Heroicon::ArrowDownTray)
+                ->color('gray')
+                ->visible(function (): bool {
+                    $order = $this->getRecord();
+
+                    return $order instanceof Order && $order->acceptance instanceof OrderAcceptance;
+                })
+                ->action(function () {
+                    $order = $this->getRecord();
+
+                    if (! $order instanceof Order || ! $order->acceptance instanceof OrderAcceptance) {
+                        return null;
+                    }
+
+                    return app(OrderAcceptanceNotePdfFactory::class)->stream($order->acceptance);
+                }),
             EditAction::make()
                 ->visible(fn (): bool => static::getResource()::canEdit($this->getRecord())),
         ];

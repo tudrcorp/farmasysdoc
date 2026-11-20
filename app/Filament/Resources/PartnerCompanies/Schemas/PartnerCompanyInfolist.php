@@ -6,8 +6,10 @@ use App\Enums\PartnerAgreementStatus;
 use App\Enums\PartnerAgreementType;
 use App\Enums\PartnerCompanyClientType;
 use App\Enums\PartnerCompanyPaymentModality;
+use App\Enums\UncoveredMedicineSyncStatus;
 use App\Filament\Resources\PartnerAgreements\PartnerCompanyAgreementResource;
 use App\Filament\Resources\PartnerAgreements\Schemas\PartnerCompanyAgreementInfolist;
+use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Filament\Resources\Plans\PlanResource;
 use App\Models\PartnerCompany;
 use App\Models\PartnerCompanyAgreement;
@@ -90,6 +92,54 @@ class PartnerCompanyInfolist
                                     ->falseIcon(Heroicon::XCircle)
                                     ->trueColor('success')
                                     ->falseColor('gray'),
+                            ]),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+                Section::make('Medicamentos no cubiertos')
+                    ->description('Lo que Tu Dr. Group está gestionando para este aliado. La consulta a la API solo ocurre al pulsar «Actualizar información».')
+                    ->icon(Heroicon::Beaker)
+                    ->visible(fn (PartnerCompany $record): bool => $record->hasUncoveredMedicinesAccess())
+                    ->headerActions([
+                        Action::make('manageUncoveredMedicines')
+                            ->label('Gestión de medicamentos')
+                            ->icon(Heroicon::ArrowTopRightOnSquare)
+                            ->url(fn (PartnerCompany $record): string => PartnerCompanyResource::getUrl('uncovered-medicines', ['record' => $record])),
+                    ])
+                    ->schema([
+                        Grid::make(['default' => 1, 'sm' => 3])
+                            ->schema([
+                                TextEntry::make('uncoveredMedicineConnection.last_synced_at')
+                                    ->label('Última actualización')
+                                    ->dateTime('d/m/Y h:i a')
+                                    ->placeholder('Sin consultar'),
+                                TextEntry::make('uncoveredMedicineConnection.sync_status')
+                                    ->label('Sincronización')
+                                    ->badge()
+                                    ->placeholder('Sin consultar')
+                                    ->formatStateUsing(fn (mixed $state): string => UncoveredMedicineSyncStatus::tryLabel($state))
+                                    ->color(function (mixed $state): string {
+                                        if ($state instanceof UncoveredMedicineSyncStatus) {
+                                            return $state->color();
+                                        }
+
+                                        return UncoveredMedicineSyncStatus::tryFrom((string) $state)?->color() ?? 'gray';
+                                    }),
+                                TextEntry::make('uncoveredMedicineConnection.rate_limit_remaining')
+                                    ->label('Cupo restante por minuto')
+                                    ->placeholder('—')
+                                    ->formatStateUsing(function (mixed $state, mixed $record): string {
+                                        $connection = $record instanceof PartnerCompany
+                                            ? $record->uncoveredMedicineConnection
+                                            : null;
+                                        if ($state === null) {
+                                            return '—';
+                                        }
+
+                                        $limit = $connection?->rate_limit_limit;
+
+                                        return $limit !== null ? $state.' de '.$limit : (string) $state;
+                                    }),
                             ]),
                     ])
                     ->columns(1)

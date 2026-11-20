@@ -8,6 +8,7 @@ use App\Models\PartnerCompany;
 use App\Models\User;
 use App\Support\PartnerCompanyAlliedUsersFormSync;
 use App\Support\Partners\PartnerCompanyCreditTerms;
+use App\Support\Partners\PartnerUncoveredMedicineToken;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
 
@@ -49,7 +50,7 @@ class CreatePartnerCompany extends CreateRecord
             $data['can_place_orders'] = false;
         }
 
-        unset($data['code']);
+        unset($data['code'], $data['uncovered_medicines_token']);
 
         return PartnerCompanyCreditTerms::normalize($data, isCreating: true);
     }
@@ -71,5 +72,12 @@ class CreatePartnerCompany extends CreateRecord
         }
 
         InitialAgreementDraftNotice::syncAndNotify($this->record);
+
+        if ($this->record instanceof PartnerCompany) {
+            PartnerUncoveredMedicineToken::store(
+                $this->record,
+                $this->form->getRawState()['uncovered_medicines_token'] ?? null,
+            );
+        }
     }
 }

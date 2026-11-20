@@ -692,6 +692,23 @@ class PartnerCompanyForm
                     ->columns(1)
                     ->columnSpanFull(),
 
+                Section::make('Medicamentos no cubiertos')
+                    ->description('Token de Tu Dr. Group para consultar los medicamentos que están gestionando. Lo entregan una sola vez y no se vuelve a mostrar.')
+                    ->icon(Heroicon::Beaker)
+                    ->schema([
+                        TextInput::make('uncovered_medicines_token')
+                            ->label('Token de acceso')
+                            ->password()
+                            ->revealable()
+                            ->autocomplete('new-password')
+                            ->dehydrated(false)
+                            ->maxLength(2000)
+                            ->placeholder(fn (?PartnerCompany $record): string => $record?->hasUncoveredMedicinesAccess() ? '•••••••• (guardado)' : '')
+                            ->helperText('Déjelo vacío para conservar el token guardado. Escríbalo de nuevo solo si Tu Dr. Group lo rotó. No se incluye en la URL ni queda visible después de guardar.'),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
                 Section::make('Auditoría')
                     ->description('Usuarios responsables de la creación y última actualización del registro.')
                     ->icon(Heroicon::ShieldCheck)

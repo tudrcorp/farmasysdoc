@@ -6,6 +6,7 @@ use App\Filament\Resources\Concerns\ChecksConfigurationAccess;
 use App\Filament\Resources\PartnerCompanies\Pages\CreatePartnerCompany;
 use App\Filament\Resources\PartnerCompanies\Pages\EditPartnerCompany;
 use App\Filament\Resources\PartnerCompanies\Pages\ListPartnerCompanies;
+use App\Filament\Resources\PartnerCompanies\Pages\ManagePartnerUncoveredMedicines;
 use App\Filament\Resources\PartnerCompanies\Pages\ViewPartnerCompany;
 use App\Filament\Resources\PartnerCompanies\Schemas\PartnerCompanyForm;
 use App\Filament\Resources\PartnerCompanies\Schemas\PartnerCompanyInfolist;
@@ -76,6 +77,7 @@ class PartnerCompanyResource extends Resource
             'index' => ListPartnerCompanies::route('/'),
             'create' => CreatePartnerCompany::route('/create'),
             'view' => ViewPartnerCompany::route('/{record}'),
+            'uncovered-medicines' => ManagePartnerUncoveredMedicines::route('/{record}/medicamentos-no-cubiertos'),
             'edit' => EditPartnerCompany::route('/{record}/edit'),
         ];
     }

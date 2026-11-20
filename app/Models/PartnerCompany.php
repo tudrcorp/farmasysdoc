@@ -268,6 +268,31 @@ class PartnerCompany extends Model
     }
 
     /**
+     * Token y estado de la consulta de medicamentos no cubiertos en Tu Dr. Group.
+     *
+     * @return HasOne<PartnerUncoveredMedicineConnection, $this>
+     */
+    public function uncoveredMedicineConnection(): HasOne
+    {
+        return $this->hasOne(PartnerUncoveredMedicineConnection::class);
+    }
+
+    /**
+     * Copia local de los medicamentos no cubiertos que Tu Dr. Group está gestionando.
+     *
+     * @return HasMany<PartnerUncoveredMedicine, $this>
+     */
+    public function uncoveredMedicines(): HasMany
+    {
+        return $this->hasMany(PartnerUncoveredMedicine::class);
+    }
+
+    public function hasUncoveredMedicinesAccess(): bool
+    {
+        return (bool) $this->uncoveredMedicineConnection?->hasToken();
+    }
+
+    /**
      * Usuarios del panel asociados a esta compañía a través de `partner_company_users`.
      *
      * @return BelongsToMany<User, $this>

@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Partners\PartnerInitialAgreementDraftSync;
 use App\Support\PartnerCompanyAlliedUsersFormSync;
 use App\Support\Partners\PartnerCompanyCreditTerms;
+use App\Support\Partners\PartnerUncoveredMedicineToken;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
@@ -76,7 +77,17 @@ class EditPartnerCompany extends EditRecord
             $this->form->getRawState()['partner_users'] ?? [],
         );
 
-        PartnerCompanyAlliedUsersFormSync::syncUsers($record->fresh(), $rows);
+        $fresh = $record->fresh();
+        if (! $fresh instanceof PartnerCompany) {
+            return;
+        }
+
+        PartnerCompanyAlliedUsersFormSync::syncUsers($fresh, $rows);
+
+        PartnerUncoveredMedicineToken::store(
+            $fresh,
+            $this->form->getRawState()['uncovered_medicines_token'] ?? null,
+        );
 
         if ($record->wasChanged(PartnerInitialAgreementDraftSync::SOURCE_FIELDS) || $this->initialAgreementMissing($record)) {
             InitialAgreementDraftNotice::syncAndNotify($record->fresh());
@@ -120,6 +131,8 @@ class EditPartnerCompany extends EditRecord
                 $data[$governedField] = $record->getAttribute($governedField);
             }
         }
+
+        unset($data['uncovered_medicines_token']);
 
         return PartnerCompanyCreditTerms::normalize($data, isCreating: false);
     }

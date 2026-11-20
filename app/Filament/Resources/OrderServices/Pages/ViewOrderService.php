@@ -82,6 +82,8 @@ class ViewOrderService extends ViewRecord
                     }
 
                     $order->refresh();
+                    $service->unsetRelation('order');
+                    $service->setRelation('order', $order);
 
                     Notification::make()
                         ->title('Envío autorizado')

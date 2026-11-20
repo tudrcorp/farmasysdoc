@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources\OrderServices\Schemas;
 
+use App\Enums\OrderStatus;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
+use App\Models\Order;
 use App\Models\OrderService;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
@@ -60,6 +62,25 @@ class OrderServiceInfolist
                                     ->color(fn (?string $state): string => self::statusColor($state))
                                     ->formatStateUsing(fn (?string $state): string => self::formatStatusLabel($state))
                                     ->placeholder('—'),
+                                TextEntry::make('order.status')
+                                    ->label('Estado del pedido')
+                                    ->badge()
+                                    ->state(function (OrderService $record): ?OrderStatus {
+                                        $order = $record->order;
+
+                                        return $order instanceof Order ? $order->status : null;
+                                    })
+                                    ->formatStateUsing(function (mixed $state): string {
+                                        $status = $state instanceof OrderStatus ? $state : OrderStatus::tryFrom((string) $state);
+
+                                        return $status instanceof OrderStatus ? $status->label() : '—';
+                                    })
+                                    ->color(function (mixed $state): string {
+                                        $status = $state instanceof OrderStatus ? $state : OrderStatus::tryFrom((string) $state);
+
+                                        return $status instanceof OrderStatus ? $status->filamentColor() : 'gray';
+                                    })
+                                    ->visible(fn (OrderService $record): bool => $record->order_id !== null),
                                 TextEntry::make('priority')
                                     ->label('Prioridad')
                                     ->badge()

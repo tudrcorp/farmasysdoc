@@ -9,6 +9,20 @@
 
 <x-filament-panels::page>
     @if ($acceptance)
+        @php
+            $orderStatus = $this->order()->status;
+        @endphp
+        <div class="mb-4 flex items-center gap-2">
+            <span class="text-sm text-gray-500 dark:text-gray-400">Estado del pedido</span>
+            <span @class([
+                'inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset',
+                'bg-sky-50 text-sky-700 ring-sky-600/20 dark:bg-sky-400/10 dark:text-sky-300 dark:ring-sky-400/30' => $orderStatus === \App\Enums\OrderStatus::Accepted,
+                'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/30' => $orderStatus === \App\Enums\OrderStatus::Shipped,
+                'bg-gray-50 text-gray-700 ring-gray-600/20 dark:bg-white/5 dark:text-gray-300 dark:ring-white/10' => ! in_array($orderStatus, [\App\Enums\OrderStatus::Accepted, \App\Enums\OrderStatus::Shipped], true),
+            ])>
+                {{ $orderStatus instanceof \App\Enums\OrderStatus ? $orderStatus->label() : '—' }}
+            </span>
+        </div>
         <div class="mb-4 grid gap-3 sm:grid-cols-3">
             <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
                 <p class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Total aceptado USD</p>
@@ -130,5 +144,10 @@
                 </table>
             </div>
         @endif
+    @endif
+
+    {{-- Con el pedido ya aceptado la tabla no se pinta, y Filament no monta los modales de las acciones del encabezado. --}}
+    @if (! $this->canDecide())
+        <x-filament-actions::modals />
     @endif
 </x-filament-panels::page>

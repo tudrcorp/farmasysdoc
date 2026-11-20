@@ -25,6 +25,7 @@ class EditOrderService extends EditRecord
                     if (is_string($row)) {
                         return [
                             'name' => $row,
+                            'barcode' => '',
                             'indicacion' => '',
                         ];
                     }
@@ -32,12 +33,14 @@ class EditOrderService extends EditRecord
                     if (is_array($row)) {
                         return [
                             'name' => (string) ($row['name'] ?? ''),
+                            'barcode' => (string) ($row['barcode'] ?? ''),
                             'indicacion' => (string) ($row['indicacion'] ?? ''),
                         ];
                     }
 
                     return [
                         'name' => '',
+                        'barcode' => '',
                         'indicacion' => '',
                     ];
                 })

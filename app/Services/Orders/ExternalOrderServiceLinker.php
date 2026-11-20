@@ -23,7 +23,7 @@ final class ExternalOrderServiceLinker
             throw new \InvalidArgumentException('El pedido no tiene compañía aliada para abrir la orden de servicio.');
         }
 
-        $order->loadMissing('items');
+        $order->loadMissing('items.product');
 
         $service = OrderService::query()->create([
             'service_order_number' => 'ORD-TEMP-'.(string) Str::uuid(),
@@ -63,7 +63,7 @@ final class ExternalOrderServiceLinker
     }
 
     /**
-     * @return list<array{name: string, indicacion: string}>
+     * @return list<array{name: string, barcode: string, indicacion: string}>
      */
     private function medicationItems(Order $order, mixed $provided): array
     {
@@ -83,6 +83,7 @@ final class ExternalOrderServiceLinker
 
                 $rows[] = [
                     'name' => $name,
+                    'barcode' => trim((string) ($row['barcode'] ?? '')),
                     'indicacion' => trim((string) ($row['indicacion'] ?? '')),
                 ];
             }
@@ -99,6 +100,7 @@ final class ExternalOrderServiceLinker
 
                 return [
                     'name' => $name !== '' ? $name : 'Medicamento',
+                    'barcode' => trim((string) ($item->product?->barcode ?? '')),
                     'indicacion' => 'Cantidad: '.($quantity !== '' ? $quantity : '1'),
                 ];
             })

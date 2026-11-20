@@ -72,10 +72,10 @@ class OrderService extends Model
 
     /**
      * Normaliza el listado de medicamentos: cada fila queda como
-     * `position` (1..n), `name` (texto no vacío) e `indicacion` (texto, puede quedar vacío si es legado).
+     * `position` (1..n), `name` (texto no vacío), `barcode` e `indicacion`.
      *
      * @param  array<int, mixed>|null  $raw
-     * @return list<array{position: int, name: string, indicacion: string}>
+     * @return list<array{position: int, name: string, barcode: string, indicacion: string}>
      */
     public function normalizeMedicationItems(?array $raw): array
     {
@@ -83,12 +83,13 @@ class OrderService extends Model
             return [];
         }
 
-        /** @var Collection<int, array{name: string, indicacion: string}> $rows */
+        /** @var Collection<int, array{name: string, barcode: string, indicacion: string}> $rows */
         $rows = collect($raw)
             ->map(function (mixed $row): array {
                 if (is_string($row)) {
                     return [
                         'name' => trim($row),
+                        'barcode' => '',
                         'indicacion' => '',
                     ];
                 }
@@ -96,12 +97,14 @@ class OrderService extends Model
                 if (is_array($row)) {
                     return [
                         'name' => trim((string) ($row['name'] ?? '')),
+                        'barcode' => trim((string) ($row['barcode'] ?? '')),
                         'indicacion' => trim((string) ($row['indicacion'] ?? '')),
                     ];
                 }
 
                 return [
                     'name' => '',
+                    'barcode' => '',
                     'indicacion' => '',
                 ];
             })
@@ -112,9 +115,56 @@ class OrderService extends Model
             ->map(fn (array $row, int $index): array => [
                 'position' => $index + 1,
                 'name' => $row['name'],
+                'barcode' => $row['barcode'],
                 'indicacion' => $row['indicacion'],
             ])
             ->all();
+    }
+
+    /**
+     * Medicamentos de la ficha. Si la fila no trae código de barra, se toma del producto del pedido asociado.
+     *
+     * @return list<array{position: int, name: string, barcode: string, indicacion: string}>
+     */
+    public function medicationItemsForDisplay(): array
+    {
+        $this->loadMissing('order.items.product');
+
+        $barcodesByName = [];
+        foreach ($this->order?->items ?? [] as $item) {
+            $name = mb_strtolower(trim((string) $item->product_name_snapshot));
+            $barcode = trim((string) ($item->product?->barcode ?? ''));
+
+            if ($name !== '' && $barcode !== '' && ! isset($barcodesByName[$name])) {
+                $barcodesByName[$name] = $barcode;
+            }
+        }
+
+        $rows = [];
+        foreach (is_array($this->items) ? $this->items : [] as $index => $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $name = trim((string) ($row['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $barcode = trim((string) ($row['barcode'] ?? ''));
+            if ($barcode === '') {
+                $barcode = $barcodesByName[mb_strtolower($name)] ?? '';
+            }
+
+            $rows[] = [
+                'position' => (int) ($row['position'] ?? ($index + 1)),
+                'name' => $name,
+                'barcode' => $barcode,
+                'indicacion' => trim((string) ($row['indicacion'] ?? '')),
+            ];
+        }
+
+        return $rows;
     }
 
     /**

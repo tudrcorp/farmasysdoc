@@ -80,14 +80,17 @@ class OrderServiceInfolist
                         RepeatableEntry::make('items')
                             ->hiddenLabel()
                             ->placeholder('No hay medicamentos en esta orden.')
+                            ->state(fn (OrderService $record): array => $record->medicationItemsForDisplay())
                             ->table([
                                 TableColumn::make('N.º')->width('4rem')->alignment(Alignment::Center),
                                 TableColumn::make('Medicamento'),
+                                TableColumn::make('Código de barra'),
                                 TableColumn::make('Indicación'),
                             ])
                             ->schema([
                                 TextEntry::make('position')->alignCenter()->badge()->color('gray'),
                                 TextEntry::make('name')->placeholder('—'),
+                                TextEntry::make('barcode')->placeholder('—')->copyable()->fontFamily('mono'),
                                 TextEntry::make('indicacion')->placeholder('—')->wrap(),
                             ])
                             ->columnSpanFull(),

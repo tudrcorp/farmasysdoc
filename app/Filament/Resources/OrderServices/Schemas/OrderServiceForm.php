@@ -207,6 +207,10 @@ class OrderServiceForm
                                     ->required()
                                     ->maxLength(500)
                                     ->columnSpanFull(),
+                                TextInput::make('barcode')
+                                    ->label('Código de barra')
+                                    ->maxLength(255)
+                                    ->columnSpanFull(),
                                 Textarea::make('indicacion')
                                     ->label('Indicación')
                                     ->placeholder('Posología, duración, vía, observaciones…')

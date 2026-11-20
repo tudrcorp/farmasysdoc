@@ -154,11 +154,13 @@ class OrderServiceInfolist
                         RepeatableEntry::make('items')
                             ->label('Medicamentos asociados')
                             ->placeholder('No hay medicamentos registrados en esta orden.')
+                            ->state(fn (OrderService $record): array => $record->medicationItemsForDisplay())
                             ->table([
                                 TableColumn::make('N.º')
                                     ->width('4rem')
                                     ->alignment(Alignment::Center),
                                 TableColumn::make('Medicamento'),
+                                TableColumn::make('Código de barra'),
                                 TableColumn::make('Indicación'),
                             ])
                             ->schema([
@@ -169,6 +171,11 @@ class OrderServiceInfolist
                                 TextEntry::make('name')
                                     ->weight('medium')
                                     ->placeholder('—'),
+                                TextEntry::make('barcode')
+                                    ->placeholder('—')
+                                    ->copyable()
+                                    ->copyMessage('Código copiado')
+                                    ->fontFamily('mono'),
                                 TextEntry::make('indicacion')
                                     ->label('')
                                     ->placeholder('—')

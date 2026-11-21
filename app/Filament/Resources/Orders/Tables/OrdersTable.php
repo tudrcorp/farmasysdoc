@@ -168,6 +168,12 @@ class OrdersTable
                     ->color(fn (?OrderStatus $state): string => $state instanceof OrderStatus ? $state->filamentColor() : 'gray')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('partnerReceipt.external_status_label')
+                    ->label('Recepción aliado')
+                    ->badge()
+                    ->color('success')
+                    ->placeholder('—')
+                    ->toggleable(),
                 TextColumn::make('delivered_at')
                     ->label('Completado el')
                     ->formatStateUsing(function (mixed $state, Order $record): string {

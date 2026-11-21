@@ -3,11 +3,13 @@
 namespace App\Filament\BusinessPartners\Resources\Orders\Pages;
 
 use App\Filament\BusinessPartners\Resources\Orders\OrderResource;
+use App\Filament\Resources\Orders\Actions\DownloadPartnerReceiptAction;
 use App\Filament\Resources\Orders\Tables\OrdersTable;
 use App\Models\Order;
 use App\Models\OrderAcceptance;
 use App\Models\OrderItem;
 use App\Services\Orders\OrderAcceptanceNotePdfFactory;
+use App\Services\Orders\PartnerOrderReceiptSync;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
@@ -27,6 +29,7 @@ class ViewOrder extends ViewRecord
         }
 
         $order->load(['items.product', 'acceptance.items']);
+        app(PartnerOrderReceiptSync::class)->refreshOrder($order);
         $order->setRelation(
             'items',
             $order->items->each(function (OrderItem $item) use ($order): void {
@@ -38,6 +41,7 @@ class ViewOrder extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            DownloadPartnerReceiptAction::make(),
             Action::make('downloadAcceptanceNote')
                 ->label('Descargar nota de entrega')
                 ->icon(Heroicon::ArrowDownTray)

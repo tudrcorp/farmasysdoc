@@ -197,6 +197,16 @@ class Order extends Model
     }
 
     /**
+     * Recepción que el aliado registra en su inventario, con la nota de recibido.
+     *
+     * @return HasOne<OrderPartnerReceipt, $this>
+     */
+    public function partnerReceipt(): HasOne
+    {
+        return $this->hasOne(OrderPartnerReceipt::class);
+    }
+
+    /**
      * Filas de entrega en `deliveries` vinculadas al pedido (cualquier `delivery_type`).
      *
      * @return HasMany<Delivery, $this>

@@ -13,6 +13,7 @@ use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Models\Order;
 use App\Models\OrderAcceptanceItem;
 use App\Models\OrderItem;
+use App\Models\OrderPartnerReceipt;
 use App\Models\User;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -259,6 +260,57 @@ class OrderInfolist
                                         return 'USD '.number_format((float) $state, 2, ',', '.');
                                     }),
                             ])
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
+                Section::make('Recepción del aliado')
+                    ->description('Lo que el equipo del aliado registró en su inventario, con la nota de recibido.')
+                    ->icon(Heroicon::ArchiveBox)
+                    ->visible(fn (Order $record): bool => $record->partnerReceipt instanceof OrderPartnerReceipt)
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 3,
+                        ])
+                            ->schema([
+                                TextEntry::make('partnerReceipt.external_status_label')
+                                    ->label('Estatus en el aliado')
+                                    ->badge()
+                                    ->color('success')
+                                    ->placeholder('—'),
+                                TextEntry::make('partnerReceipt.receipt_number')
+                                    ->label('Nota de recibido')
+                                    ->placeholder('—'),
+                                TextEntry::make('partnerReceipt.received_at')
+                                    ->label('Registrado el')
+                                    ->state(function (Order $record): string {
+                                        $receivedAt = $record->partnerReceipt?->received_at?->timezone(config('app.timezone'));
+
+                                        return $receivedAt?->format('d/m/Y h:i a') ?? '—';
+                                    }),
+                                TextEntry::make('partnerReceipt.received_by')
+                                    ->label('Recibido por')
+                                    ->placeholder('—'),
+                                TextEntry::make('partnerReceipt.location')
+                                    ->label('Ubicación')
+                                    ->placeholder('—'),
+                                TextEntry::make('partnerReceipt.is_complete')
+                                    ->label('Recepción')
+                                    ->badge()
+                                    ->formatStateUsing(fn (?bool $state): string => $state ? 'Completa' : 'Con diferencia')
+                                    ->color(fn (?bool $state): string => $state ? 'success' : 'warning'),
+                            ]),
+                        TextEntry::make('partnerReceipt.observations')
+                            ->label('Observaciones')
+                            ->placeholder('—')
+                            ->visible(fn (Order $record): bool => filled($record->partnerReceipt?->observations))
+                            ->columnSpanFull(),
+                        TextEntry::make('partnerReceipt.medications')
+                            ->label('Medicamentos recibidos')
+                            ->state(fn (Order $record): string => $record->partnerReceipt?->medicationsSummary() ?? '—')
+                            ->html()
                             ->columnSpanFull(),
                     ])
                     ->columns(1)

@@ -15,6 +15,8 @@ return [
 
     'base_url' => env('PARTNER_UNCOVERED_MEDICINES_BASE_URL', 'https://integracorp.vps.tudrgroup.com/api/v1/aliados'),
 
+    'orders_token' => env('PARTNER_FARMADOC_ORDERS_TOKEN'),
+
     'timeout' => (int) env('PARTNER_UNCOVERED_MEDICINES_TIMEOUT', 20),
 
     'per_page' => 100,

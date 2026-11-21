@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\OrderServices\Pages;
 
 use App\Enums\OrderStatus;
+use App\Filament\Resources\Orders\Actions\DownloadPartnerReceiptAction;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Filament\Resources\Orders\Pages\ReviewOrderAcceptance;
 use App\Filament\Resources\OrderServices\OrderServiceResource;
@@ -10,6 +11,7 @@ use App\Models\Order;
 use App\Models\OrderService;
 use App\Models\User;
 use App\Services\Orders\OrderAcceptanceService;
+use App\Services\Orders\PartnerOrderReceiptSync;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
@@ -20,6 +22,17 @@ use Illuminate\Validation\ValidationException;
 class ViewOrderService extends ViewRecord
 {
     protected static string $resource = OrderServiceResource::class;
+
+    public function mount(int|string $record): void
+    {
+        parent::mount($record);
+
+        $service = $this->getRecord();
+
+        if ($service instanceof OrderService && $service->order instanceof Order) {
+            app(PartnerOrderReceiptSync::class)->refreshOrder($service->order);
+        }
+    }
 
     protected function getHeaderActions(): array
     {
@@ -44,6 +57,7 @@ class ViewOrderService extends ViewRecord
 
                     return OrderResource::getUrl('acceptance', ['record' => $service instanceof OrderService ? $service->order_id : null]);
                 }),
+            DownloadPartnerReceiptAction::make(),
             Action::make('authorizeShipment')
                 ->label('Autorizar envío')
                 ->icon(Heroicon::Truck)

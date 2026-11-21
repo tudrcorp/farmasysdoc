@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Orders\Pages;
 
 use App\Enums\OrderStatus;
+use App\Filament\Resources\Orders\Actions\DownloadPartnerReceiptAction;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Models\Order;
 use App\Models\OrderAcceptance;
@@ -11,6 +12,7 @@ use App\Services\Dolar\DolarApiDolaresService;
 use App\Services\Orders\OrderAcceptanceNotePdfFactory;
 use App\Services\Orders\OrderAcceptancePreview;
 use App\Services\Orders\OrderAcceptanceService;
+use App\Services\Orders\PartnerOrderReceiptSync;
 use App\Support\Finance\BcvRate;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
@@ -72,6 +74,7 @@ class ReviewOrderAcceptance extends Page implements HasTable
         abort_unless(static::canOpen($order), 403);
 
         $order->load(['items.product', 'acceptance.items', 'partnerCompany']);
+        app(PartnerOrderReceiptSync::class)->refreshOrder($order);
 
         if ($this->acceptance() !== null || ! $this->statusAllowsDecision()) {
             return;
@@ -514,6 +517,7 @@ class ReviewOrderAcceptance extends Page implements HasTable
                 ->icon(Heroicon::ArrowLeft)
                 ->color('gray')
                 ->url(fn (): string => OrderResource::getUrl('view', ['record' => $this->order()])),
+            DownloadPartnerReceiptAction::make(),
             Action::make('downloadNote')
                 ->label('Descargar nota de entrega')
                 ->icon(Heroicon::ArrowDownTray)

@@ -23,6 +23,24 @@
                 {{ $orderStatus instanceof \App\Enums\OrderStatus ? $orderStatus->label() : '—' }}
             </span>
         </div>
+        @if ($receipt = $this->order()->partnerReceipt)
+            <div class="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-950 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-100">
+                <p class="font-medium">{{ $receipt->external_status_label ?: 'Registrado en inventario' }}</p>
+                <p class="mt-1">
+                    Nota de recibido {{ $receipt->receipt_number ?: '—' }}
+                    · {{ $receipt->received_by ?: '—' }}
+                    @if ($receipt->received_at)
+                        · {{ $receipt->received_at->timezone(config('app.timezone'))->format('d/m/Y h:i a') }}
+                    @endif
+                </p>
+                @if ($receipt->location)
+                    <p class="mt-1">{{ $receipt->location }}</p>
+                @endif
+                @if ($receipt->observations)
+                    <p class="mt-1">{{ $receipt->observations }}</p>
+                @endif
+            </div>
+        @endif
         <div class="mb-4 grid gap-3 sm:grid-cols-3">
             <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
                 <p class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Total aceptado USD</p>

@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Filament\Resources\PartnerCompanies\PartnerCompanyResource;
 use App\Models\Order;
+use App\Models\OrderPartnerReceipt;
 use App\Models\OrderService;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
@@ -239,6 +240,43 @@ class OrderServiceInfolist
                             ->label('Notas internas')
                             ->placeholder('—')
                             ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
+
+                Section::make('Recepción del aliado')
+                    ->description('Lo que el equipo del aliado registró en su inventario, con la nota de recibido.')
+                    ->icon(Heroicon::ArchiveBox)
+                    ->visible(function (OrderService $record): bool {
+                        $order = $record->order;
+
+                        return $order instanceof Order && $order->partnerReceipt instanceof OrderPartnerReceipt;
+                    })
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'sm' => 3,
+                        ])
+                            ->schema([
+                                TextEntry::make('order.partnerReceipt.external_status_label')
+                                    ->label('Estatus en el aliado')
+                                    ->badge()
+                                    ->color('success')
+                                    ->placeholder('—'),
+                                TextEntry::make('order.partnerReceipt.receipt_number')
+                                    ->label('Nota de recibido')
+                                    ->placeholder('—'),
+                                TextEntry::make('order.partnerReceipt.received_by')
+                                    ->label('Recibido por')
+                                    ->placeholder('—'),
+                                TextEntry::make('order.partnerReceipt.location')
+                                    ->label('Ubicación')
+                                    ->placeholder('—'),
+                                TextEntry::make('order.partnerReceipt.observations')
+                                    ->label('Observaciones')
+                                    ->placeholder('—')
+                                    ->columnSpanFull(),
+                            ]),
                     ])
                     ->columns(1)
                     ->columnSpanFull(),

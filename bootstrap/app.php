@@ -37,6 +37,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->onOneServer();
 
+        $schedule->command('orders:sync-partner-receipts')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->onOneServer();
+
         $schedule->command('whatsapp-agent:shift-start-digest')
             ->everyTenMinutes()
             ->timezone('America/Caracas')
